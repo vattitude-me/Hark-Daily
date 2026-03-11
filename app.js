@@ -5,16 +5,16 @@ let currentCategory = 'technology';
 let touchStartX = 0;
 let touchEndX = 0;
 
-// DOM Elements
-const categorySelect = document.getElementById('categorySelect');
-const refreshBtn = document.getElementById('refreshBtn');
-const prevBtn = document.getElementById('prevBtn');
-const nextBtn = document.getElementById('nextBtn');
-const newsCarousel = document.getElementById('newsCarousel');
-const loadingSpinner = document.getElementById('loadingSpinner');
-const errorMessage = document.getElementById('errorMessage');
-const warningMessage = document.getElementById('warningMessage');
-const cardInfo = document.getElementById('cardInfo');
+// DOM Elements - initialize after DOM loads
+let categorySelect;
+let refreshBtn;
+let prevBtn;
+let nextBtn;
+let newsCarousel;
+let loadingSpinner;
+let errorMessage;
+let warningMessage;
+let cardInfo;
 
 // Constants
 const COUNTRIES = {
@@ -302,31 +302,42 @@ function saveArticle(articleJson) {
     }
 }
 
-// Event Listeners
-categorySelect.addEventListener('change', (e) => {
-    currentCategory = e.target.value;
-    fetchNews(currentCategory);
-});
-
-refreshBtn.addEventListener('click', () => {
-    refreshBtn.classList.add('loading');
-    refreshBtn.disabled = true;
-    fetchNews(currentCategory);
-    setTimeout(() => {
-        refreshBtn.classList.remove('loading');
-        refreshBtn.disabled = false;
-    }, 500);
-});
-
-prevBtn.addEventListener('click', prevCard);
-nextBtn.addEventListener('click', nextCard);
-
-document.addEventListener('keydown', handleKeyPress);
-newsCarousel.addEventListener('touchstart', handleTouchStart, false);
-newsCarousel.addEventListener('touchend', handleTouchEnd, false);
-
 // Initial load
 window.addEventListener('DOMContentLoaded', () => {
+    // Initialize DOM elements
+    categorySelect = document.getElementById('categorySelect');
+    refreshBtn = document.getElementById('refreshBtn');
+    prevBtn = document.getElementById('prevBtn');
+    nextBtn = document.getElementById('nextBtn');
+    newsCarousel = document.getElementById('newsCarousel');
+    loadingSpinner = document.getElementById('loadingSpinner');
+    errorMessage = document.getElementById('errorMessage');
+    warningMessage = document.getElementById('warningMessage');
+    cardInfo = document.getElementById('cardInfo');
+    
+    // Set up event listeners
+    categorySelect.addEventListener('change', (e) => {
+        currentCategory = e.target.value;
+        fetchNews(currentCategory);
+    });
+
+    refreshBtn.addEventListener('click', () => {
+        refreshBtn.classList.add('loading');
+        refreshBtn.disabled = true;
+        fetchNews(currentCategory);
+        setTimeout(() => {
+            refreshBtn.classList.remove('loading');
+            refreshBtn.disabled = false;
+        }, 500);
+    });
+
+    prevBtn.addEventListener('click', prevCard);
+    nextBtn.addEventListener('click', nextCard);
+
+    document.addEventListener('keydown', handleKeyPress);
+    newsCarousel.addEventListener('touchstart', handleTouchStart, false);
+    newsCarousel.addEventListener('touchend', handleTouchEnd, false);
+    
     categorySelect.value = currentCategory;
     fetchNews(currentCategory);
 });
