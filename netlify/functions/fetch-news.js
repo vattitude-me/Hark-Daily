@@ -119,9 +119,11 @@ exports.handler = async (event) => {
         const newsApiUrl = `https://newsapi.org/v2/top-headlines?country=${country}&apiKey=${apiKey}&pageSize=20`;
         
         console.log(`🔗 Calling NewsAPI for country: ${country}`);
+        console.log(`📍 Full URL: ${newsApiUrl}`);
         
         const response = await makeRequest(newsApiUrl);
         console.log(`📊 NewsAPI response status: ${response.status}`);
+        console.log(`📊 NewsAPI response data:`, JSON.stringify(response.data, null, 2));
 
         if (response.status !== 200) {
             console.error(`❌ NewsAPI returned status ${response.status}:`, response.data);
