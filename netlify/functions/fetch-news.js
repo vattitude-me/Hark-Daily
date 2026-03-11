@@ -43,6 +43,8 @@ async function makeRequest(url) {
 }
 
 exports.handler = async (event) => {
+    console.log('🔧 Function called:', { method: event.httpMethod, path: event.path });
+    
     try {
         // CORS headers
         const headers = {
@@ -53,6 +55,7 @@ exports.handler = async (event) => {
 
         // Handle OPTIONS requests
         if (event.httpMethod === 'OPTIONS') {
+            console.log('✅ Handling OPTIONS request');
             return {
                 statusCode: 200,
                 headers,
@@ -63,7 +66,7 @@ exports.handler = async (event) => {
         // Get API key from environment variables
         const apiKey = process.env.NEWS_API_KEY;
         if (!apiKey) {
-            console.error('NEWS_API_KEY not found in environment variables');
+            console.error('❌ NEWS_API_KEY not found in environment variables');
             return {
                 statusCode: 500,
                 headers,
@@ -75,6 +78,7 @@ exports.handler = async (event) => {
 
         // Get country from query parameters
         const country = event.queryStringParameters?.country || 'ca';
+        console.log(`📍 Country requested: ${country}`);
 
         // Validate country parameter
         const validCountries = ['ca', 'us', 'gb', 'au', 'in', 'de', 'fr', 'jp', 'br', 'mx'];
@@ -114,9 +118,10 @@ exports.handler = async (event) => {
         // Fetch news from NewsAPI
         const newsApiUrl = `https://newsapi.org/v2/top-headlines?country=${country}&apiKey=${apiKey}&pageSize=20`;
         
-        console.log(`🔗 Calling NewsAPI: https://newsapi.org/v2/top-headlines?country=${country}&apiKey=${apiKey.substring(0, 5)}...`);
+        console.log(`🔗 Calling NewsAPI for country: ${country}`);
         
         const response = await makeRequest(newsApiUrl);
+        console.log(`📊 NewsAPI response status: ${response.status}`);
 
         if (response.status !== 200) {
             console.error(`❌ NewsAPI returned status ${response.status}:`, response.data);
@@ -130,7 +135,7 @@ exports.handler = async (event) => {
         }
 
         if (response.data.status !== 'ok') {
-            console.error('NewsAPI Error:', response.data);
+            console.error('❌ NewsAPI Error:', response.data);
             return {
                 statusCode: 400,
                 headers,
@@ -139,6 +144,8 @@ exports.handler = async (event) => {
                 })
             };
         }
+
+        console.log(`✅ NewsAPI returned ${response.data.articles?.length || 0} articles`);
 
         // Prepare response
         const result = {
@@ -156,6 +163,7 @@ exports.handler = async (event) => {
             result.warning = warningMsg;
         }
 
+        console.log(`✅ Returning successful response with ${result.articles.length} articles`);
         return {
             statusCode: 200,
             headers,
@@ -163,6 +171,7 @@ exports.handler = async (event) => {
         };
     } catch (error) {
         console.error('❌ Function error:', error.message);
+        console.error('Error stack:', error.stack);
 
         const headers = {
             'Access-Control-Allow-Origin': '*',

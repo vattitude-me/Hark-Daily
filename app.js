@@ -76,19 +76,29 @@ function showWarning(message) {
 async function fetchNews(country) {
     showLoading();
     try {
+        console.log(`📡 Fetching news for country: ${country}`);
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const timeoutId = setTimeout(() => {
+            console.error('⏱️ Request timeout - aborting');
+            controller.abort();
+        }, 15000);
         
-        const response = await fetch(`/.netlify/functions/fetch-news?country=${country}`, {
+        const url = `/.netlify/functions/fetch-news?country=${country}`;
+        console.log(`📍 API URL: ${url}`);
+        
+        const response = await fetch(url, {
             signal: controller.signal
         });
         clearTimeout(timeoutId);
+        
+        console.log(`✅ Response received - Status: ${response.status}`);
         
         if (!response.ok) {
             throw new Error(`API error: ${response.statusText}`);
         }
 
         const data = await response.json();
+        console.log(`📦 Data received:`, data);
 
         // Check for warnings
         if (data.warning) {
@@ -112,7 +122,7 @@ async function fetchNews(country) {
         render();
         hideLoading();
     } catch (error) {
-        console.error('Error fetching news:', error);
+        console.error('❌ Error fetching news:', error);
         if (error.name === 'AbortError') {
             showError('Request timeout. Please try again.');
         } else {
