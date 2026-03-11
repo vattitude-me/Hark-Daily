@@ -1,7 +1,7 @@
 // State Management
 let currentIndex = 0;
 let newsData = [];
-let currentCountry = 'ca';
+let currentCountry = 'us';
 let touchStartX = 0;
 let touchEndX = 0;
 

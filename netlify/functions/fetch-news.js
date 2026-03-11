@@ -77,20 +77,17 @@ exports.handler = async (event) => {
         }
 
         // Get country from query parameters
-        const country = event.queryStringParameters?.country || 'ca';
+        const country = event.queryStringParameters?.country || 'us';
         console.log(`📍 Country requested: ${country}`);
 
         // Validate country parameter
-        const validCountries = ['ca', 'us', 'gb', 'au', 'in', 'de', 'fr', 'jp', 'br', 'mx'];
+        // Current API key only supports 'us'
+        const validCountries = ['us'];
         if (!validCountries.includes(country)) {
-            return {
-                statusCode: 400,
-                headers,
-                body: JSON.stringify({
-                    error: `Invalid country code. Allowed: ${validCountries.join(', ')}`
-                })
-            };
+            console.log(`⚠️ Country '${country}' not supported, defaulting to 'us'`);
+            // Default to us if invalid country provided
         }
+        const finalCountry = validCountries.includes(country) ? country : 'us';
 
         // Track this request
         cleanOldTimestamps();
@@ -116,7 +113,7 @@ exports.handler = async (event) => {
         console.log(`📊 API Request #${DAILY_LIMIT - newRemaining} for country: ${country} | Remaining: ${newRemaining} (${usagePercentage}%)`);
 
         // Fetch news from NewsAPI
-        const newsApiUrl = `https://newsapi.org/v2/top-headlines?country=${country}&apiKey=${apiKey}&pageSize=20`;
+        const newsApiUrl = `https://newsapi.org/v2/top-headlines?country=${finalCountry}&apiKey=${apiKey}&pageSize=20`;
         
         console.log(`🔗 Calling NewsAPI for country: ${country}`);
         console.log(`📍 Full URL: ${newsApiUrl}`);
