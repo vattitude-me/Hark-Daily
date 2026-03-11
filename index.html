@@ -3,33 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>News Swipe App</title>
+    <title>News Extractor</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="app-container">
-        <header>
-            <h1>News Swipe</h1>
-            <button id="refresh-btn">Refresh News</button>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">📰 News Feed</h1>
+                <div class="header-controls">
+                    <select id="countrySelect" class="country-dropdown">
+                        <option value="ca">Canada</option>
+                        <option value="us">United States</option>
+                        <option value="gb">United Kingdom</option>
+                        <option value="au">Australia</option>
+                        <option value="in">India</option>
+                        <option value="de">Germany</option>
+                        <option value="fr">France</option>
+                        <option value="jp">Japan</option>
+                        <option value="br">Brazil</option>
+                        <option value="mx">Mexico</option>
+                    </select>
+                    <button id="refreshBtn" class="refresh-btn">🔄 Refresh</button>
+                </div>
+            </div>
         </header>
-        
-        <div id="news-container" class="news-container">
-            <div id="loading" class="loading">
-                <div class="spinner"></div>
-                <p>Loading news...</p>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- News Card Container -->
+            <div class="news-container">
+                <div id="newsCarousel" class="news-carousel">
+                    <!-- News cards will be injected here -->
+                </div>
+
+                <!-- Navigation Arrows -->
+                <button id="prevBtn" class="nav-btn nav-prev" title="Previous">❮</button>
+                <button id="nextBtn" class="nav-btn nav-next" title="Next">❯</button>
             </div>
-            <div id="error-message" class="error-message" style="display: none;">
-                <p>Failed to load news. Please try again.</p>
-                <button onclick="loadNews()">Try Again</button>
+
+            <!-- Card Counter -->
+            <div class="card-counter">
+                <span id="cardInfo">Loading...</span>
             </div>
+        </main>
+
+        <!-- Loading & Error States -->
+        <div id="loadingSpinner" class="loading-spinner hidden">
+            <div class="spinner"></div>
+            <p>Loading news...</p>
         </div>
-        
-        <div class="controls">
-            <button id="prev-btn" class="control-btn">← Previous</button>
-            <button id="next-btn" class="control-btn">Next →</button>
-        </div>
+
+        <div id="errorMessage" class="error-message hidden"></div>
+        <div id="warningMessage" class="warning-message hidden"></div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>

@@ -1,22 +1,25 @@
 [build]
+  command = "echo 'Static site - no build needed'"
   functions = "netlify/functions"
-  command = "echo 'Frontend build complete'"
   publish = "."
 
-[build.environment]
-  NODE_VERSION = "18"
-
-[[plugins]]
-  package = "@netlify/plugin-functions-install-core"
-
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/news"
+  from = "/*"
+  to = "/index.html"
   status = 200
 
 [[headers]]
   for = "/*"
   [headers.values]
-    X-Frame-Options = "DENY"
-    X-XSS-Protection = "1; mode=block"
-    X-Content-Type-Options = "nosniff"
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Cache-Control = "no-cache"
+    Content-Type = "application/json"

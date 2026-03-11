@@ -1,206 +1,232 @@
-# CNN Canada News Swipe App
+# News Extractor Web App
 
-A beautiful, responsive web application that displays CNN Canada news headlines in swipeable cards. Built with vanilla HTML, CSS, and JavaScript, deployed on Netlify with serverless functions.
+A responsive, modern news application built with HTML, CSS, and JavaScript. Displays top headlines with an InShorts-style card interface that supports swiping, keyboard navigation, and a country selector.
 
 ## Features
 
-- **CNN Canada News**: Real-time news scraping from CNN Canada
-- **Swipe Gestures**: Intuitive swipe left/right navigation (mouse drag or touch)
-- **Responsive Design**: Works perfectly on desktop, tablet, and mobile
-- **Beautiful UI**: Clean, modern card-based interface with smooth animations
-- **Serverless Backend**: Netlify Functions handle news scraping
-- **No Dependencies**: Pure vanilla JavaScript - no frameworks required
+✨ **Responsive Card Interface**
+- Modern card-based design inspired by InShorts
+- Swipe left/right to navigate (touch devices)
+- Arrow keys or navigation buttons for desktop
+- Smooth animations and transitions
 
-## Live Demo
+🌍 **Country Selector**
+- Select from 10+ countries (Canada, US, UK, Australia, India, Germany, France, Japan, Brazil, Mexico)
+- Defaults to Canada
+- Instant news refresh on country change
 
-[View the deployed app on Netlify](https://your-netlify-url.netlify.app)
+🔄 **Smart API Management**
+- Built with Netlify Functions for serverless backend
+- Daily request limit: 1000 (NewsAPI quota)
+- Automatic usage tracking and warnings
+- Warns when reaching 80% of daily limit
 
-## How It Works
+📱 **User-Friendly Features**
+- Share articles via native share or copy to clipboard
+- Save articles to browser storage
+- Read full articles on NewsAPI source
+- Timestamps showing how long ago article was published
 
-1. **Frontend**: Static HTML/CSS/JavaScript served by Netlify
-2. **Backend**: Netlify Function scrapes CNN Canada for headlines
-3. **API**: `/api/news` endpoint returns structured news data
-4. **UI**: Cards display headline, image, and 5-line gist
-
-## File Structure
+## Project Structure
 
 ```
-├── index.html              # Main HTML structure
-├── styles.css              # Responsive CSS styling
-├── script.js               # JavaScript functionality
+News_Extractor_Claude/
+├── index.html              # Main HTML file
+├── app.js                  # Frontend JavaScript
+├── styles.css              # Responsive styling
+├── package.json            # Dependencies
 ├── netlify.toml            # Netlify configuration
+├── .gitignore              # Git ignore rules
 └── netlify/
     └── functions/
-        ├── news.js         # Netlify Function for news scraping
-        └── package.json    # Function dependencies
+        └── fetch-news.js   # Serverless API function
 ```
 
-## Installation & Development
+## Setup & Installation
+
+### Prerequisites
+- Node.js (v14 or higher)
+- Git
+- Netlify CLI (optional but recommended)
+- NewsAPI key from [newsapi.org](https://newsapi.org)
 
 ### Local Development
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/your-username/cnn-canada-news-app.git
-   cd cnn-canada-news-app
-   ```
+1. **Clone the repository**
+```bash
+git clone <repository-url>
+cd News_Extractor_Claude
+```
 
-2. **Serve locally**:
-   ```bash
-   # Using Python (any version)
-   python -m http.server 8000
-   
-   # Or using Node.js
-   npx serve .
-   
-   # Or using any local server
-   ```
+2. **Install dependencies**
+```bash
+npm install
+```
 
-3. **Open in browser**: Visit `http://localhost:8000`
+3. **Set up environment variables**
 
-### Note on Local Development
+Create a `.env` file in the root directory:
+```
+NEWS_API_KEY=your_news_api_key_here
+```
 
-⚠️ **Important**: The news scraping function only works when deployed on Netlify. When running locally, you'll see demo news or error messages because:
-- Netlify Functions require the Netlify environment
-- CNN may block requests from local development environments
-- CORS restrictions apply to local development
+4. **Run locally**
+
+Using Netlify CLI (recommended):
+```bash
+netlify dev
+```
+
+This starts the app at `http://localhost:8888` with local function support.
+
+Alternatively, use Python's simple server for static files:
+```bash
+python -m http.server 8000
+# Then access http://localhost:8000
+```
+
+Note: Without the Netlify Functions running, you'll need to configure CORS or use a proxy.
 
 ## Deployment to Netlify
 
-### Step 1: Push to GitHub
+### Step 1: Push to Git
 
 ```bash
-git init
 git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/cnn-canada-news-app.git
-git push -u origin main
+git commit -m "Initial commit: News app with Netlify Functions"
+git push origin main
 ```
 
-### Step 2: Deploy to Netlify
+### Step 2: Connect to Netlify
 
 1. Go to [netlify.com](https://netlify.com) and sign in
-2. Click "Add new site" → "Import an existing project"
-3. Connect your GitHub account
-4. Select your repository
-5. Configure build settings:
-   - **Build command**: `echo 'Frontend build complete'` (or leave empty)
-   - **Publish directory**: `.`
-6. Click "Deploy site"
+2. Click "New site from Git"
+3. Select your repository
+4. Netlify will auto-detect `netlify.toml` settings
 
-### Step 3: Verify Deployment
+### Step 3: Set Environment Variables
 
-- Netlify will provide a URL like `https://amazing-site-123abc.netlify.app`
-- Your app should load CNN Canada news automatically
-- Test swipe gestures and navigation buttons
+In Netlify Dashboard:
+1. Go to Site Settings → Build & Deploy → Environment
+2. Add new variable:
+   - **Key:** `NEWS_API_KEY`
+   - **Value:** Your NewsAPI key
 
-## Customization
+### Step 4: Deploy
 
-### Change News Source
-
-Edit `netlify/functions/news.js`:
-
-```javascript
-// Change this URL to any news site
-const response = await axios.get('https://your-news-site.com');
-```
-
-### Update Styling
-
-Modify `styles.css` and redeploy:
+Just push to your main branch - Netlify will automatically deploy!
 
 ```bash
-git add styles.css
-git commit -m "Updated styling"
-git push
+git push origin main
 ```
 
-### Add Features
+## API Limits & Monitoring
 
-- Modify `script.js` for new frontend features
-- Add new Netlify Functions in `netlify/functions/`
+**NewsAPI Limits:**
+- 1,000 requests per day (free tier)
+- 100 requests per day per IP/key in development
 
-## Technologies Used
+**Usage Tracking:**
+- The backend logs all API requests
+- Warning appears when usage reaches 80% (800 requests)
+- Requests blocked when limit is reached
+- Check Netlify Functions logs to monitor usage
 
-- **Frontend**: HTML5, CSS3, Vanilla JavaScript ES6+
-- **Backend**: Netlify Functions (Node.js)
-- **Scraping**: Axios + Cheerio
-- **Deployment**: Netlify (static hosting + serverless functions)
-- **Styling**: CSS Grid, Flexbox, CSS Variables
+View logs:
+```bash
+netlify logs --functions
+```
 
 ## Browser Support
 
-- Chrome (latest)
+- Chrome/Edge (latest)
 - Firefox (latest)
 - Safari (latest)
-- Edge (latest)
+- Mobile browsers supporting Fetch API
 
-## Performance
+## File Descriptions
 
-- **Static Files**: Cached by Netlify's global CDN
-- **Functions**: Serverless, auto-scaling
-- **Bundle Size**: ~50KB total (no frameworks)
-- **Load Time**: < 1 second on average connections
+### `index.html`
+- HTML structure with header, news carousel, navigation
+- Country dropdown selector
+- Refresh button
+- Loading spinner and error/warning messages
+
+### `app.js`
+- Frontend state management
+- News card rendering
+- Touch/swipe event handling
+- Keyboard navigation (arrow keys)
+- Share and save functionality
+- Date formatting utilities
+
+### `styles.css`
+- Mobile-first responsive design
+- Card animations and transitions
+- Flexbox layout
+- Touch-friendly button sizes
+- Dark mode compatible gradient background
+
+### `netlify/functions/fetch-news.js`
+- Serverless function to fetch from NewsAPI
+- API key management via environment variables
+- Request counting and usage warnings
+- Error handling and CORS support
+- Timeout and rate limit handling
+
+### `netlify.toml`
+- Build and publish configuration
+- Function directory specification
+- Redirect rules for SPA routing
+- Cache headers for performance
+
+## Keyboard Shortcuts
+
+- **←** Left arrow: Previous article
+- **→** Right arrow: Next article
+- **Touch swipe**: Left/right to navigate
 
 ## Troubleshooting
 
-### News Not Loading
+**"API key not found" error:**
+- Check that `NEWS_API_KEY` is set in Netlify environment variables
+- Verify the `.env` file in local development
 
-- Check browser console for errors
-- Verify function deployment in Netlify dashboard
-- CNN may block scraping (expected behavior)
+**CORS errors:**
+- Ensure the Netlify Functions are running (`netlify dev`)
+- Check browser console for detailed error messages
 
-### Function Errors
+**No articles appear:**
+- Verify your NewsAPI key is valid
+- Check internet connection
+- Try a different country
+- Check Netlify function logs for API errors
 
-- Check Netlify Functions logs
-- Ensure Node.js version compatibility
-- Verify `axios` and `cheerio` dependencies
+**Blank cards:**
+- Some articles may not have images - they'll show a 📰 emoji instead
+- This is expected behavior
 
-### CORS Issues
+## Future Enhancements
 
-- Handled automatically by Netlify Functions
-- Check `netlify.toml` redirect configuration
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+- [ ] Category filtering (business, tech, sports, etc.)
+- [ ] Search functionality
+- [ ] Advanced saved articles management with export
+- [ ] Dark mode toggle
+- [ ] Multiple language support
+- [ ] Caching layer to reduce API calls
+- [ ] Better error recovery and retry logic
 
 ## License
 
-MIT License - see LICENSE file for details
+MIT - Feel free to use this project for personal or commercial purposes.
 
 ## Support
 
-- [Netlify Documentation](https://docs.netlify.com/)
-- [Netlify Functions Guide](https://docs.netlify.com/functions/overview/)
-- [GitHub Issues](https://github.com/your-username/cnn-canada-news-app/issues)
+For issues or questions:
+1. Check the browser console for error details
+2. Review Netlify function logs
+3. Verify NewsAPI key and connectivity
 
 ---
 
-**Built with ❤️ for news lovers everywhere!**
-
-Your CNN Canada News App is now ready for production! 🎉
-
-## Recent Updates
-
-### ✅ Python Dependencies Removed
-- Removed `server.py` (Flask backend)
-- Removed `requirements.txt` (Python dependencies)
-- Updated for pure Netlify deployment
-
-### 🚀 Netlify Optimized
-- Serverless functions only (no Python runtime issues)
-- Faster deployment and better performance
-- Simplified project structure
-
-### 📦 Clean Architecture
-- Frontend: Pure HTML/CSS/JS
-- Backend: Netlify Functions (Node.js)
-- No external dependencies or complex setup
-
-The project is now fully optimized for Netlify deployment without any Python dependencies that could cause deployment issues! 🎯
+**Built with:** HTML5, CSS3, Vanilla JavaScript, Netlify Functions, NewsAPI

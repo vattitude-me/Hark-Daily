@@ -1,0 +1,25 @@
+{
+  "name": "news-extractor",
+  "version": "1.0.0",
+  "description": "A responsive news app using NewsAPI",
+  "main": "app.js",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'No build step required'",
+    "test": "echo 'No test step defined'"
+  },
+  "keywords": [
+    "news",
+    "api",
+    "netlify",
+    "responsive"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  }
+}
