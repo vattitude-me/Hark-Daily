@@ -118,7 +118,7 @@ exports.handler = async (event) => {
         console.log(`📊 API Request #${DAILY_LIMIT - newRemaining} for country: ${country} | Remaining: ${newRemaining} (${usagePercentage}%)`);
 
         // Fetch news from NewsAPI
-        const newsApiUrl = `https://newsapi.org/v2/top-headlines?country=${country}&apiKey=${apiKey}&pageSize=20&sortBy=publishedAt`;
+        const newsApiUrl = `https://newsapi.org/v2/top-headlines?country=${country}&apiKey=${apiKey}&pageSize=20`;
         
         console.log(`🔗 Calling NewsAPI: https://newsapi.org/v2/top-headlines?country=${country}&apiKey=${apiKey.substring(0, 5)}...`);
         
