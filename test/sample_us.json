@@ -1,0 +1,240 @@
+{
+    "status": "ok",
+    "totalResults": 34,
+-"articles": [
+-{
+-"source": {
+                "id": "the-wall-street-journal",
+                "name": "The Wall Street Journal"
+            },
+            "author": "WSJ Staff, Sam Goldfarb, Amira McKee, Jack Pitcher, Gavin Bade, Jinjoo Lee, David Uberti, Jacob Passy, Ryan Dezember, Dan Gallagher, Ed Ballard, Jesse Newman, Hannah Erin Lang, Alexander Osipovich, Bob Tita, Laurence Norman, Matthew Dalton, Bojan Pancevski",
+            "title": "Stock Market Today: IEA to Launch Record Oil Reserves Release; Dow Slips as Inflation Holds Steady — Live Updates - WSJ",
+            "description": "Live updates on markets and the top finance, economics and business stories. Plus the latest on the CPI inflation report, oil prices, the Dow, S&P 500 and Nasdaq.",
+            "url": "https://www.wsj.com/livecoverage/cpi-inflation-data-stock-market-03-11-2026",
+            "urlToImage": "https://images.wsj.net/im-937522/social",
+            "publishedAt": "2026-03-11T20:38:19Z",
+            "content": "IEA countries will release a record 400 million barrels of oil from strategic reserves in a bid to stabilize soaring crude prices, but the move did little to interrupt a Wednesday rally.\r\nFutures for… [+1234 chars]"
+        },
+-{
+-"source": {
+                "id": "cbs-news",
+                "name": "CBS News"
+            },
+            "author": "Tucker  Reals, Haley  Ott",
+            "title": "Live Updates: Trump vows to end war soon as Iran hits ships, threatens banks, and toll on U.S. forces emerges - CBS News",
+            "description": "President Trump says he'll end the war soon, when he wants to, as Iran hits three ships near the Strait of Hormuz and warns U.S.-linked banks will be next.",
+            "url": "https://www.cbsnews.com/live-updates/iran-war-us-israel-strait-of-hormuz-ship-attacks-persian-gulf-drones-missiles/",
+            "urlToImage": "https://assets3.cbsnewsstatic.com/hub/i/r/2026/03/11/f7839c0b-d5d1-4bb0-972b-365b47e78259/thumbnail/1200x630/4f6810e03c84bf68c67878b0c345d76c/mayuree-naree-ship-hormuz.jpg",
+            "publishedAt": "2026-03-11T19:36:00Z",
+            "content": "A senior Qatari official, who has worked for years in the Gulf state's ministry of foreign affairs, told CBS News on Wednesday that the Middle East has, \"for all intents and purposes,\" been engulfed … [+1222 chars]"
+        },
+-{
+-"source": {
+                "id": null,
+                "name": "The Ringer"
+            },
+            "author": null,
+            "title": "What the Hell Happened With Maxx Crosby and the Ravens? An FAQ. - The Ringer",
+            "description": "Crosby was heading to Baltimore until the Ravens backed out of the trade. How did this mess happen?",
+            "url": "https://www.theringer.com/2026/03/11/nfl/what-happened-with-the-maxx-crosby-ravens-trade-raiders-nfl-free-agency",
+            "urlToImage": "https://wp.theringer.com/wp-content/uploads/2026/03/cropped-maxcrosby_getty_ringer-scaled-1.jpg",
+            "publishedAt": "2026-03-11T18:25:27Z",
+            "content": "Crosby was heading to Baltimore until the Ravens backed out of the trade. How did this mess happen? \r\nMaxx Crosbys time with the Baltimore Ravens lasted five whole days. On Friday, it was reported th… [+12462 chars]"
+        },
+-{
+-"source": {
+                "id": "the-washington-post",
+                "name": "The Washington Post"
+            },
+            "author": "Rachel Chason, Evan Halper, Siham Shamalakh, Tara Copp",
+            "title": "Nations agree to release oil reserves as war in Iran hits global economy - The Washington Post",
+            "description": "The International Energy Agency announced that it would carry out its largest-ever release of oil reserves — 400 million barrels.",
+            "url": "https://www.washingtonpost.com/world/2026/03/11/strait-hormuz-cargo-ships-iran/",
+            "urlToImage": "https://www.washingtonpost.com/wp-apps/imrs.php?src=https://arc-anglerfish-washpost-prod-washpost.s3.amazonaws.com/public/PK4ENGV7NNVRKGRMP3Y4CKVZ5E_size-normalized.jpg&w=1440",
+            "publishedAt": "2026-03-11T17:55:51Z",
+            "content": "DUBAI The International Energy Agency on Wednesday announced that it would carry out its largest-ever release of oil reserves 400 million barrels in a bid to control spiking energy prices caused by t… [+96 chars]"
+        },
+-{
+-"source": {
+                "id": null,
+                "name": "Abcnews.com"
+            },
+            "author": "abcnews.com",
+            "title": "FBI warns Iran aspired to attack California with drones in retaliation for war: Alert - abcnews.com",
+            "description": null,
+            "url": "https://abcnews.com/US/fbi-warns-iran-aspired-attack-california-drones-retaliation/story?id\\\\u003d130973820",
+            "urlToImage": null,
+            "publishedAt": "2026-03-11T17:36:12Z",
+            "content": null
+        },
+-{
+-"source": {
+                "id": "the-verge",
+                "name": "The Verge"
+            },
+            "author": "Jay Peters, Sean Hollister",
+            "title": "Microsoft’s next Xbox, Project Helix, won’t reach alpha until 2027 - The Verge",
+            "description": "Microsoft announced details about Project Helix, its next-generation Xbox, in a presentation at the GDC Festival of Gaming.",
+            "url": "https://www.theverge.com/games/893119/xbox-project-helix-jason-ronald-gdc-2026",
+            "urlToImage": "https://platform.theverge.com/wp-content/uploads/sites/2/2025/05/twarren_xboxseriesxwhite__1_.webp?quality=90&strip=all&crop=0%2C10.855311444928%2C100%2C78.289377110143&w=1200",
+            "publishedAt": "2026-03-11T17:28:28Z",
+            "content": "<ul><li></li><li></li><li></li></ul>\r\nMicrosoft announced new details about the console at the GDC Festival of Gaming.\r\nMicrosoft announced new details about the console at the GDC Festival of Gaming… [+5855 chars]"
+        },
+-{
+-"source": {
+                "id": "ars-technica",
+                "name": "Ars Technica"
+            },
+            "author": "Andrew Cunningham",
+            "title": "Intel shores up its desktop CPU lineup with boosted Core Ultra 200S Plus chips - Ars Technica",
+            "description": "New CPUs are a bit faster and a bit cheaper than the ones they replace.",
+            "url": "https://arstechnica.com/gadgets/2026/03/intel-shores-up-its-desktop-cpu-lineup-with-boosted-core-ultra-200s-plus-chips/",
+            "urlToImage": "https://cdn.arstechnica.net/wp-content/uploads/2026/03/intel-core-ultra-march11-launch-1-1536x864-1-1152x648.jpg",
+            "publishedAt": "2026-03-11T17:21:25Z",
+            "content": null
+        },
+-{
+-"source": {
+                "id": null,
+                "name": "Foxweather.com"
+            },
+            "author": null,
+            "title": "Live updates: Aftermath of deadly Midwest tornadoes as severe storm threat shifts east today - FOX Weather",
+            "description": "Recovery is underway in Lake Village, Indiana, and Kankakee, Illinois, after destructive tornadoes leveled homes, killing two people and injuring several others Tuesday night. We are tracking the storm system as it moves east today, bringing a threat of damag…",
+            "url": "https://www.foxweather.com/live-news/live-updates-aftermath-of-destructive-midwest-tornadoes-as-severe-storm-threat-shifts-east-today",
+            "urlToImage": "https://static.foxnews.com/static/orion/styles/img/fox-weather/og/og-fox-weather.png",
+            "publishedAt": "2026-03-11T17:16:18Z",
+            "content": "The severe weather threat that devastated the Midwest last night has evolved into a complex, multi-stage event for the eastern half of the country.\r\nUnlike a single line of storms, meteorologists are… [+1385 chars]"
+        },
+-{
+-"source": {
+                "id": null,
+                "name": "The A.V. Club"
+            },
+            "author": null,
+            "title": "Ignore the romance, and Reminders Of Him actually has something to say about motherhood - AV Club",
+            "description": "Romance may get you in the door to Reminders Of Him, the latest Colleen Hoover film, but it's the questions of motherhood that will linger.",
+            "url": "https://www.avclub.com/reminders-of-him-review",
+            "urlToImage": "https://img.pastemagazine.com/wp-content/avuploads/2026/03/11095320/reminders-of-him-header.jpg",
+            "publishedAt": "2026-03-11T17:00:00Z",
+            "content": "Romance has become something of a Trojan Horse for author Colleen Hoover as she swoops into Hollywood to take over the corner of the market once held by Nicholas Sparks. It Ends With Us sold itself a… [+5191 chars]"
+        },
+-{
+-"source": {
+                "id": null,
+                "name": "NPR"
+            },
+            "author": "The Associated Press",
+            "title": "No Nobles Day: Britain's Parliament boots its last hereditary Lords after 700 years - NPR",
+            "description": "Government minister Nick Thomas-Symonds said the change put an end to \"an archaic and undemocratic principle.\" The removed aristocrats are 92 of the House of Lords' 800 members.",
+            "url": "https://www.npr.org/2026/03/11/g-s1-113300/britain-parliament-hereditary-house-of-lords-aristocrats-duke-earl-viscount",
+            "urlToImage": "https://npr.brightspotcdn.com/dims3/default/strip/false/crop/1024x576+0+107/resize/1400/quality/85/format/jpeg/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2F97%2Fb5%2Fd9da4a98484c8e0b5b784efde565%2Fap26049366485497.jpg",
+            "publishedAt": "2026-03-11T16:56:39Z",
+            "content": "LONDON Centuries of British political tradition will end within weeks after Parliament voted to remove hereditary aristocrats from the unelected House of Lords.\r\nOn Tuesday night members of the upper… [+3025 chars]"
+        },
+-{
+-"source": {
+                "id": null,
+                "name": "BBC News"
+            },
+            "author": null,
+            "title": "Dresden city centre to be evacuated after WW2 bomb found - BBC",
+            "description": "The city's biggest ever evacuation comes after the British flying bomb was discovered near a collapsed bridge.",
+            "url": "https://www.bbc.com/news/articles/c1781gr5n9go",
+            "urlToImage": "https://ichef.bbci.co.uk/news/1024/branded_news/8c4a/live/231635c0-1cc1-11f1-8452-d983fe428cc5.jpg",
+            "publishedAt": "2026-03-11T15:55:47Z",
+            "content": "The police headquarters, Saxony's state parliament, several ministries, retirement and nursing homes, daycare centres and other social institutions were also in the evacuated area."
+        },
+-{
+-"source": {
+                "id": null,
+                "name": "NBCSports.com"
+            },
+            "author": "Mike Florio",
+            "title": "Colts, Daniel Jones do a two-year deal - NBC Sports",
+            "description": "Jones gets a base package of $88 million over two years, with $50 million paid out in 2026.",
+            "url": "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill/news/colts-daniel-jones-do-a-two-year-deal",
+            "urlToImage": "https://nbcsports.brightspotcdn.com/dims4/default/ba035ac/2147483647/strip/true/crop/5616x3159+0+0/resize/1440x810!/quality/90/?url=https%3A%2F%2Fnbc-sports-production-nbc-sports.s3.us-east-1.amazonaws.com%2Fbrightspot%2F50%2Fbc%2F33d872fb4193888b3ae969c4deee%2Fhttps-delivery-gettyimages.com%2Fdownloads%2F2249066936",
+            "publishedAt": "2026-03-11T15:36:57Z",
+            "content": "Danny Dimes will be depositing a lot of dollars at the local Building &amp; Loan.\r\nPFT has confirmed that the Colts and quarterback Daniel Jones have struck a deal on a two-year contract that will re… [+769 chars]"
+        },
+-{
+-"source": {
+                "id": "cbs-news",
+                "name": "CBS News"
+            },
+            "author": "Jennifer  Jacobs, Eleanor  Watson, James  LaPorta",
+            "title": "Dozens of U.S. service members in Kuwait suffered serious injuries, including burns, brain trauma and shrapnel wounds, sources say - CBS News",
+            "description": "About 30 U.S. service members remained hospitalized Tuesday after an Iranian drone strike in Kuwait.",
+            "url": "https://www.cbsnews.com/news/strike-in-kuwait-that-killed-6-us-service-member-more-severe/",
+            "urlToImage": "https://assets1.cbsnewsstatic.com/hub/i/r/2026/03/11/2e3f5a87-87af-48cb-b57c-1eeeb9f82283/thumbnail/1200x630/91f2c6cf4c264fb00e60f49117d453ff/ap26066748129468.jpg",
+            "publishedAt": "2026-03-11T14:36:00Z",
+            "content": "An Iranian drone attack in Kuwait that killed six U.S. service members in the early hours of the war with Iran was more severe than has previously been revealed, with dozens suffering injuries includ… [+3216 chars]"
+        },
+-{
+-"source": {
+                "id": "fortune",
+                "name": "Fortune"
+            },
+            "author": "Jon Gambrell, David Rising, The Associated Press",
+            "title": "Iran targets Dubai airport, commercial ships across the Gulf as war widens - Fortune",
+            "description": "Iran's joint military command announced it would start targeting banks and financial institutions in the Middle East.",
+            "url": "https://fortune.com/2026/03/11/iran-hits-dubai-airport-war-widens/",
+            "urlToImage": "https://fortune.com/img-assets/wp-content/uploads/2026/03/AP26070360118815-e1773234216771.jpg?resize=1200,600",
+            "publishedAt": "2026-03-11T14:04:00Z",
+            "content": "Iran attacked commercial ships on Wednesday across the Persian Gulf and targeted Dubai International Airport, escalating a campaign of squeezing the oil-rich region as global energy concerns mounted … [+6823 chars]"
+        },
+-{
+-"source": {
+                "id": null,
+                "name": "BBC News"
+            },
+            "author": null,
+            "title": "US inflation stable ahead of Iran shock - BBC",
+            "description": "With energy prices jumping, analysts say the report might be viewed as a \"historical artefact\".",
+            "url": "https://www.bbc.com/news/articles/cde4w32573xo",
+            "urlToImage": "https://ichef.bbci.co.uk/news/1024/branded_news/22b3/live/59ce4bf0-1d4f-11f1-8c55-59b5c3a39873.jpg",
+            "publishedAt": "2026-03-11T13:38:42Z",
+            "content": "Wednesday's report offers \"some reassurance\" that inflation prices had not been moving in the wrong direction, said Seema Shah, chief global strategist at Principal Asset Management, warning that it … [+65 chars]"
+        },
+-{
+-"source": {
+                "id": null,
+                "name": "Reality Tea"
+            },
+            "author": "Nikita Nath",
+            "title": "Britney Spears’ Ex Memoir Wasn’t a ‘Catalyst’ for Her DUI Arrest — Source - Yahoo",
+            "description": "Britney Spears' ex-husband, Kevin Federline‘s memoir reportedly did not act as a \"Catalyst\" for the \"Circus\" singer's arrest.",
+            "url": "https://www.realitytea.com/2026/03/11/britney-spears-ex-kevin-federline-memoir-dui-arrest-report/",
+            "urlToImage": "https://www.realitytea.com/wp-content/uploads/sites/6/2026/03/Untitled-design-2026-03-11T160512.255.jpg?resize=1200,630",
+            "publishedAt": "2026-03-11T13:04:27Z",
+            "content": "Britney Spears ex-husband, Kevin Federline, has a tell-all memoir titled You Thought You Knew. It reportedly did not act as a Catalyst for the Circus singers arrest. On March 4, authorities arrested … [+1773 chars]"
+        },
+-{
+-"source": {
+                "id": null,
+                "name": "ZDNet"
+            },
+            "author": "Kyle Kucharski",
+            "title": "After using MacBook Neo, it's clear Windows needs to rethink its PC strategy (and fast) - ZDNET",
+            "description": "Apple's new $599 laptop will force Windows PCs and Chromebooks to respond in turn. That's a good thing.",
+            "url": "https://www.zdnet.com/article/the-macbook-neo-is-here-its-time-for-windows-to-adapt/",
+            "urlToImage": "https://www.zdnet.com/a/img/resize/70821e5806fa1ab0910e566c589ee484219afa0b/2026/03/10/1730467c-1cfb-4731-91a1-f2be4333ac6f/dsc04959.jpg?auto=webp&fit=crop&height=675&width=1200",
+            "publishedAt": "2026-03-11T13:01:00Z",
+            "content": "Kyle Kucharski/ZDNET\r\nFollow ZDNET: Add us as a preferred source on Google.\r\nZDNET's key takeaways\r\n<ul><li>Apple's new MacBook Neo will disrupt the budget PC market.</li><li>PC makers will need to a… [+6403 chars]"
+        },
+-{
+-"source": {
+                "id": null,
+                "name": "The Seattle Times"
+            },
+            "author": "Elise Takahama",
+            "title": "Inside one WA county's race to contain a measles outbreak - The Seattle Times",
+            "description": "Three cases became six, then 10, then 12. Here's an inside look at what's been happening to track exposures, test residents and persuade people to quarantine.",
+            "url": "https://www.seattletimes.com/seattle-news/health/how-one-wa-county-is-racing-to-curb-the-spread-of-measles/",
+            "urlToImage": "https://images.seattletimes.com/wp-content/uploads/2026/03/03092026_tzr_tzr_133632.jpg?d=1200x630",
+            "publishedAt": "2026-03-11T13:00:00Z",
+            "content": "EVERETT The first signs felt eerily familiar. \r\nGetting word that out-of-state travelers may have brought in an extremely contagious virus. Scrambling to notify the public. Tracking exposures. Testin… [+11510 chars]"
+        }
+    ]
+}

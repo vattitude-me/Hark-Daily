@@ -14,6 +14,9 @@
     --warning-color: #f9ab00;
     --error-color: #d33b27;
     --transition: all 0.3s ease;
+    --glass-bg: rgba(255, 255, 255, 0.15);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
 }
 
 body {
@@ -25,6 +28,7 @@ body {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
     padding: 15px;
+    backdrop-filter: blur(10px);
 }
 
 .container {
@@ -37,14 +41,16 @@ body {
 
 /* Header */
 .header {
-    background: white;
+    background: var(--glass-bg);
     border-radius: 12px;
     padding: 20px;
     margin-bottom: 30px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--glass-shadow);
     position: sticky;
     top: 15px;
     z-index: 100;
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px);
 }
 
 .header-content {
@@ -69,42 +75,45 @@ body {
 
 .country-dropdown {
     padding: 10px 15px;
-    border: 2px solid var(--border-color);
+    border: 1px solid var(--glass-border);
     border-radius: 8px;
     font-size: 14px;
     cursor: pointer;
-    background: white;
-    color: var(--text-dark);
+    background: var(--glass-bg);
+    color: white;
     transition: var(--transition);
+    backdrop-filter: blur(5px);
 }
 
 .country-dropdown:hover {
-    border-color: var(--primary-color);
-    background: #f0f7ff;
+    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.25);
 }
 
 .country-dropdown:focus {
     outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+    border-color: rgba(255, 255, 255, 0.7);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
 }
 
 .refresh-btn {
     padding: 10px 20px;
-    background: var(--primary-color);
+    background: var(--glass-bg);
     color: white;
-    border: none;
+    border: 1px solid var(--glass-border);
     border-radius: 8px;
     cursor: pointer;
     font-size: 14px;
     font-weight: 600;
     transition: var(--transition);
+    backdrop-filter: blur(5px);
 }
 
 .refresh-btn:hover {
-    background: #1557b0;
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.5);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3);
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
 }
 
 .refresh-btn:active {
@@ -145,9 +154,9 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background: white;
+    background: var(--glass-bg);
     border-radius: 16px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--glass-shadow);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -155,6 +164,8 @@ body {
     transform: translateX(100%);
     transition: var(--transition);
     cursor: grab;
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px);
 }
 
 .news-card.active {
@@ -196,14 +207,14 @@ body {
 .card-title {
     font-size: 20px;
     font-weight: 700;
-    color: var(--text-dark);
+    color: white;
     margin-bottom: 12px;
     line-height: 1.4;
 }
 
 .card-description {
     font-size: 14px;
-    color: var(--text-light);
+    color: rgba(255, 255, 255, 0.8);
     line-height: 1.6;
     margin-bottom: 16px;
     flex: 1;
@@ -215,14 +226,14 @@ body {
     align-items: center;
     gap: 12px;
     padding-top: 16px;
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid var(--glass-border);
     font-size: 12px;
-    color: var(--text-light);
+    color: rgba(255, 255, 255, 0.7);
 }
 
 .card-source {
     font-weight: 600;
-    color: var(--primary-color);
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .card-time {
@@ -237,8 +248,8 @@ body {
 
 .action-btn {
     padding: 8px 12px;
-    border: 1px solid var(--border-color);
-    background: white;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
     border-radius: 6px;
     cursor: pointer;
     font-size: 12px;
@@ -246,12 +257,14 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
+    backdrop-filter: blur(5px);
+    color: white;
 }
 
 .action-btn:hover {
-    background: var(--secondary-color);
-    border-color: var(--primary-color);
-    color: var(--primary-color);
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.5);
+    color: white;
 }
 
 /* Navigation Buttons */
@@ -261,8 +274,8 @@ body {
     transform: translateY(-50%);
     width: 50px;
     height: 50px;
-    background: rgba(255, 255, 255, 0.9);
-    border: none;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
     border-radius: 50%;
     font-size: 24px;
     cursor: pointer;
@@ -271,13 +284,16 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: blur(5px);
+    color: white;
 }
 
 .nav-btn:hover {
-    background: white;
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.5);
     transform: translateY(-50%) scale(1.1);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
 }
 
 .nav-prev {
@@ -368,15 +384,19 @@ body {
 }
 
 .error-message {
-    background: #fce8e6;
-    color: var(--error-color);
-    border-left: 4px solid var(--error-color);
+    background: var(--glass-bg);
+    color: white;
+    border-left: 4px solid #ff4444;
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(5px);
 }
 
 .warning-message {
-    background: #fff8e1;
-    color: #f57f17;
-    border-left: 4px solid var(--warning-color);
+    background: var(--glass-bg);
+    color: white;
+    border-left: 4px solid #ffaa00;
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(5px);
 }
 
 @keyframes slideIn {
