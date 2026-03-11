@@ -37,7 +37,7 @@ class NewsSwipeApp {
             this.showLoading();
             this.errorMessage.style.display = 'none';
             
-            // Fetch news from our Python backend
+            // Fetch news from Netlify Function
             const response = await fetch('/api/news');
             if (!response.ok) {
                 throw new Error('Failed to fetch news');
