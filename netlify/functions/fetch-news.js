@@ -1,5 +1,3 @@
-const https = require('https');
-
 // Track API usage in memory (resets on function cold start)
 // For production, use a database service
 let requestTimestamps = [];
@@ -26,26 +24,15 @@ function shouldWarn() {
 }
 
 // Helper function to make HTTPS request
-function makeRequest(url) {
-    return new Promise((resolve, reject) => {
-        https.get(url, (res) => {
-            let data = '';
-            res.on('data', chunk => data += chunk);
-            res.on('end', () => {
-                try {
-                    resolve({
-                        status: res.statusCode,
-                        data: JSON.parse(data)
-                    });
-                } catch (e) {
-                    reject(new Error(`Invalid JSON response: ${e.message}`));
-                }
-            });
-        }).on('error', reject).setTimeout(10000, function() {
-            this.destroy();
-            reject(new Error('Request timeout'));
-        });
+async function makeRequest(url) {
+    const response = await fetch(url, {
+        timeout: 10000
     });
+    const data = await response.json();
+    return {
+        status: response.status,
+        data: data
+    };
 }
 
 exports.handler = async (event) => {
