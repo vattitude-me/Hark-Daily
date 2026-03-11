@@ -1,0 +1,42 @@
+5:13:54 PM: Dependencies installation error                               
+5:13:54 PM: ────────────────────────────────────────────────────────────────
+5:13:54 PM: ​
+5:13:54 PM:   Error message
+5:13:54 PM:   A Netlify Function is using "axios" but that dependency has not been installed yet.
+5:13:54 PM: ​
+5:13:54 PM:   By default, dependencies inside a Netlify Function's "package.json" are not automatically installed.
+  There are several ways to fix this problem:
+5:13:54 PM:     - Removing your Function's "package.json" and adding the dependencies to the project's top-level "package.json" instead. This is the fastest and safest solution.
+5:13:54 PM:     - Running "npm install" or "yarn" inside your Netlify Function in your build command.
+5:13:54 PM:     - Adding the following plugin to your "netlify.toml":
+5:13:54 PM: ​
+5:13:54 PM:   [[plugins]]
+5:13:54 PM:   package = "@netlify/plugin-functions-install-core"
+5:13:54 PM: ​​
+5:13:54 PM:   In file "/opt/build/repo/netlify/functions/news.js"
+5:13:54 PM:   Cannot find module 'axios'
+5:13:54 PM:   Require stack:
+5:13:54 PM:   - /opt/buildhome/node-deps/node_modules/@netlify/zip-it-and-ship-it/dist/runtimes/node/bundlers/zisi/resolve.js
+5:13:54 PM: ​
+5:13:54 PM:   Resolved config
+5:13:54 PM:   build:
+5:13:54 PM:     command: echo 'Frontend build complete'
+5:13:54 PM:     commandOrigin: config
+5:13:54 PM:     environment:
+5:13:54 PM:       - NODE_VERSION
+5:13:54 PM:     publish: /opt/build/repo
+5:13:54 PM:     publishOrigin: config
+5:13:54 PM:   functionsDirectory: /opt/build/repo/netlify/functions
+5:13:54 PM:   headers:
+5:13:54 PM:     - for: /*
+      values:
+        X-Content-Type-Options: nosniff
+        X-Frame-Options: DENY
+        X-XSS-Protection: 1; mode=block
+  headersOrigin: config
+  redirects:
+    - from: /api/*
+      status: 200
+      to: /.netlify/functions/news
+  redirectsOrigin: config
+5:13:54 PM: Build failed due to a user error: Build script returned non-zero exit code: 2
