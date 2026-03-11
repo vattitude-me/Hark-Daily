@@ -1,8 +1,7 @@
-import axios from 'axios';
+const https = require('https');
 
 // Track API usage in memory (resets on function cold start)
 // For production, use a database service
-let requestCount = 0;
 let requestTimestamps = [];
 const DAILY_LIMIT = 1000;
 const WARNING_THRESHOLD = 0.8; // Warn at 80% usage
@@ -26,7 +25,30 @@ function shouldWarn() {
     return usagePercentage >= WARNING_THRESHOLD;
 }
 
-export const handler = async (event) => {
+// Helper function to make HTTPS request
+function makeRequest(url) {
+    return new Promise((resolve, reject) => {
+        https.get(url, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+                try {
+                    resolve({
+                        status: res.statusCode,
+                        data: JSON.parse(data)
+                    });
+                } catch (e) {
+                    reject(new Error(`Invalid JSON response: ${e.message}`));
+                }
+            });
+        }).on('error', reject).setTimeout(10000, function() {
+            this.destroy();
+            reject(new Error('Request timeout'));
+        });
+    });
+}
+
+exports.handler = async (event) => {
     try {
         // CORS headers
         const headers = {
@@ -96,16 +118,22 @@ export const handler = async (event) => {
         console.log(`📊 API Request #${DAILY_LIMIT - newRemaining} for country: ${country} | Remaining: ${newRemaining} (${usagePercentage}%)`);
 
         // Fetch news from NewsAPI
-        const newsApiUrl = `https://newsapi.org/v2/top-headlines`;
-        const response = await axios.get(newsApiUrl, {
-            params: {
-                country: country,
-                apiKey: apiKey,
-                pageSize: 20,
-                sortBy: 'publishedAt'
-            },
-            timeout: 10000
-        });
+        const newsApiUrl = `https://newsapi.org/v2/top-headlines?country=${country}&apiKey=${apiKey}&pageSize=20&sortBy=publishedAt`;
+        
+        console.log(`🔗 Calling NewsAPI: https://newsapi.org/v2/top-headlines?country=${country}&apiKey=${apiKey.substring(0, 5)}...`);
+        
+        const response = await makeRequest(newsApiUrl);
+
+        if (response.status !== 200) {
+            console.error(`❌ NewsAPI returned status ${response.status}:`, response.data);
+            return {
+                statusCode: response.status,
+                headers,
+                body: JSON.stringify({
+                    error: response.data.message || `NewsAPI error: ${response.status}`
+                })
+            };
+        }
 
         if (response.data.status !== 'ok') {
             console.error('NewsAPI Error:', response.data);
@@ -140,7 +168,7 @@ export const handler = async (event) => {
             body: JSON.stringify(result)
         };
     } catch (error) {
-        console.error('Function error:', error);
+        console.error('❌ Function error:', error.message);
 
         const headers = {
             'Access-Control-Allow-Origin': '*',
@@ -150,15 +178,12 @@ export const handler = async (event) => {
         let errorMessage = 'Failed to fetch news. Please try again later.';
         let statusCode = 500;
 
-        if (error.code === 'ECONNABORTED') {
-            errorMessage = 'Request timeout. Please try again.';
+        if (error.message.includes('timeout') || error.message.includes('ECONNABORTED')) {
+            errorMessage = 'Request timeout. NewsAPI took too long to respond.';
             statusCode = 504;
-        } else if (error.response?.status === 401) {
-            errorMessage = 'Invalid API key. Check server configuration.';
-            statusCode = 401;
-        } else if (error.response?.status === 429) {
-            errorMessage = 'NewsAPI rate limit reached. Please try again later.';
-            statusCode = 429;
+        } else if (error.message.includes('Invalid JSON')) {
+            errorMessage = 'Invalid response from NewsAPI.';
+            statusCode = 502;
         }
 
         return {
