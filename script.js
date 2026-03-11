@@ -37,8 +37,9 @@ class NewsSwipeApp {
             this.showLoading();
             this.errorMessage.style.display = 'none';
             
-            // Fetch news from Netlify Function
-            const response = await fetch('/api/news');
+            // Fetch news from Netlify Function with country parameter
+            const country = 'ca'; // Canada - can be changed to any country code
+            const response = await fetch(`/api/news?country=${country}`);
             if (!response.ok) {
                 throw new Error('Failed to fetch news');
             }
