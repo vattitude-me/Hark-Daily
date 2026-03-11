@@ -43,8 +43,6 @@ async function makeRequest(url) {
 }
 
 exports.handler = async (event) => {
-    console.log('🔧 Function called:', { method: event.httpMethod, path: event.path });
-    
     try {
         // CORS headers
         const headers = {
@@ -55,7 +53,6 @@ exports.handler = async (event) => {
 
         // Handle OPTIONS requests
         if (event.httpMethod === 'OPTIONS') {
-            console.log('✅ Handling OPTIONS request');
             return {
                 statusCode: 200,
                 headers,
@@ -66,7 +63,7 @@ exports.handler = async (event) => {
         // Get API key from environment variables
         const apiKey = process.env.NEWS_API_KEY;
         if (!apiKey) {
-            console.error('❌ NEWS_API_KEY not found in environment variables');
+            console.error('NEWS_API_KEY not found in environment variables');
             return {
                 statusCode: 500,
                 headers,
@@ -76,18 +73,9 @@ exports.handler = async (event) => {
             };
         }
 
-        // Get country from query parameters
-        const country = event.queryStringParameters?.country || 'us';
-        console.log(`📍 Country requested: ${country}`);
-
-        // Validate country parameter
-        // Current API key only supports 'us'
-        const validCountries = ['us'];
-        if (!validCountries.includes(country)) {
-            console.log(`⚠️ Country '${country}' not supported, defaulting to 'us'`);
-            // Default to us if invalid country provided
-        }
-        const finalCountry = validCountries.includes(country) ? country : 'us';
+        // Get category from query parameters
+        const category = event.queryStringParameters?.category || 'technology';
+        console.log(`� Category requested: ${category}`);
 
         // Track this request
         cleanOldTimestamps();
@@ -110,13 +98,12 @@ exports.handler = async (event) => {
         const usagePercentage = Math.round(((DAILY_LIMIT - newRemaining) / DAILY_LIMIT) * 100);
 
         // Log request
-        console.log(`📊 API Request #${DAILY_LIMIT - newRemaining} for country: ${country} | Remaining: ${newRemaining} (${usagePercentage}%)`);
+        console.log(`📊 API Request #${DAILY_LIMIT - newRemaining} for category: ${category} | Remaining: ${newRemaining} (${usagePercentage}%)`);
 
         // Fetch news from NewsAPI
-        const newsApiUrl = `https://newsapi.org/v2/top-headlines?country=${finalCountry}&apiKey=${apiKey}&pageSize=20`;
+        const newsApiUrl = `https://newsapi.org/v2/top-headlines?country=us&category=${category}&apiKey=${apiKey}&pageSize=20`;
         
-        console.log(`🔗 Calling NewsAPI for country: ${country}`);
-        console.log(`📍 Full URL: ${newsApiUrl}`);
+        console.log(`🔗 Calling NewsAPI for category: ${category}`);
         
         const response = await makeRequest(newsApiUrl);
         console.log(`📊 NewsAPI response status: ${response.status}`);
@@ -134,7 +121,7 @@ exports.handler = async (event) => {
         }
 
         if (response.data.status !== 'ok') {
-            console.error('❌ NewsAPI Error:', response.data);
+            console.error('NewsAPI Error:', response.data);
             return {
                 statusCode: 400,
                 headers,
@@ -143,8 +130,6 @@ exports.handler = async (event) => {
                 })
             };
         }
-
-        console.log(`✅ NewsAPI returned ${response.data.articles?.length || 0} articles`);
 
         // Prepare response
         const result = {
@@ -162,7 +147,6 @@ exports.handler = async (event) => {
             result.warning = warningMsg;
         }
 
-        console.log(`✅ Returning successful response with ${result.articles.length} articles`);
         return {
             statusCode: 200,
             headers,
@@ -170,7 +154,6 @@ exports.handler = async (event) => {
         };
     } catch (error) {
         console.error('❌ Function error:', error.message);
-        console.error('Error stack:', error.stack);
 
         const headers = {
             'Access-Control-Allow-Origin': '*',
