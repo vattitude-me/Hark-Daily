@@ -76,7 +76,13 @@ function showWarning(message) {
 async function fetchNews(country) {
     showLoading();
     try {
-        const response = await fetch(`/.netlify/functions/fetch-news?country=${country}`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        
+        const response = await fetch(`/.netlify/functions/fetch-news?country=${country}`, {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
         
         if (!response.ok) {
             throw new Error(`API error: ${response.statusText}`);
@@ -91,11 +97,13 @@ async function fetchNews(country) {
 
         if (data.error) {
             showError(data.error);
+            hideLoading();
             return;
         }
 
         if (!data.articles || data.articles.length === 0) {
             showError('No news articles found. Try another country.');
+            hideLoading();
             return;
         }
 
@@ -105,7 +113,11 @@ async function fetchNews(country) {
         hideLoading();
     } catch (error) {
         console.error('Error fetching news:', error);
-        showError('Failed to fetch news. Please try again.');
+        if (error.name === 'AbortError') {
+            showError('Request timeout. Please try again.');
+        } else {
+            showError('Failed to fetch news. Please try again.');
+        }
         hideLoading();
     }
 }

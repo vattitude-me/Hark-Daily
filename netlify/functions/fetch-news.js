@@ -25,14 +25,21 @@ function shouldWarn() {
 
 // Helper function to make HTTPS request
 async function makeRequest(url) {
-    const response = await fetch(url, {
-        timeout: 10000
-    });
-    const data = await response.json();
-    return {
-        status: response.status,
-        data: data
-    };
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    try {
+        const response = await fetch(url, {
+            signal: controller.signal
+        });
+        const data = await response.json();
+        return {
+            status: response.status,
+            data: data
+        };
+    } finally {
+        clearTimeout(timeoutId);
+    }
 }
 
 exports.handler = async (event) => {
