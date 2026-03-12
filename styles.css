@@ -43,7 +43,7 @@ body {
 .header {
     background: transparent;
     border-radius: 0;
-    padding: 40px 0;
+    padding-top: 60px;
     margin-bottom: 0;
     box-shadow: none;
     position: static;
@@ -62,10 +62,13 @@ body {
 }
 
 .logo {
-    font-size: 28px;
-    color: var(--primary-color);
+    font-size: 54px;
+    color: white;
     font-weight: 700;
     text-align: center;
+    font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Oxygen',
+        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+        sans-serif;
 }
 
 .header-controls {
@@ -112,14 +115,14 @@ body {
     position: fixed;
     bottom: 30px;
     right: 30px;
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
+    width: 100px;
+    height: 30px;
+    border-radius: 10%;
     background: var(--glass-bg);
     color: white;
     border: 1px solid var(--glass-border);
     cursor: pointer;
-    font-size: 20px;
+    font-size: 15px;
     font-weight: 600;
     transition: var(--transition);
     backdrop-filter: blur(10px);
@@ -162,25 +165,51 @@ body {
     justify-content: center;
 }
 
-/* News Container */
-.news-container {
+/* News Grid Layout */
+.news-grid {
     position: relative;
-    height: 600px;
-    touch-action: pan-y;
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    align-items: start;
 }
 
 .news-carousel {
     position: relative;
     width: 100%;
-    height: 100%;
+    min-height: 600px;
     overflow: hidden;
     border-radius: 16px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+/* Responsive Grid Layout */
+@media (max-width: 1024px) {
+    .news-carousel {
+        grid-template-columns: 1fr;
+        min-height: 500px;
+    }
+}
+
+@media (max-width: 768px) {
+    .news-carousel {
+        grid-template-columns: 1fr;
+        min-height: 450px;
+    }
+}
+
+@media (max-width: 480px) {
+    .news-carousel {
+        grid-template-columns: 1fr;
+        min-height: 400px;
+    }
 }
 
 .news-card {
-    position: absolute;
-    top: 0;
-    left: 0;
+    position: relative;
     width: 100%;
     height: 100%;
     background: var(--glass-bg);
@@ -189,22 +218,26 @@ body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    opacity: 0;
-    transform: translateY(100%);
+    opacity: 1;
+    transform: translateX(0);
     transition: var(--transition);
     cursor: grab;
     border: 1px solid var(--glass-border);
     backdrop-filter: blur(10px);
+    min-height: 400px;
 }
 
-.news-card.active {
-    opacity: 1;
-    transform: translateY(0);
+.news-card:hover {
+    transform: translateY(-5px);
     cursor: grabbing;
 }
 
-.news-card.prev {
-    transform: translateY(-100%);
+.news-card:not(:first-child) {
+    opacity: 0.8;
+}
+
+.news-card:not(:first-child):hover {
+    opacity: 1;
 }
 
 /* Card Image */
@@ -462,6 +495,7 @@ body {
         transform: translateX(400px);
         opacity: 0;
     }
+
     to {
         transform: translateX(0);
         opacity: 1;

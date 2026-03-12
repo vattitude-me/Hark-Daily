@@ -257,13 +257,13 @@ function handleSwipe() {
     const diffY = touchStartY - touchEndY;
     const threshold = 50; // minimum swipe distance
 
-    // Determine swipe direction based on vertical movement
-    if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > threshold) {
-        if (diffY > 0) {
-            // Swiped up - show previous (like scrolling up in a feed)
-            prevCard();
+    // Determine swipe direction based on horizontal movement
+    if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > threshold) {
+        if (diffX > 0) {
+            // Swiped left - show next card
+            nextCard();
         } else {
-            // Swiped down - show next (like scrolling down in a feed
+            // Swiped right - show previous card
             prevCard();
         }
     }
