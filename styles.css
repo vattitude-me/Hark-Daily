@@ -535,7 +535,7 @@ body {
 
     .header {
         padding: 15px;
-        margin-bottom: 20px;
+        margin-bottom: 10px;
     }
 
     .logo {
@@ -547,41 +547,42 @@ body {
     }
 
     .country-dropdown,
-    .refresh-btn {
+    .refresh-btn-inline {
         width: 100%;
         padding: 12px;
     }
 
     .news-container {
-        height: 480px;
+        height: calc(100vh - 200px);
+        margin: 10px 0;
     }
 
     .card-content {
-        padding: 16px;
+        padding: 20px;
     }
 
     .card-title {
-        font-size: 16px;
-        margin-bottom: 8px;
-    }
-
-    .card-description {
-        font-size: 12px;
+        font-size: 18px;
         margin-bottom: 12px;
     }
 
+    .card-description {
+        font-size: 14px;
+        margin-bottom: 16px;
+    }
+
     .nav-btn {
-        width: 35px;
-        height: 35px;
-        font-size: 18px;
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
     }
 
     .nav-prev {
-        left: 5px;
+        left: 10px;
     }
 
     .nav-next {
-        right: 5px;
+        right: 10px;
     }
 
     .error-message,
