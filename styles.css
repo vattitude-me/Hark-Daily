@@ -544,12 +544,21 @@ body {
 
     .header-controls {
         flex-direction: column;
+        align-items: stretch;
     }
 
-    .country-dropdown,
-    .refresh-btn-inline {
+    .country-dropdown {
         width: 100%;
         padding: 12px;
+        margin-bottom: 10px;
+    }
+
+    .refresh-btn-inline {
+        width: 50px;
+        height: 50px;
+        padding: 0;
+        margin: 0 auto;
+        border-radius: 50%;
     }
 
     .news-container {
