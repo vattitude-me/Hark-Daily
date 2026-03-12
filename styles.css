@@ -41,16 +41,16 @@ body {
 
 /* Header */
 .header {
-    background: var(--glass-bg);
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 30px;
-    box-shadow: var(--glass-shadow);
-    position: sticky;
-    top: 15px;
+    background: transparent;
+    border-radius: 0;
+    padding: 40px 0;
+    margin-bottom: 0;
+    box-shadow: none;
+    position: static;
+    top: auto;
     z-index: 100;
-    border: 1px solid var(--glass-border);
-    backdrop-filter: blur(10px);
+    border: none;
+    backdrop-filter: none;
     text-align: center;
 }
 

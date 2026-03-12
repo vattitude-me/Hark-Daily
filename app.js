@@ -260,10 +260,10 @@ function handleSwipe() {
     // Determine swipe direction based on vertical movement
     if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > threshold) {
         if (diffY > 0) {
-            // Swiped up - show next
-            nextCard();
+            // Swiped up - show previous (like scrolling up in a feed)
+            prevCard();
         } else {
-            // Swiped down - show previous
+            // Swiped down - show next (like scrolling down in a feed
             prevCard();
         }
     }
