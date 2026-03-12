@@ -319,6 +319,34 @@ window.addEventListener('DOMContentLoaded', () => {
     warningMessage = document.getElementById('warningMessage');
     cardInfo = document.getElementById('cardInfo');
     
+    // Menu toggle functionality
+    const menuToggle = document.getElementById('menuToggle');
+    const menuDropdown = document.getElementById('menuDropdown');
+    
+    if (menuToggle && menuDropdown) {
+        menuToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menuDropdown.classList.toggle('active');
+        });
+        
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!menuDropdown.contains(e.target) && !menuToggle.contains(e.target)) {
+                menuDropdown.classList.remove('active');
+            }
+        });
+        
+        // Close menu when selecting category
+        categorySelect.addEventListener('change', () => {
+            menuDropdown.classList.remove('active');
+        });
+        
+        // Close menu when refreshing
+        refreshBtn.addEventListener('click', () => {
+            menuDropdown.classList.remove('active');
+        });
+    }
+    
     // Set up event listeners
     categorySelect.addEventListener('change', (e) => {
         currentCategory = e.target.value;

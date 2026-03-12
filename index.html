@@ -12,17 +12,22 @@
         <header class="header">
             <div class="header-content">
                 <h1 class="logo">News as Cards</h1>
-                <div class="header-controls">
-                    <select id="categorySelect" class="category-dropdown">
-                        <option value="technology" selected>Technology</option>
-                        <option value="business">Business</option>
-                        <option value="entertainment">Entertainment</option>
-                        <option value="general">General</option>
-                        <option value="health">Health</option>
-                        <option value="science">Science</option>
-                        <option value="sports">Sports</option>
-                    </select>
-                    <button id="refreshBtn" class="refresh-btn-inline">🔄</button>
+                <button id="menuToggle" class="menu-toggle" title="Menu">☰</button>
+                <div id="menuDropdown" class="menu-dropdown">
+                    <div class="menu-header">News Options</div>
+                    <div class="menu-item">
+                        <label for="categorySelect" class="menu-label">Category</label>
+                        <select id="categorySelect" class="category-dropdown">
+                            <option value="technology" selected>Technology</option>
+                            <option value="business">Business</option>
+                            <option value="entertainment">Entertainment</option>
+                            <option value="general">General</option>
+                            <option value="health">Health</option>
+                            <option value="science">Science</option>
+                            <option value="sports">Sports</option>
+                        </select>
+                    </div>
+                    <button id="refreshBtn" class="refresh-btn-menu">🔄 Refresh News</button>
                 </div>
             </div>
         </header>

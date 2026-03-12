@@ -79,6 +79,125 @@ body {
     justify-content: center;
 }
 
+/* Menu Toggle Button */
+.menu-toggle {
+    display: none;
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    background: var(--glass-bg);
+    color: white;
+    border: 1px solid var(--glass-border);
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 20px;
+    font-weight: 600;
+    transition: var(--transition);
+    backdrop-filter: blur(5px);
+    box-shadow: var(--glass-shadow);
+    z-index: 100;
+}
+
+.menu-toggle:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.1);
+}
+
+/* Show menu toggle on tablets and mobile */
+@media (max-width: 1024px) {
+    .menu-toggle {
+        display: block;
+    }
+    
+    .header-controls {
+        display: none;
+    }
+}
+
+/* Hide menu toggle on very small screens, use different approach */
+@media (max-width: 480px) {
+    .menu-toggle {
+        top: 15px;
+        right: 15px;
+        width: 35px;
+        height: 35px;
+        font-size: 18px;
+    }
+    
+    .menu-dropdown {
+        top: 55px;
+        right: 15px;
+        min-width: 180px;
+        padding: 12px;
+    }
+}
+
+/* Menu Dropdown */
+.menu-dropdown {
+    display: none;
+    position: absolute;
+    top: 60px;
+    right: 20px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: blur(10px);
+    z-index: 99;
+    min-width: 200px;
+    padding: 15px;
+}
+
+.menu-dropdown.active {
+    display: block;
+}
+
+.menu-header {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--glass-border);
+    padding-bottom: 8px;
+}
+
+.menu-item {
+    margin-bottom: 15px;
+}
+
+.menu-label {
+    display: block;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 8px;
+}
+
+.refresh-btn-menu {
+    width: 100%;
+    padding: 10px;
+    background: var(--glass-bg);
+    color: white;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: var(--transition);
+    backdrop-filter: blur(5px);
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.refresh-btn-menu:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
 .category-dropdown {
     padding: 12px 16px;
     border: 1px solid var(--glass-border);
