@@ -51,78 +51,107 @@ body {
     z-index: 100;
     border: 1px solid var(--glass-border);
     backdrop-filter: blur(10px);
+    text-align: center;
 }
 
 .header-content {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
     align-items: center;
-    gap: 20px;
-    flex-wrap: wrap;
+    gap: 15px;
 }
 
 .logo {
     font-size: 28px;
     color: var(--primary-color);
     font-weight: 700;
+    text-align: center;
 }
 
 .header-controls {
     display: flex;
     gap: 10px;
     align-items: center;
+    width: 100%;
+    justify-content: center;
 }
 
-.country-dropdown {
-    padding: 10px 15px;
+.category-dropdown {
+    padding: 12px 16px;
     border: 1px solid var(--glass-border);
-    border-radius: 8px;
+    border-radius: 12px;
     font-size: 14px;
     cursor: pointer;
     background: var(--glass-bg);
     color: white;
     transition: var(--transition);
     backdrop-filter: blur(5px);
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 12px;
+    padding-right: 36px;
+    min-width: 200px;
 }
 
-.country-dropdown:hover {
+.category-dropdown:hover {
     border-color: rgba(255, 255, 255, 0.5);
     background: rgba(255, 255, 255, 0.25);
+    transform: translateY(-1px);
 }
 
-.country-dropdown:focus {
+.category-dropdown:focus {
     outline: none;
     border-color: rgba(255, 255, 255, 0.7);
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
 }
 
+/* Fixed Refresh Button */
 .refresh-btn {
-    padding: 10px 20px;
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
     background: var(--glass-bg);
     color: white;
     border: 1px solid var(--glass-border);
-    border-radius: 8px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 20px;
     font-weight: 600;
     transition: var(--transition);
-    backdrop-filter: blur(5px);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--glass-shadow);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
 }
 
 .refresh-btn:hover {
     background: rgba(255, 255, 255, 0.25);
     border-color: rgba(255, 255, 255, 0.5);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+    transform: scale(1.1);
+    box-shadow: 0 8px 20px rgba(255, 255, 255, 0.3);
 }
 
 .refresh-btn:active {
-    transform: translateY(0);
+    transform: scale(0.95);
 }
 
 .refresh-btn.loading {
     opacity: 0.6;
     cursor: not-allowed;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* Main Content */
@@ -161,7 +190,7 @@ body {
     display: flex;
     flex-direction: column;
     opacity: 0;
-    transform: translateX(100%);
+    transform: translateY(100%);
     transition: var(--transition);
     cursor: grab;
     border: 1px solid var(--glass-border);
@@ -170,12 +199,12 @@ body {
 
 .news-card.active {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
     cursor: grabbing;
 }
 
 .news-card.prev {
-    transform: translateX(-100%);
+    transform: translateY(-100%);
 }
 
 /* Card Image */

@@ -243,23 +243,27 @@ function handleKeyPress(event) {
 // Touch/Swipe handling
 function handleTouchStart(e) {
     touchStartX = e.changedTouches[0].screenX;
+    touchStartY = e.changedTouches[0].screenY;
 }
 
 function handleTouchEnd(e) {
     touchEndX = e.changedTouches[0].screenX;
+    touchEndY = e.changedTouches[0].screenY;
     handleSwipe();
 }
 
 function handleSwipe() {
-    const difference = touchStartX - touchEndX;
+    const diffX = touchStartX - touchEndX;
+    const diffY = touchStartY - touchEndY;
     const threshold = 50; // minimum swipe distance
 
-    if (Math.abs(difference) > threshold) {
-        if (difference > 0) {
-            // Swiped left - show next
+    // Determine swipe direction based on vertical movement
+    if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > threshold) {
+        if (diffY > 0) {
+            // Swiped up - show next
             nextCard();
         } else {
-            // Swiped right - show previous
+            // Swiped down - show previous
             prevCard();
         }
     }
