@@ -1,5 +1,5 @@
 // Morning Brief: main UI.
-import { api, fmtTime, h, icon, store, timeAgo, toast } from './api.js';
+import { api, clockLabel, fmtTime, h, icon, sb, store, timeAgo, toast } from './api.js';
 import { Player } from './player.js';
 import { SettingsSheet, SourcesSheet } from './sheets.js';
 
@@ -15,6 +15,7 @@ const state = {
   view: store.get('view', 'grid'),
   saved: store.get('saved', []),
   status: null,
+  profile: null,
   polling: null,
 };
 
@@ -53,7 +54,12 @@ function renderHero() {
   $('player').classList.toggle('hidden', !hasBriefing);
   $('builder').classList.toggle('hidden', hasBriefing && !state.status?.running);
 
+  renderNotice();
   if (!hasBriefing) {
+    const at = clockLabel(state.status?.batch_time);
+    $('builderCopy').textContent = state.status?.running
+      ? 'Hang tight. Your briefing is being prepared.'
+      : `Your briefing is built every morning${at ? ` at ${at}` : ''}. Meanwhile, add your own news links in Sources and pick a voice in Settings.`;
     $('heroTitle').textContent = 'Your news, read aloud every morning';
     $('heroMeta').textContent = 'Top stories from across Canada plus the latest in AI & tech, in about five minutes.';
     $('weatherChip').classList.add('hidden');
@@ -74,6 +80,33 @@ function renderHero() {
     );
     chip.classList.remove('hidden');
   } else chip.classList.add('hidden');
+}
+
+/* ------------------------------------------------------------------ notice */
+// Tell the user plainly when today's briefing is late, failed, or was built with fallbacks.
+function renderNotice() {
+  const el = $('notice');
+  const b = state.briefing;
+  const st = state.status || {};
+  const mine = state.profile?.status || {};
+  const today = new Date().toLocaleDateString('en-CA');
+  const lines = [];
+  let error = false;
+  (b?.notes || []).forEach((n) => { lines.push(n.message); if (n.level === 'error') error = true; });
+  if (!st.running && mine.date === today && mine.ok === false && b?.date !== today) {
+    lines.push(mine.error || "Today's briefing couldn't be built. The admin has been notified.");
+    error = true;
+  } else if (!st.running && b?.date !== today && st.batch_time && state.profile?.settings?.daily !== false) {
+    const [hr, min] = st.batch_time.split(':').map(Number);
+    const now = new Date();
+    const due = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hr, min + 20);
+    if (now > due && now.getHours() < 18 && b) {
+      lines.push(`Today's briefing is running late (usually ready by ${clockLabel(st.batch_time)}). The server may be asleep or busy; it will catch up. Showing the latest one you have.`);
+    }
+  }
+  el.classList.toggle('error', error);
+  el.classList.toggle('hidden', !lines.length);
+  el.replaceChildren(...[...new Set(lines)].map((t) => h('p', {}, t)));
 }
 
 /* -------------------------------------------------------------------- tabs */
@@ -167,7 +200,7 @@ function renderCards() {
   if (!stories.length) {
     const msg = state.tab === 'saved'
       ? ['Nothing saved yet', 'Tap the bookmark on any card to keep it here.']
-      : state.briefing ? ['No stories here today', 'Try another section.'] : ['No briefing yet', 'Build your first briefing above. It takes a minute or two.'];
+      : state.briefing ? ['No stories here today', 'Try another section.'] : ['No briefing yet', 'Your first one arrives with the next morning build.'];
     wrap.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, msg[0]), h('p', {}, msg[1])));
     $('swipeDots').classList.add('hidden');
     return;
@@ -201,10 +234,10 @@ function showProgress(status) {
   const label = status?.step || 'Starting…';
   const pct = `${Math.round((status?.progress || 0) * 100)}%`;
   $('buildProgress').classList.toggle('hidden', !running);
-  $('buildBtn').classList.toggle('hidden', !!running);
+  $('buildBtn').classList.toggle('hidden', !!running || !state.profile?.is_admin);
   $('buildBar').style.width = pct;
   $('buildStep').textContent = `${label}…`.replace(/……$/, '…');
-  if (running) $('builderCopy').textContent = 'Hang tight. Your briefing is being prepared. This usually takes a minute or two.';
+  if (running) $('builderCopy').textContent = 'Hang tight. Briefings are being prepared. This usually takes a few minutes.';
   const sp = $('settingsProgress');
   sp.classList.toggle('hidden', !running);
   sp.querySelector('.progress-bar span').style.width = pct;
@@ -213,12 +246,30 @@ function showProgress(status) {
   if (running) $('builder').classList.remove('hidden');
 }
 
+// Admin only: the server clears today's briefing and builds a fresh one (it picks up requests every minute).
 async function build() {
+  $('buildBtn').disabled = true;
+  $('rebuildBtn').disabled = true;
   try {
-    await api.generate();
-    toast('Building a fresh briefing…');
+    const id = await api.generate();
+    toast('Asked the server for a fresh briefing. It starts within a minute…', { ms: 5000 });
+    showProgress({ running: true, step: 'Waiting for the server', progress: 0 });
     poll();
-  } catch (err) { toast(err.message, { error: true }); }
+    const row = await api.waitForRequest(id);
+    clearInterval(state.polling);
+    state.polling = null;
+    try { state.status = await api.status(); } catch { /* ignore */ }
+    showProgress(state.status);
+    if (row.status === 'done') toast('Your new briefing is ready ☀️');
+    else toast(row.message || 'The build failed. Check the admin notification for details.', { error: true, ms: 9000 });
+    await refreshProfile();
+    await loadBriefing();
+  } catch (err) {
+    toast(err.message, { error: true });
+  } finally {
+    $('buildBtn').disabled = false;
+    $('rebuildBtn').disabled = false;
+  }
 }
 
 function poll() {
@@ -229,17 +280,18 @@ function poll() {
       const wasRunning = state.status?.running;
       state.status = status;
       showProgress(status);
-      if (!status.running) {
-        clearInterval(state.polling);
-        state.polling = null;
-        if (status.error) toast(status.error, { error: true, ms: 7000 });
-        else if (wasRunning) { toast('Your new briefing is ready ☀️'); await loadBriefing(); }
-        renderHero();
+      if (!status.running && wasRunning) {
+        await refreshProfile();
+        await loadBriefing();
       }
     } catch { /* keep polling through blips */ }
   };
   tick();
-  state.polling = setInterval(tick, 1500);
+  state.polling = setInterval(tick, 3000);
+}
+
+async function refreshProfile() {
+  try { state.profile = await api.profile(); } catch { /* keep the old one */ }
 }
 
 /* ----------------------------------------------------------------- loading */
@@ -255,11 +307,16 @@ async function loadArchive(selected) {
   }));
 }
 
+const WRITER = { groq: 'Summaries by AI (Groq)', mixed: 'Summaries by AI + built-in summarizer', 'built-in': 'Built-in summaries' };
+
 async function loadBriefing(day) {
   const res = day ? await api.briefing(day) : await api.latest();
   state.briefing = res.briefing;
-  if (state.briefing) player.load(state.briefing);
-  const writer = state.briefing?.writer === 'claude' ? 'Written by Claude' : 'Summarized on your server';
+  if (state.briefing) {
+    player.load(state.briefing);
+    if (!day) store.set('last-briefing', state.briefing); // for offline mornings
+  }
+  const writer = WRITER[state.briefing?.writer] || 'Summarized on our server';
   $('footnote').textContent = state.briefing
     ? `${writer} · voiced by ${state.briefing.voice?.name || 'Kokoro'} · built ${timeAgo(state.briefing.generated_at)}`
     : '';
@@ -273,11 +330,11 @@ async function loadBriefing(day) {
 function bindEvents() {
   $('buildBtn').addEventListener('click', build);
   $('openSources').addEventListener('click', () => sources.open().catch((e) => toast(e.message, { error: true })));
-  $('openSettings').addEventListener('click', () => settings.open(state.status).catch((e) => toast(e.message, { error: true })));
+  $('openSettings').addEventListener('click', () => settings.open(state.status, state.profile).catch((e) => toast(e.message, { error: true })));
   $('themeToggle').addEventListener('click', () => setTheme(currentTheme() === 'dark' ? 'light' : 'dark'));
   $('archiveSelect').addEventListener('change', (e) => loadBriefing(e.target.value));
   $('settingsSheet').addEventListener('close', async () => {
-    try { state.status = await api.status(); } catch { /* ignore */ }
+    try { state.status = await api.status(); await refreshProfile(); } catch { /* ignore */ }
   });
 
   document.querySelectorAll('.view-toggle [data-view]').forEach((b) => b.addEventListener('click', () => {
@@ -310,7 +367,10 @@ function bindEvents() {
     // Coming back to the tab in the morning? Pick up the new briefing.
     if (document.visibilityState !== 'visible' || player.isPlaying) return;
     try {
+      state.status = await api.status();
+      if (state.status.running && !state.polling) poll();
       const { briefing } = await api.latest();
+      renderNotice();
       if (briefing && briefing.generated_at !== state.briefing?.generated_at && $('archiveSelect').selectedIndex <= 0) {
         await loadBriefing();
       }
@@ -318,24 +378,99 @@ function bindEvents() {
   });
 }
 
+/* ------------------------------------------------------------------- login */
+function showLogin(on) {
+  document.body.classList.toggle('signed-out', on);
+  $('login').classList.toggle('hidden', !on);
+}
+
+function bindLogin() {
+  let email = '';
+  const err = (msg) => { $('loginError').textContent = msg || ''; $('loginError').classList.toggle('hidden', !msg); };
+  const busy = (btn, on, label) => { btn.disabled = on; btn.textContent = label; };
+  $('emailForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err();
+    email = $('loginEmail').value.trim().toLowerCase();
+    busy($('sendCodeBtn'), true, 'Sending…');
+    try {
+      await api.sendCode(email);
+      $('emailForm').classList.add('hidden');
+      $('codeForm').classList.remove('hidden');
+      $('loginHint').textContent = `We sent a code to ${email}. It may take a minute; check spam too.`;
+      $('loginCode').focus();
+    } catch (ex) {
+      err(/signups? not allowed|not found|user/i.test(ex.message)
+        ? "This email isn't on the list yet. Ask the admin to add you."
+        : /rate|security purposes/i.test(ex.message) ? 'Too many codes requested. Wait a minute and try again.' : ex.message);
+    } finally {
+      busy($('sendCodeBtn'), false, 'Send code');
+    }
+  });
+  $('codeForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err();
+    busy($('verifyBtn'), true, 'Signing in…');
+    try {
+      await api.verifyCode(email, $('loginCode').value.trim());
+      showLogin(false);
+      await start();
+    } catch (ex) {
+      err(/expired|invalid/i.test(ex.message) ? 'That code is wrong or has expired. Try again or request a new one.' : ex.message);
+    } finally {
+      busy($('verifyBtn'), false, 'Sign in');
+    }
+  });
+  $('changeEmail').addEventListener('click', () => {
+    err();
+    $('codeForm').classList.add('hidden');
+    $('emailForm').classList.remove('hidden');
+    $('loginHint').textContent = "Sign in with your email. We'll send you a 6-digit code.";
+  });
+}
+
 /* -------------------------------------------------------------------- boot */
-async function init() {
-  syncThemeIcon(); // follows the OS until the user picks a theme
-  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncThemeIcon);
-  bindEvents();
-  renderHero();
+async function start() {
   $('cards').replaceChildren(...Array.from({ length: 3 }, () => h('div', { class: 'skeleton' })));
   try {
-    const [status] = await Promise.all([api.status(), loadBriefing()]);
+    const [status, profile] = await Promise.all([api.status(), api.profile()]);
     state.status = status;
+    state.profile = profile;
+    await loadBriefing();
     showProgress(status);
     renderHero();
     if (status.running) poll();
   } catch (err) {
-    toast(`Couldn't reach the server: ${err.message}`, { error: true, ms: 8000 });
-    renderCards();
+    const cached = store.get('last-briefing', null);
+    if (cached) {
+      state.briefing = cached;
+      player.load(cached);
+      renderHero(); renderTabs(); renderCards();
+      toast(`Offline: showing your last briefing. (${err.message})`, { error: true, ms: 8000 });
+    } else {
+      toast(`Couldn't reach the service: ${err.message}`, { error: true, ms: 8000 });
+      renderCards();
+    }
   }
+}
+
+async function init() {
+  syncThemeIcon(); // follows the OS until the user picks a theme
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncThemeIcon);
+  bindEvents();
+  bindLogin();
+  renderHero();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  sb.auth.onAuthStateChange((event) => { if (event === 'SIGNED_OUT') showLogin(true); });
+  let session = null;
+  try { session = await api.session(); } catch { /* offline */ }
+  if (!session) {
+    const cached = store.get('last-briefing', null);
+    if (cached && !navigator.onLine) { await start(); return; }
+    showLogin(true);
+    return;
+  }
+  await start();
 }
 
 init();

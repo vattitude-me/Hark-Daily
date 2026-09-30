@@ -45,6 +45,28 @@
 
   <a class="skip-link" href="#cards">Skip to stories</a>
 
+  <!-- Sign in (email one-time code: works inside an installed app, no links to open) -->
+  <div class="login hidden" id="login">
+    <div class="login-card">
+      <img src="/icons/icon.svg" alt="" width="56" height="56">
+      <h1>Morning Brief</h1>
+      <p class="hint" id="loginHint">Sign in with your email. We'll send you a 6-digit code.</p>
+      <form id="emailForm" class="login-form">
+        <label class="sr-only" for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" class="text-input" placeholder="you@example.com" autocomplete="email" required>
+        <button class="btn btn-primary btn-lg" type="submit" id="sendCodeBtn">Send code</button>
+      </form>
+      <form id="codeForm" class="login-form hidden">
+        <label class="sr-only" for="loginCode">Code</label>
+        <input type="text" id="loginCode" class="text-input code-input" inputmode="numeric" autocomplete="one-time-code"
+               pattern="[0-9]{6,10}" maxlength="10" placeholder="123456" required>
+        <button class="btn btn-primary btn-lg" type="submit" id="verifyBtn">Sign in</button>
+        <button class="btn btn-ghost" type="button" id="changeEmail">Use a different email</button>
+      </form>
+      <p class="error hidden" id="loginError" role="alert"></p>
+    </div>
+  </div>
+
   <header class="topbar">
     <div class="brand">
       <img src="/icons/icon.svg" alt="" width="32" height="32">
@@ -78,6 +100,9 @@
           <div class="weather-chip hidden" id="weatherChip"></div>
         </div>
 
+        <!-- Things the user should know about today's briefing (AI limits, broken links, late build) -->
+        <div class="notice hidden" id="notice" role="status" aria-live="polite"></div>
+
         <!-- Player -->
         <div class="player hidden" id="player">
           <div class="player-row">
@@ -110,8 +135,8 @@
 
         <!-- Empty / building state -->
         <div class="builder hidden" id="builder">
-          <p class="builder-copy" id="builderCopy">Your first briefing is one tap away. We'll gather the top Canadian and AI &amp; tech stories, summarize them and record them in a natural voice.</p>
-          <button class="btn btn-primary btn-lg" id="buildBtn"><svg><use href="#i-refresh"/></svg> Build my briefing</button>
+          <p class="builder-copy" id="builderCopy">Your first briefing arrives tomorrow morning. Meanwhile, add your own news links in Sources and pick a voice in Settings.</p>
+          <button class="btn btn-primary btn-lg hidden" id="buildBtn"><svg><use href="#i-refresh"/></svg> Build my briefing</button>
           <div class="progress hidden" id="buildProgress" role="status" aria-live="polite">
             <div class="progress-bar"><span id="buildBar"></span></div>
             <span class="progress-label" id="buildStep">Starting…</span>
@@ -153,10 +178,10 @@
     <div class="sheet-body">
       <form class="add-source" id="addSourceForm" autocomplete="off">
         <label class="field-label" for="sourceUrl">Add a news link</label>
-        <p class="hint">Paste a site, section page, RSS feed or a single article. Sites are checked every morning; a single article goes into your next briefing.</p>
+        <p class="hint">Paste a site, section page, RSS feed or a single article. New links are checked at the next morning build; a single article goes into one briefing only.</p>
         <div class="input-row">
-          <input type="url" id="sourceUrl" placeholder="https://www.example.com/news" required inputmode="url">
-          <button class="btn btn-primary" type="submit" id="checkSourceBtn">Check link</button>
+          <input type="text" id="sourceUrl" placeholder="https://www.example.com/news" required inputmode="url" autocapitalize="off" spellcheck="false">
+          <button class="btn btn-primary" type="submit" id="checkSourceBtn">Add link</button>
         </div>
         <div class="segmented" role="radiogroup" aria-label="Put it in" id="sourceSection">
           <label><input type="radio" name="section" value="custom" checked><span>⭐ My Sources</span></label>
@@ -177,6 +202,12 @@
     </div>
     <div class="sheet-body">
       <section class="setting-group">
+        <h3><label for="nameInput">Your name</label></h3>
+        <p class="hint">Optional. The host greets you by name.</p>
+        <input type="text" id="nameInput" class="text-input" maxlength="40" autocomplete="given-name" placeholder="First name">
+      </section>
+
+      <section class="setting-group">
         <h3>Voice</h3>
         <p class="hint">All voices are neural, not robotic. Tap ▶ to hear a sample.</p>
         <div class="voice-grid" id="voiceGrid"></div>
@@ -195,11 +226,16 @@
       <section class="setting-group">
         <h3>Every morning</h3>
         <div class="setting-row">
-          <label class="switch"><input type="checkbox" id="autoGenerate"><span></span></label>
-          <span>Build a new briefing automatically at</span>
-          <input type="time" id="briefingTime" class="time-input">
+          <label class="switch"><input type="checkbox" id="dailyOn"><span></span></label>
+          <span>Build my briefing every morning</span>
         </div>
         <p class="hint" id="nextRun"></p>
+        <div class="setting-row">
+          <label class="switch"><input type="checkbox" id="pushOn"><span></span></label>
+          <span>Notify this device when it's ready</span>
+          <button class="btn btn-ghost" id="pushTest" type="button">Test</button>
+        </div>
+        <p class="hint" id="pushHint"></p>
       </section>
 
       <section class="setting-group">
@@ -223,12 +259,25 @@
       </section>
 
       <section class="setting-group">
-        <h3>Build now</h3>
-        <p class="hint" id="writerInfo"></p>
+        <h3>Good to know</h3>
+        <ul class="limits" id="limitsList"></ul>
+      </section>
+
+      <section class="setting-group hidden" id="rebuildGroup">
+        <h3>Build now <span class="tag">admin</span></h3>
+        <p class="hint">Starts over: deletes today's briefing, re-reads your links and records a new one. Takes a few minutes.</p>
         <button class="btn btn-primary" id="rebuildBtn"><svg><use href="#i-refresh"/></svg> Build a fresh briefing</button>
         <div class="progress hidden" id="settingsProgress" role="status" aria-live="polite">
           <div class="progress-bar"><span></span></div>
           <span class="progress-label"></span>
+        </div>
+      </section>
+
+      <section class="setting-group">
+        <h3>Account</h3>
+        <div class="setting-row">
+          <span id="accountEmail" class="account-email"></span>
+          <button class="btn btn-ghost" id="signOutBtn" type="button">Sign out</button>
         </div>
       </section>
     </div>

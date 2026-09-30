@@ -27,7 +27,7 @@ log = logging.getLogger(__name__)
 
 USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/128.0 Safari/537.36 NewsExtractor/2.0"
+    "Chrome/128.0 Safari/537.36 MorningBrief/2.0"
 )
 FEED_PATHS = ("feed", "rss", "feed.xml", "rss.xml", "atom.xml", "index.xml", "feeds/posts/default")
 MAX_ITEMS_PER_SOURCE = 25

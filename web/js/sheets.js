@@ -1,11 +1,6 @@
 // Sources and Voice & settings sheets.
-import { api, h, icon, timeAgo, toast } from './api.js';
+import { api, clockLabel, h, icon, timeAgo, toast } from './api.js';
 
-const KIND_LABEL = {
-  feed: 'RSS feed · checked every morning',
-  page: 'Web page · headlines scraped every morning',
-  article: 'Single article · goes into your next briefing',
-};
 const SECTION_LABEL = { canada: '🇨🇦 Canada', tech: '🤖 AI & Tech', custom: '⭐ My Sources' };
 
 export function wireSheet(dialog) {
@@ -20,11 +15,9 @@ export class SourcesSheet {
     this.list = document.getElementById('sourceList');
     this.form = document.getElementById('addSourceForm');
     this.urlInput = document.getElementById('sourceUrl');
-    this.preview = document.getElementById('sourcePreview');
     this.checkBtn = document.getElementById('checkSourceBtn');
     wireSheet(this.dialog);
     this.form.addEventListener('submit', (e) => { e.preventDefault(); this.check(); });
-    this.urlInput.addEventListener('input', () => this.preview.classList.add('hidden'));
   }
 
   async open() {
@@ -37,45 +30,25 @@ export class SourcesSheet {
   }
 
   async check() {
-    const url = this.urlInput.value.trim();
+    let url = this.urlInput.value.trim();
     if (!url) return;
-    this.checkBtn.disabled = true;
-    this.checkBtn.textContent = 'Checking…';
-    this.preview.classList.remove('hidden');
-    this.preview.replaceChildren(h('p', { class: 'hint' }, 'Looking for news on that page…'));
-    try {
-      const d = await api.detectSource(url);
-      const nameInput = h('input', { type: 'text', class: 'text-input', value: d.name, 'aria-label': 'Source name', maxlength: 120 });
-      const addBtn = h('button', { type: 'button', class: 'btn btn-primary' }, icon('plus'), d.exists ? 'Already added' : 'Add source');
-      if (d.exists) addBtn.disabled = true;
-      addBtn.addEventListener('click', () => this.add(url, nameInput.value.trim(), addBtn));
-      this.preview.replaceChildren(
-        h('span', { class: 'kind' }, KIND_LABEL[d.kind] || d.kind),
-        nameInput,
-        d.sample.length ? h('ul', {}, d.sample.map((t) => h('li', {}, t))) : null,
-        addBtn,
-      );
-    } catch (err) {
-      this.preview.replaceChildren(h('p', { class: 'error' }, err.message));
-    } finally {
-      this.checkBtn.disabled = false;
-      this.checkBtn.textContent = 'Check link';
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    try { url = new URL(url).href; } catch {
+      toast("That doesn't look like a web link.", { error: true });
+      return;
     }
-  }
-
-  async add(url, name, btn) {
-    btn.disabled = true;
-    btn.textContent = 'Adding…';
+    this.checkBtn.disabled = true;
+    this.checkBtn.textContent = 'Adding…';
     try {
-      const { source } = await api.addSource({ url, section: this.section(), name: name || null });
-      toast(source.kind === 'article' ? 'Saved. It will be in your next briefing.' : `Added ${source.name}`);
+      await api.addSource({ url, section: this.section() });
+      toast('Added. It will be checked at the next morning build.');
       this.urlInput.value = '';
-      this.preview.classList.add('hidden');
       await this.refresh();
     } catch (err) {
       toast(err.message, { error: true });
-      btn.disabled = false;
-      btn.textContent = 'Add source';
+    } finally {
+      this.checkBtn.disabled = false;
+      this.checkBtn.textContent = 'Add link';
     }
   }
 
@@ -97,13 +70,15 @@ export class SourcesSheet {
   row(s) {
     const host = (() => { try { return new URL(s.url).hostname.replace(/^www\./, ''); } catch { return s.url; } })();
     const ok = s.last_status === 'ok';
-    const statusText = s.last_status
-      ? ok ? `${s.last_count ?? 0} ${s.last_count === 1 ? 'story' : 'stories'} · ${timeAgo(s.last_fetched_at)}` : s.last_status
-      : 'Not checked yet';
+    const pending = s.kind === 'auto' && !s.last_status;
+    const statusText = pending ? 'Waiting for the next morning build'
+      : s.last_status
+        ? ok ? `${s.last_count ?? 0} ${s.last_count === 1 ? 'story' : 'stories'} · ${timeAgo(s.last_fetched_at)}` : s.last_status
+        : 'Not checked yet';
     const toggle = h('input', { type: 'checkbox', 'aria-label': `Use ${s.name}` });
     toggle.checked = s.enabled;
     toggle.addEventListener('change', async () => {
-      try { await api.updateSource(s.id, { enabled: toggle.checked }); } catch (err) {
+      try { await api.updateSource(s, { enabled: toggle.checked }); } catch (err) {
         toggle.checked = !toggle.checked;
         toast(err.message, { error: true });
       }
@@ -121,7 +96,7 @@ export class SourcesSheet {
         h('span', { class: 'source-name', title: s.name }, s.name),
         h('span', { class: 'source-sub', title: statusText },
           h('span', { class: `status-dot ${s.last_status ? (ok ? 'ok' : 'err') : ''}` }),
-          s.builtin ? null : h('span', { class: 'tag' }, s.kind === 'article' ? (s.consumed_at ? 'used' : 'queued') : s.kind),
+          s.builtin ? null : h('span', { class: 'tag' }, s.kind === 'article' ? (s.consumed_at ? 'used' : 'queued') : s.kind === 'auto' ? 'new' : s.kind),
           `${host} · ${statusText}`)),
       del);
   }
@@ -137,42 +112,107 @@ export class SettingsSheet {
     this.dialog.addEventListener('close', () => this.previewAudio.pause());
     document.getElementById('saveSettings').addEventListener('click', () => this.save());
     document.getElementById('rebuildBtn').addEventListener('click', () => this.onBuild());
+    document.getElementById('pushOn').addEventListener('change', (e) => this.togglePush(e.target));
+    document.getElementById('pushTest').addEventListener('click', (e) => this.testPush(e.currentTarget));
+    document.getElementById('signOutBtn').addEventListener('click', async () => { await api.signOut(); location.reload(); });
     const range = document.getElementById('speedRange');
     range.addEventListener('input', () => { document.getElementById('speedOut').textContent = `${Number(range.value).toFixed(2).replace(/0$/, '')}×`; });
   }
 
-  async open(status) {
+  async open(status, profile) {
     this.dialog.showModal();
-    const [{ settings }, { voices }] = await Promise.all([api.settings(), api.voices()]);
+    this.status = status || {};
+    const { settings } = await api.settings();
     this.settings = settings;
-    this.renderVoices(voices, settings.voice);
+    this.renderVoices(this.status.voices || [], settings.voice);
     const range = document.getElementById('speedRange');
     range.value = settings.speed;
     range.dispatchEvent(new Event('input'));
-    document.getElementById('autoGenerate').checked = settings.auto_generate;
-    document.getElementById('briefingTime').value = settings.briefing_time;
+    document.getElementById('nameInput').value = settings.name || '';
+    document.getElementById('dailyOn').checked = settings.daily !== false;
     document.getElementById('weatherOn').checked = settings.weather;
     document.getElementById('cityInput').value = settings.city;
     document.getElementById('latInput').value = settings.latitude;
     document.getElementById('lonInput').value = settings.longitude;
+    document.getElementById('accountEmail').textContent = profile?.email || '';
+    document.getElementById('rebuildGroup').classList.toggle('hidden', !profile?.is_admin);
     this.renderSteppers(settings.stories);
-    this.showStatus(status);
+    this.showStatus(this.status);
+    this.refreshPush();
+  }
+
+  async refreshPush() {
+    const box = document.getElementById('pushOn');
+    const hint = document.getElementById('pushHint');
+    const supported = 'serviceWorker' in navigator && 'PushManager' in window && window.isSecureContext;
+    box.disabled = !supported;
+    if (!supported) {
+      hint.textContent = 'Notifications need HTTPS and an installed app (on iPhone: Add to Home Screen first).';
+      return;
+    }
+    const reg = await navigator.serviceWorker.ready;
+    box.checked = !!(await reg.pushManager.getSubscription()) && Notification.permission === 'granted';
+    hint.textContent = Notification.permission === 'denied' ? 'Notifications are blocked in this browser\'s site settings.' : '';
+  }
+
+  async togglePush(box) {
+    const hint = document.getElementById('pushHint');
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const existing = await reg.pushManager.getSubscription();
+      if (!box.checked) {
+        if (existing) { await api.pushUnsubscribe(existing.toJSON()); await existing.unsubscribe(); }
+        return;
+      }
+      if (await Notification.requestPermission() !== 'granted') throw new Error('Permission was not granted.');
+      const public_key = this.status?.vapid_public_key;
+      if (!public_key) throw new Error("The server hasn't published its notification key yet. Try again later.");
+      const pad = '='.repeat((4 - (public_key.length % 4)) % 4);
+      const raw = atob((public_key + pad).replace(/-/g, '+').replace(/_/g, '/'));
+      const key = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+      const sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+      await api.pushSubscribe(sub.toJSON());
+      hint.textContent = 'You will be notified each morning when the briefing is ready.';
+    } catch (err) {
+      box.checked = false;
+      hint.textContent = err.message;
+    }
+  }
+
+  async testPush(btn) {
+    const hint = document.getElementById('pushHint');
+    btn.disabled = true;
+    hint.textContent = 'Asking the server to send a test…';
+    try {
+      const r = await api.pushTest();
+      hint.textContent = r.status === 'done' ? `${r.message}.` : r.message;
+    } catch (err) {
+      hint.textContent = err.message;
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   showStatus(status) {
-    if (!status) return;
-    document.getElementById('writerInfo').textContent = status.writer === 'claude'
-      ? 'Summaries and the script are written by Claude, then read by your chosen voice.'
-      : 'Summaries come from the built-in summarizer. Add an ANTHROPIC_API_KEY for radio-quality scripts written by Claude.';
-    const next = status.next_run ? new Date(status.next_run) : null;
-    document.getElementById('nextRun').textContent = next
-      ? `Next briefing: ${next.toLocaleString('en-CA', { weekday: 'long', hour: 'numeric', minute: '2-digit' })}`
-      : 'Automatic briefings are off.';
+    const at = clockLabel(status.batch_time);
+    const keep = status.keep_days || 2;
+    document.getElementById('nextRun').textContent = at
+      ? `Briefings are built every day at ${at} (${(status.timezone || 'America/Toronto').split('/').pop().replace('_', ' ')} time).`
+      : '';
+    const max = status.limits?.max_custom_sources || 15;
+    const items = [
+      `New links you add are checked and used at the next morning build${at ? ` (${at})` : ''}.`,
+      `Only ${keep === 2 ? "today's and yesterday's" : `the last ${keep} days'`} briefings are kept. Use the Read links on each card for the full stories.`,
+      'Summaries are written by a free AI service with a daily limit. If it runs out, the built-in summarizer takes over (shorter, plainer summaries) and a note appears on your briefing.',
+      `Up to ${max} of your own links are used each day. A red dot in Sources means a link couldn't be read.`,
+      'If something goes wrong with a build, the admin is notified automatically.',
+    ];
+    document.getElementById('limitsList').replaceChildren(...items.map((t) => h('li', {}, t)));
   }
 
   renderVoices(voices, selected) {
     const grid = document.getElementById('voiceGrid');
-    const byEngine = { kokoro: 'Kokoro · runs on your server, free & private', edge: 'Microsoft neural · online, includes Canadian voices' };
+    const byEngine = { kokoro: 'Kokoro · natural, recorded on our server', edge: 'Microsoft neural · includes Canadian voices' };
     const nodes = [];
     for (const [engine, label] of Object.entries(byEngine)) {
       const list = voices.filter((v) => v.engine === engine);
@@ -182,7 +222,7 @@ export class SettingsSheet {
         const radio = h('input', { type: 'radio', name: 'voice', value: v.id });
         radio.checked = v.id === selected;
         const btn = h('button', { type: 'button', class: 'preview-btn', 'aria-label': `Hear ${v.name}` }, icon('play'));
-        btn.addEventListener('click', (e) => { e.preventDefault(); this.preview(v.id, btn); });
+        btn.addEventListener('click', (e) => { e.preventDefault(); this.preview(v, btn); });
         nodes.push(h('label', { class: 'voice-card', title: v.note || '' },
           radio,
           v.recommended ? h('span', { class: 'badge' }, 'Recommended') : null,
@@ -197,9 +237,8 @@ export class SettingsSheet {
     grid.replaceChildren(...nodes);
   }
 
-  preview(voiceId, btn) {
-    const speed = Number(document.getElementById('speedRange').value);
-    const src = api.previewUrl(voiceId, speed);
+  preview(voice, btn) {
+    const src = voice.preview_url;
     const a = this.previewAudio;
     if (a.dataset.src === src && !a.paused) { a.pause(); return; }
     document.querySelectorAll('.preview-btn.loading').forEach((b) => b.classList.remove('loading'));
@@ -208,6 +247,7 @@ export class SettingsSheet {
     a.src = src;
     a.onplaying = () => btn.classList.remove('loading');
     a.onerror = () => { btn.classList.remove('loading'); toast("Couldn't load that voice sample.", { error: true }); };
+    a.playbackRate = Number(document.getElementById('speedRange').value) || 1;
     a.play().catch(() => btn.classList.remove('loading'));
   }
 
@@ -217,7 +257,7 @@ export class SettingsSheet {
     document.getElementById('storySteppers').replaceChildren(
       ...Object.entries(labels).map(([key, label]) => {
         const out = h('output', {}, this.stories[key]);
-        const step = (d) => { this.stories[key] = Math.max(0, Math.min(12, this.stories[key] + d)); out.textContent = this.stories[key]; };
+        const step = (d) => { this.stories[key] = Math.max(0, Math.min(10, this.stories[key] + d)); out.textContent = this.stories[key]; };
         return h('div', { class: 'stepper' }, h('span', {}, label),
           h('div', { class: 'stepper-ctrl' },
             h('button', { type: 'button', 'aria-label': `Fewer ${label} stories`, onclick: () => step(-1) }, '−'),
@@ -234,8 +274,8 @@ export class SettingsSheet {
     const body = {
       voice,
       speed: Number(document.getElementById('speedRange').value),
-      auto_generate: document.getElementById('autoGenerate').checked,
-      briefing_time: document.getElementById('briefingTime').value || '06:30',
+      name: document.getElementById('nameInput').value.trim().slice(0, 40),
+      daily: document.getElementById('dailyOn').checked,
       weather: document.getElementById('weatherOn').checked,
       city: document.getElementById('cityInput').value.trim() || 'Toronto',
       stories: this.stories,
@@ -245,7 +285,7 @@ export class SettingsSheet {
     try {
       const res = await api.saveSettings(body);
       const voiceChanged = voice !== this.settings.voice || body.speed !== this.settings.speed;
-      toast(voiceChanged ? 'Saved. Your next briefing will use the new voice.' : 'Settings saved');
+      toast(voiceChanged ? 'Saved. Tomorrow\'s briefing will use the new voice.' : 'Saved. Changes apply from the next briefing.');
       this.dialog.close();
       return res;
     } catch (err) {

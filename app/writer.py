@@ -1,23 +1,34 @@
 """Turn ranked stories into card copy and a spoken briefing script.
 
-With ANTHROPIC_API_KEY set, Claude writes the script in a natural radio
-style. Without it (or if the call fails) a template writer built on the
-extractive summarizer takes over, so the briefing always ships.
+Story copy (headline, card summary, spoken lines) is written once per story and
+shared by every user whose briefing includes it. Groq writes it when a key is
+set, falling through GROQ_MODELS as each one hits its free-tier limit; the
+extractive template writer is the last resort, so a briefing always ships.
+The intro, section transitions and sign-off are templates, personalised per user.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import re
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 
-from pydantic import BaseModel
+import httpx
 
 from .ranking import Story
+from .report import RunReport
 from .sources import SECTIONS
 from .summarizer import summarize
 
 log = logging.getLogger(__name__)
+
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+MAX_WAIT = 65          # longest per-minute back-off we'll sit through, in seconds
+MAX_ARTICLE_CHARS = 2500
 
 
 @dataclass
@@ -25,6 +36,7 @@ class StoryCopy:
     headline: str
     summary: str
     spoken: str
+    writer: str = "built-in"
 
 
 @dataclass
@@ -33,7 +45,7 @@ class Script:
     section_leads: dict[str, str]
     stories: dict[str, StoryCopy]
     outro: str
-    writer: str = "template"
+    writer: str = "built-in"
     notes: list[str] = field(default_factory=list)
 
 
@@ -48,7 +60,7 @@ def _source_phrase(story: Story) -> str:
     return " and ".join(names)
 
 
-def template_copy(story: Story, index: int) -> StoryCopy:
+def template_copy(story: Story) -> StoryCopy:
     lead = story.lead
     summary = summarize(lead.text, fallback=lead.summary, max_words=60, title=lead.title) or lead.summary or lead.title
     spoken_body = summarize(lead.text, fallback=lead.summary, max_words=55, max_sentences=2, title=lead.title)
@@ -56,14 +68,18 @@ def template_copy(story: Story, index: int) -> StoryCopy:
         # Never stop mid-sentence out loud: drop the clipped tail.
         head, dot, _ = spoken_body.rpartition(". ")
         spoken_body = head + dot.strip() if dot else ""
-    connector = CONNECTORS[index % len(CONNECTORS)]
+    # The connector depends on the story, not its position, so the same story sounds the same
+    # in everyone's briefing and its audio can be shared.
+    connector = CONNECTORS[int(story.id, 16) % len(CONNECTORS)]
     title = lead.title.rstrip(".")
     opener = f"{connector} from {_source_phrase(story)}: {title}." if connector else f"From {_source_phrase(story)}: {title}."
     spoken = f"{opener} {spoken_body}".strip()
-    return StoryCopy(headline=lead.title, summary=summary, spoken=spoken)
+    return StoryCopy(headline=lead.title, summary=summary, spoken=spoken, writer="built-in")
 
 
-def template_script(picked: dict[str, list[Story]], when: datetime, weather: str | None) -> Script:
+def compose(picked: dict[str, list[Story]], copies: dict[str, StoryCopy], when: datetime,
+            weather: str | None, name: str | None = None) -> Script:
+    """Wrap shared story copy in a personal intro, section transitions and sign-off."""
     counts = {k: len(v) for k, v in picked.items()}
     parts = []
     if counts.get("canada"):
@@ -74,144 +90,164 @@ def template_script(picked: dict[str, list[Story]], when: datetime, weather: str
         parts.append(f"{counts['custom']} from your own sources")
     rundown = ", ".join(parts[:-1]) + (" and " if len(parts) > 1 else "") + parts[-1] if parts else "your news"
     date = f"{when:%A}, {when:%B} {when.day}"
-    intro = f"Good morning! It's {date}. {weather + ' ' if weather else ''}Here's your briefing: {rundown}."
-
-    stories: dict[str, StoryCopy] = {}
-    for section_stories in picked.values():
-        for i, story in enumerate(section_stories):
-            stories[story.id] = template_copy(story, i)
+    hello = f"Good morning, {name}!" if name else "Good morning!"
+    intro = f"{hello} It's {date}. {weather + ' ' if weather else ''}Here's your briefing: {rundown}."
+    stories = {s.id: copies[s.id] for group in picked.values() for s in group}
+    used = {c.writer for c in stories.values()}
+    writer = "built-in" if used == {"built-in"} else ("groq" if "built-in" not in used else "mixed")
     return Script(
         intro=intro,
         section_leads={k: SECTIONS[k]["lead"] for k in picked},
         stories=stories,
         outro=f"That's your briefing for this {when:%A}. Have a wonderful day, and I'll talk to you tomorrow morning.",
+        writer=writer,
     )
 
 
-# -------------------------------------------------------------------- Claude
-class StoryDraft(BaseModel):
-    id: str
-    headline: str
-    summary: str
-    spoken: str
+# ---------------------------------------------------------------------- Groq
+SYSTEM_PROMPT = """You write copy for a warm, trustworthy morning audio news briefing for listeners in Canada.
+The spoken text is read aloud by a text-to-speech voice; the summary appears on a news card.
+
+Return a JSON object with exactly these keys:
+- "headline": a clear, neutral headline of at most 12 words.
+- "summary": the card text, 40 to 60 words of plain factual prose built only from the supplied text.
+- "spoken": what the host says, 2 to 4 sentences and 45 to 85 words, conversational like a good radio host.
+  Mention the outlet naturally once ("CBC reports..."). Start with the news itself, not a greeting.
+
+Write for the ear: no URLs, emoji, bullet points, brackets or markdown; spell out symbols
+("percent", "billion dollars"); keep sentences short. Stay strictly factual and neutral.
+Never add facts that aren't in the text; if the text is thin, say less."""
 
 
-class SectionLeadDraft(BaseModel):
-    section: str
-    line: str
+class LimitHit(Exception):
+    """This model can't be used again in this run."""
 
 
-class ScriptDraft(BaseModel):
-    intro: str
-    section_leads: list[SectionLeadDraft]
-    stories: list[StoryDraft]
-    outro: str
+class AuthFailed(Exception):
+    """The API key was rejected: no Groq model will work in this run."""
 
 
-SYSTEM_PROMPT = """You write and host a warm, trustworthy morning audio news briefing for a listener in {city}, Canada.
-The script is read aloud by a neural text-to-speech voice, and the summaries appear on news cards in an app.
-
-For each story you're given (id, section, headline, outlets, article text):
-- headline: a clear, neutral headline of at most 12 words.
-- summary: the card text, 40 to 60 words, plain factual prose built only from the supplied text.
-- spoken: what the host says, 2 to 4 sentences and 45 to 85 words, conversational like a good radio host.
-  Mention the outlet naturally once ("CBC reports…"). Vary how stories open so it never sounds repetitive.
-
-Write for the ear: no URLs, emoji, bullet points, brackets or markdown; spell out symbols and awkward abbreviations
-(say "percent", "billion dollars"); keep sentences short enough to read in one breath.
-Stay strictly factual and neutral. Never add facts that aren't in the text; if the text is thin, say less.
-
-Also write:
-- intro: a friendly greeting of at most 45 words with the weekday and date, the weather line if one is given, and a
-  one-sentence preview of the biggest story.
-- section_leads: one short spoken transition (at most 15 words) per section present, in the order given.
-- outro: a brief warm sign-off of at most 25 words.
-Return every story id exactly once."""
-
-
-def _story_payload(section: str, story: Story) -> dict:
-    lead = story.lead
-    text = (lead.text or lead.summary or "")[:3000]
-    return {
-        "id": story.id,
-        "section": SECTIONS[section]["title"],
-        "headline": lead.title,
-        "outlets": story.sources,
-        "published": lead.published.isoformat() if lead.published else None,
-        "text": text,
-    }
-
-
-def claude_script(
-    picked: dict[str, list[Story]], when: datetime, weather: str | None, *, api_key: str, model: str, city: str
-) -> Script | None:
+def _retry_after(resp: httpx.Response) -> float:
     try:
-        import anthropic
-    except ImportError:
+        return float(resp.headers.get("retry-after", ""))
+    except ValueError:
+        pass
+    # Groq also says "Please try again in 7.66s" / "in 2m59.5s" in the message.
+    m = re.search(r"try again in (?:(\d+)h)?(?:(\d+)m)?([\d.]+)s", resp.text)
+    if m:
+        h, mins, s = (float(x) if x else 0.0 for x in m.groups())
+        return h * 3600 + mins * 60 + s
+    return 10.0
+
+
+def _is_daily(resp: httpx.Response) -> bool:
+    text = resp.text.lower()
+    return "per day" in text or "(tpd)" in text or "(rpd)" in text or "daily" in text
+
+
+class StoryWriter:
+    """Writes copy for each story once, caches it on disk, and records every limit it runs into."""
+
+    def __init__(self, cache_dir: Path, report: RunReport, *, api_key: str | None, models: tuple[str, ...],
+                 client: httpx.Client | None = None, sleep=time.sleep):
+        self.cache_dir = cache_dir / "copy"
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.report = report
+        self.api_key = api_key
+        self.models = list(models) if api_key else []
+        self.client = client or httpx.Client(timeout=60)
+        self.sleep = sleep
+        self.failures = 0
+        if not api_key:
+            report.add("ai_off", "GROQ_API_KEY is not set", level="info")
+
+    # ---------------------------------------------------------------- public
+    def copy(self, section: str, story: Story) -> StoryCopy:
+        path = self.cache_dir / f"{story.id}.json"
+        if path.exists():
+            try:
+                cached = StoryCopy(**json.loads(path.read_text()))
+                self.report.writers[cached.writer] += 1
+                return cached
+            except (ValueError, TypeError):
+                pass
+        result = self._ai(section, story) or template_copy(story)
+        self.report.writers[result.writer] += 1
+        if result.writer != "built-in":  # retry the AI next run rather than caching the fallback
+            path.write_text(json.dumps(result.__dict__, ensure_ascii=False))
+        return result
+
+    # --------------------------------------------------------------- private
+    def _ai(self, section: str, story: Story) -> StoryCopy | None:
+        while self.models:
+            model = self.models[0]
+            try:
+                return self._call(model, section, story)
+            except LimitHit as exc:
+                log.warning("Groq %s unavailable for the rest of this run: %s", model, exc)
+                self.models.pop(0)
+            except AuthFailed as exc:
+                self.report.add("ai_auth", str(exc), level="error")
+                self.models.clear()
+            except (httpx.HTTPError, ValueError, KeyError) as exc:
+                # One bad story (timeout, malformed JSON): fall back for this story only,
+                # but give up on the service after repeated failures.
+                self.failures += 1
+                log.warning("Groq failed on %s: %s", story.id, exc)
+                if self.failures >= 3:
+                    self.report.add("ai_unavailable", f"{exc.__class__.__name__}: {exc}"[:200])
+                    self.models.clear()
+                return None
         return None
 
-    payload = {
-        "date": f"{when:%A}, {when:%B} {when.day}, {when:%Y}",
-        "weather": weather,
-        "sections": [SECTIONS[k]["title"] for k in picked],
-        "stories": [_story_payload(sec, s) for sec, stories in picked.items() for s in stories],
-    }
-    client = anthropic.Anthropic(api_key=api_key, timeout=300, max_retries=2)
-    try:
-        response = client.messages.parse(
-            model=model,
-            max_tokens=16000,
-            system=SYSTEM_PROMPT.format(city=city),
-            output_config={"effort": "medium"},
-            messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
-            output_format=ScriptDraft,
-        )
-    except anthropic.AuthenticationError:
-        log.error("ANTHROPIC_API_KEY was rejected; using the built-in writer")
-        return None
-    except anthropic.APIError as exc:
-        log.warning("Claude request failed (%s); using the built-in writer", exc)
-        return None
-
-    if response.stop_reason in ("refusal", "max_tokens") or response.parsed_output is None:
-        log.warning("Claude stopped with %s; using the built-in writer", response.stop_reason)
-        return None
-
-    draft: ScriptDraft = response.parsed_output
-    fallback = template_script(picked, when, weather)
-    by_id = {s.id: s for s in draft.stories}
-    stories: dict[str, StoryCopy] = {}
-    missing = []
-    for sid, copy in fallback.stories.items():
-        d = by_id.get(sid)
-        if d and d.summary.strip() and d.spoken.strip():
-            stories[sid] = StoryCopy(headline=d.headline.strip(), summary=d.summary.strip(), spoken=d.spoken.strip())
-        else:
-            stories[sid] = copy
-            missing.append(sid)
-
-    titles = {SECTIONS[k]["title"].lower(): k for k in picked}
-    leads = dict(fallback.section_leads)
-    for lead in draft.section_leads:
-        key = titles.get(lead.section.strip().lower()) or (lead.section if lead.section in picked else None)
-        if key and lead.line.strip():
-            leads[key] = lead.line.strip()
-
-    return Script(
-        intro=draft.intro.strip() or fallback.intro,
-        section_leads=leads,
-        stories=stories,
-        outro=draft.outro.strip() or fallback.outro,
-        writer="claude",
-        notes=[f"{len(missing)} stories used the built-in writer"] if missing else [],
-    )
+    def _call(self, model: str, section: str, story: Story) -> StoryCopy:
+        lead = story.lead
+        payload = {
+            "section": SECTIONS[section]["title"],
+            "headline": lead.title,
+            "outlets": story.sources,
+            "text": (lead.text or lead.summary or lead.title)[:MAX_ARTICLE_CHARS],
+        }
+        body = {
+            "model": model,
+            "temperature": 0.4,
+            "max_tokens": 600,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+            ],
+        }
+        for attempt in range(4):
+            resp = self.client.post(GROQ_URL, json=body, headers={"Authorization": f"Bearer {self.api_key}"})
+            if resp.status_code in (401, 403):
+                raise AuthFailed(f"Groq returned {resp.status_code}: {resp.text[:150]}")
+            if resp.status_code == 429:
+                wait = _retry_after(resp)
+                if _is_daily(resp) or wait > MAX_WAIT:
+                    self.report.add("ai_daily_limit", f"{model}: {resp.text[:200]}")
+                    raise LimitHit(f"daily limit ({wait:.0f}s wait)")
+                self.report.add("ai_rate_limited", f"{model}: waited {wait:.0f}s", level="info")
+                self.sleep(wait + 0.5)
+                continue
+            if resp.status_code in (404, 400) and "model" in resp.text.lower():
+                raise LimitHit(f"model not available: {resp.text[:150]}")
+            if resp.status_code >= 500:
+                if attempt < 2:
+                    self.sleep(2 * (attempt + 1))
+                    continue
+                resp.raise_for_status()
+            resp.raise_for_status()
+            content = resp.json()["choices"][0]["message"]["content"]
+            data = json.loads(content)
+            headline, summary, spoken = (str(data.get(k, "")).strip() for k in ("headline", "summary", "spoken"))
+            if not (summary and spoken):
+                raise ValueError("empty summary or spoken text")
+            self.failures = 0
+            return StoryCopy(headline=headline or lead.title, summary=summary, spoken=spoken, writer=model)
+        self.report.add("ai_daily_limit", f"{model}: still rate limited after retries")
+        raise LimitHit("still rate limited after retries")
 
 
-def write_script(
-    picked: dict[str, list[Story]], when: datetime, weather: str | None, *, api_key: str | None, model: str, city: str
-) -> Script:
-    if api_key:
-        script = claude_script(picked, when, weather, api_key=api_key, model=model, city=city)
-        if script:
-            return script
-    return template_script(picked, when, weather)
+def copy_key(text: str) -> str:
+    return hashlib.sha1(text.encode()).hexdigest()[:16]

@@ -1,7 +1,9 @@
-# ☀️ Morning Brief
+# ☀️ Morning Brief Voice
 
 Your daily news on cards, **read aloud every morning by a natural neural voice**. It covers
-**top Canadian news** and **AI & tech**, plus any sites or articles you add yourself.
+**top Canadian news** and **AI & tech**, plus any sites or articles each person adds themselves.
+It's built for a small group (20–30 people): everyone signs in, adds their own links, and gets their own
+briefing and a phone notification each morning.
 
 ![Morning Brief on desktop](docs/screenshots/desktop.png)
 
@@ -9,134 +11,147 @@ Your daily news on cards, **read aloud every morning by a natural neural voice**
 |---|---|---|
 | ![](docs/screenshots/mobile-dark.png) | ![](docs/screenshots/mobile-swipe.png) | ![](docs/screenshots/settings.png) |
 
-> Screenshots use the fictional sample feeds in `tests/fakenews.py`.
+## Architecture
 
-## What it does
+```
+ Phone / browser (PWA)                    Supabase (free tier)                    Linux server (Docker)
+ mbv.vattitude.ca on Vercel      ┌───────────────────────────────┐      ┌──────────────────────────────┐
+ ─ sign in with an email code ──►│ Auth (email one-time code)    │      │ worker (python -m app worker)│
+ ─ add links, pick voice ───────►│ tables: profiles, sources,    │◄────►│ ─ daily batch at BATCH_TIME  │
+ ─ read cards ◄──────────────────│   briefings, push subs,       │      │ ─ fetch → rank → summarize   │
+ ─ stream MP3 ◄──────────────────│   build_requests, app_status  │      │   (Groq, falls back to the   │
+                                 │ Storage bucket "briefings":   │◄─────│   built-in summarizer)       │
+ ◄── Web Push "Your brief is     │   <feed_token>/<date>.mp3     │      │ ─ Kokoro voice → MP3 upload  │
+     ready" ─────────────────────┴───────────────────────────────┘      │ ─ Web Push to users + admin  │
+                                                                         └──────────────────────────────┘
+```
 
-Every morning (06:30 Toronto time by default) the app:
+- **Vercel** serves only static files from `web/`. It has no backend and holds no secrets.
+- **Supabase** stores everything. Row-level security keeps each user to their own rows. MP3s live in a
+  public bucket under an unguessable per-user token.
+- **The Linux server** makes only outbound HTTPS calls to Supabase, Groq, the news sites and the push services.
+  Nothing on it is exposed to the internet, so no tunnel or port-forwarding is needed. It can sleep overnight.
 
-1. **Gathers** headlines from RSS feeds (CBC, Global News, The Globe and Mail, National Post, CityNews
-   Toronto, TechCrunch, The Verge, MIT Technology Review, Ars Technica, VentureBeat, The Decoder,
-   BetaKit, Hacker News…) and from **your own links**.
-2. **Ranks** them. When several outlets cover the same story it becomes one card, and wide coverage
-   pushes it up. AI stories get a boost in AI & Tech, and deals or gift guides are filtered out.
-3. **Reads** the full articles with [trafilatura](https://github.com/adbar/trafilatura).
-4. **Writes** a 40–60 word card summary and a spoken script for each story. It uses Claude if you
-   add an API key; otherwise a built-in extractive summarizer does it.
-5. **Records** one MP3 with a neural voice and chapter markers for every story.
+### The daily batch
 
-### Highlights
+1. **Gathers** headlines from the built-in feeds (CBC, Global News, Globe and Mail, National Post, CityNews,
+   TechCrunch, The Verge, MIT Tech Review, Ars Technica, VentureBeat, BetaKit, Hacker News…) and every user's
+   links. Each feed is fetched **once** even if several people use it. A newly added link is identified
+   (RSS feed, section page or single article) at its first build.
+2. **Ranks** stories per user. A story covered by several outlets becomes one card.
+3. **Summarizes** each unique story **once** with Groq (`llama-3.3-70b-versatile`, then `llama-3.1-8b-instant`).
+   Summaries are cached, so 30 users with overlapping news cost about the same as one.
+4. **Records** each user's MP3 with their voice and speed. Spoken segments are cached, and chapters mark every story.
+5. **Uploads** the MP3, saves the briefing, **notifies** the user, and deletes anything older than `KEEP_DAYS`.
 
-- 🎧 **Natural voice, not robotic.** The default is [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M), an
-  open-source (Apache-2.0) neural TTS model that runs on your own CPU. You can also pick Microsoft's
-  neural voices through [edge-tts](https://github.com/rany2/edge-tts), which include **Canadian English** (Clara, Liam).
-  Tap ▶ in Settings to hear a sample of each voice.
-- 🃏 **Card UI** with a grid or InShorts-style **swipe deck**. Tap **Listen** on any card to jump the
-  audio to that story. The card that's playing glows as the briefing moves along.
-- ➕ **Add any news link.** Paste a site, section page, RSS feed or single article. The app finds the
-  feed automatically, falls back to scraping headlines, and shows a preview before you add it. A single
-  article goes into your next briefing once.
-- 🌤️ Weather for Toronto (or any city) in the intro, via Open-Meteo (no key needed).
-- 📱 Installable **PWA** with lock-screen controls (Media Session): play/pause, ±15/30 s, next/previous story.
-- 🌙 Light and dark themes, playback speed, resume where you left off, saved stories, and 14 days of past briefings.
-- 🔒 Optional password (`APP_PASSWORD`) if you expose it to the internet.
+## When things go wrong (and who hears about it)
 
-## Quick start (Docker)
+| Situation | What happens | User sees | Admin gets |
+|---|---|---|---|
+| Groq per-minute limit (429) | Waits for `retry-after` (≤ 65 s) and retries | nothing, or a note if it gave up | ⚠️ push |
+| Groq **daily** limit reached | Switches to the next model, then the built-in summarizer | "AI summaries hit today's free limit…" note | ⚠️ push |
+| Groq key invalid / revoked | Built-in summarizer for the whole run | note on the briefing | ❌ push |
+| Groq down (5xx / timeouts) | Retries, then the built-in summarizer | note on the briefing | ⚠️ push |
+| A user's link can't be read | Skipped; red dot in Sources | "1 of your links couldn't be read" | ⚠️ push |
+| Kokoro voice fails | Uses the backup Microsoft voice | note on the briefing | ⚠️ push |
+| Upload / Supabase outage | That user's briefing fails, and the rest continue | "couldn't be built today" banner | ❌ push |
+| Server asleep at batch time | Catches up when it wakes (until noon) | "running late" banner | summary push |
+
+Admin pushes go to every device an admin (`ADMIN_EMAILS`) has subscribed. `ADMIN_NOTIFY=issues` (default) sends
+one only when something went wrong. `always` sends one after every run, and `off` sends none. Ad-hoc runs always report.
+The admin's devices are cached on the server, so the "Supabase is down" alert still arrives.
+
+## Setup
+
+### 1. Supabase (once)
+
+1. Create a project. In **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql).
+   It is safe to re-run after updates.
+2. **Authentication → Sign In / Providers → Email**: keep Email enabled. Turn **off** "Allow new users to sign up"
+   so only people you add can get in.
+3. **Authentication → Email Templates → Magic Link**: include the code, e.g.
+   `<h2>Your Morning Brief code</h2><p>{{ .Token }}</p>`. Users type the code into the app, which works inside an
+   installed PWA, where magic links would open a different browser.
+4. **Authentication → Users → Add user** for each person (email, "auto confirm"). Their profile is created automatically.
+5. **Settings → API keys**: copy the *publishable* key into [`web/config.js`](web/config.js). It's public by design.
+   Put the **secret** key only in the server's `.env`.
+6. For more than a few sign-ins an hour, set up custom SMTP under **Authentication → Emails**, because the built-in
+   sender is heavily rate-limited. A free-tier project pauses after 7 days with no activity, and the daily batch counts as activity.
+
+### 2. Web app on Vercel
+
+- Import the GitHub repo. Set **Root Directory** to `web` and **Framework Preset** to `Other`, with no build command.
+- **Domains**: add `mbv.vattitude.ca`. At WHC, add a `CNAME` record `mbv → cname.vercel-dns.com`.
+- Open the site on your phone and choose **Add to Home Screen**. Then, in Settings, turn on **Morning notification**.
+
+### 3. Server (Linux + Docker)
 
 ```bash
-cp .env.example .env        # optional: add ANTHROPIC_API_KEY, APP_PASSWORD
+git clone https://github.com/vattitude-me/morning-brief-voice.git
+cd morning-brief-voice
+cp .env.example .env     # fill SUPABASE_URL, SUPABASE_SECRET_KEY, GROQ_API_KEY, ADMIN_EMAILS
 docker compose up -d --build
-open http://localhost:8000
+docker compose exec worker python -m app check    # tests Supabase + Groq
+docker compose logs -f
 ```
 
-Press **Build my briefing** for your first one. After that it builds automatically every morning.
-The voice model (~350 MB) is baked into the image, so there's nothing extra to download.
+The Kokoro model (~350 MB) is baked into the image. VAPID push keys are generated on first start in `data/`.
 
-## Deploy on Render
-
-1. In the Render dashboard choose **New → Blueprint** and pick this repository. Render reads
-   [`render.yaml`](render.yaml).
-2. When asked, set **`APP_PASSWORD`** (you'll use it to sign in; any username works). You can also set
-   **`ANTHROPIC_API_KEY`**, or leave it blank.
-3. Click **Apply**. The first build takes about 5 minutes. Then open the `onrender.com` URL and press **Build my briefing**.
-
-The Blueprint uses the **Starter** plan with a 1 GB disk for your data. It uses the Microsoft neural
-voices (Canadian *Clara* by default) because the Kokoro model needs about 1.2 GB of RAM. To use
-Kokoro, change the plan to **Standard** and set `TTS_ENGINES=kokoro,edge`.
-
-## Run without Docker
-
-Requires Python 3.11+.
+## Testing a build on demand
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python -m app setup      # download the Kokoro voice model (~350 MB, once)
-python -m app serve      # http://localhost:8000
+./scripts/run-now.sh --user you@example.com   # just you
+./scripts/run-now.sh                          # everyone
 ```
 
-Other commands:
+This runs the same pipeline as the morning batch, but first **starts over**. It deletes today's briefing
+and MP3, clears cached summaries and audio, and re-queues single-article links that were already used. It then
+prints the new brief in the terminal (headlines, summaries, who wrote them, audio URL, any problems) and pushes
+the result to the admin. Add `--no-push` to stay quiet. It won't start while another build is running.
+
+Admins also get a **Build now** button in the app (Settings → Rebuild). The server picks it up within a minute.
+
+## Schedule and the sleep cycle
+
+The worker runs the batch at `BATCH_TIME` in `BRIEFING_TIMEZONE`. If the server was asleep at that time, it catches up
+as soon as it wakes (before noon).
+
+**QA** (current): the server suspends at 01:00 and wakes at 07:00, and `BATCH_TIME=07:05`.
+
+**Production**: wake at 05:45 and build at 06:00. On the server:
 
 ```bash
-python -m app build      # build today's briefing right now (handy for cron)
-python -m pytest         # run the tests (offline; no network needed)
+sudo crontab -e
+# change the wake line to (suspend at 01:00, wake at 05:45):
+0 1 * * * /usr/sbin/rtcwake -m mem -t "$(date -d 'tomorrow 05:45' +\%s)"
+
+# then in ~/morning-brief-voice/.env
+BATCH_TIME=06:00
+docker compose up -d
 ```
 
-## Configuration
+## Configuration (`.env` on the server)
 
-| Variable | Default | What it does |
+| Variable | Default | |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | – | Lets Claude write the summaries and a radio-style script. Without it the built-in summarizer is used. |
-| `CLAUDE_MODEL` | `claude-opus-5-5` | Model used for writing. |
-| `BRIEFING_TIMEZONE` | `America/Toronto` | Time zone for the daily schedule. |
-| `APP_PASSWORD` | – | Turns on HTTP Basic auth (any username). |
-| `DATA_DIR` | `./data` | SQLite database, briefings and MP3s. |
-| `MODEL_DIR` | `$DATA_DIR/models` | Kokoro model files. |
-| `KEEP_DAYS` | `14` | How many days of briefings to keep. |
-| `SCHEDULER_ENABLED` | `1` | Set to `0` to disable the built-in daily scheduler. |
-| `ALLOW_PRIVATE_URLS` | `0` | Allow sources on private/LAN addresses. |
-| `TTS_ENGINES` | `kokoro,edge` | Voice engines to offer. Use `edge` on hosts with under ~1.5 GB RAM. |
-| `DEFAULT_VOICE` | Kokoro *Heart* | Voice used until you pick one in Settings, e.g. `edge:en-CA-ClaraNeural`. |
+| `SUPABASE_URL` | | Project URL |
+| `SUPABASE_SECRET_KEY` | | **Server only.** Never commit or share |
+| `GROQ_API_KEY` | | Free at console.groq.com. Without it, summaries are built-in |
+| `GROQ_MODELS` | `llama-3.3-70b-versatile,llama-3.1-8b-instant` | Tried in order |
+| `BRIEFING_TIMEZONE` | `America/Toronto` | |
+| `BATCH_TIME` | `07:05` | 24-hour clock |
+| `KEEP_DAYS` | `2` | Briefings and MP3s older than this are deleted |
+| `ADMIN_EMAILS` | | Comma-separated. Admin push + Build now |
+| `ADMIN_NOTIFY` | `issues` | `issues`, `always` or `off` |
+| `VAPID_SUBJECT` | | `mailto:you@example.com` for push services |
+| `MAX_CUSTOM_SOURCES` | `15` | Links per user used each day |
 
-Voice, speaking pace, briefing time, stories per section and weather city are set in the app under
-**Voice & settings**. Sources are managed under **Sources**. Built-in sources can be switched off,
-and your own sources can be removed.
+## Development
 
-## Hosting ideas
-
-- **At home:** a Raspberry Pi 4/5 or any always-on computer running `docker compose up -d`. Kokoro
-  runs fine on CPU; a 5-minute briefing takes about 1–3 minutes to record.
-- **Cloud:** Render (see above) or any container host with a persistent volume for `/data`
-  (Fly.io, Railway, a small VPS). Set `APP_PASSWORD` when it's public.
-
-## Project layout
-
-```
-app/
-  main.py         FastAPI app: JSON API, audio files, web UI
-  briefing.py     daily pipeline: fetch → rank → read → write → record
-  fetcher.py      RSS/Atom (feedparser), feed discovery, page scraping, article extraction (trafilatura)
-  ranking.py      duplicate clustering and scoring
-  summarizer.py   extractive summarizer (no API key needed)
-  writer.py       card copy and spoken script (Claude or template)
-  tts/            Kokoro and Edge neural voices, text clean-up for speech
-  audio.py        segment levelling, chapter timing, MP3 encoding
-  jobs.py         background builds and the daily schedule
-  db.py           SQLite sources and settings
-web/              vanilla JS PWA (no build step)
-tests/            offline tests with sample feeds
+```bash
+python -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt pytest
+pytest -q
 ```
 
-## API
-
-| Method | Path | |
-|---|---|---|
-| GET | `/api/briefing/latest`, `/api/briefing/{YYYY-MM-DD}`, `/api/briefings` | Briefings and archive |
-| POST | `/api/briefing/generate` | Build now (runs in the background) |
-| GET | `/api/status` | Build progress and next scheduled run |
-| GET/POST/PATCH/DELETE | `/api/sources[/{id}]` | Manage sources |
-| POST | `/api/sources/detect` | Preview what a link is before adding it |
-| GET | `/api/voices`, `/api/voices/preview?voice=…` | Voices and samples |
-| GET/PUT | `/api/settings` | Preferences |
-
-Audio lives at `/media/{date}/briefing.mp3`.
+Tests run offline with fake feeds (`tests/fakenews.py`), a fake Supabase store and a fake Groq client.

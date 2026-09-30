@@ -449,3 +449,34 @@ input[type="url"]:focus, .text-input:focus, .time-input:focus { outline: none; b
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---- Sign in ------------------------------------------------------------------ */
+.login {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px;
+  background: radial-gradient(120% 80% at 20% 0%, color-mix(in srgb, var(--hero-b) 35%, var(--bg)), var(--bg));
+}
+.login-card {
+  width: min(420px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow-lg); padding: 32px 24px; text-align: center;
+}
+.login-card h1 { font: 700 28px/1.2 var(--font-head); margin: 12px 0 6px; }
+.login-form { display: grid; gap: 12px; margin-top: 8px; }
+.login-form .text-input { text-align: center; font-size: 17px; }
+.code-input { letter-spacing: .3em; font-variant-numeric: tabular-nums; }
+.login .error { color: var(--err); font-weight: 500; margin: 12px 0 0; }
+body.signed-out > :not(.login):not(.toast):not(svg) { display: none; }
+
+/* ---- Notices about today's briefing -------------------------------------------- */
+.notice {
+  margin-top: 16px; padding: 12px 14px; border-radius: var(--radius-sm); max-width: 720px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent); color: var(--ink);
+  border-left: 4px solid var(--warn); font-size: 14.5px; box-shadow: var(--shadow-sm);
+}
+.notice.error { border-left-color: var(--err); }
+.notice p { margin: 0; }
+.notice p + p { margin-top: 6px; }
+
+/* ---- Settings extras ------------------------------------------------------------ */
+.limits { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13.5px; }
+.limits li + li { margin-top: 6px; }
+.account-email { flex: 1; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }

@@ -1,36 +1,149 @@
-// Thin wrapper around the JSON API.
-async function request(path, { method = 'GET', body } = {}) {
-  const res = await fetch(path, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (res.status === 204) return null;
-  let data = null;
-  try { data = await res.json(); } catch { /* non-JSON error page */ }
-  if (!res.ok) {
-    let msg = data?.detail;
-    if (Array.isArray(msg)) msg = msg.map((d) => d.msg).join(', ');
-    throw new Error(msg || `Request failed (${res.status})`);
+// Data access: Supabase (auth, tables) with row-level security keeping each user to their own rows.
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '../config.js';
+
+export const sb = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+});
+
+export const DEFAULT_SETTINGS = {
+  name: '',
+  voice: 'kokoro:af_heart',
+  speed: 1.0,
+  daily: true,
+  stories: { canada: 6, tech: 6, custom: 4 },
+  city: 'Toronto',
+  latitude: 43.6532,
+  longitude: -79.3832,
+  weather: true,
+  disabled_sources: [],
+};
+
+const FRIENDLY = [
+  [/row-level security.*sources/i, 'You can have up to 25 links. Remove one to add another.'],
+  [/duplicate key.*sources/i, "You've already added that link."],
+  [/check constraint.*url/i, 'That doesn\'t look like a web link (it should start with https://).'],
+  [/row-level security.*build_requests/i, 'Only admins can rebuild on demand for now.'],
+  [/Failed to fetch|NetworkError|Load failed/i, "You're offline or the service can't be reached."],
+];
+
+function check({ data, error }) {
+  if (error) {
+    const raw = error.message || String(error);
+    const hit = FRIENDLY.find(([re]) => re.test(raw));
+    throw new Error(hit ? hit[1] : raw);
   }
   return data;
 }
 
+let me = null;
+async function userId() {
+  if (me) return me.id;
+  const { data } = await sb.auth.getSession();
+  if (!data.session) throw new Error('Please sign in again.');
+  return data.session.user.id;
+}
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
 export const api = {
-  latest: () => request('/api/briefing/latest'),
-  briefing: (day) => request(`/api/briefing/${encodeURIComponent(day)}`),
-  archive: () => request('/api/briefings'),
-  generate: () => request('/api/briefing/generate', { method: 'POST' }),
-  status: () => request('/api/status'),
-  sources: () => request('/api/sources'),
-  detectSource: (url) => request('/api/sources/detect', { method: 'POST', body: { url } }),
-  addSource: (body) => request('/api/sources', { method: 'POST', body }),
-  updateSource: (id, body) => request(`/api/sources/${id}`, { method: 'PATCH', body }),
-  deleteSource: (id) => request(`/api/sources/${id}`, { method: 'DELETE' }),
-  voices: () => request('/api/voices'),
-  settings: () => request('/api/settings'),
-  saveSettings: (body) => request('/api/settings', { method: 'PUT', body }),
-  previewUrl: (voice, speed) => `/api/voices/preview?voice=${encodeURIComponent(voice)}&speed=${speed}`,
+  // ------------------------------------------------------------------ auth
+  session: async () => (await sb.auth.getSession()).data.session,
+  sendCode: async (email) => check(await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false } })),
+  verifyCode: async (email, token) => check(await sb.auth.verifyOtp({ email, token, type: 'email' })),
+  signOut: () => sb.auth.signOut(),
+
+  async profile() {
+    const id = await userId();
+    me = check(await sb.from('profiles').select('id,email,is_admin,settings,status').eq('id', id).single());
+    return me;
+  },
+
+  // ------------------------------------------------------------- briefings
+  async latest() {
+    const rows = check(await sb.from('briefings').select('data').order('date', { ascending: false }).limit(1));
+    return { briefing: rows[0]?.data || null };
+  },
+  async briefing(day) {
+    const rows = check(await sb.from('briefings').select('data').eq('date', day).limit(1));
+    return { briefing: rows[0]?.data || null };
+  },
+  async archive() {
+    const rows = check(await sb.from('briefings').select('date').order('date', { ascending: false }));
+    return { briefings: rows };
+  },
+  async status() {
+    const rows = check(await sb.from('app_status').select('data').eq('id', 1).limit(1));
+    return rows[0]?.data || {};
+  },
+
+  // -------------------------------------------------------------- requests
+  async request(kind) {
+    const row = check(await sb.from('build_requests').insert({ kind }).select('id').single());
+    return row.id;
+  },
+  async waitForRequest(id, { timeoutMs = 20 * 60 * 1000, onTick } = {}) {
+    const end = Date.now() + timeoutMs;
+    while (Date.now() < end) {
+      const row = check(await sb.from('build_requests').select('status,message').eq('id', id).single());
+      onTick?.(row);
+      if (row.status === 'done' || row.status === 'error') return row;
+      await wait(3000);
+    }
+    return { status: 'error', message: "The server hasn't picked this up. It may be asleep; try again after 7 AM." };
+  },
+  generate: () => api.request('build'),
+
+  // --------------------------------------------------------------- sources
+  async sources() {
+    const [rows, profile] = await Promise.all([
+      sb.from('sources').select('*').order('id').then(check),
+      api.profile(),
+    ]);
+    const disabled = new Set(profile.settings?.disabled_sources || []);
+    return {
+      sources: rows.map((s) => ({ ...s, builtin: s.user_id == null, enabled: s.user_id == null ? !disabled.has(s.id) : s.enabled })),
+    };
+  },
+  async addSource({ url, section, name }) {
+    const row = check(await sb.from('sources').insert({ url, section, name: name || url }).select().single());
+    return { source: row };
+  },
+  async updateSource(source, body) {
+    if (source.builtin) {
+      const profile = await api.profile();
+      const disabled = new Set(profile.settings?.disabled_sources || []);
+      if (body.enabled) disabled.delete(source.id); else disabled.add(source.id);
+      return api.saveSettings({ disabled_sources: [...disabled] });
+    }
+    return check(await sb.from('sources').update(body).eq('id', source.id));
+  },
+  deleteSource: async (id) => check(await sb.from('sources').delete().eq('id', id)),
+
+  // -------------------------------------------------------------- settings
+  async settings() {
+    const profile = await api.profile();
+    const stored = profile.settings || {};
+    return { settings: { ...DEFAULT_SETTINGS, ...stored, stories: { ...DEFAULT_SETTINGS.stories, ...(stored.stories || {}) } } };
+  },
+  async saveSettings(values) {
+    const profile = await api.profile();
+    const settings = { ...(profile.settings || {}), ...values };
+    check(await sb.from('profiles').update({ settings }).eq('id', profile.id));
+    me = { ...profile, settings };
+    return { settings };
+  },
+
+  // ------------------------------------------------------------------ push
+  async pushSubscribe(sub) {
+    const row = { endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, user_id: await userId() };
+    return check(await sb.from('push_subscriptions').upsert(row, { onConflict: 'endpoint', ignoreDuplicates: true }));
+  },
+  pushUnsubscribe: async (sub) => check(await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)),
+  async pushTest() {
+    const id = await api.request('push_test');
+    return api.waitForRequest(id, { timeoutMs: 3 * 60 * 1000 });
+  },
 };
 
 // Tiny DOM helper: h('div', {class: 'x', onclick}, child, 'text')
@@ -73,6 +186,13 @@ export function timeAgo(iso) {
   if (diff < 3600) return `${Math.max(1, Math.round(diff / 60))}m ago`;
   if (diff < 86400) return `${Math.round(diff / 3600)}h ago`;
   return new Date(iso).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
+}
+
+// "07:05" → "7:05 AM"
+export function clockLabel(hhmm) {
+  if (!hhmm) return '';
+  const [hr, min] = hhmm.split(':').map(Number);
+  return new Date(2000, 0, 1, hr, min).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' });
 }
 
 export const store = {

@@ -1,6 +1,7 @@
-// Offline shell: static assets cache-first, API network-first, audio straight from the network.
-const CACHE = 'morning-brief-v1';
-const SHELL = ['/', '/css/styles.css', '/js/app.js', '/js/api.js', '/js/player.js', '/js/sheets.js',
+// Offline shell: our static files network-first with a cache fallback.
+// Supabase (data, audio) and CDN requests are cross-origin and go straight to the network.
+const CACHE = 'morning-brief-v3';
+const SHELL = ['/', '/config.js', '/css/styles.css', '/js/app.js', '/js/api.js', '/js/player.js', '/js/sheets.js',
   '/icons/icon.svg', '/manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
@@ -15,20 +16,30 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/media/')) return;
-  if (url.pathname.startsWith('/api/')) {
-    if (url.pathname.startsWith('/api/voices/preview')) return;
-    e.respondWith(fetch(e.request).then((res) => {
-      if (res.ok && url.pathname.startsWith('/api/briefing')) {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy));
-      }
-      return res;
-    }).catch(() => caches.match(e.request)));
-    return;
-  }
+  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
   e.respondWith(fetch(e.request).then((res) => {
     if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
     return res;
   }).catch(() => caches.match(e.request).then((r) => r || caches.match('/'))));
+});
+
+self.addEventListener('push', (e) => {
+  let data = {};
+  try { data = e.data ? e.data.json() : {}; } catch { /* plain-text payload */ }
+  e.waitUntil(self.registration.showNotification(data.title || 'Morning Brief', {
+    body: data.body || "Today's briefing is ready.",
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    tag: 'morning-brief',
+    data: { url: data.url || '/' },
+  }));
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const target = e.notification.data?.url || '/';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+    for (const w of wins) if ('focus' in w) return w.focus();
+    return self.clients.openWindow(target);
+  }));
 });

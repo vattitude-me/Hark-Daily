@@ -1,12 +1,14 @@
+# The nightly worker. No ports: it only talks outward (news sites, Groq, Supabase, push services).
 services:
-  morning-brief:
+  worker:
     build: .
-    container_name: morning-brief
-    ports:
-      - "8000:8000"
+    container_name: morning-brief-voice
     env_file:
       - path: .env
         required: false
+    environment:
+      TZ: ${BRIEFING_TIMEZONE:-America/Toronto}
     volumes:
       - ./data:/data
     restart: unless-stopped
+    mem_limit: 3g
