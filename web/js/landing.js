@@ -176,8 +176,13 @@ export class Landing {
     };
     const sendError = (ex) => this.error(/signups? not allowed/i.test(ex.message)
       ? "New sign-ups are paused right now. Please try again later."
-      : /rate|security purposes|seconds/i.test(ex.message)
-        ? 'Too many sign-in emails just now. Wait a minute and try again.' : ex.message);
+      : /after (\d+) seconds/i.test(ex.message)
+        // Per-email cooldown: one email per address every 60 seconds.
+        ? `A link was just sent to this email. Use that one, or wait ${ex.message.match(/after (\d+) seconds/i)[1]} seconds for a new one.`
+        : /rate limit/i.test(ex.message)
+          // Supabase's built-in sender allows only a few emails an hour for the whole site.
+          ? 'Sign-in emails are busy right now. Use the last link you received, or try again in a little while.'
+          : ex.message);
 
     $('emailForm').addEventListener('submit', async (e) => {
       e.preventDefault();
