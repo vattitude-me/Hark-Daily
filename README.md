@@ -1,232 +1,128 @@
-# News Extractor Web App
+# ☀️ Morning Brief
 
-A responsive, modern news application built with HTML, CSS, and JavaScript. Displays top headlines with an InShorts-style card interface that supports swiping, keyboard navigation, and a country selector.
+Your daily news on cards, **read aloud every morning by a natural neural voice**. It covers
+**top Canadian news** and **AI & tech**, plus any sites or articles you add yourself.
 
-## Features
+![Morning Brief on desktop](docs/screenshots/desktop.png)
 
-✨ **Responsive Card Interface**
-- Modern card-based design inspired by InShorts
-- Swipe left/right to navigate (touch devices)
-- Arrow keys or navigation buttons for desktop
-- Smooth animations and transitions
+| Mobile (dark) | Swipe deck | Voice picker |
+|---|---|---|
+| ![](docs/screenshots/mobile-dark.png) | ![](docs/screenshots/mobile-swipe.png) | ![](docs/screenshots/settings.png) |
 
-🌍 **Country Selector**
-- Select from 10+ countries (Canada, US, UK, Australia, India, Germany, France, Japan, Brazil, Mexico)
-- Defaults to Canada
-- Instant news refresh on country change
+> Screenshots use the fictional sample feeds in `tests/fakenews.py`.
 
-🔄 **Smart API Management**
-- Built with Netlify Functions for serverless backend
-- Daily request limit: 1000 (NewsAPI quota)
-- Automatic usage tracking and warnings
-- Warns when reaching 80% of daily limit
+## What it does
 
-📱 **User-Friendly Features**
-- Share articles via native share or copy to clipboard
-- Save articles to browser storage
-- Read full articles on NewsAPI source
-- Timestamps showing how long ago article was published
+Every morning (06:30 Toronto time by default) the app:
 
-## Project Structure
+1. **Gathers** headlines from RSS feeds (CBC, Global News, The Globe and Mail, National Post, CityNews
+   Toronto, TechCrunch, The Verge, MIT Technology Review, Ars Technica, VentureBeat, The Decoder,
+   BetaKit, Hacker News…) and from **your own links**.
+2. **Ranks** them. When several outlets cover the same story it becomes one card, and wide coverage
+   pushes it up. AI stories get a boost in AI & Tech, and deals or gift guides are filtered out.
+3. **Reads** the full articles with [trafilatura](https://github.com/adbar/trafilatura).
+4. **Writes** a 40–60 word card summary and a spoken script for each story. It uses Claude if you
+   add an API key; otherwise a built-in extractive summarizer does it.
+5. **Records** one MP3 with a neural voice and chapter markers for every story.
 
-```
-News_Extractor_Claude/
-├── index.html              # Main HTML file
-├── app.js                  # Frontend JavaScript
-├── styles.css              # Responsive styling
-├── package.json            # Dependencies
-├── netlify.toml            # Netlify configuration
-├── .gitignore              # Git ignore rules
-└── netlify/
-    └── functions/
-        └── fetch-news.js   # Serverless API function
-```
+### Highlights
 
-## Setup & Installation
+- 🎧 **Natural voice, not robotic.** The default is [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M), an
+  open-source (Apache-2.0) neural TTS model that runs on your own CPU. You can also pick Microsoft's
+  neural voices through [edge-tts](https://github.com/rany2/edge-tts), which include **Canadian English** (Clara, Liam).
+  Tap ▶ in Settings to hear a sample of each voice.
+- 🃏 **Card UI** with a grid or InShorts-style **swipe deck**. Tap **Listen** on any card to jump the
+  audio to that story. The card that's playing glows as the briefing moves along.
+- ➕ **Add any news link.** Paste a site, section page, RSS feed or single article. The app finds the
+  feed automatically, falls back to scraping headlines, and shows a preview before you add it. A single
+  article goes into your next briefing once.
+- 🌤️ Weather for Toronto (or any city) in the intro, via Open-Meteo (no key needed).
+- 📱 Installable **PWA** with lock-screen controls (Media Session): play/pause, ±15/30 s, next/previous story.
+- 🌙 Light and dark themes, playback speed, resume where you left off, saved stories, and 14 days of past briefings.
+- 🔒 Optional password (`APP_PASSWORD`) if you expose it to the internet.
 
-### Prerequisites
-- Node.js (v14 or higher)
-- Git
-- Netlify CLI (optional but recommended)
-- NewsAPI key from [newsapi.org](https://newsapi.org)
-
-### Local Development
-
-1. **Clone the repository**
-```bash
-git clone <repository-url>
-cd News_Extractor_Claude
-```
-
-2. **Install dependencies**
-```bash
-npm install
-```
-
-3. **Set up environment variables**
-
-Create a `.env` file in the root directory:
-```
-NEWS_API_KEY=your_news_api_key_here
-```
-
-4. **Run locally**
-
-Using Netlify CLI (recommended):
-```bash
-netlify dev
-```
-
-This starts the app at `http://localhost:8888` with local function support.
-
-Alternatively, use Python's simple server for static files:
-```bash
-python -m http.server 8000
-# Then access http://localhost:8000
-```
-
-Note: Without the Netlify Functions running, you'll need to configure CORS or use a proxy.
-
-## Deployment to Netlify
-
-### Step 1: Push to Git
+## Quick start (Docker)
 
 ```bash
-git add .
-git commit -m "Initial commit: News app with Netlify Functions"
-git push origin main
+cp .env.example .env        # optional: add ANTHROPIC_API_KEY, APP_PASSWORD
+docker compose up -d --build
+open http://localhost:8000
 ```
 
-### Step 2: Connect to Netlify
+Press **Build my briefing** for your first one. After that it builds automatically every morning.
+The voice model (~350 MB) is baked into the image, so there's nothing extra to download.
 
-1. Go to [netlify.com](https://netlify.com) and sign in
-2. Click "New site from Git"
-3. Select your repository
-4. Netlify will auto-detect `netlify.toml` settings
+## Run without Docker
 
-### Step 3: Set Environment Variables
-
-In Netlify Dashboard:
-1. Go to Site Settings → Build & Deploy → Environment
-2. Add new variable:
-   - **Key:** `NEWS_API_KEY`
-   - **Value:** Your NewsAPI key
-
-### Step 4: Deploy
-
-Just push to your main branch - Netlify will automatically deploy!
+Requires Python 3.11+.
 
 ```bash
-git push origin main
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python -m app setup      # download the Kokoro voice model (~350 MB, once)
+python -m app serve      # http://localhost:8000
 ```
 
-## API Limits & Monitoring
+Other commands:
 
-**NewsAPI Limits:**
-- 1,000 requests per day (free tier)
-- 100 requests per day per IP/key in development
-
-**Usage Tracking:**
-- The backend logs all API requests
-- Warning appears when usage reaches 80% (800 requests)
-- Requests blocked when limit is reached
-- Check Netlify Functions logs to monitor usage
-
-View logs:
 ```bash
-netlify logs --functions
+python -m app build      # build today's briefing right now (handy for cron)
+python -m pytest         # run the tests (offline; no network needed)
 ```
 
-## Browser Support
+## Configuration
 
-- Chrome/Edge (latest)
-- Firefox (latest)
-- Safari (latest)
-- Mobile browsers supporting Fetch API
+| Variable | Default | What it does |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | – | Lets Claude write the summaries and a radio-style script. Without it the built-in summarizer is used. |
+| `CLAUDE_MODEL` | `claude-opus-5-5` | Model used for writing. |
+| `BRIEFING_TIMEZONE` | `America/Toronto` | Time zone for the daily schedule. |
+| `APP_PASSWORD` | – | Turns on HTTP Basic auth (any username). |
+| `DATA_DIR` | `./data` | SQLite database, briefings and MP3s. |
+| `MODEL_DIR` | `$DATA_DIR/models` | Kokoro model files. |
+| `KEEP_DAYS` | `14` | How many days of briefings to keep. |
+| `SCHEDULER_ENABLED` | `1` | Set to `0` to disable the built-in daily scheduler. |
+| `ALLOW_PRIVATE_URLS` | `0` | Allow sources on private/LAN addresses. |
 
-## File Descriptions
+Voice, speaking pace, briefing time, stories per section and weather city are set in the app under
+**Voice & settings**. Sources are managed under **Sources**. Built-in sources can be switched off,
+and your own sources can be removed.
 
-### `index.html`
-- HTML structure with header, news carousel, navigation
-- Country dropdown selector
-- Refresh button
-- Loading spinner and error/warning messages
+## Hosting ideas
 
-### `app.js`
-- Frontend state management
-- News card rendering
-- Touch/swipe event handling
-- Keyboard navigation (arrow keys)
-- Share and save functionality
-- Date formatting utilities
+- **At home:** a Raspberry Pi 4/5 or any always-on computer running `docker compose up -d`. Kokoro
+  runs fine on CPU; a 5-minute briefing takes about 1–3 minutes to record.
+- **Cloud:** any container host with a persistent volume for `/data` (Fly.io, Railway, Render, a small VPS).
+  Set `APP_PASSWORD` when it's public.
 
-### `styles.css`
-- Mobile-first responsive design
-- Card animations and transitions
-- Flexbox layout
-- Touch-friendly button sizes
-- Dark mode compatible gradient background
+## Project layout
 
-### `netlify/functions/fetch-news.js`
-- Serverless function to fetch from NewsAPI
-- API key management via environment variables
-- Request counting and usage warnings
-- Error handling and CORS support
-- Timeout and rate limit handling
+```
+app/
+  main.py         FastAPI app: JSON API, audio files, web UI
+  briefing.py     daily pipeline: fetch → rank → read → write → record
+  fetcher.py      RSS/Atom (feedparser), feed discovery, page scraping, article extraction (trafilatura)
+  ranking.py      duplicate clustering and scoring
+  summarizer.py   extractive summarizer (no API key needed)
+  writer.py       card copy and spoken script (Claude or template)
+  tts/            Kokoro and Edge neural voices, text clean-up for speech
+  audio.py        segment levelling, chapter timing, MP3 encoding
+  jobs.py         background builds and the daily schedule
+  db.py           SQLite sources and settings
+web/              vanilla JS PWA (no build step)
+tests/            offline tests with sample feeds
+```
 
-### `netlify.toml`
-- Build and publish configuration
-- Function directory specification
-- Redirect rules for SPA routing
-- Cache headers for performance
+## API
 
-## Keyboard Shortcuts
+| Method | Path | |
+|---|---|---|
+| GET | `/api/briefing/latest`, `/api/briefing/{YYYY-MM-DD}`, `/api/briefings` | Briefings and archive |
+| POST | `/api/briefing/generate` | Build now (runs in the background) |
+| GET | `/api/status` | Build progress and next scheduled run |
+| GET/POST/PATCH/DELETE | `/api/sources[/{id}]` | Manage sources |
+| POST | `/api/sources/detect` | Preview what a link is before adding it |
+| GET | `/api/voices`, `/api/voices/preview?voice=…` | Voices and samples |
+| GET/PUT | `/api/settings` | Preferences |
 
-- **←** Left arrow: Previous article
-- **→** Right arrow: Next article
-- **Touch swipe**: Left/right to navigate
-
-## Troubleshooting
-
-**"API key not found" error:**
-- Check that `NEWS_API_KEY` is set in Netlify environment variables
-- Verify the `.env` file in local development
-
-**CORS errors:**
-- Ensure the Netlify Functions are running (`netlify dev`)
-- Check browser console for detailed error messages
-
-**No articles appear:**
-- Verify your NewsAPI key is valid
-- Check internet connection
-- Try a different country
-- Check Netlify function logs for API errors
-
-**Blank cards:**
-- Some articles may not have images - they'll show a 📰 emoji instead
-- This is expected behavior
-
-## Future Enhancements
-
-- [ ] Category filtering (business, tech, sports, etc.)
-- [ ] Search functionality
-- [ ] Advanced saved articles management with export
-- [ ] Dark mode toggle
-- [ ] Multiple language support
-- [ ] Caching layer to reduce API calls
-- [ ] Better error recovery and retry logic
-
-## License
-
-MIT - Feel free to use this project for personal or commercial purposes.
-
-## Support
-
-For issues or questions:
-1. Check the browser console for error details
-2. Review Netlify function logs
-3. Verify NewsAPI key and connectivity
-
----
-
-**Built with:** HTML5, CSS3, Vanilla JavaScript, Netlify Functions, NewsAPI
+Audio lives at `/media/{date}/briefing.mp3`.

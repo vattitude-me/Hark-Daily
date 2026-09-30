@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Morning Brief</title>
+  <meta name="description" content="Your daily Canadian and AI & tech news, summarized on cards and read aloud by a natural voice.">
+  <meta name="theme-color" content="#f7f4ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <script>
+    try { const t = localStorage.getItem('mb-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" fill="currentColor"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M12 5V2L7 6l5 4V7a6 6 0 1 1-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><text x="12" y="16.5" font-size="6.5" text-anchor="middle" fill="currentColor" font-family="Inter,sans-serif" font-weight="700">15</text></symbol>
+    <symbol id="i-fwd" viewBox="0 0 24 24"><path d="M12 5V2l5 4-5 4V7a6 6 0 1 0 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><text x="12" y="16.5" font-size="6.5" text-anchor="middle" fill="currentColor" font-family="Inter,sans-serif" font-weight="700">30</text></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M6 6.5v11a.8.8 0 0 0 1.25.66L15 12.66a.8.8 0 0 0 0-1.32L7.25 5.84A.8.8 0 0 0 6 6.5Z" fill="currentColor"/><rect x="16" y="5.5" width="2.4" height="13" rx="1" fill="currentColor"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M18 6.5v11a.8.8 0 0 1-1.25.66L9 12.66a.8.8 0 0 1 0-1.32l7.75-5.5A.8.8 0 0 1 18 6.5Z" fill="currentColor"/><rect x="5.6" y="5.5" width="2.4" height="13" rx="1" fill="currentColor"/></symbol>
+    <symbol id="i-sources" viewBox="0 0 24 24"><path d="M5 19a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM4 11a9 9 0 0 1 9 9M4 4a16 16 0 0 1 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6 4h12v17l-6-4-6 4V4Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-bookmark-fill" viewBox="0 0 24 24"><path d="M6 4h12v17l-6-4-6 4V4Z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="4" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="4" y="13" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="13" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-swipe" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 8v8M21 8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  </svg>
+
+  <a class="skip-link" href="#cards">Skip to stories</a>
+
+  <header class="topbar">
+    <div class="brand">
+      <img src="/icons/icon.svg" alt="" width="32" height="32">
+      <div>
+        <span class="brand-name">Morning Brief</span>
+        <span class="brand-date" id="todayLabel"></span>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <label class="archive-picker" title="Past briefings">
+        <span class="sr-only">Briefing date</span>
+        <select id="archiveSelect" aria-label="Choose a briefing"></select>
+      </label>
+      <button class="icon-btn" id="openSources" aria-label="Sources" title="Sources"><svg><use href="#i-sources"/></svg></button>
+      <button class="icon-btn" id="openSettings" aria-label="Voice and settings" title="Voice &amp; settings"><svg><use href="#i-settings"/></svg></button>
+      <button class="icon-btn" id="themeToggle" aria-label="Toggle dark mode" title="Theme"><svg><use href="#i-moon"/></svg></button>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Player / hero -->
+    <section class="hero" id="hero" aria-label="Audio briefing">
+      <div class="hero-glow" aria-hidden="true"></div>
+      <div class="hero-inner">
+        <div class="hero-top">
+          <div>
+            <p class="eyebrow" id="greeting">Good morning</p>
+            <h1 class="hero-title" id="heroTitle">Your daily briefing</h1>
+            <p class="hero-meta" id="heroMeta"></p>
+          </div>
+          <div class="weather-chip hidden" id="weatherChip"></div>
+        </div>
+
+        <!-- Player -->
+        <div class="player hidden" id="player">
+          <div class="player-row">
+            <button class="play-btn" id="playBtn" aria-label="Play briefing">
+              <svg class="i-play"><use href="#i-play"/></svg>
+              <svg class="i-pause"><use href="#i-pause"/></svg>
+            </button>
+            <div class="now-playing">
+              <span class="np-label" id="npLabel">Ready when you are</span>
+              <span class="np-title" id="npTitle">Press play for today's stories</span>
+            </div>
+          </div>
+          <div class="scrubber">
+            <div class="track" id="track">
+              <div class="track-fill" id="trackFill"></div>
+              <div class="track-marks" id="trackMarks"></div>
+              <input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="Seek">
+            </div>
+            <div class="times"><span id="curTime">0:00</span><span id="durTime">0:00</span></div>
+          </div>
+          <div class="controls">
+            <button class="ctrl" id="prevChapter" aria-label="Previous story"><svg><use href="#i-prev"/></svg></button>
+            <button class="ctrl" id="back15" aria-label="Back 15 seconds"><svg><use href="#i-back"/></svg></button>
+            <button class="ctrl speed" id="speedBtn" aria-label="Playback speed">1×</button>
+            <button class="ctrl" id="fwd30" aria-label="Forward 30 seconds"><svg><use href="#i-fwd"/></svg></button>
+            <button class="ctrl" id="nextChapter" aria-label="Next story"><svg><use href="#i-next"/></svg></button>
+          </div>
+          <audio id="audio" preload="metadata"></audio>
+        </div>
+
+        <!-- Empty / building state -->
+        <div class="builder hidden" id="builder">
+          <p class="builder-copy" id="builderCopy">Your first briefing is one tap away. We'll gather the top Canadian and AI &amp; tech stories, summarize them and record them in a natural voice.</p>
+          <button class="btn btn-primary btn-lg" id="buildBtn"><svg><use href="#i-refresh"/></svg> Build my briefing</button>
+          <div class="progress hidden" id="buildProgress" role="status" aria-live="polite">
+            <div class="progress-bar"><span id="buildBar"></span></div>
+            <span class="progress-label" id="buildStep">Starting…</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section tabs -->
+    <div class="toolbar" id="toolbar">
+      <nav class="tabs" role="tablist" aria-label="Sections" id="tabs"></nav>
+      <div class="view-toggle" role="group" aria-label="Layout">
+        <button class="icon-btn sm" data-view="grid" aria-label="Grid view" aria-pressed="true"><svg><use href="#i-grid"/></svg></button>
+        <button class="icon-btn sm" data-view="swipe" aria-label="Swipe view" aria-pressed="false"><svg><use href="#i-swipe"/></svg></button>
+      </div>
+    </div>
+
+    <section class="cards" id="cards" aria-live="polite"></section>
+    <div class="swipe-dots hidden" id="swipeDots" aria-hidden="true"></div>
+    <p class="footnote" id="footnote"></p>
+  </main>
+
+  <!-- Mini player -->
+  <div class="mini-player" id="miniPlayer" aria-hidden="true">
+    <button class="play-btn sm" id="miniPlay" aria-label="Play or pause">
+      <svg class="i-play"><use href="#i-play"/></svg>
+      <svg class="i-pause"><use href="#i-pause"/></svg>
+    </button>
+    <div class="mini-text"><span id="miniTitle">Morning Brief</span><div class="mini-bar"><span id="miniBar"></span></div></div>
+    <button class="ctrl" id="miniNext" aria-label="Next story"><svg><use href="#i-next"/></svg></button>
+  </div>
+
+  <!-- Sources sheet -->
+  <dialog class="sheet" id="sourcesSheet" aria-labelledby="sourcesTitle">
+    <div class="sheet-head">
+      <h2 id="sourcesTitle">Sources</h2>
+      <button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <form class="add-source" id="addSourceForm" autocomplete="off">
+        <label class="field-label" for="sourceUrl">Add a news link</label>
+        <p class="hint">Paste a site, section page, RSS feed or a single article. Sites are checked every morning; a single article goes into your next briefing.</p>
+        <div class="input-row">
+          <input type="url" id="sourceUrl" placeholder="https://www.example.com/news" required inputmode="url">
+          <button class="btn btn-primary" type="submit" id="checkSourceBtn">Check link</button>
+        </div>
+        <div class="segmented" role="radiogroup" aria-label="Put it in" id="sourceSection">
+          <label><input type="radio" name="section" value="custom" checked><span>⭐ My Sources</span></label>
+          <label><input type="radio" name="section" value="canada"><span>🇨🇦 Canada</span></label>
+          <label><input type="radio" name="section" value="tech"><span>🤖 AI &amp; Tech</span></label>
+        </div>
+        <div class="preview hidden" id="sourcePreview"></div>
+      </form>
+      <div id="sourceList"></div>
+    </div>
+  </dialog>
+
+  <!-- Settings sheet -->
+  <dialog class="sheet" id="settingsSheet" aria-labelledby="settingsTitle">
+    <div class="sheet-head">
+      <h2 id="settingsTitle">Voice &amp; settings</h2>
+      <button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <section class="setting-group">
+        <h3>Voice</h3>
+        <p class="hint">All voices are neural, not robotic. Tap ▶ to hear a sample.</p>
+        <div class="voice-grid" id="voiceGrid"></div>
+      </section>
+
+      <section class="setting-group">
+        <h3><label for="speedRange">Speaking pace</label></h3>
+        <div class="range-row">
+          <span>Relaxed</span>
+          <input type="range" id="speedRange" min="0.8" max="1.25" step="0.05">
+          <span>Brisk</span>
+          <output id="speedOut">1.0×</output>
+        </div>
+      </section>
+
+      <section class="setting-group">
+        <h3>Every morning</h3>
+        <div class="setting-row">
+          <label class="switch"><input type="checkbox" id="autoGenerate"><span></span></label>
+          <span>Build a new briefing automatically at</span>
+          <input type="time" id="briefingTime" class="time-input">
+        </div>
+        <p class="hint" id="nextRun"></p>
+      </section>
+
+      <section class="setting-group">
+        <h3>Stories per section</h3>
+        <div class="steppers" id="storySteppers"></div>
+      </section>
+
+      <section class="setting-group">
+        <h3>Weather in the intro</h3>
+        <div class="setting-row">
+          <label class="switch"><input type="checkbox" id="weatherOn"><span></span></label>
+          <input type="text" id="cityInput" class="text-input" placeholder="City" aria-label="City">
+        </div>
+        <details class="advanced">
+          <summary>Coordinates</summary>
+          <div class="input-row">
+            <input type="number" step="0.0001" id="latInput" class="text-input" aria-label="Latitude" placeholder="Latitude">
+            <input type="number" step="0.0001" id="lonInput" class="text-input" aria-label="Longitude" placeholder="Longitude">
+          </div>
+        </details>
+      </section>
+
+      <section class="setting-group">
+        <h3>Build now</h3>
+        <p class="hint" id="writerInfo"></p>
+        <button class="btn btn-primary" id="rebuildBtn"><svg><use href="#i-refresh"/></svg> Build a fresh briefing</button>
+        <div class="progress hidden" id="settingsProgress" role="status" aria-live="polite">
+          <div class="progress-bar"><span></span></div>
+          <span class="progress-label"></span>
+        </div>
+      </section>
+    </div>
+    <div class="sheet-foot">
+      <button class="btn btn-ghost" data-close>Cancel</button>
+      <button class="btn btn-primary" id="saveSettings">Save settings</button>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

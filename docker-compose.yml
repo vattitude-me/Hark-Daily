@@ -1,0 +1,12 @@
+services:
+  morning-brief:
+    build: .
+    container_name: morning-brief
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
