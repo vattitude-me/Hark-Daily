@@ -101,6 +101,8 @@ def cmd_check() -> int:
             for model in cfg.groq_models:
                 print(f"{'✓' if model in available else '✗'} Groq model {model}")
                 ok = ok and model in available
+            if not set(cfg.groq_models) <= available:
+                print("  Available chat models: " + ", ".join(sorted(m for m in available if "whisper" not in m)))
         else:
             ok = False
             print(f"✗ Groq: HTTP {resp.status_code} {resp.text[:150]}")

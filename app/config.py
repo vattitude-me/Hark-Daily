@@ -35,7 +35,7 @@ class Config:
     # Groq writes the summaries; each model has its own free-tier limits, so we fall through the list.
     groq_api_key: str | None = os.getenv("GROQ_API_KEY") or None
     groq_models: tuple[str, ...] = tuple(
-        m.strip() for m in os.getenv("GROQ_MODELS", "llama-3.3-70b-versatile,llama-3.1-8b-instant").split(",") if m.strip()
+        m.strip() for m in os.getenv("GROQ_MODELS", "openai/gpt-oss-120b,openai/gpt-oss-20b").split(",") if m.strip()
     )
     admin_emails: tuple[str, ...] = _list("ADMIN_EMAILS")
     # "issues" pushes the admin only when a run had problems; "always" after every run.

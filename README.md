@@ -39,7 +39,7 @@ briefing and a phone notification each morning.
    links. Each feed is fetched **once** even if several people use it. A newly added link is identified
    (RSS feed, section page or single article) at its first build.
 2. **Ranks** stories per user. A story covered by several outlets becomes one card.
-3. **Summarizes** each unique story **once** with Groq (`llama-3.3-70b-versatile`, then `llama-3.1-8b-instant`).
+3. **Summarizes** each unique story **once** with Groq (`openai/gpt-oss-120b`, then `openai/gpt-oss-20b`).
    Summaries are cached, so 30 users with overlapping news cost about the same as one.
 4. **Records** each user's MP3 with their voice and speed. Spoken segments are cached, and chapters mark every story.
 5. **Uploads** the MP3, saves the briefing, **notifies** the user, and deletes anything older than `KEEP_DAYS`.
@@ -51,6 +51,7 @@ briefing and a phone notification each morning.
 | Groq per-minute limit (429) | Waits for `retry-after` (≤ 65 s) and retries | nothing, or a note if it gave up | ⚠️ push |
 | Groq **daily** limit reached | Switches to the next model, then the built-in summarizer | "AI summaries hit today's free limit…" note | ⚠️ push |
 | Groq key invalid / revoked | Built-in summarizer for the whole run | note on the briefing | ❌ push |
+| A Groq model is retired | Skips to the next model | nothing | ⚠️ push: update `GROQ_MODELS` |
 | Groq down (5xx / timeouts) | Retries, then the built-in summarizer | note on the briefing | ⚠️ push |
 | A user's link can't be read | Skipped; red dot in Sources | "1 of your links couldn't be read" | ⚠️ push |
 | Kokoro voice fails | Uses the backup Microsoft voice | note on the briefing | ⚠️ push |
@@ -137,7 +138,7 @@ docker compose up -d
 | `SUPABASE_URL` | | Project URL |
 | `SUPABASE_SECRET_KEY` | | **Server only.** Never commit or share |
 | `GROQ_API_KEY` | | Free at console.groq.com. Without it, summaries are built-in |
-| `GROQ_MODELS` | `llama-3.3-70b-versatile,llama-3.1-8b-instant` | Tried in order |
+| `GROQ_MODELS` | `openai/gpt-oss-120b,openai/gpt-oss-20b` | Tried in order. `python -m app check` lists what's available |
 | `BRIEFING_TIMEZONE` | `America/Toronto` | |
 | `BATCH_TIME` | `07:05` | 24-hour clock |
 | `KEEP_DAYS` | `2` | Briefings and MP3s older than this are deleted |

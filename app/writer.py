@@ -112,7 +112,8 @@ Return a JSON object with exactly these keys:
 - "headline": a clear, neutral headline of at most 12 words.
 - "summary": the card text, 40 to 60 words of plain factual prose built only from the supplied text.
 - "spoken": what the host says, 2 to 4 sentences and 45 to 85 words, conversational like a good radio host.
-  Mention the outlet naturally once ("CBC reports..."). Start with the news itself, not a greeting.
+  Name the outlet from "outlets" naturally once, using its exact name (for example "<outlet> reports...");
+  never name any other outlet. Start with the news itself, not a greeting.
 
 Write for the ear: no URLs, emoji, bullet points, brackets or markdown; spell out symbols
 ("percent", "billion dollars"); keep sentences short. Stay strictly factual and neutral.
@@ -211,8 +212,9 @@ class StoryWriter:
         body = {
             "model": model,
             "temperature": 0.4,
-            "max_tokens": 600,
+            "max_tokens": 1200,
             "response_format": {"type": "json_object"},
+            **({"reasoning_effort": "low"} if model.startswith("openai/gpt-oss") else {}),
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
@@ -231,6 +233,7 @@ class StoryWriter:
                 self.sleep(wait + 0.5)
                 continue
             if resp.status_code in (404, 400) and "model" in resp.text.lower():
+                self.report.add("ai_model_gone", f"{model}: {resp.text[:150]}")
                 raise LimitHit(f"model not available: {resp.text[:150]}")
             if resp.status_code >= 500:
                 if attempt < 2:
