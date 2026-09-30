@@ -77,7 +77,7 @@
 
       <div class="landing-cta">
         <button class="btn btn-primary btn-lg" type="button" data-signin>Get my morning brief</button>
-        <span class="hint">Free · invite-only for now</span>
+        <span class="hint">Free · just your email, no password</span>
       </div>
     </section>
 
@@ -111,8 +111,8 @@
       <div class="login-card">
         <button class="icon-btn signin-close" type="button" id="signinClose" aria-label="Close"><svg><use href="#i-close"/></svg></button>
         <img src="/icons/icon.svg" alt="" width="48" height="48">
-        <h1 id="signinTitle">Sign in</h1>
-        <p class="hint" id="loginHint">Enter the email you were invited with. We'll email you a sign-in link.</p>
+        <h1 id="signinTitle">Get started</h1>
+        <p class="hint" id="loginHint">Enter your email and we'll send you a link. New here? That creates your account.</p>
         <form id="emailForm" class="login-form">
           <label class="sr-only" for="loginEmail">Email</label>
           <input type="email" id="loginEmail" class="text-input" placeholder="you@example.com" autocomplete="email" required>
@@ -313,6 +313,15 @@
       <section class="setting-group">
         <h3>Stories per section</h3>
         <div class="steppers" id="storySteppers"></div>
+      </section>
+
+      <section class="setting-group">
+        <h3>News sources</h3>
+        <div class="setting-row">
+          <label class="switch"><input type="checkbox" id="saySourcesOn"><span></span></label>
+          <span>Say where each story is from</span>
+        </div>
+        <p class="hint">Off keeps transitions clean. The source is always shown on the card.</p>
       </section>
 
       <section class="setting-group">

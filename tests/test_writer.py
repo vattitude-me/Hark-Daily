@@ -7,7 +7,9 @@ import httpx
 from app.fetcher import parse_feed
 from app.ranking import select_top
 from app.report import RunReport
-from app.writer import StoryWriter, template_copy
+from datetime import datetime
+
+from app.writer import StoryWriter, compose, template_copy
 
 from . import fakenews
 from .conftest import BASE
@@ -107,4 +109,15 @@ def test_no_key_uses_built_in_quietly(tmp_path):
 def test_template_connector_is_the_same_for_a_story_everywhere():
     story = _stories(3)[2]
     assert template_copy(story).spoken == template_copy(story).spoken
-    assert "Circuit" in template_copy(story).spoken
+
+
+def test_spoken_copy_is_clean_unless_the_listener_wants_sources():
+    stories = _stories(2)
+    copies = {s.id: template_copy(s) for s in stories}
+    assert all("Circuit" not in c.spoken for c in copies.values())
+    when = datetime(2026, 9, 30, 7)
+    clean = compose({"tech": stories}, copies, when, None)
+    credited = compose({"tech": stories}, copies, when, None, say_sources=True)
+    assert all("Circuit" not in c.spoken for c in clean.stories.values())
+    assert all(c.spoken.endswith(".") and "Circuit" in c.spoken for c in credited.stories.values())
+    assert "Circuit" not in copies[stories[0].id].spoken  # the shared copy is untouched

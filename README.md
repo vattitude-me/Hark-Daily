@@ -19,7 +19,7 @@ plus any sites each person adds. Each user gets their own briefing and a phone n
 
 - **Web app** (`web/`): static files only, no secrets.
 - **Supabase**: row-level security keeps each user to their own data.
-- **Worker** (`app/`): makes outbound calls only, so nothing is exposed to the internet.
+- **Worker** (`app/`): makes outbound calls only, and never fetches private-network addresses from user links.
 
 Each morning the worker:
 1. Fetches every feed once.
@@ -33,7 +33,7 @@ Each morning the worker:
 
 **Supabase**
 1. Create a project and run [`supabase/schema.sql`](supabase/schema.sql) in the SQL Editor. It's safe to re-run.
-2. **Authentication → Providers → Email**: enabled, with "Allow new users to sign up" off. Add users under **Users**.
+2. **Authentication → Providers → Email**: enabled. Turn "Allow new users to sign up" off to make it invite-only.
 3. **Authentication → URL Configuration**: set the Site URL and Redirect URLs to your web app's address.
 4. Optional: set up custom SMTP and add `{{ .Token }}` to the Magic Link template. The email then includes a code,
    which lets installed iOS apps sign in.

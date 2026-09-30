@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS = {
   latitude: 43.6532,
   longitude: -79.3832,
   weather: true,
+  say_sources: false,
   disabled_sources: [],
 };
 
@@ -49,9 +50,9 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 export const api = {
   // ------------------------------------------------------------------ auth
   session: async () => (await sb.auth.getSession()).data.session,
-  // The email carries a sign-in link back to this site (and a code too, once the email template includes one).
+  // Signs in, or creates the account on first use. The email links back here (plus a code if the template has one).
   sendCode: async (email) => check(await sb.auth.signInWithOtp({
-    email, options: { shouldCreateUser: false, emailRedirectTo: location.origin },
+    email, options: { shouldCreateUser: true, emailRedirectTo: location.origin },
   })),
   verifyCode: async (email, token) => check(await sb.auth.verifyOtp({ email, token, type: 'email' })),
   signOut: () => sb.auth.signOut(),

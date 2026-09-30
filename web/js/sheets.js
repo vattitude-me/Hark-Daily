@@ -131,6 +131,7 @@ export class SettingsSheet {
     document.getElementById('nameInput').value = settings.name || '';
     document.getElementById('dailyOn').checked = settings.daily !== false;
     document.getElementById('weatherOn').checked = settings.weather;
+    document.getElementById('saySourcesOn').checked = !!settings.say_sources;
     document.getElementById('cityInput').value = settings.city;
     document.getElementById('latInput').value = settings.latitude;
     document.getElementById('lonInput').value = settings.longitude;
@@ -277,6 +278,7 @@ export class SettingsSheet {
       name: document.getElementById('nameInput').value.trim().slice(0, 40),
       daily: document.getElementById('dailyOn').checked,
       weather: document.getElementById('weatherOn').checked,
+      say_sources: document.getElementById('saySourcesOn').checked,
       city: document.getElementById('cityInput').value.trim() || 'Toronto',
       stories: this.stories,
     };

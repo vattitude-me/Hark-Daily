@@ -112,3 +112,19 @@ def test_detect_source_kinds(url, kind):
     d = asyncio.run(detect(url, allow_private=True))
     assert d.kind == kind
     assert d.sample
+
+
+def test_every_request_must_reach_a_public_address(monkeypatch):
+    """Redirects and scraped links go through the client hook, so none can reach the home network."""
+    import httpx
+    import pytest
+
+    from app import fetcher
+    from app.fetcher import FetchError
+
+    monkeypatch.setattr(fetcher, "ALLOW_PRIVATE", False)
+    for url in ("http://10.0.0.233:8080/", "http://127.0.0.1/", "http://192.168.1.1/admin", "http://169.254.169.254/"):
+        with pytest.raises(FetchError):
+            asyncio.run(fetcher._public_only(httpx.Request("GET", url)))
+    monkeypatch.setattr(fetcher, "ALLOW_PRIVATE", True)
+    asyncio.run(fetcher._public_only(httpx.Request("GET", "http://10.0.0.233/")))

@@ -22,7 +22,7 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 
-from . import audio, push, tts, weather
+from . import audio, fetcher, push, tts, weather
 from .config import Config
 from .fetcher import FetchError, Item, check_public_url, detect, enrich_items, fetch_all
 from .ranking import Story, select_top
@@ -45,6 +45,7 @@ DEFAULT_SETTINGS = {
     "latitude": 43.6532,
     "longitude": -79.3832,
     "weather": True,
+    "say_sources": False,     # credit each story's outlet out loud
     "disabled_sources": [],   # ids of built-in sources this user switched off
 }
 BACKUP_VOICE = "edge:en-CA-ClaraNeural"
@@ -98,6 +99,7 @@ class Batch:
     def __init__(self, cfg: Config, store: Store, report: RunReport, *, progress: Progress = _log_progress,
                  writer: StoryWriter | None = None, notify: bool = True):
         self.cfg = cfg
+        fetcher.ALLOW_PRIVATE = cfg.allow_private_urls
         self.store = store
         self.report = report
         self.progress = progress
@@ -342,7 +344,8 @@ class Batch:
             if key not in weather_cache:
                 weather_cache[key] = weather.forecast(key[0], key[1], st["city"], self.cfg.timezone)
             wx = weather_cache[key]
-        script = compose(plan.picked, copies, now, weather.spoken(wx), name=(st.get("name") or "").strip() or None)
+        script = compose(plan.picked, copies, now, weather.spoken(wx), name=(st.get("name") or "").strip() or None,
+                         say_sources=bool(st.get("say_sources")))
 
         voice_id = st["voice"]
         try:

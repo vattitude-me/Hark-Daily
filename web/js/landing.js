@@ -169,13 +169,13 @@ export class Landing {
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') this.closeSignIn(); });
     const busy = (btn, on, label) => { btn.disabled = on; btn.textContent = label; };
 
-    const INTRO = "Enter the email you were invited with. We'll email you a sign-in link.";
+    const INTRO = "Enter your email and we'll send you a link. New here? That creates your account.";
     const send = async () => {
       await api.sendCode(this.email);
       this.cooldown();
     };
-    const sendError = (ex) => this.error(/signups? not allowed|not found|user/i.test(ex.message)
-      ? "This email isn't on the invite list yet. Ask the person who invited you to add it."
+    const sendError = (ex) => this.error(/signups? not allowed/i.test(ex.message)
+      ? "New sign-ups are paused right now. Please try again later."
       : /rate|security purposes|seconds/i.test(ex.message)
         ? 'Too many sign-in emails just now. Wait a minute and try again.' : ex.message);
 
@@ -225,7 +225,7 @@ export class Landing {
       this.stopWaiting();
       $('sentStep').classList.add('hidden');
       $('emailForm').classList.remove('hidden');
-      $('signinTitle').textContent = 'Sign in';
+      $('signinTitle').textContent = 'Get started';
       $('loginHint').textContent = INTRO;
     });
   }

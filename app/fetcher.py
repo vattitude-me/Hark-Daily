@@ -68,11 +68,22 @@ class FetchError(Exception):
 
 
 # --------------------------------------------------------------------- helpers
+# The worker may sit on a home network, and anyone can add links: every request, including each
+# redirect and every link scraped from a page, must go to a public address. Set from ALLOW_PRIVATE_URLS.
+ALLOW_PRIVATE = False
+
+
+async def _public_only(request: httpx.Request) -> None:
+    if not ALLOW_PRIVATE:
+        await asyncio.to_thread(check_public_url, str(request.url), False)
+
+
 def make_client(timeout: float = 20.0) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         headers={"User-Agent": USER_AGENT, "Accept-Language": "en-CA,en;q=0.9"},
         follow_redirects=True,
         timeout=timeout,
+        event_hooks={"request": [_public_only]},
     )
 
 
@@ -252,6 +263,8 @@ def extract_article(page_html: str, url: str) -> dict:
 async def _get(client: httpx.AsyncClient, url: str) -> httpx.Response:
     try:
         resp = await client.get(url)
+    except FetchError:
+        raise
     except httpx.HTTPError as exc:
         raise FetchError(f"Couldn't reach {urlparse(url).hostname}: {exc.__class__.__name__}") from exc
     if resp.status_code >= 400:

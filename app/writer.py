@@ -13,7 +13,7 @@ import json
 import logging
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 
@@ -60,6 +60,14 @@ def _source_phrase(story: Story) -> str:
     return " and ".join(names)
 
 
+# Spoken after a story when the listener wants to hear where it came from; varied so it doesn't drone.
+CREDITS = ["That's from {src}.", "Via {src}.", "{src} has the full story.", "Reporting from {src}."]
+
+
+def credit(story: Story) -> str:
+    return CREDITS[int(story.id, 16) % len(CREDITS)].format(src=_source_phrase(story))
+
+
 def template_copy(story: Story) -> StoryCopy:
     lead = story.lead
     summary = summarize(lead.text, fallback=lead.summary, max_words=60, title=lead.title) or lead.summary or lead.title
@@ -72,13 +80,13 @@ def template_copy(story: Story) -> StoryCopy:
     # in everyone's briefing and its audio can be shared.
     connector = CONNECTORS[int(story.id, 16) % len(CONNECTORS)]
     title = lead.title.rstrip(".")
-    opener = f"{connector} from {_source_phrase(story)}: {title}." if connector else f"From {_source_phrase(story)}: {title}."
+    opener = f"{connector} {title}." if connector else f"{title}."
     spoken = f"{opener} {spoken_body}".strip()
     return StoryCopy(headline=lead.title, summary=summary, spoken=spoken, writer="built-in")
 
 
 def compose(picked: dict[str, list[Story]], copies: dict[str, StoryCopy], when: datetime,
-            weather: str | None, name: str | None = None) -> Script:
+            weather: str | None, name: str | None = None, say_sources: bool = False) -> Script:
     """Wrap shared story copy in a personal intro, section transitions and sign-off."""
     counts = {k: len(v) for k, v in picked.items()}
     parts = []
@@ -93,6 +101,9 @@ def compose(picked: dict[str, list[Story]], copies: dict[str, StoryCopy], when: 
     hello = f"Good morning, {name}!" if name else "Good morning!"
     intro = f"{hello} It's {date}. {weather + ' ' if weather else ''}Here's your briefing: {rundown}."
     stories = {s.id: copies[s.id] for group in picked.values() for s in group}
+    if say_sources:
+        stories = {s.id: replace(copies[s.id], spoken=f"{copies[s.id].spoken} {credit(s)}")
+                   for group in picked.values() for s in group}
     used = {c.writer for c in stories.values()}
     writer = "built-in" if used == {"built-in"} else ("groq" if "built-in" not in used else "mixed")
     return Script(
@@ -112,8 +123,8 @@ Return a JSON object with exactly these keys:
 - "headline": a clear, neutral headline of at most 12 words.
 - "summary": the card text, 40 to 60 words of plain factual prose built only from the supplied text.
 - "spoken": what the host says, 2 to 4 sentences and 45 to 85 words, conversational like a good radio host.
-  Name the outlet from "outlets" naturally once, using its exact name (for example "<outlet> reports...");
-  never name any other outlet. Start with the news itself, not a greeting.
+  Never name the news outlet or say "reports" or "according to" about it: the app credits the source
+  separately. Start with the news itself, not a greeting.
 
 Write for the ear: no URLs, emoji, bullet points, brackets or markdown; spell out symbols
 ("percent", "billion dollars"); keep sentences short. Stay strictly factual and neutral.
@@ -164,7 +175,7 @@ class StoryWriter:
 
     # ---------------------------------------------------------------- public
     def copy(self, section: str, story: Story) -> StoryCopy:
-        path = self.cache_dir / f"{story.id}.json"
+        path = self.cache_dir / f"{story.id}.v2.json"  # v2: spoken copy no longer names the outlet
         if path.exists():
             try:
                 cached = StoryCopy(**json.loads(path.read_text()))
@@ -206,7 +217,6 @@ class StoryWriter:
         payload = {
             "section": SECTIONS[section]["title"],
             "headline": lead.title,
-            "outlets": story.sources,
             "text": (lead.text or lead.summary or lead.title)[:MAX_ARTICLE_CHARS],
         }
         body = {
