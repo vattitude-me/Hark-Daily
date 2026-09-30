@@ -8,6 +8,20 @@ export function wireSheet(dialog) {
   dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
 }
 
+export const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && window.isSecureContext;
+
+// Asks permission and registers this device. Must be called from a tap. Throws a readable message on failure.
+export async function enablePush(publicKey) {
+  if (await Notification.requestPermission() !== 'granted') throw new Error('Permission was not granted.');
+  if (!publicKey) throw new Error("The server hasn't published its notification key yet. Try again later.");
+  const reg = await navigator.serviceWorker.ready;
+  const pad = '='.repeat((4 - (publicKey.length % 4)) % 4);
+  const raw = atob((publicKey + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  const key = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+  const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  await api.pushSubscribe(sub.toJSON());
+}
+
 /* ------------------------------------------------------------------ Sources */
 export class SourcesSheet {
   constructor() {
@@ -157,7 +171,7 @@ export class SettingsSheet {
   async refreshPush() {
     const box = document.getElementById('pushOn');
     const hint = document.getElementById('pushHint');
-    const supported = 'serviceWorker' in navigator && 'PushManager' in window && window.isSecureContext;
+    const supported = pushSupported();
     box.disabled = !supported;
     if (!supported) {
       hint.textContent = 'Notifications need HTTPS and an installed app (on iPhone: Add to Home Screen first).';
@@ -171,20 +185,13 @@ export class SettingsSheet {
   async togglePush(box) {
     const hint = document.getElementById('pushHint');
     try {
-      const reg = await navigator.serviceWorker.ready;
-      const existing = await reg.pushManager.getSubscription();
       if (!box.checked) {
+        const reg = await navigator.serviceWorker.ready;
+        const existing = await reg.pushManager.getSubscription();
         if (existing) { await api.pushUnsubscribe(existing.toJSON()); await existing.unsubscribe(); }
         return;
       }
-      if (await Notification.requestPermission() !== 'granted') throw new Error('Permission was not granted.');
-      const public_key = this.status?.vapid_public_key;
-      if (!public_key) throw new Error("The server hasn't published its notification key yet. Try again later.");
-      const pad = '='.repeat((4 - (public_key.length % 4)) % 4);
-      const raw = atob((public_key + pad).replace(/-/g, '+').replace(/_/g, '/'));
-      const key = Uint8Array.from(raw, (c) => c.charCodeAt(0));
-      const sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
-      await api.pushSubscribe(sub.toJSON());
+      await enablePush(this.status?.vapid_public_key);
       hint.textContent = 'You will be notified each morning when the briefing is ready.';
     } catch (err) {
       box.checked = false;
@@ -313,6 +320,49 @@ export class SettingsSheet {
       return res;
     } catch (err) {
       toast(err.message, { error: true });
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ Welcome */
+// First sign-in: ask for a name and offer morning notifications.
+export class WelcomeSheet {
+  constructor({ onDone }) {
+    this.onDone = onDone;
+    this.dialog = document.getElementById('welcomeSheet');
+    wireSheet(this.dialog);
+    this.dialog.addEventListener('cancel', (e) => e.preventDefault());
+    document.getElementById('welcomeForm').addEventListener('submit', (e) => { e.preventDefault(); this.finish(true); });
+    document.getElementById('welcomeSkip').addEventListener('click', () => this.finish(false));
+  }
+
+  open(status) {
+    this.status = status;
+    const canPush = pushSupported() && Notification.permission !== 'denied';
+    document.getElementById('welcomePushRow').classList.toggle('hidden', !canPush);
+    document.getElementById('welcomePushOn').checked = canPush;
+    document.getElementById('welcomeError').textContent = '';
+    this.dialog.showModal();
+    document.getElementById('welcomeName').focus();
+  }
+
+  async finish(save) {
+    const err = document.getElementById('welcomeError');
+    const name = document.getElementById('welcomeName').value.trim().slice(0, 40);
+    const wantPush = save && document.getElementById('welcomePushOn').checked && !document.getElementById('welcomePushRow').classList.contains('hidden');
+    const btn = document.getElementById('welcomeGo');
+    btn.disabled = true;
+    try {
+      if (wantPush) {
+        try { await enablePush(this.status?.vapid_public_key); } catch (e) { toast(`Notifications are off: ${e.message}`, { error: true, ms: 6000 }); }
+      }
+      await api.saveSettings({ onboarded: true, ...(save && name ? { name } : {}) });
+      this.dialog.close();
+      this.onDone?.();
+    } catch (e) {
+      err.textContent = e.message;
+    } finally {
+      btn.disabled = false;
     }
   }
 }

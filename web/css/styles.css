@@ -572,3 +572,9 @@ body.signed-out > :not(.landing):not(.toast):not(svg) { display: none; }
 .limits { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13.5px; }
 .limits li + li { margin-top: 6px; }
 .account-email { flex: 1; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+
+@media (min-width: 641px) { .welcome { width: min(460px, 100%); } }
+.welcome form { display: flex; flex-direction: column; min-height: 0; }
+.welcome .text-input { width: 100%; }
+.form-error { color: var(--err); font-weight: 500; margin: 0; min-height: 1em; }
+.form-error:empty { display: none; }

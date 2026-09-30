@@ -2,7 +2,7 @@
 import { api, clockLabel, fmtTime, h, icon, sb, store, timeAgo, toast } from './api.js';
 import { Player } from './player.js';
 import { Landing } from './landing.js';
-import { SettingsSheet, SourcesSheet } from './sheets.js';
+import { SettingsSheet, SourcesSheet, WelcomeSheet } from './sheets.js';
 
 const SECTIONS = {
   canada: { title: 'Canada', emoji: '🇨🇦' },
@@ -24,6 +24,9 @@ const $ = (id) => document.getElementById(id);
 const player = new Player();
 const sources = new SourcesSheet();
 const settings = new SettingsSheet({ onBuild: () => build() });
+const welcome = new WelcomeSheet({
+  onDone: async () => { try { state.profile = await api.profile(); } catch { /* keep the old one */ } renderHero(); },
+});
 
 /* ------------------------------------------------------------------ header */
 function greeting() {
@@ -404,6 +407,9 @@ async function enterApp() {
     try { await api.saveSettings({ voice }); state.profile = await api.profile(); } catch { /* keep default */ }
   }
   store.set('pending-voice', null);
+  // First time here: ask for a name and offer notifications.
+  const st = state.profile?.settings || {};
+  if (state.profile && !st.onboarded && !st.name) welcome.open(state.status);
 }
 
 /* -------------------------------------------------------------------- boot */
