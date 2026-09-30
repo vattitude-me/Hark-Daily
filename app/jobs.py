@@ -79,7 +79,8 @@ class BriefingJobs:
             return
         hour, minute = (int(x) for x in settings["briefing_time"].split(":"))
         self.scheduler.add_job(
-            lambda: self.start("schedule"), CronTrigger(hour=hour, minute=minute),
+            lambda: self.start("schedule"),
+            CronTrigger(hour=hour, minute=minute, timezone=ZoneInfo(self.cfg.timezone)),
             id="daily", misfire_grace_time=3600, coalesce=True,
         )
 

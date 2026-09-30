@@ -111,3 +111,24 @@ def test_edge_only_host_hides_kokoro(monkeypatch):
     assert tts.default_voice() == "edge:en-CA-ClaraNeural"
     monkeypatch.setenv("DEFAULT_VOICE", "edge:en-CA-LiamNeural")
     assert tts.default_voice() == "edge:en-CA-LiamNeural"
+
+
+def test_daily_schedule_uses_briefing_timezone(cfg):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from app.db import Database
+    from app.jobs import BriefingJobs
+
+    db = Database(cfg.db_path)
+    db.update_settings({"auto_generate": False})  # no catch-up build during the test
+    jobs = BriefingJobs(cfg, db)
+    jobs.start_scheduler()
+    try:
+        db.update_settings({"auto_generate": True, "briefing_time": "06:30"})
+        jobs.reschedule()
+        nxt = datetime.fromisoformat(jobs.next_run())
+        local = nxt.astimezone(ZoneInfo("America/Toronto"))
+        assert (local.hour, local.minute) == (6, 30)
+    finally:
+        jobs.stop_scheduler()
