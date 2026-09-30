@@ -534,6 +534,8 @@ body.signed-out > :not(.landing):not(.toast):not(svg) { display: none; }
 .login-card img { margin: 0 auto; }
 .signin-close { position: absolute; top: 10px; right: 10px; }
 .login-card h1 { font: 700 26px/1.2 var(--font-head); margin: 12px 0 6px; }
+.btn-google { background: #fff; color: #1f1f1f; border: 1px solid #dadce0; display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+.btn-google:hover:not(:disabled) { background: #f8f9fa; }
 .login-form { display: grid; gap: 12px; margin-top: 8px; }
 .login-form .text-input { text-align: center; font-size: 17px; }
 .code-input { letter-spacing: .12em; font-variant-numeric: tabular-nums; }
@@ -543,7 +545,7 @@ body.signed-out > :not(.landing):not(.toast):not(svg) { display: none; }
 .sent-actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 8px; color: var(--muted); font-size: 14px; }
 .link-btn { background: none; border: 0; padding: 4px 2px; font: inherit; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .login-form a.btn { text-decoration: none; }
-#showCode { justify-self: center; font-size: 13.5px; color: var(--muted); }
+#showCode, #useEmail { justify-self: center; font-size: 13.5px; color: var(--muted); }
 .link-btn:disabled { color: var(--muted); text-decoration: none; cursor: default; }
 .signin .error { color: var(--err); font-weight: 500; margin: 12px 0 0; }
 

@@ -141,7 +141,7 @@ export class Landing {
     $('signin').classList.remove('hidden');
     this.audio.pause();
     this.voiceAudio.pause();
-    if ($('sentStep').classList.contains('hidden')) setTimeout(() => $('loginEmail').focus(), 50);
+    if (!$('emailForm').classList.contains('hidden')) setTimeout(() => $('loginEmail').focus(), 50);
   }
 
   closeSignIn() { $('signin').classList.add('hidden'); }
@@ -170,6 +170,29 @@ export class Landing {
     const busy = (btn, on, label) => { btn.disabled = on; btn.textContent = label; };
 
     const INTRO = "Enter your email and we'll send you a link. New here? That creates your account.";
+
+    $('googleBtn').addEventListener('click', async () => {
+      this.error();
+      $('googleBtn').disabled = true;
+      $('googleLabel').textContent = 'Opening Google…';
+      try {
+        await api.signInWithGoogle(); // leaves the page; the session is picked up when Google sends us back
+      } catch (ex) {
+        this.error(/provider is not enabled|unsupported provider/i.test(ex.message)
+          ? 'Google sign-in is not switched on yet. Use email instead.' : ex.message);
+        $('googleBtn').disabled = false;
+        $('googleLabel').textContent = 'Continue with Google';
+      }
+    });
+
+    $('useEmail').addEventListener('click', () => {
+      this.error();
+      $('providerStep').classList.add('hidden');
+      $('emailForm').classList.remove('hidden');
+      $('loginHint').textContent = INTRO;
+      $('loginEmail').focus();
+    });
+
     const send = async () => {
       await api.sendCode(this.email);
       this.cooldown();

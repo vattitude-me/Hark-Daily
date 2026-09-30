@@ -54,6 +54,10 @@ export const api = {
   sendCode: async (email) => check(await sb.auth.signInWithOtp({
     email, options: { shouldCreateUser: true, emailRedirectTo: location.origin },
   })),
+  // Redirects to Google, then back here with a session in the URL (detectSessionInUrl picks it up).
+  signInWithGoogle: async () => check(await sb.auth.signInWithOAuth({
+    provider: 'google', options: { redirectTo: location.origin, queryParams: { prompt: 'select_account' } },
+  })),
   verifyCode: async (email, token) => check(await sb.auth.verifyOtp({ email, token, type: 'email' })),
   signOut: () => sb.auth.signOut(),
 
