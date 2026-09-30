@@ -537,6 +537,14 @@ body.signed-out > :not(.landing):not(.toast):not(svg) { display: none; }
 .login-form { display: grid; gap: 12px; margin-top: 8px; }
 .login-form .text-input { text-align: center; font-size: 17px; }
 .code-input { letter-spacing: .12em; font-variant-numeric: tabular-nums; }
+.sent-waiting { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px; border-radius: 14px; background: var(--bg-2); color: var(--ink-2); font-size: 14.5px; }
+.spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); animation: spin .9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.sent-actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 8px; color: var(--muted); font-size: 14px; }
+.link-btn { background: none; border: 0; padding: 4px 2px; font: inherit; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.login-form a.btn { text-decoration: none; }
+#showCode { justify-self: center; font-size: 13.5px; color: var(--muted); }
+.link-btn:disabled { color: var(--muted); text-decoration: none; cursor: default; }
 .signin .error { color: var(--err); font-weight: 500; margin: 12px 0 0; }
 
 /* ---- Notices about today's briefing -------------------------------------------- */

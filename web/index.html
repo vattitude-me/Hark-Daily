@@ -118,13 +118,22 @@
           <input type="email" id="loginEmail" class="text-input" placeholder="you@example.com" autocomplete="email" required>
           <button class="btn btn-primary btn-lg" type="submit" id="sendCodeBtn">Email me a sign-in link</button>
         </form>
-        <form id="codeForm" class="login-form hidden">
-          <label class="sr-only" for="loginCode">Code from the email</label>
-          <input type="text" id="loginCode" class="text-input code-input" inputmode="numeric" autocomplete="one-time-code"
-                 pattern="[0-9]{6,10}" maxlength="10" placeholder="Code (if your email has one)">
-          <button class="btn btn-primary btn-lg" type="submit" id="verifyBtn">Sign in with code</button>
-          <button class="btn btn-ghost" type="button" id="changeEmail">Use a different email</button>
-        </form>
+        <div id="sentStep" class="login-form hidden">
+          <div class="sent-waiting" aria-live="polite"><span class="spinner" aria-hidden="true"></span>Waiting for you to tap the link…</div>
+          <a class="btn btn-primary btn-lg hidden" id="openMail" target="_blank" rel="noopener">Open Gmail</a>
+          <div class="sent-actions">
+            <button class="link-btn" type="button" id="resendBtn">Resend email</button>
+            <span aria-hidden="true">·</span>
+            <button class="link-btn" type="button" id="changeEmail">Use a different email</button>
+          </div>
+          <button class="link-btn" type="button" id="showCode">Have a code instead?</button>
+          <form id="codeForm" class="login-form hidden">
+            <label class="sr-only" for="loginCode">Code from the email</label>
+            <input type="text" id="loginCode" class="text-input code-input" inputmode="numeric" autocomplete="one-time-code"
+                   pattern="[0-9]{6,10}" maxlength="10" placeholder="123456">
+            <button class="btn btn-ghost" type="submit" id="verifyBtn">Sign in with code</button>
+          </form>
+        </div>
         <p class="error hidden" id="loginError" role="alert"></p>
       </div>
     </div>

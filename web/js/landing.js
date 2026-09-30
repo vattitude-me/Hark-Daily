@@ -1,5 +1,12 @@
 // Signed-out landing: play today's real sample, show its headlines and voices, then sign in.
-import { api, h, store } from './api.js';
+import { api, h, store, toast } from './api.js';
+
+const MAILBOXES = [
+  [/@(gmail|googlemail)\.com$/, 'Gmail', 'https://mail.google.com/mail/u/0/#search/%22sign-in+link%22'],
+  [/@(outlook|hotmail|live|msn)\./, 'Outlook', 'https://outlook.live.com/mail/0/'],
+  [/@(yahoo|ymail)\./, 'Yahoo Mail', 'https://mail.yahoo.com/'],
+  [/@(icloud|me|mac)\.com$/, 'iCloud Mail', 'https://www.icloud.com/mail'],
+];
 
 const SECTION = { canada: ['🇨🇦', 'Canada'], tech: ['🤖', 'AI & Tech'], custom: ['⭐', 'My Sources'] };
 const $ = (id) => document.getElementById(id);
@@ -134,7 +141,7 @@ export class Landing {
     $('signin').classList.remove('hidden');
     this.audio.pause();
     this.voiceAudio.pause();
-    setTimeout(() => $('loginEmail').focus(), 50);
+    if ($('sentStep').classList.contains('hidden')) setTimeout(() => $('loginEmail').focus(), 50);
   }
 
   closeSignIn() { $('signin').classList.add('hidden'); }
@@ -162,37 +169,50 @@ export class Landing {
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') this.closeSignIn(); });
     const busy = (btn, on, label) => { btn.disabled = on; btn.textContent = label; };
 
+    const INTRO = "Enter the email you were invited with. We'll email you a sign-in link.";
+    const send = async () => {
+      await api.sendCode(this.email);
+      this.cooldown();
+    };
+    const sendError = (ex) => this.error(/signups? not allowed|not found|user/i.test(ex.message)
+      ? "This email isn't on the invite list yet. Ask the person who invited you to add it."
+      : /rate|security purposes|seconds/i.test(ex.message)
+        ? 'Too many sign-in emails just now. Wait a minute and try again.' : ex.message);
+
     $('emailForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       this.error();
       this.email = $('loginEmail').value.trim().toLowerCase();
       busy($('sendCodeBtn'), true, 'Sending…');
       try {
-        await api.sendCode(this.email);
-        $('emailForm').classList.add('hidden');
-        $('codeForm').classList.remove('hidden');
-        $('loginHint').textContent = `Check ${this.email}. Tap "Sign in" in the email to open Morning Brief on this device, `
-          + 'or type the code here if the email has one. It can take a minute, so check spam too.';
+        await send();
+        this.showSent();
       } catch (ex) {
-        this.error(/signups? not allowed|not found|user/i.test(ex.message)
-          ? "This email isn't on the invite list yet. Ask the person who invited you to add it."
-          : /rate|security purposes|seconds/i.test(ex.message)
-            ? 'Too many sign-in emails just now. Wait a minute and try again.' : ex.message);
+        sendError(ex);
       } finally {
         busy($('sendCodeBtn'), false, 'Email me a sign-in link');
       }
+    });
+
+    $('resendBtn').addEventListener('click', async () => {
+      this.error();
+      try { await send(); toast('Sent a new link. Use the newest email.'); } catch (ex) { sendError(ex); }
+    });
+
+    $('showCode').addEventListener('click', () => {
+      $('codeForm').classList.toggle('hidden');
+      if (!$('codeForm').classList.contains('hidden')) $('loginCode').focus();
     });
 
     $('codeForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       this.error();
       const code = $('loginCode').value.trim();
-      if (!code) { this.error('Tap the link in the email, or type the code if it has one.'); return; }
+      if (!code) return;
       busy($('verifyBtn'), true, 'Signing in…');
       try {
         await api.verifyCode(this.email, code);
-        this.closeSignIn();
-        await this.onSignedIn();
+        await this.signedIn();
       } catch (ex) {
         this.error(/expired|invalid/i.test(ex.message) ? 'That code is wrong or has expired. Request a new one.' : ex.message);
       } finally {
@@ -202,13 +222,62 @@ export class Landing {
 
     $('changeEmail').addEventListener('click', () => {
       this.error();
-      $('codeForm').classList.add('hidden');
+      this.stopWaiting();
+      $('sentStep').classList.add('hidden');
       $('emailForm').classList.remove('hidden');
-      $('loginHint').textContent = "Enter the email you were invited with. We'll email you a sign-in link.";
+      $('signinTitle').textContent = 'Sign in';
+      $('loginHint').textContent = INTRO;
     });
   }
 
+  // After the email is sent: the link usually opens in another tab, which signs this browser in.
+  // Watch for that session so this tab moves on by itself.
+  showSent() {
+    $('emailForm').classList.add('hidden');
+    $('sentStep').classList.remove('hidden');
+    $('codeForm').classList.add('hidden');
+    $('signinTitle').textContent = 'Check your email';
+    $('loginHint').replaceChildren('We sent a sign-in link to ', h('b', {}, this.email),
+      '. Open it on this device and tap ', h('b', {}, 'Sign in'), '. Check spam if it isn\'t there in a minute.');
+    const inbox = MAILBOXES.find(([re]) => re.test(this.email));
+    $('openMail').classList.toggle('hidden', !inbox);
+    if (inbox) { $('openMail').href = inbox[2]; $('openMail').textContent = `Open ${inbox[1]}`; }
+    this.stopWaiting();
+    const check = async () => { if (await api.session()) this.signedIn(); };
+    this.waitTimer = setInterval(check, 3000);
+    this.onFocus = () => check();
+    window.addEventListener('focus', this.onFocus);
+  }
+
+  stopWaiting() {
+    clearInterval(this.waitTimer);
+    if (this.onFocus) window.removeEventListener('focus', this.onFocus);
+  }
+
+  cooldown(seconds = 60) {
+    const btn = $('resendBtn');
+    clearInterval(this.coolTimer);
+    let left = seconds;
+    const tick = () => {
+      btn.disabled = left > 0;
+      btn.textContent = left > 0 ? `Resend in ${left}s` : 'Resend email';
+      left -= 1;
+      if (left < 0) clearInterval(this.coolTimer);
+    };
+    tick();
+    this.coolTimer = setInterval(tick, 1000);
+  }
+
+  async signedIn() {
+    if (this.done) return;
+    this.done = true;
+    this.stopWaiting();
+    this.closeSignIn();
+    await this.onSignedIn();
+  }
+
   stop() {
+    this.stopWaiting();
     this.audio.pause();
     this.voiceAudio.pause();
   }
