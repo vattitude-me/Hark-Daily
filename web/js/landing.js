@@ -18,11 +18,12 @@ export class Landing {
     const hr = new Date().getHours();
     $('lgGreeting').textContent = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
     this.checkLinkError();
-    try {
-      this.render(await api.showcase());
-    } catch {
-      this.render({});
+    let data = {};
+    try { data = await api.showcase(); } catch { /* table missing or offline: use the bundled sample */ }
+    if (!data.briefing?.audio_url) {
+      try { data = await (await fetch('/sample/sample.json')).json(); } catch { data = {}; }
     }
+    this.render(data);
   }
 
   // ------------------------------------------------------------------ sample
@@ -36,9 +37,11 @@ export class Landing {
       $('sampleTitle').textContent = "Today's sample is being prepared. Check back in a few minutes.";
     } else {
       const mins = Math.max(1, Math.round(briefing.duration / 60));
-      $('sampleLabel').textContent = `Today's top stories · ${mins} min`;
-      $('sampleTitle').textContent = "Tap play to hear this morning's brief";
-      $('sampleDate').textContent = `${briefing.title} · the same stories you'd hear`;
+      const today = briefing.date === new Date().toLocaleDateString('en-CA');
+      $('sampleLabel').textContent = `${today ? "Today's top stories" : 'Sample briefing'} · ${mins} min`;
+      $('sampleTitle').textContent = today ? "Tap play to hear this morning's brief" : 'Tap play to hear a real morning brief';
+      if (!today) $('sampleHeading').textContent = 'Headlines from a recent brief';
+      $('sampleDate').textContent = today ? `${briefing.title} · the same stories you'd hear` : `From ${briefing.title}`;
       $('sampleCards').replaceChildren(...briefing.stories.map((s) => this.card(s)));
       $('sampleSection').hidden = false;
     }

@@ -486,8 +486,7 @@ body.signed-out > :not(.landing):not(.toast):not(svg) { display: none; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .landing-hero .btn-primary { background: #fff4ea; color: #1d1410; } }
 
 .landing-section { margin-top: 44px; }
-.landing-section h2, .landing-final h2 { margin: 0 0 14px; font: 600 clamp(22px, 3vw, 28px)/1.2 var(--font-head); letter-spacing: -.01em; }
-.landing-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+.landing-section h2, .landing-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
 .landing-heading .hint { margin: 0 0 14px; }
 .sample-cards {
   display: grid; grid-auto-flow: column; grid-auto-columns: minmax(260px, 300px); gap: 14px;
@@ -523,7 +522,6 @@ body.signed-out > :not(.landing):not(.toast):not(svg) { display: none; }
 .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 .steps li { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; color: var(--ink-2); font-size: 15px; }
 .steps b { display: block; color: var(--ink); font-size: 16px; margin-bottom: 6px; }
-.landing-final { margin-top: 48px; text-align: center; padding: 36px 16px; border-radius: 28px; background: var(--bg-2); }
 
 .signin {
   position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px;

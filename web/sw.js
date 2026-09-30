@@ -1,6 +1,6 @@
 // Offline shell: our static files network-first with a cache fallback.
 // Supabase (data, audio) and CDN requests are cross-origin and go straight to the network.
-const CACHE = 'morning-brief-v4';
+const CACHE = 'morning-brief-v5';
 const SHELL = ['/', '/config.js', '/css/styles.css', '/js/app.js', '/js/api.js', '/js/player.js', '/js/sheets.js', '/js/landing.js',
   '/icons/icon.svg', '/manifest.webmanifest'];
 
@@ -16,7 +16,8 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  // Audio streams with range requests; let the browser handle it directly.
+  if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.endsWith('.mp3')) return;
   e.respondWith(fetch(e.request).then((res) => {
     if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
     return res;
