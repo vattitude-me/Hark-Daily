@@ -1,6 +1,7 @@
 // Morning Brief: main UI.
 import { api, clockLabel, fmtTime, h, icon, sb, store, timeAgo, toast } from './api.js';
 import { Player } from './player.js';
+import { Landing } from './landing.js';
 import { SettingsSheet, SourcesSheet } from './sheets.js';
 
 const SECTIONS = {
@@ -378,55 +379,31 @@ function bindEvents() {
   });
 }
 
-/* ------------------------------------------------------------------- login */
-function showLogin(on) {
-  document.body.classList.toggle('signed-out', on);
-  $('login').classList.toggle('hidden', !on);
+/* ----------------------------------------------------------------- landing */
+let landing = null;
+let started = false;
+
+async function showLanding() {
+  document.body.classList.add('signed-out');
+  $('login').classList.remove('hidden');
+  if (!landing) landing = new Landing({ onSignedIn: enterApp });
+  await landing.show();
 }
 
-function bindLogin() {
-  let email = '';
-  const err = (msg) => { $('loginError').textContent = msg || ''; $('loginError').classList.toggle('hidden', !msg); };
-  const busy = (btn, on, label) => { btn.disabled = on; btn.textContent = label; };
-  $('emailForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    err();
-    email = $('loginEmail').value.trim().toLowerCase();
-    busy($('sendCodeBtn'), true, 'Sending…');
-    try {
-      await api.sendCode(email);
-      $('emailForm').classList.add('hidden');
-      $('codeForm').classList.remove('hidden');
-      $('loginHint').textContent = `We sent a code to ${email}. It may take a minute; check spam too.`;
-      $('loginCode').focus();
-    } catch (ex) {
-      err(/signups? not allowed|not found|user/i.test(ex.message)
-        ? "This email isn't on the list yet. Ask the admin to add you."
-        : /rate|security purposes/i.test(ex.message) ? 'Too many codes requested. Wait a minute and try again.' : ex.message);
-    } finally {
-      busy($('sendCodeBtn'), false, 'Send code');
-    }
-  });
-  $('codeForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    err();
-    busy($('verifyBtn'), true, 'Signing in…');
-    try {
-      await api.verifyCode(email, $('loginCode').value.trim());
-      showLogin(false);
-      await start();
-    } catch (ex) {
-      err(/expired|invalid/i.test(ex.message) ? 'That code is wrong or has expired. Try again or request a new one.' : ex.message);
-    } finally {
-      busy($('verifyBtn'), false, 'Sign in');
-    }
-  });
-  $('changeEmail').addEventListener('click', () => {
-    err();
-    $('codeForm').classList.add('hidden');
-    $('emailForm').classList.remove('hidden');
-    $('loginHint').textContent = "Sign in with your email. We'll send you a 6-digit code.";
-  });
+async function enterApp() {
+  landing?.stop();
+  document.body.classList.remove('signed-out');
+  $('login').classList.add('hidden');
+  if (location.hash.includes('access_token')) history.replaceState(null, '', location.pathname);
+  if (started) return;
+  started = true;
+  await start();
+  // A voice they tried on the landing page becomes theirs, unless they already picked one.
+  const voice = store.get('pending-voice', null);
+  if (voice && !state.profile?.settings?.voice) {
+    try { await api.saveSettings({ voice }); state.profile = await api.profile(); } catch { /* keep default */ }
+  }
+  store.set('pending-voice', null);
 }
 
 /* -------------------------------------------------------------------- boot */
@@ -458,19 +435,17 @@ async function init() {
   syncThemeIcon(); // follows the OS until the user picks a theme
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncThemeIcon);
   bindEvents();
-  bindLogin();
   renderHero();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-  sb.auth.onAuthStateChange((event) => { if (event === 'SIGNED_OUT') showLogin(true); });
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT') { started = false; showLanding(); }
+    else if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) setTimeout(enterApp, 0);
+  });
   let session = null;
   try { session = await api.session(); } catch { /* offline */ }
-  if (!session) {
-    const cached = store.get('last-briefing', null);
-    if (cached && !navigator.onLine) { await start(); return; }
-    showLogin(true);
-    return;
-  }
-  await start();
+  if (session) { await enterApp(); return; }
+  if (store.get('last-briefing', null) && !navigator.onLine) { started = true; await start(); return; }
+  await showLanding();
 }
 
 init();

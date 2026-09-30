@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import logging
-import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -15,7 +14,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from . import audio, push, tts
-from .batch import Batch, BatchLock, admin_subscriptions, next_run, notify_admin, seed_builtins
+from .batch import Batch, BatchLock, admin_subscriptions, next_run, notify_admin, preview_path, seed_builtins
 from .config import Config
 from .report import RunReport
 from .store import Store, StoreError, now_iso
@@ -23,10 +22,6 @@ from .store import Store, StoreError, now_iso
 log = logging.getLogger(__name__)
 
 PREVIEW_TEXT = "Good morning! Here's your briefing, with the top stories from across Canada and the latest in tech."
-
-
-def preview_path(voice_id: str) -> str:
-    return "previews/" + re.sub(r"[^a-zA-Z0-9_-]", "-", voice_id) + ".mp3"
 
 
 class Worker:
@@ -107,6 +102,24 @@ class Worker:
             log.info("Missed today's %s run; building now", self.cfg.batch_time)
             self.run_batch("catch-up")
 
+    def ensure_showcase(self) -> None:
+        """Make sure the landing page has a sample from today (e.g. on first start)."""
+        try:
+            current = self.store.showcase()
+        except StoreError as exc:
+            log.warning("Couldn't read the public sample (run supabase/schema.sql again?): %s", exc)
+            return
+        today = datetime.now(self.tz).date().isoformat()
+        if (current.get("briefing") or {}).get("date") == today or not self.lock.acquire():
+            return
+        try:
+            report = RunReport("sample")
+            Batch(self.cfg, self.store, report, notify=False).run(emails=[], scheduled=False, showcase=True)
+        except Exception:  # noqa: BLE001
+            log.exception("Building the public sample failed")
+        finally:
+            self.lock.release()
+
     # ============================================================ requests
     def poll_requests(self) -> None:
         try:
@@ -183,6 +196,7 @@ class Worker:
                                coalesce=True, max_instances=1)
         self.scheduler.add_job(self.catch_up, id="catch-up")
         self.scheduler.add_job(self.upload_previews, id="previews")
+        self.scheduler.add_job(self.ensure_showcase, id="showcase")
         log.info("Worker ready: daily batch at %s %s, next %s", self.cfg.batch_time, self.cfg.timezone,
                  next_run(self.cfg))
         self.scheduler.start()

@@ -94,6 +94,14 @@ create table if not exists public.app_status (
   updated_at  timestamptz not null default now()
 );
 
+-- ---------------------------------------------------------------- showcase
+-- Today's public sample (top built-in stories + audio + voice list) for the signed-out landing page.
+create table if not exists public.showcase (
+  id          integer primary key default 1 check (id = 1),
+  data        jsonb not null default '{}'::jsonb,
+  updated_at  timestamptz not null default now()
+);
+
 -- ------------------------------------------------------ row-level security
 alter table public.profiles           enable row level security;
 alter table public.sources            enable row level security;
@@ -101,6 +109,7 @@ alter table public.briefings          enable row level security;
 alter table public.push_subscriptions enable row level security;
 alter table public.build_requests     enable row level security;
 alter table public.app_status         enable row level security;
+alter table public.showcase           enable row level security;
 
 create or replace function public.is_admin() returns boolean
 language sql stable security definer set search_path = '' as $$
@@ -141,12 +150,16 @@ create policy "create requests" on public.build_requests for insert to authentic
 drop policy if exists "read app status" on public.app_status;
 create policy "read app status" on public.app_status for select to authenticated using (true);
 
+drop policy if exists "anyone reads showcase" on public.showcase;
+create policy "anyone reads showcase" on public.showcase for select to anon, authenticated using (true);
+
 -- Column-level limits: users may only touch the columns the app needs.
 -- (is_admin, feed_token, status and the worker's source bookkeeping stay worker-only.)
 revoke all on public.profiles, public.sources, public.briefings, public.push_subscriptions,
-              public.build_requests, public.app_status from anon, authenticated;
+              public.build_requests, public.app_status, public.showcase from anon, authenticated;
 grant select on public.profiles, public.sources, public.briefings, public.push_subscriptions,
                 public.build_requests, public.app_status to authenticated;
+grant select on public.showcase to anon, authenticated;
 grant update (settings) on public.profiles to authenticated;
 grant insert (user_id, name, url, section, enabled) on public.sources to authenticated;
 grant update (name, section, enabled) on public.sources to authenticated;

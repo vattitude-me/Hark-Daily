@@ -146,6 +146,13 @@ class Store:
         rows = self.select("app_status", {"id": "eq.1"})
         return rows[0]["data"] if rows else {}
 
+    def set_showcase(self, data: dict) -> None:
+        self.insert("showcase", {"id": 1, "data": data, "updated_at": now_iso()}, on_conflict="id")
+
+    def showcase(self) -> dict:
+        rows = self.select("showcase", {"id": "eq.1"})
+        return rows[0]["data"] if rows else {}
+
     # --------------------------------------------------------------- storage
     def public_url(self, path: str) -> str:
         return f"{self.url}/storage/v1/object/public/{self.bucket}/{path}"

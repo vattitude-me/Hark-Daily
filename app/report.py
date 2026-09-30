@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 # Codes only the admin needs to act on; users aren't shown these.
-ADMIN_ONLY = {"ai_model_gone"}
+ADMIN_ONLY = {"ai_model_gone", "showcase_failed"}
 
 MESSAGES = {
     # Groq / AI summaries
@@ -24,6 +24,7 @@ MESSAGES = {
     "ai_unavailable": ("The AI summary service couldn't be reached, so some summaries were written by the "
                        "built-in summarizer."),
     "ai_off": "AI summaries are switched off, so the built-in summarizer wrote today's summaries.",
+    "showcase_failed": "Admin: the public sample on the landing page couldn't be updated.",
     "ai_model_gone": "Admin: a configured Groq model is no longer available. Update GROQ_MODELS on the server.",
     # News and links
     "sources_failed": "Some of your links couldn't be read this morning. Check Sources for details.",

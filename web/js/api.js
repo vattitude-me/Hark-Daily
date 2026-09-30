@@ -3,7 +3,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '../config.js';
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 
 export const DEFAULT_SETTINGS = {
@@ -49,7 +49,10 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 export const api = {
   // ------------------------------------------------------------------ auth
   session: async () => (await sb.auth.getSession()).data.session,
-  sendCode: async (email) => check(await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false } })),
+  // The email carries a sign-in link back to this site (and a code too, once the email template includes one).
+  sendCode: async (email) => check(await sb.auth.signInWithOtp({
+    email, options: { shouldCreateUser: false, emailRedirectTo: location.origin },
+  })),
   verifyCode: async (email, token) => check(await sb.auth.verifyOtp({ email, token, type: 'email' })),
   signOut: () => sb.auth.signOut(),
 
@@ -71,6 +74,11 @@ export const api = {
   async archive() {
     const rows = check(await sb.from('briefings').select('date').order('date', { ascending: false }));
     return { briefings: rows };
+  },
+  // Public: today's sample briefing and the voice list, for the signed-out landing page.
+  async showcase() {
+    const rows = check(await sb.from('showcase').select('data').eq('id', 1).limit(1));
+    return rows[0]?.data || {};
   },
   async status() {
     const rows = check(await sb.from('app_status').select('data').eq('id', 1).limit(1));

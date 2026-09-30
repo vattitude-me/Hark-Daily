@@ -81,7 +81,7 @@ def test_old_briefings_are_deleted(cfg, store):
     run(cfg, store)
     kept = sorted(d for (_, d) in store.briefings_)
     assert kept == [(today - timedelta(days=1)).isoformat(), today.isoformat()]
-    assert sorted(store.objects) == [f"toku-1/{d}.mp3" for d in kept]
+    assert sorted(p for p in store.objects if p.startswith("toku-1/")) == [f"toku-1/{d}.mp3" for d in kept]
 
 
 def test_new_links_are_detected_and_private_ones_refused(cfg, store):
@@ -142,7 +142,8 @@ def test_storage_failure_is_reported(cfg, store, monkeypatch):
     monkeypatch.setattr(store, "upload", full)
     report, results = run(cfg, store)
     assert "storage space may be full" in results["a@example.com"].error
-    assert [i.code for i in report.issues] == ["ai_off", "storage_failed"]
+    assert [i.code for i in report.issues] == ["ai_off", "storage_failed", "showcase_failed"]
+    assert [n["code"] for n in report.for_user(store.profiles_[0]["id"])] == ["storage_failed"]
 
 
 def test_admin_is_notified_when_a_run_has_problems(cfg, store, monkeypatch):
@@ -167,3 +168,30 @@ def test_admin_is_notified_when_a_run_has_problems(cfg, store, monkeypatch):
     down.add("supabase_down", "unreachable", level="error")
     notify_admin(cfg, None, down)
     assert sent[-1][0][0]["endpoint"] == "https://push/admin" and sent[-1][1].startswith("❌")
+
+
+def test_full_run_publishes_public_sample(cfg, store):
+    store.add_user("a@example.com")
+    report = RunReport("schedule")
+    Batch(cfg, store, report, notify=False).run()
+    sample = store.showcase()
+    assert sample["briefing"]["stories"], "sample has stories"
+    assert all(c["section"] in ("canada", "tech") for c in sample["briefing"]["stories"])
+    assert "showcase/today.mp3" in store.objects
+    assert sample["voices"] and all("preview_url" in v for v in sample["voices"])
+    assert "links" not in sample["briefing"]["stories"][0]
+
+
+def test_sample_only_run_builds_no_user_briefings(cfg, store):
+    store.add_user("a@example.com")
+    report = RunReport("sample")
+    results = Batch(cfg, store, report, notify=False).run(emails=[], scheduled=False, showcase=True)
+    assert results == []
+    assert store.showcase()["briefing"]
+    assert not store.briefings_
+
+
+def test_one_user_run_leaves_sample_alone(cfg, store):
+    store.add_user("a@example.com")
+    Batch(cfg, store, RunReport("adhoc"), notify=False).run(emails=["a@example.com"], scheduled=False)
+    assert store.showcase() == {}

@@ -43,6 +43,9 @@ briefing and a phone notification each morning.
    Summaries are cached, so 30 users with overlapping news cost about the same as one.
 4. **Records** each user's MP3 with their voice and speed. Spoken segments are cached, and chapters mark every story.
 5. **Uploads** the MP3, saves the briefing, **notifies** the user, and deletes anything older than `KEEP_DAYS`.
+6. **Publishes the public sample**: 3 Canadian and 3 tech stories with audio, shown on the signed-out landing
+   page. Visitors can play it, browse the cards and hear each voice before they sign in. It is stored in the
+   `showcase` table and at `showcase/today.mp3`. If the worker starts and today's sample is missing, it builds one.
 
 ## When things go wrong (and who hears about it)
 
@@ -56,6 +59,7 @@ briefing and a phone notification each morning.
 | A user's link can't be read | Skipped; red dot in Sources | "1 of your links couldn't be read" | ⚠️ push |
 | Kokoro voice fails | Uses the backup Microsoft voice | note on the briefing | ⚠️ push |
 | Upload / Supabase outage | That user's briefing fails, and the rest continue | "couldn't be built today" banner | ❌ push |
+| Public sample fails to build | Landing page keeps yesterday's (or "coming soon") | nothing | ⚠️ push |
 | Server asleep at batch time | Catches up when it wakes (until noon) | "running late" banner | summary push |
 
 Admin pushes go to every device an admin (`ADMIN_EMAILS`) has subscribed. `ADMIN_NOTIFY=issues` (default) sends
@@ -70,19 +74,30 @@ The admin's devices are cached on the server, so the "Supabase is down" alert st
    It is safe to re-run after updates.
 2. **Authentication → Sign In / Providers → Email**: keep Email enabled. Turn **off** "Allow new users to sign up"
    so only people you add can get in.
-3. **Authentication → Email Templates → Magic Link**: include the code, e.g.
-   `<h2>Your Morning Brief code</h2><p>{{ .Token }}</p>`. Users type the code into the app, which works inside an
-   installed PWA, where magic links would open a different browser.
-4. **Authentication → Users → Add user** for each person (email, "auto confirm"). Their profile is created automatically.
-5. **Settings → API keys**: copy the *publishable* key into [`web/config.js`](web/config.js). It's public by design.
+3. **Authentication → URL Configuration**: set **Site URL** to `https://mbv.vattitude.ca` and add
+   `https://mbv.vattitude.ca/**` (and `http://localhost:8000/**` for development) to **Redirect URLs**.
+   The sign-in email's link comes back here.
+4. **Sign-in codes for the installed app.** A home-screen app on iPhone keeps its own storage, so a sign-in link
+   opens in Safari and signs in *Safari*, not the app. Typing a code works everywhere. To send one:
+   - Under **Authentication → Emails → SMTP Settings**, set up custom SMTP. For example, Gmail with an app password
+     (`smtp.gmail.com`, port 465) or a free Resend account.
+   - Then edit **Email Templates → Magic Link** to include the code, e.g.
+     `<h2>Your Morning Brief code</h2><p>{{ .Token }}</p><p><a href="{{ .ConfirmationURL }}">Or tap to sign in</a></p>`.
+
+   Without custom SMTP, the default email has only the link. The app accepts either.
+5. **Authentication → Users → Add user** for each person (email, "auto confirm"). Their profile is created automatically.
+6. **Settings → API keys**: copy the *publishable* key into [`web/config.js`](web/config.js). It's public by design.
    Put the **secret** key only in the server's `.env`.
-6. For more than a few sign-ins an hour, set up custom SMTP under **Authentication → Emails**, because the built-in
-   sender is heavily rate-limited. A free-tier project pauses after 7 days with no activity, and the daily batch counts as activity.
+
+The built-in email sender allows only a few emails an hour, which is another reason to set up custom SMTP.
+A free-tier project pauses after 7 days with no activity. The daily batch counts as activity.
 
 ### 2. Web app on Vercel
 
 - Import the GitHub repo. Set **Root Directory** to `web` and **Framework Preset** to `Other`, with no build command.
-- **Domains**: add `mbv.vattitude.ca`. At WHC, add a `CNAME` record `mbv → cname.vercel-dns.com`.
+- **Domains**: add `mbv.vattitude.ca`. At WHC, add a `CNAME` record for `mbv` using the target Vercel shows
+  (e.g. `…vercel-dns-017.com`). If the certificate fails with NXDOMAIN, one of the DNS host's nameservers hasn't
+  picked up the record yet. Check with `dig mbv.vattitude.ca @parking2.whc.ca`, and press **Refresh** in Vercel once it answers.
 - Open the site on your phone and choose **Add to Home Screen**. Then, in Settings, turn on **Morning notification**.
 
 ### 3. Server (Linux + Docker)
