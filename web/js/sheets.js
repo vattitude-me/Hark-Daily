@@ -119,6 +119,8 @@ export class SourcesSheet {
 }
 
 /* ----------------------------------------------------------------- Settings */
+const speedLabel = (value) => `${Number(value).toFixed(2).replace(/0$/, '')}×`;
+
 export class SettingsSheet {
   constructor({ onBuild }) {
     this.dialog = document.getElementById('settingsSheet');
@@ -126,28 +128,24 @@ export class SettingsSheet {
     this.previewAudio = new Audio();
     wireSheet(this.dialog);
     this.dialog.addEventListener('close', () => this.previewAudio.pause());
-    this.dialog.querySelectorAll('.set-tab').forEach((t) => t.addEventListener('click', () => this.showTab(t.dataset.tab)));
+    this.picker = document.getElementById('voicePicker');
+    this.picker.addEventListener('toggle', () => { if (!this.picker.open) this.previewAudio.pause(); });
     document.getElementById('saveSettings').addEventListener('click', () => this.save());
     document.getElementById('rebuildBtn').addEventListener('click', () => this.onBuild());
     document.getElementById('pushOn').addEventListener('change', (e) => this.togglePush(e.target));
     document.getElementById('pushTest').addEventListener('click', (e) => this.testPush(e.currentTarget));
     document.getElementById('signOutBtn').addEventListener('click', async () => { await api.signOut(); location.reload(); });
     const range = document.getElementById('speedRange');
-    range.addEventListener('input', () => { document.getElementById('speedOut').textContent = `${Number(range.value).toFixed(2).replace(/0$/, '')}×`; });
-  }
-
-  showTab(name) {
-    this.dialog.querySelectorAll('.set-tab').forEach((t) => {
-      const on = t.dataset.tab === name;
-      t.classList.toggle('active', on);
-      t.setAttribute('aria-selected', String(on));
+    range.addEventListener('input', () => {
+      document.getElementById('speedOut').textContent = speedLabel(range.value);
+      this.paintVoiceSummary();
     });
-    this.dialog.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== name));
-    this.dialog.querySelector('.sheet-body').scrollTop = 0;
   }
 
   async open(status, profile) {
-    this.showTab('voice');
+    // The voice is usually picked once, so it opens collapsed to a one-line summary.
+    this.picker.open = false;
+    this.dialog.querySelector('.sheet-body').scrollTop = 0;
     this.dialog.showModal();
     this.status = status || {};
     const { settings } = await api.settings();
@@ -249,12 +247,22 @@ export class SettingsSheet {
       },
     }, a)));
     this.paintVoices();
+    this.paintVoiceSummary();
+  }
+
+  paintVoiceSummary() {
+    if (!this.voices) return;
+    const v = this.voices.find((x) => x.id === this.selectedVoice);
+    const name = v?.name || this.selectedVoice || 'Default';
+    document.getElementById('voiceAvatar').textContent = name[0];
+    document.getElementById('voiceSummary').textContent =
+      [name, v?.accent, speedLabel(document.getElementById('speedRange').value)].filter(Boolean).join(' · ');
   }
 
   paintVoices() {
     const shown = this.voices.filter((v) => this.accent === 'All' || v.accent === this.accent);
     document.getElementById('voiceGrid').replaceChildren(...shown.map((v) => {
-      const radio = h('input', { type: 'radio', name: 'voice', value: v.id, onchange: () => { this.selectedVoice = v.id; } });
+      const radio = h('input', { type: 'radio', name: 'voice', value: v.id, onchange: () => { this.selectedVoice = v.id; this.paintVoiceSummary(); } });
       radio.checked = v.id === this.selectedVoice;
       const btn = h('button', { type: 'button', class: 'preview-btn', 'aria-label': `Hear ${v.name}` }, icon('play'));
       btn.addEventListener('click', (e) => { e.preventDefault(); this.preview(v, btn); });

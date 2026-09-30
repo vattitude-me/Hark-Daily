@@ -343,7 +343,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 18px var(--gutter) 0; }
 .sheet-body { padding: 18px 20px 24px; overflow-y: auto; }
 .sheet-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); background: var(--surface-2); }
 
-.field-label, .setting-group h3 { display: block; font-weight: 700; font-size: 15px; margin: 0 0 4px; }
+.field-label { display: block; font-weight: 700; font-size: 15px; margin: 0 0 4px; }
 .hint { margin: 0 0 12px; font-size: 13.5px; color: var(--muted); }
 .input-row { display: flex; gap: 8px; }
 .input-row input { flex: 1; min-width: 0; }
@@ -388,17 +388,31 @@ input[type="url"]:focus, .text-input:focus, .time-input:focus { outline: none; b
 .switch input:checked + span::after { transform: translateX(18px); }
 .switch input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 2px; }
 
-.setting-group { padding: 18px 0; border-bottom: 1px solid var(--line); }
-.setting-group:first-child { padding-top: 0; }
-.set-tabs { display: flex; gap: 4px; padding: 6px 14px 0; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
-.set-tab { flex: 1; min-width: max-content; border: 0; background: none; padding: 11px 14px; font-size: 14.5px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
-.set-tab:hover { color: var(--ink); }
-.set-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
-.set-tab:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; border-radius: 8px; }
-#settingsSheet { height: min(680px, 88vh); }
-#settingsSheet .sheet-body { flex: 1; }
-@media (max-width: 640px) { #settingsSheet { height: 88vh; } .voice-grid { max-height: 230px; } }
+.set-section + .set-section { margin-top: 26px; }
+.set-label { font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
+.setting-group { padding: 14px 0; border-bottom: 1px solid var(--line); }
 .setting-group:last-child { border-bottom: 0; }
+.setting-group h4 { font-weight: 700; font-size: 15px; margin: 0 0 8px; }
+.setting-group .setting-row + .hint { margin: 6px 0 0 54px; }
+.setting-group .hint:empty { display: none; }
+.setting-row > label:not(.switch) { flex: 1; min-width: 0; }
+.city-input { flex: 1; min-width: 120px; padding: 8px 12px; }
+.voice-picker > summary { list-style: none; cursor: pointer; }
+.voice-picker > summary::-webkit-details-marker { display: none; }
+.voice-summary { display: flex; align-items: center; gap: 12px; }
+.voice-summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; border-radius: 12px; }
+.voice-summary .avatar { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: #fff; flex: none; background: linear-gradient(135deg, var(--hero-a), var(--hero-c)); }
+.voice-summary .v-text { flex: 1; min-width: 0; }
+.voice-summary .v-label { display: block; font-size: 12.5px; color: var(--muted); }
+.voice-summary .v-name { display: block; font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.voice-change { pointer-events: none; padding: 7px 14px; font-size: 13.5px; }
+.voice-picker[open] .voice-change { visibility: hidden; }
+.voice-body { margin-top: 14px; }
+.voice-body h4 { margin-top: 16px; }
+.how-it-works { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); }
+.how-it-works .limits { margin-top: 10px; }
+#settingsSheet .sheet-body { flex: 1; }
+@media (max-width: 640px) { .voice-grid { max-height: 230px; } }
 .setting-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 15px; }
 .voice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; max-height: 250px; overflow-y: auto; padding: 2px; margin: 0 -2px; overscroll-behavior: contain; }
 .voice-card { position: relative; display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface-2); cursor: pointer; transition: border-color .15s, background .15s; }
