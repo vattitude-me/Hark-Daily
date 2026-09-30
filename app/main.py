@@ -101,6 +101,8 @@ def create_app(cfg: Config | None = None, *, start_scheduler: bool | None = None
 
         @app.middleware("http")
         async def basic_auth(request: Request, call_next):
+            if request.url.path == "/healthz":
+                return await call_next(request)
             header = request.headers.get("authorization", "")
             if header.lower().startswith("basic "):
                 try:
@@ -110,6 +112,10 @@ def create_app(cfg: Config | None = None, *, start_scheduler: bool | None = None
                 except Exception:  # noqa: BLE001 - malformed header
                     pass
             return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="Morning Brief"'})
+
+    @app.get("/healthz", include_in_schema=False)
+    def healthz():
+        return {"ok": True}
 
     # ---------------------------------------------------------------- briefing
     @app.get("/api/briefing/latest")

@@ -1,0 +1,31 @@
+# Render Blueprint: Dashboard → New → Blueprint → pick this repo.
+#
+# Default: Starter plan (512 MB, about $7/mo) with Microsoft neural voices, including Canadian English.
+# For the on-server Kokoro voice, switch plan to "standard" (2 GB) and set TTS_ENGINES to "kokoro,edge".
+services:
+  - type: web
+    name: morning-brief
+    runtime: docker
+    plan: starter
+    region: ohio
+    branch: main
+    autoDeploy: true
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    disk:
+      name: morning-brief-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: APP_PASSWORD          # required: protects your public URL (any username)
+        sync: false
+      - key: ANTHROPIC_API_KEY     # optional: Claude writes the script; leave blank for the built-in summarizer
+        sync: false
+      - key: BRIEFING_TIMEZONE
+        value: America/Toronto
+      - key: TTS_ENGINES
+        value: edge
+      - key: DEFAULT_VOICE
+        value: edge:en-CA-ClaraNeural
+      - key: BAKE_MODEL            # skip baking the Kokoro model into the image when it isn't used
+        value: "0"

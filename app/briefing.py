@@ -82,7 +82,7 @@ def build_briefing(cfg: Config, db: Database, progress: Progress = _noop) -> dic
     try:
         tts.resolve(voice_id)
     except ValueError:
-        voice_id = "kokoro:af_heart"
+        voice_id = tts.default_voice()
 
     segments: list[tuple[str, str, float]] = [("intro", script.intro, 0.9)]
     for section, stories in picked.items():

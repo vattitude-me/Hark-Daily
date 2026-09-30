@@ -52,6 +52,18 @@ open http://localhost:8000
 Press **Build my briefing** for your first one. After that it builds automatically every morning.
 The voice model (~350 MB) is baked into the image, so there's nothing extra to download.
 
+## Deploy on Render
+
+1. In the Render dashboard choose **New → Blueprint** and pick this repository. Render reads
+   [`render.yaml`](render.yaml).
+2. When asked, set **`APP_PASSWORD`** (you'll use it to sign in; any username works). You can also set
+   **`ANTHROPIC_API_KEY`**, or leave it blank.
+3. Click **Apply**. The first build takes about 5 minutes. Then open the `onrender.com` URL and press **Build my briefing**.
+
+The Blueprint uses the **Starter** plan with a 1 GB disk for your data. It uses the Microsoft neural
+voices (Canadian *Clara* by default) because the Kokoro model needs about 1.2 GB of RAM. To use
+Kokoro, change the plan to **Standard** and set `TTS_ENGINES=kokoro,edge`.
+
 ## Run without Docker
 
 Requires Python 3.11+.
@@ -83,6 +95,8 @@ python -m pytest         # run the tests (offline; no network needed)
 | `KEEP_DAYS` | `14` | How many days of briefings to keep. |
 | `SCHEDULER_ENABLED` | `1` | Set to `0` to disable the built-in daily scheduler. |
 | `ALLOW_PRIVATE_URLS` | `0` | Allow sources on private/LAN addresses. |
+| `TTS_ENGINES` | `kokoro,edge` | Voice engines to offer. Use `edge` on hosts with under ~1.5 GB RAM. |
+| `DEFAULT_VOICE` | Kokoro *Heart* | Voice used until you pick one in Settings, e.g. `edge:en-CA-ClaraNeural`. |
 
 Voice, speaking pace, briefing time, stories per section and weather city are set in the app under
 **Voice & settings**. Sources are managed under **Sources**. Built-in sources can be switched off,
@@ -92,8 +106,8 @@ and your own sources can be removed.
 
 - **At home:** a Raspberry Pi 4/5 or any always-on computer running `docker compose up -d`. Kokoro
   runs fine on CPU; a 5-minute briefing takes about 1–3 minutes to record.
-- **Cloud:** any container host with a persistent volume for `/data` (Fly.io, Railway, Render, a small VPS).
-  Set `APP_PASSWORD` when it's public.
+- **Cloud:** Render (see above) or any container host with a persistent volume for `/data`
+  (Fly.io, Railway, a small VPS). Set `APP_PASSWORD` when it's public.
 
 ## Project layout
 

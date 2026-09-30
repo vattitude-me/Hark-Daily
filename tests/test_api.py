@@ -94,3 +94,20 @@ def test_password_protection(cfg):
     _, client = client_for(cfg, app_password="s3cret")
     assert client.get("/api/sources").status_code == 401
     assert client.get("/api/sources", auth=("me", "s3cret")).status_code == 200
+
+
+def test_healthz_skips_password(cfg):
+    _, client = client_for(cfg, app_password="s3cret")
+    assert client.get("/healthz").json() == {"ok": True}
+
+
+def test_edge_only_host_hides_kokoro(monkeypatch):
+    from app import tts
+
+    monkeypatch.setenv("TTS_ENGINES", "edge")
+    monkeypatch.setattr(tts, "_ENGINES", {})
+    monkeypatch.setattr(tts, "_builtins_loaded", False)
+    assert set(tts.engines()) == {"edge"}
+    assert tts.default_voice() == "edge:en-CA-ClaraNeural"
+    monkeypatch.setenv("DEFAULT_VOICE", "edge:en-CA-LiamNeural")
+    assert tts.default_voice() == "edge:en-CA-LiamNeural"

@@ -150,6 +150,12 @@ class Database:
     def get_settings(self) -> dict[str, Any]:
         stored = {r["key"]: json.loads(r["value"]) for r in self._all("SELECT key, value FROM settings")}
         merged = {**DEFAULT_SETTINGS, **stored}
+        from . import tts
+
+        try:
+            tts.resolve(merged["voice"])
+        except ValueError:  # voice's engine is disabled on this host
+            merged["voice"] = tts.default_voice()
         merged["stories"] = {**DEFAULT_SETTINGS["stories"], **(stored.get("stories") or {})}
         return merged
 

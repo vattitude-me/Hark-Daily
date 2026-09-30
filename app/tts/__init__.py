@@ -9,6 +9,7 @@ Two neural engines are supported:
 """
 from __future__ import annotations
 
+import os
 from dataclasses import asdict, dataclass
 from typing import Protocol
 
@@ -46,14 +47,41 @@ def register(engine: Engine) -> None:
     _ENGINES[engine.name] = engine
 
 
+def enabled_engines() -> list[str]:
+    """TTS_ENGINES=edge skips Kokoro entirely, for hosts with under ~1.5 GB of RAM."""
+    return [e.strip() for e in os.getenv("TTS_ENGINES", "kokoro,edge").split(",") if e.strip()]
+
+
+_builtins_loaded = False
+
+
 def engines() -> dict[str, Engine]:
-    if "kokoro" not in _ENGINES:
+    global _builtins_loaded
+    if not _builtins_loaded:
         from .edge import EdgeEngine
         from .kokoro import KokoroEngine
 
-        _ENGINES.setdefault("kokoro", KokoroEngine())
-        _ENGINES.setdefault("edge", EdgeEngine())
+        wanted = enabled_engines()
+        for engine in (KokoroEngine(), EdgeEngine()):
+            if engine.name in wanted:
+                _ENGINES.setdefault(engine.name, engine)
+        _builtins_loaded = True
     return _ENGINES
+
+
+def default_voice() -> str:
+    configured = os.getenv("DEFAULT_VOICE")
+    if configured:
+        try:
+            resolve(configured)
+            return configured
+        except ValueError:
+            pass
+    for engine in engines().values():
+        voices = engine.voices()
+        if voices:
+            return next((v.id for v in voices if v.recommended), voices[0].id)
+    raise RuntimeError("No text-to-speech engine is enabled (check TTS_ENGINES)")
 
 
 def all_voices() -> list[dict]:
