@@ -7,6 +7,7 @@ import logging
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
+from py_vapid import Vapid
 from pywebpush import WebPushException, webpush
 
 from .config import Config
@@ -38,14 +39,14 @@ def send(cfg: Config, subscriptions: list[dict], title: str, body: str, url: str
     """Push to each subscription. Returns (sent, endpoints the push service says are gone)."""
     if not subscriptions:
         return 0, []
-    keys = load_keys(cfg)
+    vapid = Vapid.from_pem(load_keys(cfg)["private_pem"].encode())
     payload = json.dumps({"title": title, "body": body, "url": url})
     sent, gone = 0, []
     for sub in subscriptions:
         try:
             webpush(
                 subscription_info={"endpoint": sub["endpoint"], "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]}},
-                data=payload, vapid_private_key=keys["private_pem"], vapid_claims={"sub": cfg.vapid_subject},
+                data=payload, vapid_private_key=vapid, vapid_claims={"sub": cfg.vapid_subject},
                 ttl=6 * 3600,
             )
             sent += 1
