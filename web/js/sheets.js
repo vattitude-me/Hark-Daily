@@ -110,6 +110,7 @@ export class SettingsSheet {
     this.previewAudio = new Audio();
     wireSheet(this.dialog);
     this.dialog.addEventListener('close', () => this.previewAudio.pause());
+    this.dialog.querySelectorAll('.set-tab').forEach((t) => t.addEventListener('click', () => this.showTab(t.dataset.tab)));
     document.getElementById('saveSettings').addEventListener('click', () => this.save());
     document.getElementById('rebuildBtn').addEventListener('click', () => this.onBuild());
     document.getElementById('pushOn').addEventListener('change', (e) => this.togglePush(e.target));
@@ -119,7 +120,18 @@ export class SettingsSheet {
     range.addEventListener('input', () => { document.getElementById('speedOut').textContent = `${Number(range.value).toFixed(2).replace(/0$/, '')}×`; });
   }
 
+  showTab(name) {
+    this.dialog.querySelectorAll('.set-tab').forEach((t) => {
+      const on = t.dataset.tab === name;
+      t.classList.toggle('active', on);
+      t.setAttribute('aria-selected', String(on));
+    });
+    this.dialog.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== name));
+    this.dialog.querySelector('.sheet-body').scrollTop = 0;
+  }
+
   async open(status, profile) {
+    this.showTab('voice');
     this.dialog.showModal();
     this.status = status || {};
     const { settings } = await api.settings();
@@ -212,30 +224,39 @@ export class SettingsSheet {
   }
 
   renderVoices(voices, selected) {
-    const grid = document.getElementById('voiceGrid');
-    const byEngine = { kokoro: 'Kokoro · natural, recorded on our server', edge: 'Microsoft neural · includes Canadian voices' };
-    const nodes = [];
-    for (const [engine, label] of Object.entries(byEngine)) {
-      const list = voices.filter((v) => v.engine === engine);
-      if (!list.length) continue;
-      nodes.push(h('div', { class: 'voice-section-label' }, label));
-      for (const v of list) {
-        const radio = h('input', { type: 'radio', name: 'voice', value: v.id });
-        radio.checked = v.id === selected;
-        const btn = h('button', { type: 'button', class: 'preview-btn', 'aria-label': `Hear ${v.name}` }, icon('play'));
-        btn.addEventListener('click', (e) => { e.preventDefault(); this.preview(v, btn); });
-        nodes.push(h('label', { class: 'voice-card', title: v.note || '' },
-          radio,
-          v.recommended ? h('span', { class: 'badge' }, 'Recommended') : null,
-          h('span', { class: 'avatar' }, v.name[0]),
-          h('span', {},
-            h('span', { class: 'v-name' }, v.name),
-            h('span', { class: 'v-meta' }, `${v.accent} · ${v.gender}`),
-            h('span', { class: 'v-desc' }, v.description)),
-          btn));
-      }
-    }
-    grid.replaceChildren(...nodes);
+    this.voices = voices;
+    this.selectedVoice = selected;
+    this.accent = 'All';
+    const accents = ['All', ...new Set(voices.map((v) => v.accent).filter(Boolean))];
+    document.getElementById('voiceFilters').replaceChildren(...accents.map((a) => h('button', {
+      type: 'button', class: `chip-btn${a === 'All' ? ' active' : ''}`, 'aria-pressed': String(a === 'All'),
+      onclick: (e) => {
+        this.accent = a;
+        document.querySelectorAll('#voiceFilters .chip-btn').forEach((b) => {
+          b.classList.toggle('active', b === e.currentTarget);
+          b.setAttribute('aria-pressed', String(b === e.currentTarget));
+        });
+        this.paintVoices();
+      },
+    }, a)));
+    this.paintVoices();
+  }
+
+  paintVoices() {
+    const shown = this.voices.filter((v) => this.accent === 'All' || v.accent === this.accent);
+    document.getElementById('voiceGrid').replaceChildren(...shown.map((v) => {
+      const radio = h('input', { type: 'radio', name: 'voice', value: v.id, onchange: () => { this.selectedVoice = v.id; } });
+      radio.checked = v.id === this.selectedVoice;
+      const btn = h('button', { type: 'button', class: 'preview-btn', 'aria-label': `Hear ${v.name}` }, icon('play'));
+      btn.addEventListener('click', (e) => { e.preventDefault(); this.preview(v, btn); });
+      return h('label', { class: 'voice-card', title: v.description || v.note || '' },
+        radio,
+        h('span', { class: 'avatar' }, v.name[0]),
+        h('span', { class: 'v-text' },
+          h('span', { class: 'v-name' }, v.name, v.recommended ? h('span', { class: 'badge' }, 'Recommended') : null),
+          h('span', { class: 'v-meta' }, `${v.accent} · ${v.gender}`)),
+        btn);
+    }));
   }
 
   preview(voice, btn) {
@@ -269,7 +290,7 @@ export class SettingsSheet {
   }
 
   async save() {
-    const voice = this.dialog.querySelector('input[name="voice"]:checked')?.value;
+    const voice = this.selectedVoice;
     const lat = parseFloat(document.getElementById('latInput').value);
     const lon = parseFloat(document.getElementById('lonInput').value);
     const body = {
