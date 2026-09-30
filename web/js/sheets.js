@@ -8,6 +8,8 @@ export function wireSheet(dialog) {
   dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
 }
 
+export const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+export const isInstalled = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 export const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && window.isSecureContext;
 
 // Asks permission and registers this device. Must be called from a tap. Throws a readable message on failure.
@@ -336,27 +338,32 @@ export class WelcomeSheet {
     document.getElementById('welcomeSkip').addEventListener('click', () => this.finish(false));
   }
 
-  open(status) {
+  // askName: first visit. Otherwise only the notification offer is shown (e.g. after installing on iPhone).
+  open(status, { askName = true } = {}) {
     this.status = status;
     const canPush = pushSupported() && Notification.permission !== 'denied';
+    const needsInstall = isIOS() && !isInstalled();
+    this.offeredPush = canPush;
+    document.getElementById('welcomeNameRow').classList.toggle('hidden', !askName);
     document.getElementById('welcomePushRow').classList.toggle('hidden', !canPush);
+    document.getElementById('welcomeInstallRow').classList.toggle('hidden', !needsInstall);
     document.getElementById('welcomePushOn').checked = canPush;
     document.getElementById('welcomeError').textContent = '';
     this.dialog.showModal();
-    document.getElementById('welcomeName').focus();
+    if (askName) document.getElementById('welcomeName').focus();
   }
 
   async finish(save) {
     const err = document.getElementById('welcomeError');
     const name = document.getElementById('welcomeName').value.trim().slice(0, 40);
-    const wantPush = save && document.getElementById('welcomePushOn').checked && !document.getElementById('welcomePushRow').classList.contains('hidden');
+    const wantPush = save && this.offeredPush && document.getElementById('welcomePushOn').checked;
     const btn = document.getElementById('welcomeGo');
     btn.disabled = true;
     try {
       if (wantPush) {
         try { await enablePush(this.status?.vapid_public_key); } catch (e) { toast(`Notifications are off: ${e.message}`, { error: true, ms: 6000 }); }
       }
-      await api.saveSettings({ onboarded: true, ...(save && name ? { name } : {}) });
+      await api.saveSettings({ onboarded: true, ...(this.offeredPush ? { push_offered: true } : {}), ...(save && name ? { name } : {}) });
       this.dialog.close();
       this.onDone?.();
     } catch (e) {

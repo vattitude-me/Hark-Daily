@@ -2,7 +2,7 @@
 import { api, clockLabel, fmtTime, h, icon, sb, store, timeAgo, toast } from './api.js';
 import { Player } from './player.js';
 import { Landing } from './landing.js';
-import { SettingsSheet, SourcesSheet, WelcomeSheet } from './sheets.js';
+import { SettingsSheet, SourcesSheet, WelcomeSheet, pushSupported } from './sheets.js';
 
 const SECTIONS = {
   canada: { title: 'Canada', emoji: '🇨🇦' },
@@ -410,6 +410,8 @@ async function enterApp() {
   // First time here: ask for a name and offer notifications.
   const st = state.profile?.settings || {};
   if (state.profile && !st.onboarded && !st.name) welcome.open(state.status);
+  // Seen the welcome step where push wasn't possible (iPhone in Safari)? Offer notifications once it is.
+  else if (state.profile && !st.push_offered && pushSupported() && Notification.permission === 'default') welcome.open(state.status, { askName: false });
 }
 
 /* -------------------------------------------------------------------- boot */
