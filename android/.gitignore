@@ -10,3 +10,6 @@ captures/
 keystore.properties
 *.keystore
 *.jks
+
+# The root ignores data/ for the worker; this is source code
+!app/src/main/java/**/data/
