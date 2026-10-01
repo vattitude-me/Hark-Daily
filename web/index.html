@@ -276,40 +276,69 @@
     </div>
   </dialog>
 
-  <!-- First-run welcome -->
+  <!-- First-run welcome: three short steps (you, your news, your morning). -->
   <dialog class="sheet welcome" id="welcomeSheet" aria-labelledby="welcomeTitle">
     <form id="welcomeForm">
-      <div class="sheet-head"><h2 id="welcomeTitle">Welcome 👋</h2></div>
+      <div class="sheet-head">
+        <h2 id="welcomeTitle">Welcome 👋</h2>
+        <div class="step-dots" id="welcomeDots" aria-hidden="true"></div>
+      </div>
       <div class="sheet-body">
-        <p class="hint">A few quick things and your first briefing is on its way.</p>
-        <div class="setting-group" id="welcomeNameRow">
-          <h3><label for="welcomeName">What should we call you?</label></h3>
-          <input type="text" id="welcomeName" class="text-input" maxlength="40" autocomplete="given-name" placeholder="First name">
-          <p class="hint">Used in your greeting and read out at the start of your briefing.</p>
-        </div>
-        <div class="setting-group" id="welcomePushRow">
-          <h3>Morning notification</h3>
-          <div class="setting-row">
-            <label class="switch"><input type="checkbox" id="welcomePushOn"><span></span></label>
-            <span>Tell me when my briefing is ready</span>
+        <div class="welcome-step" data-step="name">
+          <p class="hint">Your news from Canada and the world of AI &amp; tech, summarised and read aloud every morning. Three quick steps to set it up.</p>
+          <div class="setting-group">
+            <h3><label for="welcomeName">What should we call you?</label></h3>
+            <input type="text" id="welcomeName" class="text-input" maxlength="40" autocomplete="given-name" placeholder="First name">
+            <p class="hint">Used in your greeting and read out at the start of your briefing.</p>
           </div>
-          <p class="hint">Your browser will ask for permission. You can change this any time in Settings.</p>
         </div>
-        <div class="setting-group hidden" id="welcomeInstallRow">
-          <h3>Install the app</h3>
-          <div class="install-steps hidden" id="welcomeInstallIOS">
-            <p class="hint">Morning notifications on iPhone only work from the Home Screen app. Tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>, open Morning Brief from there and sign in again. You'll be asked about notifications then.</p>
+
+        <div class="welcome-step hidden" data-step="sources">
+          <p class="hint">Every morning we read these sites and pick the top stories. Tap one to leave it out.</p>
+          <div id="welcomeSources"></div>
+          <div class="setting-group">
+            <h3><label for="welcomeSourceUrl">Add a site you like</label></h3>
+            <div class="input-row">
+              <input type="url" id="welcomeSourceUrl" class="text-input" inputmode="url" autocomplete="off" placeholder="e.g. thestar.com or a feed link">
+              <button type="button" class="btn btn-ghost" id="welcomeSourceAdd"><svg><use href="#i-plus"/></svg> Add</button>
+            </div>
+            <p class="hint">Its stories go in a ⭐ My Sources section. You can change all of this later in Sources.</p>
           </div>
-          <div class="setting-row install-steps hidden" id="welcomeInstallPrompt">
-            <span>Open Morning Brief from your home screen, full screen like any other app.</span>
-            <button type="button" class="btn btn-ghost" id="welcomeInstallBtn"><svg><use href="#i-download"/></svg> Install</button>
+        </div>
+
+        <div class="welcome-step hidden" data-step="morning">
+          <div class="first-brief">
+            <span class="first-brief-icon" aria-hidden="true">☀️</span>
+            <div>
+              <span class="first-brief-label">Your first briefing</span>
+              <strong class="first-brief-when" id="welcomeWhen">Tomorrow morning</strong>
+              <span class="first-brief-what" id="welcomeWhat"></span>
+            </div>
+          </div>
+          <div class="setting-group" id="welcomePushRow">
+            <h3>Morning notification</h3>
+            <div class="setting-row">
+              <label class="switch"><input type="checkbox" id="welcomePushOn"><span></span></label>
+              <span>Tell me when my briefing is ready</span>
+            </div>
+            <p class="hint">Your browser will ask for permission. You can change this any time in Settings.</p>
+          </div>
+          <div class="setting-group hidden" id="welcomeInstallRow">
+            <h3>Install the app</h3>
+            <div class="install-steps hidden" id="welcomeInstallIOS">
+              <p class="hint">Morning notifications on iPhone only work from the Home Screen app. Tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>, open Morning Brief from there and sign in again. You'll be asked about notifications then.</p>
+            </div>
+            <div class="setting-row install-steps hidden" id="welcomeInstallPrompt">
+              <span>Open Morning Brief from your home screen, full screen like any other app.</span>
+              <button type="button" class="btn btn-ghost" id="welcomeInstallBtn"><svg><use href="#i-download"/></svg> Install</button>
+            </div>
           </div>
         </div>
         <p class="form-error" id="welcomeError" role="alert"></p>
       </div>
       <div class="sheet-foot">
-        <button type="button" class="btn" id="welcomeSkip">Skip</button>
-        <button type="submit" class="btn btn-primary" id="welcomeGo">Continue</button>
+        <button type="button" class="btn" id="welcomeBack">Skip</button>
+        <button type="submit" class="btn btn-primary" id="welcomeGo">Next</button>
       </div>
     </form>
   </dialog>

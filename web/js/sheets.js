@@ -355,15 +355,32 @@ export class SettingsSheet {
 }
 
 /* ------------------------------------------------------------------ Welcome */
-// First sign-in: ask for a name and offer morning notifications.
+// First sign-in: name, which sources to read, then when the first briefing arrives (plus notifications).
+const STEP_TITLE = { name: 'Welcome 👋', sources: 'Your news', morning: "You're all set" };
+
+// "Tomorrow at 5:30 a.m." from the worker's next run (ISO, in the server's time zone).
+function whenLabel(status) {
+  const next = status?.next_run ? new Date(status.next_run) : null;
+  const at = next && !Number.isNaN(next.getTime())
+    ? next.toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' })
+    : clockLabel(status?.batch_time);
+  if (!at) return 'Tomorrow morning';
+  const today = new Date().toDateString();
+  return next && next.toDateString() === today ? `Today at ${at}` : `Tomorrow at ${at}`;
+}
+
 export class WelcomeSheet {
   constructor({ onDone }) {
     this.onDone = onDone;
     this.dialog = document.getElementById('welcomeSheet');
     wireSheet(this.dialog);
     this.dialog.addEventListener('cancel', (e) => e.preventDefault());
-    document.getElementById('welcomeForm').addEventListener('submit', (e) => { e.preventDefault(); this.finish(true); });
-    document.getElementById('welcomeSkip').addEventListener('click', () => this.finish(false));
+    document.getElementById('welcomeForm').addEventListener('submit', (e) => { e.preventDefault(); this.next(); });
+    document.getElementById('welcomeBack').addEventListener('click', () => this.back());
+    document.getElementById('welcomeSourceAdd').addEventListener('click', () => this.addSource());
+    document.getElementById('welcomeSourceUrl').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); this.addSource(); }
+    });
     document.getElementById('welcomeInstallBtn').addEventListener('click', async () => {
       if (await promptInstall()) toast('Installed. Next time, open Morning Brief from your home screen.');
     });
@@ -378,18 +395,113 @@ export class WelcomeSheet {
     document.getElementById('welcomeInstallPrompt').classList.toggle('hidden', mode !== 'prompt');
   }
 
-  // askName: first visit. Otherwise only the notification offer is shown (e.g. after installing on iPhone).
+  // askName: first visit, all three steps. Otherwise only the morning step (e.g. after installing on iPhone).
   open(status, { askName = true } = {}) {
     this.status = status;
+    this.steps = askName ? ['name', 'sources', 'morning'] : ['morning'];
+    this.disabled = null; // built-in source ids left out; null until the sources step has loaded
+    this.added = 0;
     const canPush = pushSupported() && Notification.permission !== 'denied';
     this.offeredPush = canPush;
-    document.getElementById('welcomeNameRow').classList.toggle('hidden', !askName);
     document.getElementById('welcomePushRow').classList.toggle('hidden', !canPush);
-    this.paintInstall();
     document.getElementById('welcomePushOn').checked = canPush;
     document.getElementById('welcomeError').textContent = '';
+    document.getElementById('welcomeDots').replaceChildren(...(this.steps.length > 1 ? this.steps.map(() => h('span')) : []));
+    this.paintInstall();
     this.dialog.showModal();
-    if (askName) document.getElementById('welcomeName').focus();
+    this.show(0);
+    if (askName) this.loadSources();
+  }
+
+  show(i) {
+    this.i = i;
+    const step = this.steps[i];
+    this.dialog.querySelectorAll('.welcome-step').forEach((el) => el.classList.toggle('hidden', el.dataset.step !== step));
+    this.dialog.querySelectorAll('#welcomeDots span').forEach((d, j) => d.classList.toggle('on', j === i));
+    document.getElementById('welcomeTitle').textContent = this.steps.length > 1 ? STEP_TITLE[step] : 'Morning notification';
+    const last = i === this.steps.length - 1;
+    document.getElementById('welcomeGo').textContent = last ? 'Done' : 'Next';
+    document.getElementById('welcomeBack').textContent = i === 0 ? 'Skip' : 'Back';
+    document.getElementById('welcomeError').textContent = '';
+    if (step === 'morning') this.paintMorning();
+    this.dialog.querySelector('.sheet-body').scrollTop = 0;
+    if (step === 'name') document.getElementById('welcomeName').focus();
+  }
+
+  next() {
+    if (this.i < this.steps.length - 1) this.show(this.i + 1);
+    else this.finish(true);
+  }
+
+  back() {
+    if (this.i === 0) this.finish(false);
+    else this.show(this.i - 1);
+  }
+
+  async loadSources() {
+    const box = document.getElementById('welcomeSources');
+    box.replaceChildren(h('p', { class: 'hint' }, 'Loading sources…'));
+    try {
+      const { sources } = await api.sources();
+      this.sources = sources.filter((s) => s.builtin);
+      this.disabled = new Set(this.sources.filter((s) => !s.enabled).map((s) => s.id));
+      this.paintSources();
+    } catch (err) {
+      box.replaceChildren(h('p', { class: 'hint' }, `Couldn't load the source list (${err.message}). You can pick them later in Sources.`));
+    }
+  }
+
+  paintSources() {
+    const groups = { canada: [], tech: [] };
+    this.sources.forEach((s) => groups[s.section]?.push(s));
+    document.getElementById('welcomeSources').replaceChildren(...Object.entries(groups).filter(([, items]) => items.length).map(([key, items]) => {
+      const count = h('span', { class: 'tag' });
+      const paintCount = () => { count.textContent = `${items.filter((s) => !this.disabled.has(s.id)).length} of ${items.length}`; };
+      paintCount();
+      return h('section', { class: 'source-pick' },
+        h('h3', {}, SECTION_LABEL[key], count),
+        h('div', { class: 'chip-row' }, items.map((s) => {
+          const chip = h('button', { type: 'button', class: 'source-chip', 'aria-pressed': String(!this.disabled.has(s.id)) }, s.name);
+          chip.addEventListener('click', () => {
+            if (this.disabled.has(s.id)) this.disabled.delete(s.id); else this.disabled.add(s.id);
+            chip.setAttribute('aria-pressed', String(!this.disabled.has(s.id)));
+            paintCount();
+          });
+          return chip;
+        })));
+    }), this.added ? h('p', { class: 'hint' }, `⭐ ${this.added} of your own ${this.added === 1 ? 'link' : 'links'} added.`) : '');
+  }
+
+  async addSource() {
+    const input = document.getElementById('welcomeSourceUrl');
+    const btn = document.getElementById('welcomeSourceAdd');
+    let url = input.value.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    try { url = new URL(url).href; } catch {
+      toast("That doesn't look like a web link.", { error: true });
+      return;
+    }
+    btn.disabled = true;
+    try {
+      await api.addSource({ url, section: 'custom' });
+      this.added += 1;
+      input.value = '';
+      toast('Added. It will be read at the next morning build.');
+      if (this.sources) this.paintSources();
+    } catch (err) {
+      toast(err.message, { error: true });
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  paintMorning() {
+    document.getElementById('welcomeWhen').textContent = whenLabel(this.status);
+    const on = this.sources ? this.sources.filter((s) => !this.disabled.has(s.id)).length + this.added : null;
+    document.getElementById('welcomeWhat').textContent = on != null
+      ? `The top stories from your ${on} sources, summarised and read aloud in about five minutes.`
+      : 'The top stories, summarised and read aloud in about five minutes.';
   }
 
   async finish(save) {
@@ -402,7 +514,12 @@ export class WelcomeSheet {
       if (wantPush) {
         try { await enablePush(this.status?.vapid_public_key); } catch (e) { toast(`Notifications are off: ${e.message}`, { error: true, ms: 6000 }); }
       }
-      await api.saveSettings({ onboarded: true, ...(this.offeredPush ? { push_offered: true } : {}), ...(save && name ? { name } : {}) });
+      await api.saveSettings({
+        onboarded: true,
+        ...(this.offeredPush ? { push_offered: true } : {}),
+        ...(save && name ? { name } : {}),
+        ...(save && this.disabled ? { disabled_sources: [...this.disabled] } : {}),
+      });
       this.dialog.close();
       this.onDone?.();
     } catch (e) {
