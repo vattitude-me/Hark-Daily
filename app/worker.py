@@ -103,24 +103,6 @@ class Worker:
             log.info("Missed today's %s run; building now", self.cfg.batch_time)
             self.run_batch("catch-up")
 
-    def ensure_showcase(self) -> None:
-        """Make sure the landing page has a sample from today (e.g. on first start)."""
-        try:
-            current = self.store.showcase()
-        except StoreError as exc:
-            log.warning("Couldn't read the public sample (run supabase/schema.sql again?): %s", exc)
-            return
-        today = datetime.now(self.tz).date().isoformat()
-        if (current.get("briefing") or {}).get("date") == today or not self.lock.acquire():
-            return
-        try:
-            report = RunReport("sample")
-            Batch(self.cfg, self.store, report, notify=False).run(emails=[], scheduled=False, showcase=True)
-        except Exception:  # noqa: BLE001
-            log.exception("Building the public sample failed")
-        finally:
-            self.lock.release()
-
     # ============================================================ requests
     def poll_requests(self) -> None:
         try:
@@ -210,7 +192,6 @@ class Worker:
                                coalesce=True, max_instances=1)
         self.scheduler.add_job(self.catch_up, id="catch-up")
         self.scheduler.add_job(self.upload_previews, id="previews")
-        self.scheduler.add_job(self.ensure_showcase, id="showcase")
         log.info("Worker ready: daily batch at %s %s, next %s", self.cfg.batch_time, self.cfg.timezone,
                  next_run(self.cfg))
         self.scheduler.start()

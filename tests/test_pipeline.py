@@ -44,6 +44,44 @@ def test_ranking_merges_same_story_from_two_outlets():
     assert len(picked["canada"]) == 2
 
 
+def _filler(n, section="tech"):
+    """Unrelated headlines, so the pool is big enough for word rarity to mean something."""
+    return [_item(f"Topic{k} update on item{k} from place{k}", section=section, source=f"F{k}", pos=4)
+            for k in range(n)]
+
+
+def test_ranking_merges_differently_worded_headlines_about_the_same_rare_names():
+    items = [
+        _item("Google announces Gemini 4 Argon AI model, but you can't use it yet", section="tech", source="Ars"),
+        _item("Google announces Gemini 4 and says it's so capable that only trusted cyber defenders can have it",
+              section="tech", source="Verge"),
+        _item("Gemini 4 Argon", section="tech", source="HN"),
+        _item("Sam Altman says OpenAI won't go public until its models are safe", section="tech", source="Verge"),
+        _item("Why is Sam Altman a free man?", section="tech", source="HN"),
+        _item("Google tests a new Pixel feature for photos", section="tech", source="Ars"),
+        *_filler(60),
+    ]
+    picked = select_top(items, {"tech": 70})["tech"]
+    gemini = [s for s in picked if "Gemini" in s.lead.title]
+    assert len(gemini) == 1 and set(gemini[0].sources) == {"Ars", "Verge", "HN"}
+    assert len([s for s in picked if "Altman" in s.lead.title]) == 2, "a shared name alone isn't the same story"
+    assert any("Pixel" in s.lead.title for s in picked)
+
+
+def test_ranking_skips_stories_already_heard():
+    told = _item("Saskatchewan mayor stepping down now that Queen of Canada cult is gone", source="CBC")
+    items = [
+        told,
+        _item("Saskatchewan mayor who clashed with Queen of Canada cult to step down", source="Globe"),
+        _item("Minimum wage hike is now in effect across five provinces", source="Globe", pos=1),
+        _item("Province names new health minister", source="CBC", pos=2),
+    ]
+    heard = [{"url": "https://elsewhere/1", "original_title": "Minimum wage hikes set to begin across five provinces",
+              "links": [{"source": "CBC", "url": told.url}]}]
+    picked = select_top(items, {"canada": 5}, heard=heard)["canada"]
+    assert [s.lead.title for s in picked] == ["Province names new health minister"]
+
+
 def test_ranking_prefers_ai_and_drops_stale_and_deals():
     items = [
         _item("Best laptop deals this week: 30% off", section="tech", pos=0),

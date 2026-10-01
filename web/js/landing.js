@@ -1,5 +1,9 @@
-// Signed-out landing: play today's real sample, show its headlines and voices, then sign in.
+// Signed-out landing: play the admin's latest briefing (or the one shipped with the site), show its headlines and voices, then sign in.
 import { api, h, store, toast } from './api.js';
+import { SUPABASE_URL } from '../config.js';
+
+// Written by the worker after each admin briefing; refetched at most hourly.
+const DEMO_URL = `${SUPABASE_URL}/storage/v1/object/public/briefings/showcase/sample.json`;
 
 const MAILBOXES = [
   [/@(gmail|googlemail)\.com$/, 'Gmail', 'https://mail.google.com/mail/u/0/#search/%22sign-in+link%22'],
@@ -26,9 +30,12 @@ export class Landing {
     $('lgGreeting').textContent = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
     this.checkLinkError();
     let data = {};
-    try { data = await api.showcase(); } catch { /* table missing or offline: use the bundled sample */ }
-    if (!data.briefing?.audio_url) {
-      try { data = await (await fetch('/sample/sample.json')).json(); } catch { data = {}; }
+    for (const url of [`${DEMO_URL}?h=${Math.floor(Date.now() / 3600000)}`, '/sample/sample.json']) {
+      try {
+        const res = await fetch(url);
+        if (res.ok) data = await res.json();
+      } catch { /* not published yet or offline: try the next one */ }
+      if (data.briefing?.audio_url) break;
     }
     this.render(data);
   }
@@ -40,15 +47,15 @@ export class Landing {
     if (!briefing?.audio_url) {
       player.classList.add('disabled');
       $('samplePlay').disabled = true;
-      $('sampleLabel').textContent = 'Sample coming soon';
-      $('sampleTitle').textContent = "Today's sample is being prepared. Check back in a few minutes.";
+      $('sampleLabel').textContent = 'Sample unavailable';
+      $('sampleTitle').textContent = "The sample couldn't load. Check your connection and try again.";
     } else {
       const mins = Math.max(1, Math.round(briefing.duration / 60));
       const today = briefing.date === new Date().toLocaleDateString('en-CA');
-      $('sampleLabel').textContent = `${today ? "Today's top stories" : 'Sample briefing'} · ${mins} min`;
+      $('sampleLabel').textContent = `${today ? "Today's brief" : 'Sample briefing'} · ${mins} min`;
       $('sampleTitle').textContent = today ? "Tap play to hear this morning's brief" : 'Tap play to hear a real morning brief';
-      if (!today) $('sampleHeading').textContent = 'Headlines from a recent brief';
-      $('sampleDate').textContent = today ? `${briefing.title} · the same stories you'd hear` : `From ${briefing.title}`;
+      $('sampleHeading').textContent = today ? "This morning's headlines" : 'Headlines from a recent brief';
+      $('sampleDate').textContent = today ? briefing.title : `From ${briefing.title}`;
       $('sampleCards').replaceChildren(...briefing.stories.map((s) => this.card(s)));
       $('sampleSection').hidden = false;
     }
@@ -92,7 +99,7 @@ export class Landing {
     a.addEventListener('play', () => player.classList.add('playing'));
     a.addEventListener('pause', () => player.classList.remove('playing'));
     a.addEventListener('ended', () => {
-      $('sampleTitle').textContent = 'That was today. Want your own, every morning?';
+      $('sampleTitle').textContent = 'Want your own, every morning?';
       this.highlight(null);
     });
     a.addEventListener('timeupdate', () => {

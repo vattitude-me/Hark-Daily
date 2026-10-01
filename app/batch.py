@@ -50,9 +50,10 @@ DEFAULT_SETTINGS = {
 }
 BACKUP_VOICE = "edge:en-CA-ClaraNeural"
 CACHE_DAYS = 3
-# The public sample on the landing page: a short briefing from the built-in feeds only.
-SHOWCASE_ID = "showcase"
-SHOWCASE_SETTINGS = {**DEFAULT_SETTINGS, "stories": {"canada": 3, "tech": 3, "custom": 0}}
+# The landing-page demo: a public copy of the admin's latest briefing (no separate build).
+SHOWCASE_DIR = "showcase"
+# Stories told in briefings from this many days back aren't told again.
+HEARD_DAYS = 2
 
 
 def settings_for(profile: dict) -> dict:
@@ -110,12 +111,8 @@ class Batch:
         self.tts_cache.mkdir(parents=True, exist_ok=True)
 
     # ================================================================== entry
-    def run(self, *, emails: list[str] | None = None, fresh: bool = False, scheduled: bool = True,
-            showcase: bool | None = None) -> list[Result]:
-        """Build briefings. `emails` limits the run to those users; scheduled runs skip users with daily off.
-
-        The public landing-page sample is rebuilt with every full run (or when `showcase` is True)."""
-        showcase = (not emails) if showcase is None else showcase
+    def run(self, *, emails: list[str] | None = None, fresh: bool = False, scheduled: bool = True) -> list[Result]:
+        """Build briefings. `emails` limits the run to those users; scheduled runs skip users with daily off."""
         now = datetime.now(self.tz)
         day = now.date().isoformat()
         results: list[Result] = []
@@ -126,7 +123,7 @@ class Batch:
             self.report.add("supabase_down", str(exc), level="error")
             return results
 
-        if emails is not None:  # [] = nobody (just the public sample)
+        if emails is not None:
             wanted = {e.lower() for e in emails}
             profiles = [p for p in profiles if (p.get("email") or "").lower() in wanted or p["id"] in wanted]
             missing = wanted - {(p.get("email") or "").lower() for p in profiles} - {p["id"] for p in profiles}
@@ -134,7 +131,7 @@ class Batch:
                 log.warning("No such user(s): %s", ", ".join(sorted(missing)))
         elif scheduled:
             profiles = [p for p in profiles if settings_for(p).get("daily", True)]
-        if not profiles and not showcase:
+        if not profiles:
             log.info("No users to build for")
             return results
 
@@ -150,12 +147,10 @@ class Batch:
         self.progress("Checking new links", 0.02)
         self._detect_new(all_sources, {p["id"] for p in profiles})
         plans = [self._plan(p, all_sources) for p in profiles]
-        sample = self._showcase_plan(all_sources) if showcase else None
-        everyone = plans + ([sample] if sample else [])
 
         # 2. Fetch every source once ----------------------------------------------------
         self.progress("Gathering today's headlines", 0.05)
-        unique = {s["id"]: s for plan in everyone for s in plan.sources}
+        unique = {s["id"]: s for plan in plans for s in plan.sources}
         items, statuses = asyncio.run(fetch_all(list(unique.values()))) if unique else ([], {})
         self._record_statuses(unique, items, statuses)
         by_source: dict[int, list[Item]] = {}
@@ -164,17 +159,18 @@ class Batch:
 
         # 3. Rank per user, then read every chosen article once ---------------------------
         self.progress("Picking the top stories", 0.15)
-        for plan in everyone:
+        heard = self._heard([p.id for p in plans], now.date())
+        for plan in plans:
             failed = [s for s in plan.sources if s["user_id"] and statuses.get(s["id"], "ok") != "ok"]
             if failed:
                 self.report.add("sources_failed", ", ".join(f"{s['name']}: {statuses[s['id']]}" for s in failed)[:300],
                                 user_id=plan.id)
             user_items = [it for s in plan.sources for it in by_source.get(s["id"], [])]
             limits = {k: plan.settings["stories"].get(k, 0) for k in SECTIONS}
-            plan.picked = select_top(user_items, limits) if user_items else {}
+            plan.picked = select_top(user_items, limits, heard=heard.get(plan.id)) if user_items else {}
 
         stories: dict[str, tuple[str, Story]] = {}
-        for plan in everyone:
+        for plan in plans:
             for section, group in plan.picked.items():
                 for s in group:
                     stories.setdefault(s.id, (section, s))
@@ -193,9 +189,7 @@ class Batch:
         for n, plan in enumerate(plans):
             self.progress(f"Recording briefing {n + 1} of {len(plans)}", 0.5 + 0.45 * n / len(plans))
             results.append(self._build_user(plan, copies, statuses, weather_cache, now, day))
-        if sample:
-            self.progress("Recording the public sample", 0.95)
-            self._build_showcase(sample, copies, weather_cache, now, day)
+        self._publish_showcase(results, day)
 
         # 6. Tidy up -----------------------------------------------------------------
         self.progress("Clearing old briefings", 0.97)
@@ -238,10 +232,18 @@ class Batch:
                 self._update_source(s["id"], {"last_status": str(exc), "last_fetched_at": now_iso()})
         return UserPlan(profile, settings, mine + allowed)
 
-    def _showcase_plan(self, all_sources: list[dict]) -> UserPlan:
-        builtins = [s for s in all_sources if s["user_id"] is None and s["enabled"]]
-        return UserPlan({"id": SHOWCASE_ID, "email": "public sample", "feed_token": SHOWCASE_ID},
-                        dict(SHOWCASE_SETTINGS), builtins)
+    def _heard(self, user_ids: list[str], today) -> dict[str, list[dict]]:
+        """Story cards from each user's recent briefings (not today's, which a rebuild replaces)."""
+        since = (today - timedelta(days=HEARD_DAYS)).isoformat()
+        try:
+            rows = self.store.recent_stories(user_ids, since, today.isoformat())
+        except StoreError as exc:
+            log.warning("Couldn't load recent briefings, so repeats aren't filtered: %s", exc)
+            return {}
+        heard: dict[str, list[dict]] = {}
+        for row in rows:
+            heard.setdefault(row["user_id"], []).extend(row.get("stories") or [])
+        return heard
 
     def _record_statuses(self, sources: dict[int, dict], items: list[Item], statuses: dict[int, str]) -> None:
         counts: dict[int, int] = {}
@@ -295,27 +297,34 @@ class Batch:
             self._set_status(plan, {"ok": False, "date": day, "error": result.error, "at": now_iso()})
         return result
 
-    def _build_showcase(self, plan: UserPlan, copies: dict[str, StoryCopy], weather_cache: dict,
-                        now: datetime, day: str) -> None:
-        """Publish today's sample for the landing page. Failures here only concern the admin."""
-        if not plan.picked:
-            log.warning("No stories for the public sample")
+    def _publish_showcase(self, results: list[Result], day: str) -> None:
+        """Share the admin's fresh briefing as the landing-page demo. Failures here only concern the admin."""
+        admin = next((r for r in results if r.briefing and self._is_admin(r.profile)), None)
+        if not admin:
             return
         try:
-            briefing, mp3 = self._record(plan, copies, weather_cache, now, day)
-            url = self.store.upload(f"{SHOWCASE_ID}/today.mp3", mp3)
-            briefing["audio_url"] = f"{url}?v={int(time.time())}"
-            for card in briefing["stories"]:
-                card.pop("links", None)
+            mp3 = f"{SHOWCASE_DIR}/{day}-{time.time_ns() // 1_000_000}.mp3"  # a new name each time, so no stale CDN copy
+            url = self.store.copy(f"{admin.profile['feed_token']}/{day}.mp3", mp3)
+            briefing = {**admin.briefing, "audio_url": url, "notes": [],
+                        "stories": [{k: v for k, v in card.items() if k != "links"}
+                                    for card in admin.briefing["stories"] if card.get("section") != "custom"]}
             voices = [{k: v[k] for k in ("id", "name", "accent", "gender", "description", "engine") if k in v}
                       | {"preview_url": self.store.public_url(preview_path(v["id"]))}
                       for v in tts.all_voices() if v.get("available", True)]
-            self.store.set_showcase({"briefing": briefing, "voices": voices, "batch_time": self.cfg.batch_time,
-                                     "timezone": self.cfg.timezone})
-            log.info("Published the public sample (%d stories)", len(briefing["stories"]))
+            data = {"briefing": briefing, "voices": voices, "batch_time": self.cfg.batch_time,
+                    "timezone": self.cfg.timezone}
+            self.store.upload(f"{SHOWCASE_DIR}/sample.json", json.dumps(data).encode(), "application/json",
+                              cache="max-age=300")
+            stale = [p for p in self.store.list_objects(SHOWCASE_DIR) if p.endswith(".mp3") and p != mp3]
+            if stale:
+                self.store.remove_objects(stale)
+            log.info("Published %s's briefing as the landing-page demo", admin.profile.get("email"))
         except Exception as exc:  # noqa: BLE001
-            log.exception("Public sample failed")
+            log.exception("Landing-page demo failed")
             self.report.add("showcase_failed", f"{exc.__class__.__name__}: {exc}"[:200])
+
+    def _is_admin(self, profile: dict) -> bool:
+        return bool(profile.get("is_admin")) or (profile.get("email") or "").lower() in self.cfg.admin_emails
 
     def _set_status(self, plan: UserPlan, status: dict) -> None:
         try:

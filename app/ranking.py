@@ -1,6 +1,7 @@
 """Group duplicate headlines across outlets and pick the day's top stories."""
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -59,11 +60,40 @@ def tokens(title: str) -> set[str]:
     return out
 
 
-def similar(a: set[str], b: set[str]) -> bool:
+class Rarity:
+    """How often each headline word turns up in today's pool: rare words (names, places) mark a story."""
+
+    def __init__(self, titles: list[set[str]]):
+        self.n = len(titles)
+        self.df: dict[str, int] = {}
+        for toks in titles:
+            for w in toks:
+                self.df[w] = self.df.get(w, 0) + 1
+        self.cutoff = max(3, 0.03 * self.n)
+
+    def rare(self, word: str) -> bool:
+        return self.df.get(word, 0) <= self.cutoff
+
+    def weight(self, words: set[str]) -> float:
+        return sum(math.log(max(self.n, 1) / self.df.get(w, 1)) for w in words)
+
+
+def similar(a: set[str], b: set[str], rarity: Rarity | None = None) -> bool:
     if not a or not b:
         return False
-    shared = len(a & b)
-    return shared / len(a | b) >= 0.4 or (shared >= 3 and shared / min(len(a), len(b)) >= 0.5)
+    common = a & b
+    shared = len(common)
+    if shared / len(a | b) >= 0.4 or (shared >= 3 and shared / min(len(a), len(b)) >= 0.5):
+        return True
+    if not rarity or shared < 2:
+        return False
+    rare = sum(rarity.rare(w) for w in common)
+    # "Gemini 4 Argon" inside "Google releases Gemini 4 Argon, its most powerful model yet"
+    if common == min(a, b, key=len) and rare == shared:
+        return True
+    # Different wording around the same rare names: "Google announces Gemini 4 and says..." vs "...Gemini 4 Argon..."
+    smaller = min(rarity.weight(a), rarity.weight(b))
+    return shared >= 3 and rare >= 2 and smaller > 0 and rarity.weight(common) / smaller >= 0.3
 
 
 def item_score(item: Item, now: datetime) -> float:
@@ -84,21 +114,29 @@ def item_score(item: Item, now: datetime) -> float:
     return score
 
 
-def cluster(items: list[Item], now: datetime) -> list[Story]:
+def cluster(items: list[Item], now: datetime, rarity: Rarity | None = None) -> list[Story]:
     scored = sorted(items, key=lambda i: item_score(i, now), reverse=True)
-    stories: list[tuple[set[str], Story]] = []
+    stories: list[tuple[list[set[str]], Story]] = []
     seen_urls: set[str] = set()
     for item in scored:
         if item.url in seen_urls:
             continue
         seen_urls.add(item.url)
         toks = tokens(item.title)
-        for story_toks, story in stories:
-            if similar(toks, story_toks):
-                story.items.append(item)
-                break
-        else:
-            stories.append((toks, Story(lead=item, items=[item], score=item_score(item, now))))
+        matches = [entry for entry in stories if any(similar(toks, t, rarity) for t in entry[0])]
+        if not matches:
+            stories.append(([toks], Story(lead=item, items=[item], score=item_score(item, now))))
+            continue
+        # An item that matches two stories shows they are one: fold the later into the first.
+        (story_toks, story), *rest = matches
+        story_toks.append(toks)
+        story.items.append(item)
+        for other_toks, other in rest:
+            story_toks.extend(other_toks)
+            story.items.extend(other.items)
+        if rest:
+            folded = {id(entry) for entry in rest}
+            stories = [entry for entry in stories if id(entry) not in folded]
 
     result = []
     for _, story in stories:
@@ -110,12 +148,17 @@ def cluster(items: list[Item], now: datetime) -> list[Story]:
     return sorted(result, key=lambda s: s.score, reverse=True)
 
 
-def select_top(items: list[Item], limits: dict[str, int], now: datetime | None = None) -> dict[str, list[Story]]:
+def select_top(items: list[Item], limits: dict[str, int], now: datetime | None = None,
+               heard: list[dict] | None = None) -> dict[str, list[Story]]:
+    """`heard` holds story cards from the user's recent briefings; those stories aren't told again."""
     now = now or datetime.now(timezone.utc)
     fresh = [
         i for i in items
         if (i.published is None or now - i.published <= MAX_AGE) and not LOW_VALUE.search(i.title)
     ]
+    rarity = Rarity([tokens(i.title) for i in fresh])
+    heard_urls = {link["url"] for card in heard or [] for link in card.get("links") or [{"url": card.get("url")}]}
+    heard_toks = [t for card in heard or [] if (t := tokens(card.get("original_title") or card.get("headline") or ""))]
     picked: dict[str, list[Story]] = {}
     taken: list[set[str]] = []  # the same story can surface in two sections; tell it once
     # Hand-picked sources claim their stories first, so a duplicate elsewhere is the one dropped.
@@ -125,9 +168,14 @@ def select_top(items: list[Item], limits: dict[str, int], now: datetime | None =
             continue
         section_items = [i for i in fresh if i.section == section]
         stories = []
-        for story in cluster(section_items, now):
+        for story in cluster(section_items, now, rarity):
             toks = tokens(story.lead.title)
-            if any(similar(toks, t) for t in taken):
+            if any(similar(toks, t, rarity) for t in taken):
+                continue
+            if story.lead.kind != "article" and (
+                any(i.url in heard_urls for i in story.items)
+                or any(similar(tokens(i.title), t) for i in story.items for t in heard_toks)
+            ):
                 continue
             taken.append(toks)
             stories.append(story)
