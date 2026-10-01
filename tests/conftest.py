@@ -7,7 +7,7 @@ import httpx
 import numpy as np
 import pytest
 
-from app import batch, fetcher, tts
+from app import fetcher, tts
 from app.config import Config
 from app.tts import SAMPLE_RATE, Voice
 
@@ -45,7 +45,6 @@ def fake_network(monkeypatch):
         "city": "Toronto", "now": 12, "high": 17, "low": 8, "code": 1, "conditions": "mostly clear skies", "precip": 10,
     })
     tts.register(ToneEngine())
-    monkeypatch.setitem(batch.SHOWCASE_SETTINGS, "voice", "fake:tone")
     yield
 
 
@@ -176,18 +175,17 @@ class FakeStore:
     def app_status(self):
         return dict(self.status)
 
-    def set_showcase(self, data):
-        self.showcase_ = dict(data)
-
-    def showcase(self):
-        return dict(getattr(self, "showcase_", {}))
-
     def public_url(self, path):
         return f"{self.url}/storage/v1/object/public/briefings/{path}"
 
-    def upload(self, path, data, content_type="audio/mpeg"):
+    def upload(self, path, data, content_type="audio/mpeg", cache="max-age=3600"):
         self.objects[path] = data
         return self.public_url(path)
+
+    def copy(self, source, destination):
+        assert destination not in self.objects, "Supabase refuses to copy over an existing file"
+        self.objects[destination] = self.objects[source]
+        return self.public_url(destination)
 
     def list_objects(self, prefix):
         return [p for p in self.objects if p.startswith(prefix.rstrip("/") + "/")]

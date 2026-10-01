@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+
+import pytest
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -142,7 +145,7 @@ def test_storage_failure_is_reported(cfg, store, monkeypatch):
     monkeypatch.setattr(store, "upload", full)
     report, results = run(cfg, store)
     assert "storage space may be full" in results["a@example.com"].error
-    assert [i.code for i in report.issues] == ["ai_off", "storage_failed", "showcase_failed"]
+    assert [i.code for i in report.issues] == ["ai_off", "storage_failed"]
     assert [n["code"] for n in report.for_user(store.profiles_[0]["id"])] == ["storage_failed"]
 
 
@@ -170,28 +173,51 @@ def test_admin_is_notified_when_a_run_has_problems(cfg, store, monkeypatch):
     assert sent[-1][0][0]["endpoint"] == "https://push/admin" and sent[-1][1].startswith("❌")
 
 
-def test_full_run_publishes_public_sample(cfg, store):
-    store.add_user("a@example.com")
-    report = RunReport("schedule")
-    Batch(cfg, store, report, notify=False).run()
-    sample = store.showcase()
-    assert sample["briefing"]["stories"], "sample has stories"
-    assert all(c["section"] in ("canada", "tech") for c in sample["briefing"]["stories"])
-    assert "showcase/today.mp3" in store.objects
-    assert sample["voices"] and all("preview_url" in v for v in sample["voices"])
-    assert "links" not in sample["briefing"]["stories"][0]
+def test_admin_briefing_becomes_the_landing_page_demo(cfg, store):
+    admin = store.add_user("admin@example.com")
+    store.add_source(admin, "Saved article", ARTICLE, "custom", kind="article")
+    store.add_user("b@example.com")
+    report, results = run(cfg, store)
+    assert report.ok, report.issues
+
+    demo = json.loads(store.objects["showcase/sample.json"])
+    briefing = demo["briefing"]
+    mp3 = briefing["audio_url"].split("/briefings/")[1]
+    assert mp3.startswith("showcase/")
+    assert store.objects[mp3] == store.objects[f"toku-1/{briefing['date']}.mp3"], "a copy of the admin's audio"
+    assert briefing["stories"] and all(c["section"] != "custom" and "links" not in c for c in briefing["stories"])
+    assert briefing["notes"] == [] and demo["voices"]
+
+    # A rebuild the same day replaces the demo and leaves only one MP3 behind.
+    Batch(cfg, store, RunReport("adhoc"), notify=False).run(emails=["admin@example.com"], scheduled=False)
+    assert len([p for p in store.list_objects("showcase") if p.endswith(".mp3")]) == 1
+    assert json.loads(store.objects["showcase/sample.json"])["briefing"]["audio_url"] != briefing["audio_url"]
 
 
-def test_sample_only_run_builds_no_user_briefings(cfg, store):
-    store.add_user("a@example.com")
-    report = RunReport("sample")
-    results = Batch(cfg, store, report, notify=False).run(emails=[], scheduled=False, showcase=True)
-    assert results == []
-    assert store.showcase()["briefing"]
-    assert not store.briefings_
+def test_runs_without_the_admin_leave_the_demo_alone(cfg, store):
+    store.add_user("admin@example.com")
+    store.add_user("b@example.com")
+    Batch(cfg, store, RunReport("adhoc"), notify=False).run(emails=["b@example.com"], scheduled=False)
+    assert store.list_objects("showcase") == []
 
 
-def test_one_user_run_leaves_sample_alone(cfg, store):
-    store.add_user("a@example.com")
-    Batch(cfg, store, RunReport("adhoc"), notify=False).run(emails=["a@example.com"], scheduled=False)
-    assert store.showcase() == {}
+def test_store_retries_a_dropped_connection_but_not_a_plain_insert(monkeypatch):
+    import httpx
+    from app.store import Store, StoreError
+
+    calls = []
+
+    def flaky(request):
+        calls.append(request.method)
+        if len(calls) == 1:
+            raise httpx.ReadError("ssl/tls alert bad record mac")
+        return httpx.Response(200, json=[])
+
+    s = Store("https://proj.supabase.co", "sb_secret_x", client=httpx.Client(transport=httpx.MockTransport(flaky)))
+    monkeypatch.setattr("app.store.time.sleep", lambda _s: None)
+    assert s.select("profiles") == [] and calls == ["GET", "GET"]
+
+    calls.clear()
+    with pytest.raises(StoreError):
+        s.insert("sources", {"url": "x"})
+    assert calls == ["POST"], "a plain insert might have landed, so it isn't repeated"

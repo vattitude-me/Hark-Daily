@@ -99,14 +99,6 @@ create table if not exists public.app_status (
   updated_at  timestamptz not null default now()
 );
 
--- ---------------------------------------------------------------- showcase
--- Today's public sample (top built-in stories + audio + voice list) for the signed-out landing page.
-create table if not exists public.showcase (
-  id          integer primary key default 1 check (id = 1),
-  data        jsonb not null default '{}'::jsonb,
-  updated_at  timestamptz not null default now()
-);
-
 -- ------------------------------------------------------ row-level security
 alter table public.profiles           enable row level security;
 alter table public.sources            enable row level security;
@@ -114,7 +106,6 @@ alter table public.briefings          enable row level security;
 alter table public.push_subscriptions enable row level security;
 alter table public.build_requests     enable row level security;
 alter table public.app_status         enable row level security;
-alter table public.showcase           enable row level security;
 
 create or replace function public.is_admin() returns boolean
 language sql stable security definer set search_path = '' as $$
@@ -155,16 +146,12 @@ create policy "create requests" on public.build_requests for insert to authentic
 drop policy if exists "read app status" on public.app_status;
 create policy "read app status" on public.app_status for select to authenticated using (true);
 
-drop policy if exists "anyone reads showcase" on public.showcase;
-create policy "anyone reads showcase" on public.showcase for select to anon, authenticated using (true);
-
 -- Column-level limits: users may only touch the columns the app needs.
 -- (is_admin, feed_token, status and the worker's source bookkeeping stay worker-only.)
 revoke all on public.profiles, public.sources, public.briefings, public.push_subscriptions,
-              public.build_requests, public.app_status, public.showcase from anon, authenticated;
+              public.build_requests, public.app_status from anon, authenticated;
 grant select on public.profiles, public.sources, public.briefings, public.push_subscriptions,
                 public.build_requests, public.app_status to authenticated;
-grant select on public.showcase to anon, authenticated;
 grant update (settings) on public.profiles to authenticated;
 grant insert (user_id, name, url, section, enabled) on public.sources to authenticated;
 grant update (name, section, enabled) on public.sources to authenticated;
@@ -174,9 +161,10 @@ grant delete on public.push_subscriptions to authenticated;
 grant insert (user_id, kind) on public.build_requests to authenticated;
 
 -- ---------------------------------------------------------------- storage
--- Public bucket: MP3s live under /<feed_token>/<date>.mp3 and voice samples under /previews/.
+-- Public bucket: MP3s live under /<feed_token>/<date>.mp3, voice samples under /previews/ and the
+-- landing-page demo (a copy of the admin's briefing plus sample.json) under /showcase/.
 -- Only the worker (secret key) can write; anyone with the exact link can stream.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('briefings', 'briefings', true, 26214400, array['audio/mpeg'])
+values ('briefings', 'briefings', true, 26214400, array['audio/mpeg', 'application/json'])
 on conflict (id) do update set public = true, file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;

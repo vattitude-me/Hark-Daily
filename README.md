@@ -27,7 +27,8 @@ Each morning the worker:
 3. Summarizes each story once with Groq, falling back to a built-in summarizer.
 4. Records each user's MP3.
 5. Notifies each user.
-6. Publishes a public sample for the landing page.
+
+After the admin's briefing is built, a copy is published as the landing-page demo (falling back to `web/sample/`).
 
 ## Setup
 

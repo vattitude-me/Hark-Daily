@@ -80,11 +80,6 @@ export const api = {
     const rows = check(await sb.from('briefings').select('date').order('date', { ascending: false }));
     return { briefings: rows };
   },
-  // Public: today's sample briefing and the voice list, for the signed-out landing page.
-  async showcase() {
-    const rows = check(await sb.from('showcase').select('data').eq('id', 1).limit(1));
-    return rows[0]?.data || {};
-  },
   async status() {
     const rows = check(await sb.from('app_status').select('data').eq('id', 1).limit(1));
     return rows[0]?.data || {};

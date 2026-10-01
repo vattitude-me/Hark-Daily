@@ -6,6 +6,7 @@ ever runs on the server.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import date, datetime, timezone
 
 import httpx
@@ -42,11 +43,22 @@ class Store:
         self.http.headers.update(headers)
 
     # ------------------------------------------------------------------ REST
-    def _call(self, method: str, path: str, **kw) -> httpx.Response:
-        try:
-            resp = self.http.request(method, f"{self.url}{path}", **kw)
-        except httpx.HTTPError as exc:
-            raise StoreError(f"Supabase unreachable: {exc.__class__.__name__}") from exc
+    def _call(self, method: str, path: str, *, retry: bool | None = None, **kw) -> httpx.Response:
+        """One request, retried on dropped or corrupted connections when repeating it is harmless.
+
+        `retry` defaults to every method but POST; callers mark the POSTs that are safe to repeat."""
+        attempts = 3 if (method != "POST" if retry is None else retry) else 1
+        for attempt in range(1, attempts + 1):
+            try:
+                resp = self.http.request(method, f"{self.url}{path}", **kw)
+                break
+            except httpx.TransportError as exc:
+                if attempt == attempts:
+                    raise StoreError(f"Supabase unreachable: {exc.__class__.__name__}") from exc
+                log.warning("Supabase %s %s failed (%s); retrying", method, path.split("?")[0], exc)
+                time.sleep(2 * attempt)
+            except httpx.HTTPError as exc:
+                raise StoreError(f"Supabase unreachable: {exc.__class__.__name__}") from exc
         if resp.status_code >= 400:
             try:
                 body = resp.json()
@@ -67,7 +79,7 @@ class Store:
         if on_conflict:
             prefer.append("resolution=" + ("ignore-duplicates" if ignore_duplicates else "merge-duplicates"))
             params["on_conflict"] = on_conflict
-        return self._call("POST", f"/rest/v1/{table}", params=params, json=rows,
+        return self._call("POST", f"/rest/v1/{table}", params=params, json=rows, retry=bool(on_conflict),
                           headers={"Prefer": ",".join(prefer)}).json()
 
     def update(self, table: str, params: dict, values: dict) -> list[dict]:
@@ -150,24 +162,23 @@ class Store:
         rows = self.select("app_status", {"id": "eq.1"})
         return rows[0]["data"] if rows else {}
 
-    def set_showcase(self, data: dict) -> None:
-        self.insert("showcase", {"id": 1, "data": data, "updated_at": now_iso()}, on_conflict="id")
-
-    def showcase(self) -> dict:
-        rows = self.select("showcase", {"id": "eq.1"})
-        return rows[0]["data"] if rows else {}
-
     # --------------------------------------------------------------- storage
     def public_url(self, path: str) -> str:
         return f"{self.url}/storage/v1/object/public/{self.bucket}/{path}"
 
-    def upload(self, path: str, data: bytes, content_type: str = "audio/mpeg") -> str:
-        self._call("POST", f"/storage/v1/object/{self.bucket}/{path}", content=data,
-                   headers={"Content-Type": content_type, "x-upsert": "true", "Cache-Control": "max-age=3600"})
+    def upload(self, path: str, data: bytes, content_type: str = "audio/mpeg", cache: str = "max-age=3600") -> str:
+        self._call("POST", f"/storage/v1/object/{self.bucket}/{path}", content=data, retry=True,
+                   headers={"Content-Type": content_type, "x-upsert": "true", "Cache-Control": cache})
         return self.public_url(path)
 
+    def copy(self, source: str, destination: str) -> str:
+        """Copy a stored file without downloading it. The destination must not exist yet."""
+        self._call("POST", "/storage/v1/object/copy",
+                   json={"bucketId": self.bucket, "sourceKey": source, "destinationKey": destination})
+        return self.public_url(destination)
+
     def list_objects(self, prefix: str) -> list[str]:
-        rows = self._call("POST", f"/storage/v1/object/list/{self.bucket}",
+        rows = self._call("POST", f"/storage/v1/object/list/{self.bucket}", retry=True,
                           json={"prefix": prefix, "limit": 1000}).json()
         return [f"{prefix.rstrip('/')}/{r['name']}" for r in rows if r.get("id")]
 
