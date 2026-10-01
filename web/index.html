@@ -16,6 +16,8 @@
   <link rel="stylesheet" href="/css/styles.css">
   <script>
     try { const t = localStorage.getItem('mb-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+    // Chrome can offer the install prompt before the app's modules load; keep it for our own Install button.
+    window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.__installPrompt = e; });
   </script>
 </head>
 <body>
@@ -159,6 +161,7 @@
         <span class="sr-only">Briefing date</span>
         <select id="archiveSelect" aria-label="Choose a briefing"></select>
       </label>
+      <button class="icon-btn install-btn hidden" id="installBtn" aria-label="Install the app" title="Install the app"><svg><use href="#i-download"/></svg></button>
       <button class="icon-btn" id="openSources" aria-label="Sources" title="Sources"><svg><use href="#i-sources"/></svg></button>
       <button class="icon-btn" id="openSettings" aria-label="Settings" title="Settings"><svg><use href="#i-settings"/></svg></button>
       <button class="icon-btn" id="themeToggle" aria-label="Toggle dark mode" title="Theme"><svg><use href="#i-moon"/></svg></button>
@@ -278,7 +281,7 @@
     <form id="welcomeForm">
       <div class="sheet-head"><h2 id="welcomeTitle">Welcome 👋</h2></div>
       <div class="sheet-body">
-        <p class="hint">Two quick things and your first briefing is on its way.</p>
+        <p class="hint">A few quick things and your first briefing is on its way.</p>
         <div class="setting-group" id="welcomeNameRow">
           <h3><label for="welcomeName">What should we call you?</label></h3>
           <input type="text" id="welcomeName" class="text-input" maxlength="40" autocomplete="given-name" placeholder="First name">
@@ -293,8 +296,14 @@
           <p class="hint">Your browser will ask for permission. You can change this any time in Settings.</p>
         </div>
         <div class="setting-group hidden" id="welcomeInstallRow">
-          <h3>Morning notification</h3>
-          <p class="hint">On iPhone, notifications work from the Home Screen app. Tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>, open Morning Brief from there and sign in again. You'll be asked about notifications then.</p>
+          <h3>Install the app</h3>
+          <div class="install-steps hidden" id="welcomeInstallIOS">
+            <p class="hint">Morning notifications on iPhone only work from the Home Screen app. Tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>, open Morning Brief from there and sign in again. You'll be asked about notifications then.</p>
+          </div>
+          <div class="setting-row install-steps hidden" id="welcomeInstallPrompt">
+            <span>Open Morning Brief from your home screen, full screen like any other app.</span>
+            <button type="button" class="btn btn-ghost" id="welcomeInstallBtn"><svg><use href="#i-download"/></svg> Install</button>
+          </div>
         </div>
         <p class="form-error" id="welcomeError" role="alert"></p>
       </div>
@@ -303,6 +312,24 @@
         <button type="submit" class="btn btn-primary" id="welcomeGo">Continue</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- How to install on iPhone/iPad, where browsers have no install prompt -->
+  <dialog class="sheet welcome" id="installSheet" aria-labelledby="installTitle">
+    <div class="sheet-head">
+      <h2 id="installTitle">Install Morning Brief</h2>
+      <button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <ol class="install-list">
+        <li>Tap <strong>Share</strong> <svg class="inline-icon" aria-hidden="true"><use href="#i-share"/></svg> in the browser toolbar.</li>
+        <li>Choose <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li>
+        <li>Open Morning Brief from your Home Screen and sign in. Morning notifications work from there.</li>
+      </ol>
+    </div>
+    <div class="sheet-foot">
+      <button class="btn btn-primary" data-close>Got it</button>
+    </div>
   </dialog>
 
   <!-- Settings sheet: one page, ordered by how often each setting is touched.

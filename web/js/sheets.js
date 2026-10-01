@@ -10,6 +10,26 @@ export function wireSheet(dialog) {
 
 export const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 export const isInstalled = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+// Install: Chrome/Edge/Android hand us a prompt (caught early in index.html); iPhone needs Share > Add to Home Screen.
+let installPrompt = window.__installPrompt || null;
+const installWatchers = new Set();
+const installChanged = () => installWatchers.forEach((fn) => fn());
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; installChanged(); });
+window.addEventListener('appinstalled', () => { installPrompt = null; installChanged(); });
+// 'prompt' (one-tap install), 'ios' (show the steps) or null (installed, or this browser can't install).
+export const installMode = () => (isInstalled() ? null : installPrompt ? 'prompt' : isIOS() ? 'ios' : null);
+export const onInstallChange = (fn) => installWatchers.add(fn);
+// Must be called from a tap. Resolves true when the user accepted.
+export async function promptInstall() {
+  const e = installPrompt;
+  if (!e) return false;
+  installPrompt = null; // a prompt can only be shown once
+  e.prompt();
+  const { outcome } = await e.userChoice;
+  installChanged();
+  return outcome === 'accepted';
+}
+
 export const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && window.isSecureContext;
 
 // Asks permission and registers this device. Must be called from a tap. Throws a readable message on failure.
@@ -344,17 +364,28 @@ export class WelcomeSheet {
     this.dialog.addEventListener('cancel', (e) => e.preventDefault());
     document.getElementById('welcomeForm').addEventListener('submit', (e) => { e.preventDefault(); this.finish(true); });
     document.getElementById('welcomeSkip').addEventListener('click', () => this.finish(false));
+    document.getElementById('welcomeInstallBtn').addEventListener('click', async () => {
+      if (await promptInstall()) toast('Installed. Next time, open Morning Brief from your home screen.');
+    });
+    // Chrome may only offer the install prompt after the sheet is already open.
+    onInstallChange(() => { if (this.dialog.open) this.paintInstall(); });
+  }
+
+  paintInstall() {
+    const mode = installMode();
+    document.getElementById('welcomeInstallRow').classList.toggle('hidden', !mode);
+    document.getElementById('welcomeInstallIOS').classList.toggle('hidden', mode !== 'ios');
+    document.getElementById('welcomeInstallPrompt').classList.toggle('hidden', mode !== 'prompt');
   }
 
   // askName: first visit. Otherwise only the notification offer is shown (e.g. after installing on iPhone).
   open(status, { askName = true } = {}) {
     this.status = status;
     const canPush = pushSupported() && Notification.permission !== 'denied';
-    const needsInstall = isIOS() && !isInstalled();
     this.offeredPush = canPush;
     document.getElementById('welcomeNameRow').classList.toggle('hidden', !askName);
     document.getElementById('welcomePushRow').classList.toggle('hidden', !canPush);
-    document.getElementById('welcomeInstallRow').classList.toggle('hidden', !needsInstall);
+    this.paintInstall();
     document.getElementById('welcomePushOn').checked = canPush;
     document.getElementById('welcomeError').textContent = '';
     this.dialog.showModal();

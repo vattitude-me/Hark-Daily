@@ -2,7 +2,7 @@
 import { api, clockLabel, fmtTime, h, icon, sb, store, timeAgo, toast } from './api.js';
 import { Player } from './player.js';
 import { Landing } from './landing.js';
-import { SettingsSheet, SourcesSheet, WelcomeSheet, pushSupported } from './sheets.js';
+import { SettingsSheet, SourcesSheet, WelcomeSheet, installMode, onInstallChange, promptInstall, pushSupported, wireSheet } from './sheets.js';
 
 const SECTIONS = {
   canada: { title: 'Canada', emoji: '🇨🇦' },
@@ -29,6 +29,16 @@ const welcome = new WelcomeSheet({
 });
 
 /* ------------------------------------------------------------------ header */
+// The top-bar Install button shows only while the app isn't installed and this browser can install it.
+function syncInstallBtn() {
+  $('installBtn').classList.toggle('hidden', !installMode());
+}
+
+async function install() {
+  if (installMode() === 'ios') { $('installSheet').showModal(); return; }
+  if (await promptInstall()) toast('Installed. Next time, open Morning Brief from your home screen.');
+}
+
 function greeting() {
   const hr = new Date().getHours();
   return hr < 5 ? 'Up early' : hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
@@ -333,6 +343,9 @@ async function loadBriefing(day) {
 /* ------------------------------------------------------------------ events */
 function bindEvents() {
   $('buildBtn').addEventListener('click', build);
+  $('installBtn').addEventListener('click', install);
+  wireSheet($('installSheet'));
+  onInstallChange(syncInstallBtn);
   $('openSources').addEventListener('click', () => sources.open().catch((e) => toast(e.message, { error: true })));
   $('openSettings').addEventListener('click', () => settings.open(state.status, state.profile).catch((e) => toast(e.message, { error: true })));
   $('themeToggle').addEventListener('click', () => setTheme(currentTheme() === 'dark' ? 'light' : 'dark'));
@@ -443,6 +456,7 @@ async function init() {
   syncThemeIcon(); // follows the OS until the user picks a theme
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncThemeIcon);
   bindEvents();
+  syncInstallBtn();
   renderHero();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   sb.auth.onAuthStateChange((event, session) => {

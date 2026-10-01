@@ -392,7 +392,7 @@ input[type="url"]:focus, .text-input:focus, .time-input:focus { outline: none; b
 .set-label { font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
 .setting-group { padding: 14px 0; border-bottom: 1px solid var(--line); }
 .setting-group:last-child { border-bottom: 0; }
-.setting-group h4 { font-weight: 700; font-size: 15px; margin: 0 0 8px; }
+.setting-group h3, .setting-group h4 { font-weight: 700; font-size: 15px; margin: 0 0 8px; }
 .setting-group .setting-row + .hint { margin: 6px 0 0 54px; }
 .setting-group .hint:empty { display: none; }
 .setting-row > label:not(.switch) { flex: 1; min-width: 0; }
@@ -592,3 +592,9 @@ body.signed-out > :not(.landing):not(.toast):not(svg) { display: none; }
 .welcome .text-input { width: 100%; }
 .form-error { color: var(--err); font-weight: 500; margin: 0; min-height: 1em; }
 .form-error:empty { display: none; }
+
+/* Install the app */
+.install-btn { color: var(--accent); }
+.setting-row > span:first-child:not(.switch) { flex: 1; min-width: 0; }
+.install-list { margin: 0; padding-left: 20px; display: grid; gap: 12px; font-size: 15px; line-height: 1.5; }
+.inline-icon { width: 17px; height: 17px; vertical-align: -3px; }
