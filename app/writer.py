@@ -85,21 +85,28 @@ def template_copy(story: Story) -> StoryCopy:
     return StoryCopy(headline=lead.title, summary=summary, spoken=spoken, writer="built-in")
 
 
+def section_leads(sections: list[str]) -> dict[str, str]:
+    """'First, ...', 'Next, ...', 'And finally, ...' in the order the sections are read."""
+    leads = {}
+    for i, key in enumerate(sections):
+        topic = SECTIONS.get(key, {}).get("topic") or f"news from {SECTIONS.get(key, {}).get('title', key)}"
+        if len(sections) == 1:
+            leads[key] = f"{topic[0].upper()}{topic[1:]}."
+        else:
+            opener = "First" if i == 0 else "And finally" if i == len(sections) - 1 else "Next"
+            leads[key] = f"{opener}, {topic}."
+    return leads
+
+
 def compose(picked: dict[str, list[Story]], copies: dict[str, StoryCopy], when: datetime,
             weather: str | None, name: str | None = None, say_sources: bool = False) -> Script:
-    """Wrap shared story copy in a personal intro, section transitions and sign-off."""
-    counts = {k: len(v) for k, v in picked.items()}
-    parts = []
-    if counts.get("canada"):
-        parts.append(f"{counts['canada']} stories from across Canada")
-    if counts.get("tech"):
-        parts.append(f"{counts['tech']} in AI and tech")
-    if counts.get("custom"):
-        parts.append(f"{counts['custom']} from your own sources")
-    rundown = ", ".join(parts[:-1]) + (" and " if len(parts) > 1 else "") + parts[-1] if parts else "your news"
+    """Wrap shared story copy in a personal intro, section transitions and sign-off.
+
+    The intro doesn't count stories: each section is announced as it starts, which is enough to
+    find your way around by ear."""
     date = f"{when:%A}, {when:%B} {when.day}"
     hello = f"Good morning, {name}!" if name else "Good morning!"
-    intro = f"{hello} It's {date}. {weather + ' ' if weather else ''}Here's your briefing: {rundown}."
+    intro = f"{hello} It's {date}. {weather + ' ' if weather else ''}Here's your briefing."
     stories = {s.id: copies[s.id] for group in picked.values() for s in group}
     if say_sources:
         stories = {s.id: replace(copies[s.id], spoken=f"{copies[s.id].spoken} {credit(s)}")
@@ -108,7 +115,7 @@ def compose(picked: dict[str, list[Story]], copies: dict[str, StoryCopy], when: 
     writer = "built-in" if used == {"built-in"} else ("groq" if "built-in" not in used else "mixed")
     return Script(
         intro=intro,
-        section_leads={k: SECTIONS[k]["lead"] for k in picked},
+        section_leads=section_leads(list(picked)),
         stories=stories,
         outro=f"That's your briefing for this {when:%A}. Have a wonderful day, and I'll talk to you tomorrow morning.",
         writer=writer,

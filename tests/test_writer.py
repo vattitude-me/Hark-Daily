@@ -9,7 +9,7 @@ from app.ranking import select_top
 from app.report import RunReport
 from datetime import datetime
 
-from app.writer import StoryWriter, compose, template_copy
+from app.writer import StoryWriter, compose, section_leads, template_copy
 
 from . import fakenews
 from .conftest import BASE
@@ -121,3 +121,20 @@ def test_spoken_copy_is_clean_unless_the_listener_wants_sources():
     assert all("Circuit" not in c.spoken for c in clean.stories.values())
     assert all(c.spoken.endswith(".") and "Circuit" in c.spoken for c in credited.stories.values())
     assert "Circuit" not in copies[stories[0].id].spoken  # the shared copy is untouched
+
+
+def test_intro_does_not_count_stories_and_sections_are_announced_in_order():
+    stories = _stories(3)
+    copies = {s.id: template_copy(s) for s in stories}
+    when = datetime(2026, 9, 30, 7)
+    script = compose({"canada": stories[:1], "tech": stories[1:2], "custom": stories[2:]}, copies, when, None, name="Ana")
+    assert script.intro == "Good morning, Ana! It's Wednesday, September 30. Here's your briefing."
+    assert script.section_leads == {
+        "canada": "First, the top stories from across Canada.",
+        "tech": "Next, the latest in AI and technology.",
+        "custom": "And finally, stories from the sources you follow.",
+    }
+    # Two sections: no "Next"; one section: just the topic.
+    assert section_leads(["tech", "custom"]) == {"tech": "First, the latest in AI and technology.",
+                                                 "custom": "And finally, stories from the sources you follow."}
+    assert section_leads(["tech"]) == {"tech": "The latest in AI and technology."}

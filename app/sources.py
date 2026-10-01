@@ -1,10 +1,13 @@
 """Built-in news sources and briefing sections."""
 from __future__ import annotations
 
+# "topic" is what the host says when a section starts ("First, the top stories from across Canada.").
+# The "First / Next / And finally" comes from the section's position in each briefing, so a new
+# section (World, Health...) only needs an entry here.
 SECTIONS = {
-    "canada": {"title": "Canada", "emoji": "🇨🇦", "lead": "First, the top stories from across Canada."},
-    "tech": {"title": "AI & Tech", "emoji": "🤖", "lead": "Now, the latest in AI and technology."},
-    "custom": {"title": "My Sources", "emoji": "⭐", "lead": "And finally, from the sources you follow."},
+    "canada": {"title": "Canada", "emoji": "🇨🇦", "topic": "the top stories from across Canada"},
+    "tech": {"title": "AI & Tech", "emoji": "🤖", "topic": "the latest in AI and technology"},
+    "custom": {"title": "My Sources", "emoji": "⭐", "topic": "stories from the sources you follow"},
 }
 
 # Weights nudge ranking: editor-curated "top stories" feeds get a boost.
