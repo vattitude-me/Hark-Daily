@@ -1,13 +1,15 @@
 # Morning Brief for Android
 
 A standalone Android app that builds the briefing **on the phone**: it fetches the feeds, ranks them, writes the
-summaries (with Groq if you add a key, otherwise a built-in summarizer), records them with the phone's own
-text-to-speech voices, and plays the result. No server worker is needed. Signing in with the web app's account is optional;
+summaries (with Groq if you add a key, otherwise a built-in summarizer), records them in a natural Kokoro voice or the
+phone's own text-to-speech, and plays the result. No server worker is needed. Signing in with the web app's account is optional;
 it syncs your settings and sources.
 
 - Android 10+. Download the APK from the [releases](https://github.com/vattitude-me/morning-brief-voice/releases) tagged `android-v*`.
 - Builds every morning before your "ready by" time, and again if a scheduled build was missed.
-- For the best voices, install **Speech Recognition & Synthesis from Google** and download an English voice pack.
+- **Natural voices:** Settings → Voice → Natural downloads Kokoro (about 130 MB, once) and runs it offline with
+  [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx). It's the same seven voices as the web app. Recording takes a few
+  minutes instead of seconds, which is fine for the early-morning build.
 
 ## Build
 

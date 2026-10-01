@@ -1,5 +1,6 @@
 package me.vattitude.morningbrief.data
 
+import me.vattitude.morningbrief.pipeline.kokoroVoice
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -22,6 +23,7 @@ data class Settings(
     // Phone-only settings.
     val daily: Boolean = true,
     val readyBy: String = "07:00",
+    /** A Kokoro id (kokoro:af_heart, shared with the web app), a phone voice name, "phone", or null for the best available. */
     val voice: String? = null,
     val speed: Float = 1.0f,
     val groqKey: String = "",
@@ -49,6 +51,7 @@ data class Settings(
         .put("say_sources", saySources)
         .put("stories", JSONObject(stories))
         .put("disabled_sources", JSONArray(disabledSources.toList()))
+        .apply { if (kokoroVoice(voice) != null) put("voice", voice) }
 
     /** Takes the shared fields from the server's copy, keeping phone-only settings. */
     fun withShared(remote: JSONObject): Settings = copy(
@@ -61,6 +64,8 @@ data class Settings(
         stories = remote.optJSONObject("stories")?.let { s -> stories.mapValues { (k, v) -> s.optInt(k, v) } } ?: stories,
         disabledSources = remote.optJSONArray("disabled_sources")?.let { a -> (0 until a.length()).map { a.getLong(it) }.toSet() }
             ?: disabledSources,
+        // A Kokoro voice picked on the web carries over, unless the phone's own voice was chosen here.
+        voice = remote.optString("voice").takeIf { kokoroVoice(it) != null && (voice == null || kokoroVoice(voice) != null) } ?: voice,
     )
 
     companion object {

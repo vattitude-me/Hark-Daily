@@ -2,6 +2,9 @@ package me.vattitude.morningbrief.ui
 
 import android.app.Application
 import android.content.ComponentName
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -22,14 +25,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.vattitude.morningbrief.MorningBriefApp
 import me.vattitude.morningbrief.data.Settings
+import me.vattitude.morningbrief.pipeline.Kokoro
+import me.vattitude.morningbrief.pipeline.KokoroPack
+import me.vattitude.morningbrief.pipeline.PHONE_VOICE
 import me.vattitude.morningbrief.pipeline.Place
 import me.vattitude.morningbrief.pipeline.Source
 import me.vattitude.morningbrief.pipeline.Speech
 import me.vattitude.morningbrief.pipeline.VoiceOption
+import me.vattitude.morningbrief.pipeline.kokoroVoice
 import me.vattitude.morningbrief.pipeline.searchPlaces
 import me.vattitude.morningbrief.playback.PlaybackService
 import me.vattitude.morningbrief.work.BuildState
 import me.vattitude.morningbrief.work.Scheduler
+import me.vattitude.morningbrief.work.VoicePackWorker
 import java.time.LocalDate
 
 enum class Tab { Today, Sources, Settings }
@@ -44,6 +52,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val tab = MutableStateFlow(Tab.Today)
     val message = MutableStateFlow<String?>(null)
 
+    /** What's saved, and the Settings screen's draft; the draft is only kept once Save is tapped. */
+    private val _saved = MutableStateFlow(repo.settings)
+    val saved: StateFlow<Settings> = _saved
     private val _settings = MutableStateFlow(repo.settings)
     val settings: StateFlow<Settings> = _settings
     val signedInEmail = MutableStateFlow(repo.email)
@@ -66,6 +77,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val voiceEngine = MutableStateFlow("")
     private var preview: Speech? = null
 
+    val packInstalled = MutableStateFlow(KokoroPack.installed(app))
+    val packDownload: StateFlow<VoicePackWorker.State> = VoicePackWorker.state
+    /** The voice whose sample is being prepared, for a spinner. */
+    val previewing = MutableStateFlow<String?>(null)
+    private var kokoro: Pair<Boolean, Kokoro>? = null
+    private var sample: AudioTrack? = null
+    private var sampleJob: Job? = null
+
     val signIn = MutableStateFlow(SignIn())
 
     init {
@@ -75,6 +94,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             BuildState.progress.collect {
                 if (wasRunning && !it.running) refreshBriefings(selectLatest = true)
                 wasRunning = it.running
+            }
+        }
+        viewModelScope.launch {
+            VoicePackWorker.state.collect {
+                if (it.done) {
+                    packInstalled.value = true
+                    refreshSaved()
+                }
             }
         }
     }
@@ -87,9 +114,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             repo.prefs.lastBuild.optString("day").ifEmpty { null })
         refreshBriefings()
         connectPlayer()
+        packInstalled.value = KokoroPack.installed(getApplication())
         viewModelScope.launch {
             repo.pullSettings()
-            _settings.value = repo.settings
+            refreshSaved()
         }
     }
 
@@ -97,6 +125,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         ticker?.cancel()
         controller?.release()
         controller = null
+        stopSample()
+        releaseKokoro()
+    }
+
+    /** Off the main thread: closing waits for a sample that's still being generated. */
+    private fun releaseKokoro() {
+        kokoro?.second?.let { k -> Thread { k.close() }.start() }
+        kokoro = null
     }
 
     override fun onCleared() {
@@ -208,7 +244,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         sources.value = sources.value.map { if (it.id == source.id && it.url == source.url) it.copy(enabled = enabled) else it }
         viewModelScope.launch {
             repo.setEnabled(source, enabled)?.let { message.value = it }
-            _settings.value = repo.settings
+            refreshSaved()
             loadSources()
         }
     }
@@ -242,28 +278,43 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Settings -----------------------------------------------------------------------------
 
-    private var saving: Job? = null
-
-    /** Shows the change at once; saves (and syncs) once typing or dragging pauses. */
+    /** Changes the draft; nothing is kept until [save]. */
     fun update(change: (Settings) -> Settings) {
-        val new = change(_settings.value)
-        _settings.value = new
-        saving?.cancel()
-        saving = viewModelScope.launch {
-            delay(600)
+        _settings.value = change(_settings.value)
+    }
+
+    fun save() {
+        val new = _settings.value
+        viewModelScope.launch {
             val old = repo.settings
-            repo.saveSettings(new)?.let { message.value = it }
+            val problem = repo.saveSettings(new)
             if (old.daily != new.daily || old.readyBy != new.readyBy) Scheduler.schedule(getApplication(), new)
+            _saved.value = repo.settings
+            message.value = problem ?: "Settings saved"
         }
+    }
+
+    fun discard() {
+        _settings.value = _saved.value
+    }
+
+    /** Takes in changes saved elsewhere (sync, source switches, a finished download) without losing the draft. */
+    private fun refreshSaved() {
+        val before = _saved.value
+        val now = repo.settings
+        _saved.value = now
+        _settings.value = if (_settings.value == before) now
+        else _settings.value.copy(disabledSources = now.disabledSources, disabledUrls = now.disabledUrls)
     }
 
     suspend fun places(query: String): List<Place> = withContext(Dispatchers.IO) { searchPlaces(query) }
 
     fun loadVoices() {
+        packInstalled.value = KokoroPack.installed(getApplication())
         viewModelScope.launch {
             val s = preview ?: runCatching { Speech.open(getApplication()) }.getOrNull()?.also { preview = it }
             if (s == null) {
-                message.value = "This phone has no text-to-speech engine. Install Speech Services by Google."
+                voices.value = emptyList()
                 return@launch
             }
             voices.value = s.voices()
@@ -271,13 +322,79 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun previewVoice(name: String?) {
-        val s = preview ?: return
-        s.stop()
-        s.setVoice(name)
-        s.setSpeed(settings.value.speed)
+    fun downloadVoices() = VoicePackWorker.start(getApplication())
+
+    fun cancelDownload() = VoicePackWorker.cancel(getApplication())
+
+    fun removeVoices() {
+        stopSample()
+        releaseKokoro()
+        KokoroPack.remove(getApplication())
+        packInstalled.value = false
+        viewModelScope.launch {
+            val st = repo.settings
+            if (kokoroVoice(st.voice) != null) repo.saveSettings(st.copy(voice = PHONE_VOICE))
+            refreshSaved()
+            if (kokoroVoice(_settings.value.voice) != null) _settings.value = _settings.value.copy(voice = PHONE_VOICE)
+            message.value = "Natural voices removed"
+        }
+    }
+
+    fun packSize(): Long = KokoroPack.sizeOnDisk(getApplication())
+
+    /** Plays a short greeting in [voice]: Kokoro voices are generated here, phone voices spoken directly. */
+    fun previewVoice(voice: String?) {
+        stopSample()
+        preview?.stop()
+        val speed = settings.value.speed
         val who = settings.value.name.trim().ifEmpty { null }
-        s.speak("Good morning${who?.let { ", $it" } ?: ""}! Here's your briefing for today.")
+        val line = "Good morning${who?.let { ", $it" } ?: ""}! Here's your briefing for today, starting with the top stories."
+        val k = kokoroVoice(voice)
+        if (k == null || !packInstalled.value) {
+            val s = preview ?: return
+            s.setVoice(voice?.takeIf { it != PHONE_VOICE && kokoroVoice(it) == null })
+            s.setSpeed(speed)
+            s.speak(line)
+            return
+        }
+        previewing.value = k.id
+        sampleJob = viewModelScope.launch {
+            try {
+                val pcm = withContext(Dispatchers.Default) {
+                    val engine = kokoro?.takeIf { it.first == k.british }?.second ?: run {
+                        releaseKokoro()
+                        Kokoro.open(KokoroPack.dir(getApplication()), k.british).also { kokoro = k.british to it }
+                    }
+                    engine.generate(line, k, speed)
+                }
+                play(pcm.samples, pcm.rate)
+            } catch (e: Exception) {
+                if (e !is kotlinx.coroutines.CancellationException) message.value = "Couldn't play the sample: ${e.message}"
+            } finally {
+                previewing.value = null
+            }
+        }
+    }
+
+    private fun play(samples: FloatArray, rate: Int) {
+        if (samples.isEmpty()) return
+        val track = AudioTrack.Builder()
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+            .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_FLOAT).setSampleRate(rate)
+                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+            .setTransferMode(AudioTrack.MODE_STATIC)
+            .setBufferSizeInBytes(samples.size * 4)
+            .build()
+        track.write(samples, 0, samples.size, AudioTrack.WRITE_BLOCKING)
+        track.play()
+        sample = track
+    }
+
+    private fun stopSample() {
+        sampleJob?.cancel()
+        sample?.let { runCatching { it.stop() }; it.release() }
+        sample = null
     }
 
     fun sendCode(email: String) {
@@ -298,7 +415,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 signIn.value = SignIn()
                 signedInEmail.value = repo.email
                 repo.pullSettings()
-                _settings.value = repo.settings
+                refreshSaved()
                 loadSources()
                 message.value = "Signed in. Your sources and settings now match the web app."
             }.onFailure {

@@ -94,20 +94,16 @@ class Builder(private val context: Context, private val repo: Repo) {
         val work = File(context.cacheDir, "build").apply { deleteRecursively(); mkdirs() }
         val out = File(work, "briefing.m4a")
         val marks = HashMap<String, Pair<Double, Double>>()
-        val speech = Speech.open(context)
-        val voiceName: String?
+        progress("Warming up the voice", 0.45f)
+        val (narrator, voiceNote) = Narrator.open(context, st.voice, st.speed)
+        voiceNote?.let { note("voice", it) }
         try {
-            voiceName = speech.setVoice(st.voice)
-            speech.setSpeed(st.speed)
             val aac = AacWriter(out)
             try {
                 aac.silence(0.35)
                 segments.forEachIndexed { i, (key, text, pause) ->
                     progress("Recording your briefing", 0.45f + 0.5f * i / segments.size)
-                    val wav = File(work, "$i.wav")
-                    speech.toFile(speakable(text), wav)
-                    val clip = prepareClip(readWav(wav))
-                    wav.delete()
+                    val clip = prepareClip(narrator.read(speakable(text), work))
                     val start = aac.seconds
                     aac.write(clip)
                     marks[key] = round2(start) to round2(aac.seconds)
@@ -117,12 +113,12 @@ class Builder(private val context: Context, private val repo: Repo) {
                 aac.close()
             }
         } finally {
-            speech.close()
+            narrator.close()
         }
 
         // 6. Save -------------------------------------------------------------------------------
         progress("Saving", 0.97f)
-        val doc = document(picked, script, marks, wx, voiceName, now, day, started, notes)
+        val doc = document(picked, script, marks, wx, narrator, now, day, started, notes)
         repo.briefings.save(day, doc, out)
         repo.briefings.cleanup(now.toLocalDate())
         val used = stories.flatMap { s -> s.items.filter { it.kind == "article" } }.map { it.url }
@@ -136,7 +132,7 @@ class Builder(private val context: Context, private val repo: Repo) {
 
     private fun document(
         picked: Map<String, List<Story>>, script: Script, marks: Map<String, Pair<Double, Double>>, wx: Forecast?,
-        voice: String?, now: ZonedDateTime, day: String, started: Long, notes: JSONArray,
+        voice: Narrator, now: ZonedDateTime, day: String, started: Long, notes: JSONArray,
     ): JSONObject {
         val chapters = JSONArray()
         val cards = JSONArray()
@@ -173,7 +169,7 @@ class Builder(private val context: Context, private val repo: Repo) {
             .put("title", "$dayName, ${now.month.getDisplayName(TextStyle.FULL, Locale.ENGLISH)} ${now.dayOfMonth}")
             .put("generated_at", Instant.now().toString())
             .put("duration", oEnd + 0.8)
-            .put("voice", JSONObject().put("id", voice ?: "default").put("name", voice ?: "Phone default"))
+            .put("voice", JSONObject().put("id", voice.id).put("name", voice.name))
             .put("writer", script.writer)
             .put("weather", wx?.toJson() ?: JSONObject.NULL)
             .put("intro", script.intro)

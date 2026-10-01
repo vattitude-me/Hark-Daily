@@ -20,7 +20,12 @@ android {
         targetSdk = 35
         versionCode = appVersionCode
         versionName = appVersionName
+        // Phones only: the Kokoro engine's native libraries are large, so x86 builds are left out.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
+
+    // Compressed native libraries keep the download small; they're unpacked once at install.
+    packaging { jniLibs { useLegacyPackaging = true } }
 
     base.archivesName = "morning-brief"
 
@@ -100,6 +105,10 @@ dependencies {
     implementation("org.jsoup:jsoup:1.18.3")
     implementation("net.dankito.readability4j:readability4j:1.0.8")
     implementation("io.coil-kt:coil-compose:2.7.0")
+
+    // Kokoro neural voices, run on the phone; the voice model itself is an optional download.
+    implementation("com.github.k2-fsa.sherpa-onnx:sherpa-onnx:v1.13.8@aar")
+    implementation("org.apache.commons:commons-compress:1.27.1")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")

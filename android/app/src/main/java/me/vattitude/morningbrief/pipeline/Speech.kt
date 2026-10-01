@@ -47,19 +47,19 @@ class Speech private constructor(private val tts: TextToSpeech) {
 
     val engine: String get() = tts.defaultEngine ?: ""
 
-    /** English voices that work offline, best quality first; network-only voices are left out. */
-    fun voices(): List<VoiceOption> {
+    /**
+     * A short list of installed English voices, best first: up to three per accent, labelled
+     * "American · Voice 2" rather than by engine codes.
+     */
+    fun voices(limit: Int = 8): List<VoiceOption> {
         val all = runCatching { tts.voices }.getOrNull() ?: emptySet<Voice>()
-        return all.filter { offline(it) }.map {
-            VoiceOption(
-                name = it.name,
-                label = label(it),
-                locale = it.locale,
-                quality = it.quality,
-                needsDownload = TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED in it.features,
-            )
-        }.sortedWith(compareBy<VoiceOption>({ it.needsDownload }, { regionOrder(it.locale) }, { -it.quality }, { it.name }))
-            .distinctBy { it.label }
+        val usable = all.filter { offline(it) && TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in it.features }
+            .sortedWith(compareBy<Voice>({ regionOrder(it.locale) }, { -it.quality }, { it.name }))
+        return usable.groupBy { accent(it.locale) }.flatMap { (accent, voices) ->
+            voices.take(3).mapIndexed { i, v ->
+                VoiceOption(v.name, if (voices.size > 1) "$accent · Voice ${i + 1}" else accent, v.locale, v.quality, false)
+            }
+        }.take(limit)
     }
 
     fun setVoice(name: String?): String? {
@@ -131,16 +131,13 @@ class Speech private constructor(private val tts: TextToSpeech) {
             else -> 4
         }
 
-        fun label(v: Voice): String {
-            val region = v.locale.getDisplayCountry(Locale.ENGLISH).ifEmpty { v.locale.displayName }
-            val quality = when {
-                v.quality >= Voice.QUALITY_VERY_HIGH -> "Very high quality"
-                v.quality >= Voice.QUALITY_HIGH -> "High quality"
-                else -> "Standard"
-            }
-            // Google voice names look like "en-us-x-iol-local": the three letters tell voices apart.
-            val tag = Regex("-x-([a-z]{3})").find(v.name)?.groupValues?.get(1)?.uppercase()
-            return listOfNotNull(region, tag?.let { "voice $it" }, quality).joinToString(" · ")
+        fun accent(locale: Locale) = when (locale.country) {
+            "CA" -> "Canadian"
+            "US" -> "American"
+            "GB" -> "British"
+            "AU" -> "Australian"
+            "IN" -> "Indian"
+            else -> locale.getDisplayCountry(Locale.ENGLISH).ifEmpty { "English" }
         }
     }
 }
