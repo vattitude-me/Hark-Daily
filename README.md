@@ -23,7 +23,7 @@ plus any sites each person adds. Each user gets their own briefing and a phone n
 
 Each morning the worker:
 1. Fetches every feed once.
-2. Ranks and deduplicates stories per user.
+2. Ranks and deduplicates stories per user, skipping stories from their last two briefings.
 3. Summarizes each story once with Groq, falling back to a built-in summarizer.
 4. Records each user's MP3.
 5. Notifies each user.

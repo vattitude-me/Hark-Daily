@@ -87,6 +87,21 @@ def test_old_briefings_are_deleted(cfg, store):
     assert sorted(p for p in store.objects if p.startswith("toku-1/")) == [f"toku-1/{d}.mp3" for d in kept]
 
 
+def test_stories_from_yesterday_are_not_told_again(cfg, store):
+    a = store.add_user("a@example.com")
+    _, results = run(cfg, store)
+    first = results["a@example.com"].briefing
+    told = first["stories"][0]
+    yesterday = (datetime.fromisoformat(first["date"]) - timedelta(days=1)).date().isoformat()
+    store.upsert_briefing(a, yesterday, {"stories": [told]}, "")
+
+    _, results = run(cfg, store, fresh=True)
+
+    again = results["a@example.com"].briefing["stories"]
+    assert told["url"] not in {c["url"] for c in again}
+    assert len(again) == len(first["stories"]) - 1, "today's own briefing doesn't count as heard"
+
+
 def test_new_links_are_detected_and_private_ones_refused(cfg, store):
     import dataclasses
 

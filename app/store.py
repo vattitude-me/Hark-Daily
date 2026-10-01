@@ -131,6 +131,11 @@ class Store:
     def briefings(self, params: dict) -> list[dict]:
         return self.select("briefings", {"select": "user_id,date,audio_path", **params})
 
+    def recent_stories(self, user_ids: list[str], since: str, before: str) -> list[dict]:
+        """Story cards of briefings dated from `since` up to (not including) `before`."""
+        return self.select("briefings", {"select": "user_id,date,stories:data->stories", "user_id": self._in(user_ids),
+                                         "and": f"(date.gte.{since},date.lt.{before})"})
+
     def delete_briefings(self, rows: list[dict]) -> None:
         """Delete briefing rows and their MP3s."""
         paths = [r["audio_path"] for r in rows if r.get("audio_path")]

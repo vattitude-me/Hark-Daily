@@ -144,6 +144,10 @@ class FakeStore:
     def briefings(self, params):
         return [dict(r) for r in self.briefings_.values() if self._match(r, params)]
 
+    def recent_stories(self, user_ids, since, before):
+        return [{"user_id": r["user_id"], "date": r["date"], "stories": r["data"].get("stories")}
+                for r in self.briefings_.values() if r["user_id"] in user_ids and since <= r["date"] < before]
+
     def delete_briefings(self, rows):
         for r in rows:
             self.objects.pop(r["audio_path"], None)

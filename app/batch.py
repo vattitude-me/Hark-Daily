@@ -52,6 +52,8 @@ BACKUP_VOICE = "edge:en-CA-ClaraNeural"
 CACHE_DAYS = 3
 # The landing-page demo: a public copy of the admin's latest briefing (no separate build).
 SHOWCASE_DIR = "showcase"
+# Stories told in briefings from this many days back aren't told again.
+HEARD_DAYS = 2
 
 
 def settings_for(profile: dict) -> dict:
@@ -157,6 +159,7 @@ class Batch:
 
         # 3. Rank per user, then read every chosen article once ---------------------------
         self.progress("Picking the top stories", 0.15)
+        heard = self._heard([p.id for p in plans], now.date())
         for plan in plans:
             failed = [s for s in plan.sources if s["user_id"] and statuses.get(s["id"], "ok") != "ok"]
             if failed:
@@ -164,7 +167,7 @@ class Batch:
                                 user_id=plan.id)
             user_items = [it for s in plan.sources for it in by_source.get(s["id"], [])]
             limits = {k: plan.settings["stories"].get(k, 0) for k in SECTIONS}
-            plan.picked = select_top(user_items, limits) if user_items else {}
+            plan.picked = select_top(user_items, limits, heard=heard.get(plan.id)) if user_items else {}
 
         stories: dict[str, tuple[str, Story]] = {}
         for plan in plans:
@@ -228,6 +231,19 @@ class Batch:
             except FetchError as exc:
                 self._update_source(s["id"], {"last_status": str(exc), "last_fetched_at": now_iso()})
         return UserPlan(profile, settings, mine + allowed)
+
+    def _heard(self, user_ids: list[str], today) -> dict[str, list[dict]]:
+        """Story cards from each user's recent briefings (not today's, which a rebuild replaces)."""
+        since = (today - timedelta(days=HEARD_DAYS)).isoformat()
+        try:
+            rows = self.store.recent_stories(user_ids, since, today.isoformat())
+        except StoreError as exc:
+            log.warning("Couldn't load recent briefings, so repeats aren't filtered: %s", exc)
+            return {}
+        heard: dict[str, list[dict]] = {}
+        for row in rows:
+            heard.setdefault(row["user_id"], []).extend(row.get("stories") or [])
+        return heard
 
     def _record_statuses(self, sources: dict[int, dict], items: list[Item], statuses: dict[int, str]) -> None:
         counts: dict[int, int] = {}
