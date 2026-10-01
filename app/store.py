@@ -82,6 +82,10 @@ class Store:
         return "in.(" + ",".join(f'"{v}"' for v in values) + ")"
 
     # -------------------------------------------------------------- profiles
+    def delete_user(self, user_id: str) -> None:
+        """Delete the sign-in account. Profiles, links, briefings, push subscriptions and requests cascade."""
+        self._call("DELETE", f"/auth/v1/admin/users/{user_id}")
+
     def profiles(self) -> list[dict]:
         return self.select("profiles", {"order": "created_at"})
 

@@ -155,6 +155,8 @@ export class SettingsSheet {
     document.getElementById('pushOn').addEventListener('change', (e) => this.togglePush(e.target));
     document.getElementById('pushTest').addEventListener('click', (e) => this.testPush(e.currentTarget));
     document.getElementById('signOutBtn').addEventListener('click', async () => { await api.signOut(); location.reload(); });
+    this.deleteSheet = new DeleteAccountSheet();
+    document.getElementById('deleteAccountBtn').addEventListener('click', () => this.deleteSheet.open(this.email));
     const range = document.getElementById('speedRange');
     range.addEventListener('input', () => {
       document.getElementById('speedOut').textContent = speedLabel(range.value);
@@ -181,7 +183,8 @@ export class SettingsSheet {
     document.getElementById('cityInput').value = settings.city;
     document.getElementById('latInput').value = settings.latitude;
     document.getElementById('lonInput').value = settings.longitude;
-    document.getElementById('accountEmail').textContent = profile?.email || '';
+    this.email = profile?.email || '';
+    document.getElementById('accountEmail').textContent = this.email;
     document.getElementById('rebuildGroup').classList.toggle('hidden', !profile?.is_admin);
     this.renderSteppers(settings.stories);
     this.showStatus(this.status);
@@ -350,6 +353,63 @@ export class SettingsSheet {
       return res;
     } catch (err) {
       toast(err.message, { error: true });
+    }
+  }
+}
+
+/* ----------------------------------------------------------- Delete account */
+class DeleteAccountSheet {
+  constructor() {
+    this.dialog = document.getElementById('deleteSheet');
+    this.box = document.getElementById('deleteConfirm');
+    this.go = document.getElementById('deleteGo');
+    // Like wireSheet, but nothing closes it while the deletion is running.
+    this.dialog.querySelectorAll('[data-close]').forEach((btn) => btn.addEventListener('click', () => this.dialog.close()));
+    this.dialog.addEventListener('click', (e) => { if (e.target === this.dialog && !this.busy) this.dialog.close(); });
+    this.box.addEventListener('change', () => { this.go.disabled = !this.box.checked; });
+    document.getElementById('deleteForm').addEventListener('submit', (e) => { e.preventDefault(); this.run(); });
+    this.dialog.addEventListener('cancel', (e) => { if (this.busy) e.preventDefault(); });
+  }
+
+  open(email) {
+    document.getElementById('deleteEmail').textContent = email || 'this account';
+    document.getElementById('deleteStatus').textContent = '';
+    this.box.checked = false;
+    this.box.disabled = false;
+    this.closers(false);
+    this.go.disabled = true;
+    this.go.textContent = 'Delete forever';
+    this.dialog.showModal();
+  }
+
+  closers(disabled) {
+    this.dialog.querySelectorAll('[data-close]').forEach((b) => { b.disabled = disabled; });
+  }
+
+  async run() {
+    if (!this.box.checked || this.busy) return;
+    const status = document.getElementById('deleteStatus');
+    this.busy = true;
+    this.closers(true);
+    this.go.disabled = true;
+    this.box.disabled = true;
+    this.go.textContent = 'Deleting…';
+    status.textContent = 'Deleting your account. This can take up to a minute.';
+    try {
+      await api.deleteAccount();
+      // Forget this device's notification subscription and cached briefing (the theme stays).
+      try { (await (await navigator.serviceWorker?.ready)?.pushManager.getSubscription())?.unsubscribe(); } catch { /* ignore */ }
+      Object.keys(localStorage).filter((k) => k.startsWith('mb-') && k !== 'mb-theme').forEach((k) => localStorage.removeItem(k));
+      status.textContent = 'Your account has been deleted.';
+      try { await api.signOut(); } catch { /* the session died with the account */ }
+      setTimeout(() => location.reload(), 1500);
+    } catch (err) {
+      this.busy = false;
+      this.closers(false);
+      this.box.disabled = false;
+      this.go.disabled = !this.box.checked;
+      this.go.textContent = 'Delete forever';
+      status.textContent = err.message;
     }
   }
 }

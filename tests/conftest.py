@@ -156,6 +156,14 @@ class FakeStore:
     def delete_push_subscription(self, endpoint):
         self.subs = [s for s in self.subs if s["endpoint"] != endpoint]
 
+    def delete_user(self, uid):
+        # Mirrors the cascade from auth.users.
+        self.profiles_ = [p for p in self.profiles_ if p["id"] != uid]
+        self.sources_ = [s for s in self.sources_ if s["user_id"] != uid]
+        self.briefings_ = {k: v for k, v in self.briefings_.items() if k[0] != uid}
+        self.subs = [s for s in self.subs if s.get("user_id") != uid]
+        self.requests = [r for r in self.requests if r["user_id"] != uid]
+
     def pending_requests(self):
         return [r for r in self.requests if r["status"] == "queued"]
 

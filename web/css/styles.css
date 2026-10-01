@@ -616,3 +616,16 @@ body.signed-out > :not(.landing):not(.toast):not(svg) { display: none; }
 .first-brief-label { display: block; font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
 .first-brief-when { display: block; font: 600 22px/1.25 var(--font-head); margin: 2px 0 4px; }
 .first-brief-what { display: block; font-size: 13.5px; color: var(--ink-2); }
+
+/* Delete account */
+.btn-danger { background: var(--err); color: #fff; }
+.btn-danger[disabled] { opacity: .4; cursor: not-allowed; }
+.btn-danger-ghost { background: transparent; border-color: color-mix(in srgb, var(--err) 45%, var(--line)); color: var(--err); }
+.btn-danger-ghost:hover { background: color-mix(in srgb, var(--err) 8%, transparent); }
+.danger-box { padding: 14px 16px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--err) 40%, var(--line)); background: color-mix(in srgb, var(--err) 8%, var(--surface)); font-size: 14.5px; margin-bottom: 14px; }
+.danger-box ul { margin: 8px 0 0; padding-left: 20px; color: var(--ink-2); }
+.danger-box li + li { margin-top: 4px; }
+.confirm-check { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; font-weight: 600; cursor: pointer; padding: 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
+.confirm-check input { width: 20px; height: 20px; margin: 1px 0 0; flex: none; accent-color: var(--err); }
+#deleteStatus { margin: 12px 0 0; }
+#deleteStatus:empty { display: none; }

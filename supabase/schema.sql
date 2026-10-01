@@ -75,16 +75,21 @@ create table if not exists public.push_subscriptions (
 );
 
 -- ---------------------------------------------------------- build requests
--- 'push_test' is open to everyone; 'build' (ad-hoc rebuild) is admin-only for now.
+-- 'push_test' and 'delete_account' are open to everyone; 'build' (ad-hoc rebuild) is admin-only for now.
+-- 'delete_account': the worker removes the user's MP3s, then their sign-in, which cascades to every row.
 create table if not exists public.build_requests (
   id           bigint generated always as identity primary key,
   user_id      uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  kind         text not null default 'build' check (kind in ('build', 'push_test')),
+  kind         text not null default 'build' check (kind in ('build', 'push_test', 'delete_account')),
   status       text not null default 'queued' check (status in ('queued', 'running', 'done', 'error')),
   message      text,
   created_at   timestamptz not null default now(),
   finished_at  timestamptz
 );
+-- Projects created before 'delete_account' existed: widen the check.
+alter table public.build_requests drop constraint if exists build_requests_kind_check;
+alter table public.build_requests add constraint build_requests_kind_check
+  check (kind in ('build', 'push_test', 'delete_account'));
 
 -- -------------------------------------------------------------- app status
 -- One shared row the worker keeps up to date: schedule, last run, voices, push key.
@@ -145,7 +150,7 @@ drop policy if exists "read own requests" on public.build_requests;
 create policy "read own requests" on public.build_requests for select to authenticated using (user_id = auth.uid());
 drop policy if exists "create requests" on public.build_requests;
 create policy "create requests" on public.build_requests for insert to authenticated
-  with check (user_id = auth.uid() and status = 'queued' and (kind = 'push_test' or public.is_admin()));
+  with check (user_id = auth.uid() and status = 'queued' and (kind in ('push_test', 'delete_account') or public.is_admin()));
 
 drop policy if exists "read app status" on public.app_status;
 create policy "read app status" on public.app_status for select to authenticated using (true);

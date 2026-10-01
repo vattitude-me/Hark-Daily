@@ -361,6 +361,37 @@
     </div>
   </dialog>
 
+  <!-- Delete account: a deliberate, two-step confirmation -->
+  <dialog class="sheet welcome" id="deleteSheet" aria-labelledby="deleteTitle">
+    <form id="deleteForm">
+      <div class="sheet-head">
+        <h2 id="deleteTitle">Delete your account?</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button>
+      </div>
+      <div class="sheet-body">
+        <div class="danger-box">
+          <strong>This can't be undone.</strong> Everything below is removed for good:
+          <ul>
+            <li>Your briefings and their audio</li>
+            <li>Your own news links and saved settings (voice, sections, name)</li>
+            <li>Morning notifications on all your devices</li>
+            <li>Your sign-in for <span id="deleteEmail"></span></li>
+          </ul>
+        </div>
+        <p class="hint">You can sign up again later with the same email, but you'll start from scratch.</p>
+        <label class="confirm-check">
+          <input type="checkbox" id="deleteConfirm">
+          <span>I understand my account and all its data will be permanently deleted.</span>
+        </label>
+        <p class="hint" id="deleteStatus" role="status" aria-live="polite"></p>
+      </div>
+      <div class="sheet-foot">
+        <button type="button" class="btn btn-ghost" data-close>Keep my account</button>
+        <button type="submit" class="btn btn-danger" id="deleteGo" disabled>Delete forever</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- Settings sheet: one page, ordered by how often each setting is touched.
        Content mix first, then the voice (set once, so collapsed), delivery, account. -->
   <dialog class="sheet" id="settingsSheet" aria-labelledby="settingsTitle">
@@ -460,6 +491,9 @@
             <span id="accountEmail" class="account-email"></span>
             <button class="btn btn-ghost" id="signOutBtn" type="button">Sign out</button>
           </div>
+        </div>
+        <div class="setting-group">
+          <button class="btn btn-danger-ghost" id="deleteAccountBtn" type="button"><svg><use href="#i-trash"/></svg> Delete account</button>
         </div>
       </section>
 

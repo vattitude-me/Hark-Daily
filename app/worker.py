@@ -1,7 +1,8 @@
 """The long-running worker on the Linux server.
 
 * Runs the batch every day at BATCH_TIME (and catches up if the server woke late).
-* Every minute, picks up requests the app queued in Supabase (admin rebuilds, test notifications).
+* Every minute, picks up requests the app queued in Supabase (admin rebuilds, test notifications,
+  account deletions).
 * Keeps the shared app_status row current so the app can show schedule, progress and problems.
 """
 from __future__ import annotations
@@ -135,6 +136,9 @@ class Worker:
             self.store.update_request(req["id"], {"status": "running"})
             status, message = "done", None
             try:
+                if req["kind"] == "delete_account":
+                    self.delete_account(req["user_id"], profile)
+                    continue  # the request row went with the account; the app takes that as done
                 if req["kind"] == "push_test":
                     subs = self.store.push_subscriptions([req["user_id"]])
                     sent, gone = push.send(self.cfg, subs, "🔔 Test notification",
@@ -158,6 +162,16 @@ class Worker:
                 self.store.update_request(req["id"], {"status": status, "message": message, "finished_at": now_iso()})
             except StoreError as exc:
                 log.warning("Couldn't update request %s: %s", req["id"], exc)
+
+    def delete_account(self, user_id: str, profile: dict) -> None:
+        """Remove the user's MP3s, then their sign-in (every table row cascades with it)."""
+        token = profile.get("feed_token")
+        if token:
+            paths = self.store.list_objects(token)
+            if paths:
+                self.store.remove_objects(paths)
+        self.store.delete_user(user_id)
+        log.info("Deleted account %s (%s)", user_id, profile.get("email") or "no email")
 
     # ============================================================== setup
     def upload_previews(self) -> None:
