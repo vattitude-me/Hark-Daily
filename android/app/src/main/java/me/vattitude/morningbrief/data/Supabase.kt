@@ -1,5 +1,7 @@
 package me.vattitude.morningbrief.data
 
+import android.net.Uri
+import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import me.vattitude.morningbrief.pipeline.Source
@@ -10,6 +12,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.security.MessageDigest
+import java.security.SecureRandom
 import java.util.concurrent.TimeUnit
 
 /** The same public settings as web/config.js: the publishable key is safe to ship, row-level security does the rest. */
@@ -29,7 +33,7 @@ data class Session(val accessToken: String, val refreshToken: String, val expire
 class SupabaseError(message: String, val status: Int = 0) : Exception(message)
 
 /**
- * Sign-in (email code) and the sources/profiles tables, over plain REST.
+ * Sign-in (Google or an email code, the same as the web app) and the sources/profiles tables, over plain REST.
  * The app never touches briefings or storage: briefings are built and kept on the phone.
  */
 class Supabase(private val prefs: Prefs) {
@@ -47,6 +51,39 @@ class Supabase(private val prefs: Prefs) {
         val res = call("POST", "/auth/v1/verify", body, auth = false) as JSONObject
         return saveSession(res)
     }
+
+    /**
+     * The web app's "Continue with Google", in a browser tab. Google sends people back to [redirect] (the app's own
+     * link, which must be in Supabase's allowed redirect URLs) with a code that [finishGoogle] swaps for a session (PKCE).
+     */
+    fun googleUrl(redirect: String): Uri {
+        val verifier = b64(ByteArray(32).also { SecureRandom().nextBytes(it) })
+        prefs.pkceVerifier = verifier
+        val challenge = b64(MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray()))
+        return Uri.parse("$SUPABASE_URL/auth/v1/authorize").buildUpon()
+            .appendQueryParameter("provider", "google")
+            .appendQueryParameter("redirect_to", redirect)
+            .appendQueryParameter("code_challenge", challenge)
+            .appendQueryParameter("code_challenge_method", "s256")
+            .appendQueryParameter("prompt", "select_account")
+            .build()
+    }
+
+    suspend fun finishGoogle(callback: Uri): Session {
+        val params = Uri.parse("?" + listOfNotNull(callback.encodedQuery, callback.encodedFragment).joinToString("&"))
+        params.getQueryParameter("error_description")?.let {
+            throw SupabaseError(if (Regex("provider is not enabled|unsupported provider", RegexOption.IGNORE_CASE)
+                    .containsMatchIn(it)) "Google sign-in isn't switched on yet. Use email instead." else it)
+        }
+        val code = params.getQueryParameter("code") ?: throw SupabaseError("Google sign-in didn't finish. Try again.")
+        val verifier = prefs.pkceVerifier ?: throw SupabaseError("That sign-in link has expired. Try again.")
+        val body = JSONObject().put("auth_code", code).put("code_verifier", verifier)
+        val res = call("POST", "/auth/v1/token?grant_type=pkce", body, auth = false) as JSONObject
+        prefs.pkceVerifier = null
+        return saveSession(res)
+    }
+
+    private fun b64(bytes: ByteArray) = Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
 
     fun signOut() {
         prefs.session = null
@@ -159,6 +196,8 @@ class Supabase(private val prefs: Prefs) {
             Regex("duplicate key.*sources", RegexOption.IGNORE_CASE).containsMatchIn(msg) -> "You've already added that link."
             Regex("expired|invalid", RegexOption.IGNORE_CASE).containsMatchIn(msg) && "token" in msg.lowercase() ->
                 "That code didn't work. Check it, or ask for a new one."
+            Regex("flow state|code verifier", RegexOption.IGNORE_CASE).containsMatchIn(msg) ->
+                "Google sign-in didn't finish. Try again."
             else -> msg
         }
     }

@@ -17,6 +17,11 @@ class Prefs(context: Context) {
         get() = sp.getString("session", null)?.let { runCatching { Session.fromJson(JSONObject(it)) }.getOrNull() }
         set(value) = sp.edit().putString("session", value?.toJson()?.toString()).apply()
 
+    /** The PKCE secret for a Google sign-in in progress; kept here in case Android stops the app meanwhile. */
+    var pkceVerifier: String?
+        get() = sp.getString("pkce_verifier", null)
+        set(value) = sp.edit().putString("pkce_verifier", value).apply()
+
     /** Links added while signed out. Ids are negative so they never clash with Supabase ids. */
     var localSources: List<Source>
         get() = sources("local_sources")

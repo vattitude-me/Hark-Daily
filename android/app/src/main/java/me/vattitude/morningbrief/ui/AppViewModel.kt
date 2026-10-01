@@ -411,17 +411,31 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val email = signIn.value.email
         signIn.value = signIn.value.copy(busy = true, error = null)
         viewModelScope.launch {
-            runCatching { repo.supabase.verify(email.trim(), code) }.onSuccess {
-                signIn.value = SignIn()
-                signedInEmail.value = repo.email
-                repo.pullSettings()
-                refreshSaved()
-                loadSources()
-                message.value = "Signed in. Your sources and settings now match the web app."
-            }.onFailure {
+            runCatching { repo.supabase.verify(email.trim(), code) }.onSuccess { signedIn() }.onFailure {
                 signIn.value = signIn.value.copy(busy = false, error = it.message)
             }
         }
+    }
+
+    /** The web app's Google sign-in page; Google sends people back to the app's own link, handled by [finishGoogle]. */
+    fun googleSignInUrl(): Uri = repo.supabase.googleUrl("${getApplication<Application>().packageName}://auth")
+
+    fun finishGoogle(callback: Uri) {
+        signIn.value = SignIn(busy = true)
+        viewModelScope.launch {
+            runCatching { repo.supabase.finishGoogle(callback) }.onSuccess { signedIn() }.onFailure {
+                signIn.value = SignIn(error = it.message)
+            }
+        }
+    }
+
+    private suspend fun signedIn() {
+        signIn.value = SignIn()
+        signedInEmail.value = repo.email
+        repo.pullSettings()
+        refreshSaved()
+        loadSources()
+        message.value = "Signed in. Your sources and settings now match the web app."
     }
 
     fun cancelSignIn() {

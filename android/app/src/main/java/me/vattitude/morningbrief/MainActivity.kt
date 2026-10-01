@@ -17,6 +17,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleShare(intent)
+        if (savedInstanceState == null) handleSignIn(intent)
         setContent {
             MorningBriefTheme {
                 Root(vm)
@@ -27,6 +28,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleShare(intent)
+        handleSignIn(intent)
     }
 
     override fun onStart() {
@@ -37,6 +39,13 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         vm.onClose()
+    }
+
+    /** Google sign-in finishing: the browser tab hands back me.vattitude.morningbrief://auth?code=... */
+    private fun handleSignIn(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (intent.action != Intent.ACTION_VIEW || uri.scheme != packageName || uri.host != "auth") return
+        vm.finishGoogle(uri)
     }
 
     /** A link shared from the browser opens the Sources tab with it filled in. */

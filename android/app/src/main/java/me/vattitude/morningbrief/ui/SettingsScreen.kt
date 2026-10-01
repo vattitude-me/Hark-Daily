@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -73,7 +74,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -83,6 +86,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
+import me.vattitude.morningbrief.R
 import me.vattitude.morningbrief.BuildConfig
 import me.vattitude.morningbrief.pipeline.KOKORO_VOICES
 import me.vattitude.morningbrief.pipeline.PHONE_VOICE
@@ -415,12 +419,20 @@ private fun AccountSection(vm: AppViewModel) {
         }
         var open by remember { mutableStateOf(signIn.codeSent) }
         if (!open) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Not signed in")
-                    Hint("Optional: sync sources and settings with the web app")
+            Text("Not signed in")
+            Hint("Optional: sign in with the account you use on the web app to sync sources and settings")
+            signIn.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            val context = LocalContext.current
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = {
+                    CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, vm.googleSignInUrl())
+                }, enabled = !signIn.busy) {
+                    if (signIn.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Icon(painterResource(R.drawable.ic_google), null, Modifier.size(18.dp), tint = Color.Unspecified)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Continue with Google")
                 }
-                TextButton(onClick = { open = true }) { Text("Sign in") }
+                TextButton(onClick = { vm.cancelSignIn(); open = true }, enabled = !signIn.busy) { Text("Use email") }
             }
         } else if (!signIn.codeSent) {
             var input by remember { mutableStateOf(signIn.email) }
