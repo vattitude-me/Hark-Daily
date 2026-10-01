@@ -20,6 +20,7 @@ plus any sites each person adds. Each user gets their own briefing and a phone n
 - **Web app** (`web/`): static files only, no secrets.
 - **Supabase**: row-level security keeps each user to their own data.
 - **Worker** (`app/`): makes outbound calls only, and never fetches private-network addresses from user links.
+- **Android app** (`android/`): builds and voices the briefing on the phone, with no worker needed. See [`android/README.md`](android/README.md).
 
 Each morning the worker:
 1. Fetches every feed once.

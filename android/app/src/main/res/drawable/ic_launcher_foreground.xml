@@ -1,0 +1,12 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- A rising sun over the horizon, with a sound wave for the voice. -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M34,62 A20,20 0 0 1 74,62 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M28,66 h52 v4 h-52 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M52,30 h4 v10 h-4 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M30.6,40.2 l2.8,-2.8 l7,7 l-2.8,2.8 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M77.4,40.2 l-2.8,-2.8 l-7,7 l2.8,2.8 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M38,74 h4 v6 h-4 Z M46,74 h4 v10 h-4 Z M54,74 h4 v12 h-4 Z M62,74 h4 v8 h-4 Z M70,74 h4 v5 h-4 Z" />
+</vector>
