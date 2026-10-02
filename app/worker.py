@@ -186,12 +186,16 @@ class Worker:
         self.status = self._base_status()
         self.publish()
         hour, minute = (int(x) for x in self.cfg.batch_time.split(":"))
-        self.scheduler.add_job(self.daily, CronTrigger(hour=hour, minute=minute, timezone=self.tz),
-                               id="daily", misfire_grace_time=3 * 3600, coalesce=True, max_instances=1)
+        if self.cfg.daily_batch:
+            self.scheduler.add_job(self.daily, CronTrigger(hour=hour, minute=minute, timezone=self.tz),
+                                   id="daily", misfire_grace_time=3 * 3600, coalesce=True, max_instances=1)
+            self.scheduler.add_job(self.catch_up, id="catch-up")
         self.scheduler.add_job(self.poll_requests, "interval", seconds=60, id="requests",
                                coalesce=True, max_instances=1)
-        self.scheduler.add_job(self.catch_up, id="catch-up")
         self.scheduler.add_job(self.upload_previews, id="previews")
-        log.info("Worker ready: daily batch at %s %s, next %s", self.cfg.batch_time, self.cfg.timezone,
-                 next_run(self.cfg))
+        if self.cfg.daily_batch:
+            log.info("Worker ready: daily batch at %s %s, next %s", self.cfg.batch_time, self.cfg.timezone,
+                     next_run(self.cfg))
+        else:
+            log.info("Worker ready: daily batch off (DAILY_BATCH=false), answering requests only")
         self.scheduler.start()
