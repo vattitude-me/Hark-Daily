@@ -52,6 +52,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val tab = MutableStateFlow(Tab.Today)
     val message = MutableStateFlow<String?>(null)
+    val appearance = MutableStateFlow(repo.prefs.appearance)
+
+    fun setAppearance(value: String) {
+        repo.prefs.appearance = value
+        appearance.value = value
+    }
 
     /** What's saved, and the Settings screen's draft; the draft is only kept once Save is tapped. */
     private val _saved = MutableStateFlow(repo.settings)

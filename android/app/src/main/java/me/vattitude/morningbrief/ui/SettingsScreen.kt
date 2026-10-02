@@ -12,57 +12,38 @@ import android.provider.Settings as AndroidSettings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.DeleteForever
-import androidx.compose.material.icons.outlined.ExpandLess
-import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material.icons.outlined.Face
-import androidx.compose.material.icons.outlined.RecordVoiceOver
-import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.WarningAmber
-import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -75,20 +56,27 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import me.vattitude.morningbrief.BuildConfig
 import me.vattitude.morningbrief.R
@@ -99,54 +87,24 @@ import me.vattitude.morningbrief.pipeline.Place
 import me.vattitude.morningbrief.pipeline.kokoroVoice
 import me.vattitude.morningbrief.work.Scheduler
 
-@Composable
-private fun Section(icon: ImageVector, title: String, content: @Composable () -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                Spacer(Modifier.width(10.dp))
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            }
-            content()
-        }
-    }
-}
+private val TIME = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
 
 @Composable
-private fun Hint(text: String) =
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-@Composable
-private fun SwitchRow(label: String, checked: Boolean, detail: String? = null, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }, verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(label)
-            detail?.let { Hint(it) }
-        }
-        Switch(checked = checked, onCheckedChange = onChange)
+private fun SwitchRow(label: String, checked: Boolean, detail: String? = null, onChange: (Boolean) -> Unit) =
+    ListRow(label, detail = detail, onClick = { onChange(!checked) }) {
+        Spacer(Modifier.width(12.dp))
+        MbSwitch(checked, onChange)
     }
-}
-
-/** A label with its value on the right, for things changed in a dialog or an expanding panel. */
-@Composable
-private fun ValueRow(label: String, value: String, enabled: Boolean = true, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick).padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f))
-        Text(value, color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Medium)
-    }
-}
 
 /** A one-line warning with its fix, e.g. notifications switched off. */
 @Composable
 private fun Nudge(text: String, action: String, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Outlined.WarningAmber, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-        TextButton(onClick = onClick) { Text(action) }
+    val t = Mb.t
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Outlined.WarningAmber, null, tint = t.error, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(text, Modifier.weight(1f), style = Type.meta, color = t.ink)
+        TextButton(onClick = onClick) { Text(action, style = Type.value.copy(fontWeight = FontWeight.Medium), color = t.ink) }
     }
 }
 
@@ -154,9 +112,11 @@ private fun Nudge(text: String, action: String, onClick: () -> Unit) {
 fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val st by vm.settings.collectAsState()
     val saved by vm.saved.collectAsState()
+    val appearance by vm.appearance.collectAsState()
     val dirty = st != saved
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current
+    val t = Mb.t
 
     // Permissions can change in the system screens we send people to, so re-check on resume.
     var resumed by remember { mutableIntStateOf(0) }
@@ -176,20 +136,37 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
 
     Box(modifier.fillMaxSize()) {
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = if (dirty) 190.dp else 120.dp),
         ) {
-            Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+            val ready = LocalTime.of(saved.readyHour, saved.readyMinute)
+            ScreenHeader(
+                overline = {
+                    Overline(if (!saved.daily) "Daily brief off" else {
+                        val now = LocalDateTime.now()
+                        var next = now.toLocalDate().atTime(ready)
+                        if (!next.isAfter(now)) next = next.plusDays(1)
+                        "Next brief · ${next.format(DateTimeFormatter.ofPattern("EEE h:mm a", Locale.ENGLISH))}"
+                    })
+                },
+                title = "Settings",
+            )
 
-            Section(Icons.Outlined.WbSunny, "Every morning") {
-                SwitchRow("Make a briefing every day", st.daily) { on -> vm.update { it.copy(daily = on) } }
-                val ready = LocalTime.of(st.readyHour, st.readyMinute)
-                val fmt = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
-                ValueRow("Ready by", ready.format(fmt), enabled = st.daily) {
-                    TimePickerDialog(context, { _, h, m -> vm.update { it.copy(readyBy = "%02d:%02d".format(h, m)) } },
-                        st.readyHour, st.readyMinute, false).show()
-                }
-                if (st.daily) Hint("It starts about ${Scheduler.LEAD_MINUTES} minutes earlier, whenever the phone is online.")
+            SectionLabel("Brief")
+            GlassGroup {
+                SwitchRow("Make one every morning", st.daily,
+                    detail = if (st.daily) "Starts about ${Scheduler.LEAD_MINUTES} minutes earlier, whenever the phone is online" else null,
+                ) { on -> vm.update { it.copy(daily = on) } }
+                Hairline()
+                ListRow("Ready by", value = LocalTime.of(st.readyHour, st.readyMinute).format(TIME), caret = st.daily,
+                    color = if (st.daily) t.ink else t.muted,
+                    onClick = if (!st.daily) null else {
+                        {
+                            TimePickerDialog(context, { _, h, m -> vm.update { it.copy(readyBy = "%02d:%02d".format(h, m)) } },
+                                st.readyHour, st.readyMinute, false).show()
+                        }
+                    })
+                if (!canNotify || !unrestricted) Hairline()
                 if (!canNotify) Nudge("Notifications are off", "Allow") {
                     askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
@@ -199,76 +176,95 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                             Uri.parse("package:${context.packageName}")))
                     }
                 }
-            }
-
-            VoiceSection(vm)
-
-            Section(Icons.AutoMirrored.Outlined.Article, "Stories") {
-                Hint("Choose topics, local news and people to follow, and how many stories each, on the Sources page.")
+                Hairline()
                 SwitchRow("Say where each story is from", st.saySources) { on -> vm.update { it.copy(saySources = on) } }
+                Hairline()
+                ListRow("Topics and story counts", caret = true, onClick = { vm.tab.value = Tab.Sources })
             }
 
-            Section(Icons.Outlined.Face, "Greeting and weather") {
-                OutlinedTextField(st.name, { v -> vm.update { it.copy(name = v.take(40)) } },
-                    label = { Text("Your name") }, placeholder = { Text("Used in the greeting") },
-                    singleLine = true, modifier = Modifier.fillMaxWidth())
+            SectionLabel("Voice")
+            VoiceGroup(vm)
+
+            SectionLabel("Greeting and weather")
+            GlassGroup {
+                Row(Modifier.fillMaxWidth().padding(vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Your name", style = Type.body, color = t.ink)
+                    Spacer(Modifier.width(16.dp))
+                    BasicTextField(
+                        st.name, { v -> vm.update { it.copy(name = v.take(40)) } }, Modifier.weight(1f), singleLine = true,
+                        textStyle = Type.value.copy(color = t.ink, textAlign = TextAlign.End), cursorBrush = SolidColor(t.ink),
+                        decorationBox = { inner ->
+                            Box(contentAlignment = Alignment.CenterEnd) {
+                                if (st.name.isEmpty()) Text("For the greeting", style = Type.value, color = t.muted)
+                                inner()
+                            }
+                        },
+                    )
+                }
+                Hairline()
                 SwitchRow("Start with the weather", st.weather) { on -> vm.update { it.copy(weather = on) } }
                 if (st.weather) {
                     var picking by remember { mutableStateOf(false) }
-                    ValueRow("City", st.city) { picking = !picking }
-                    if (picking) CitySearch(vm) { p ->
-                        vm.update { it.copy(city = p.name, latitude = p.latitude, longitude = p.longitude) }
-                        picking = false
+                    Hairline()
+                    ListRow("Weather city", value = st.city.ifBlank { "Not set" }, caret = true, onClick = { picking = !picking })
+                    if (picking) Column(Modifier.padding(bottom = 14.dp)) {
+                        CitySearch(vm) { p ->
+                            vm.update { it.copy(city = p.name, latitude = p.latitude, longitude = p.longitude) }
+                            picking = false
+                        }
                     }
                 }
             }
 
-            AccountSection(vm)
+            SectionLabel("Appearance")
+            val looks = listOf("light", "dark", "system")
+            Segmented(listOf("Light", "Dark", "System"), looks.indexOf(appearance).coerceAtLeast(0), height = 40.dp, glass = true) {
+                vm.setAppearance(looks[it])
+            }
 
-            Section(Icons.Outlined.Tune, "Advanced") {
-                var open by remember { mutableStateOf(st.groqKey.isNotBlank()) }
-                Row(Modifier.fillMaxWidth().clickable { open = !open }, verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("AI-written summaries")
-                        Hint(if (st.groqKey.isBlank()) "Off: summaries are made on the phone" else "On, with your Groq key")
-                    }
-                    Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null)
-                }
-                if (open) {
-                    Hint("Paste a free key from console.groq.com. It stays on this phone.")
-                    OutlinedTextField(st.groqKey, { v -> vm.update { it.copy(groqKey = v.trim()) } },
-                        label = { Text("Groq API key") }, singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+            SectionLabel("Account")
+            AccountGroup(vm)
+
+            SectionLabel("Advanced")
+            GlassGroup {
+                var open by remember { mutableStateOf(false) }
+                ListRow("AI-written summaries",
+                    detail = if (st.groqKey.isBlank()) "Off: summaries are made on the phone" else "On, with your Groq key",
+                    caret = !open, onClick = { open = !open })
+                if (open) Column(Modifier.padding(bottom = 14.dp)) {
+                    Hint("Paste a free key from console.groq.com. It stays on this phone.", Modifier.padding(bottom = 10.dp))
+                    PillField(st.groqKey, { v -> vm.update { it.copy(groqKey = v.trim()) } }, "Groq API key",
+                        visualTransformation = PasswordVisualTransformation())
                 }
             }
 
-            val context = LocalContext.current
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Morning Brief ${BuildConfig.VERSION_NAME}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = { openPage(context, PRIVACY_URL) }) { Text("Privacy") }
-                TextButton(onClick = { openPage(context, TERMS_URL) }) { Text("Terms") }
+            Row(Modifier.padding(top = 22.dp, start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Hint("Morning Brief ${BuildConfig.VERSION_NAME}", Modifier.weight(1f))
+                TextButton(onClick = { openPage(context, PRIVACY_URL) }) { Text("Privacy", style = Type.meta, color = t.ink) }
+                TextButton(onClick = { openPage(context, TERMS_URL) }) { Text("Terms", style = Type.meta, color = t.ink) }
             }
-            // Room for the save bar.
-            Spacer(Modifier.height(if (dirty) 72.dp else 8.dp))
         }
 
         if (dirty) {
-            Surface(Modifier.align(Alignment.BottomCenter).fillMaxWidth(), tonalElevation = 6.dp, shadowElevation = 6.dp) {
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Unsaved changes", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                    TextButton(onClick = { vm.discard() }) { Text("Discard") }
-                    Spacer(Modifier.width(8.dp))
-                    Button(onClick = { vm.save() }) { Text("Save") }
-                }
+            // Floats just above the tab bar.
+            Row(
+                Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 20.dp, end = 20.dp, bottom = 92.dp)
+                    .fillMaxWidth().height(60.dp)
+                    .shadow(18.dp, CircleShape, ambientColor = Color.Black.copy(alpha = .2f), spotColor = Color.Black.copy(alpha = .2f))
+                    .clip(CircleShape).background(if (t.dark) Color(0xFF1E1E1C) else Color(0xFFF4F4F1))
+                    .border(1.dp, t.glassLine, CircleShape).padding(start = 20.dp, end = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Unsaved changes", Modifier.weight(1f), style = Type.value, color = t.ink)
+                TextButton(onClick = { vm.discard() }) { Text("Discard", style = Type.value, color = t.muted) }
+                PillButton("Save") { vm.save() }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun VoiceSection(vm: AppViewModel) {
+private fun VoiceGroup(vm: AppViewModel) {
     val st by vm.settings.collectAsState()
     val pack by vm.packInstalled.collectAsState()
     val download by vm.packDownload.collectAsState()
@@ -276,129 +272,107 @@ private fun VoiceSection(vm: AppViewModel) {
     val natural = kokoroVoice(st.voice) != null || (st.voice == null && pack != null)
     var lastKokoro by remember { mutableStateOf(kokoroVoice(st.voice)?.id ?: KOKORO_VOICES.first().id) }
     var confirmRemove by remember { mutableStateOf(false) }
-
-    Section(Icons.Outlined.RecordVoiceOver, "Voice") {
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            SegmentedButton(selected = !natural, onClick = { vm.update { it.copy(voice = PHONE_VOICE) } },
-                shape = SegmentedButtonDefaults.itemShape(0, 2)) { Text("Phone") }
-            SegmentedButton(selected = natural, onClick = { vm.update { it.copy(voice = lastKokoro) } },
-                shape = SegmentedButtonDefaults.itemShape(1, 2)) { Text("Natural") }
-        }
-
-        if (!natural) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Your phone's voice")
-                    Hint("Built in, no download, but flatter than the natural voices.")
-                }
-                Spacer(Modifier.width(8.dp))
-                FilledTonalIconButton(onClick = { vm.previewVoice(PHONE_VOICE) }) { Icon(Icons.Filled.PlayArrow, "Play a sample") }
-            }
-        } else {
-            val installed = pack
-            if (installed == null) {
-                Hint("Lifelike Kokoro voices, the same ones as the web app. A one-time ${KokoroPack.HD.megabytes} MB " +
-                    "download (Wi-Fi recommended); after that they work offline.")
-            } else {
-                val current = kokoroVoice(st.voice) ?: KOKORO_VOICES.first()
-                VoicePicker(
-                    options = KOKORO_VOICES.map { it.id to "${it.name} · ${it.accent}" },
-                    details = KOKORO_VOICES.associate { it.id to it.description },
-                    selected = current.id,
-                    loading = previewing == current.id,
-                    onSelect = { id -> lastKokoro = id; vm.update { it.copy(voice = id) }; vm.previewVoice(id) },
-                    onPlay = { vm.previewVoice(current.id) },
-                )
-            }
-
-            when {
-                download.running -> {
-                    Text("Downloading natural voices… ${(download.fraction * 100).toInt()}%")
-                    LinearProgressIndicator(progress = { download.fraction }, modifier = Modifier.fillMaxWidth())
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Hint("You can leave this screen; it keeps going.")
-                        Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { vm.cancelDownload() }) { Text("Cancel") }
-                    }
-                }
-                installed == null -> {
-                    download.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-                    Button(onClick = { vm.downloadVoices(KokoroPack.HD) }) { Text("Download natural voices") }
-                }
-                confirmRemove -> Row(verticalAlignment = Alignment.CenterVertically) {
-                    Hint("Remove the voices? Briefings will use the phone's voice.")
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = { confirmRemove = false }) { Text("Keep") }
-                    TextButton(onClick = { confirmRemove = false; vm.removeVoices() }) { Text("Remove") }
-                }
-                else -> {
-                    download.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-                    val mb = remember(installed) { vm.packSize() / 1_000_000 }
-                    if (installed == KokoroPack.STANDARD) Hint("You have the older, smaller voices. The full-quality ones sound " +
-                        "noticeably cleaner (${KokoroPack.HD.megabytes} MB).")
-                    else Hint("Using $mb MB on this phone")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (installed == KokoroPack.STANDARD) {
-                            OutlinedButton(onClick = { vm.downloadVoices(KokoroPack.HD) }) { Text("Upgrade voices") }
-                        }
-                        TextButton(onClick = { confirmRemove = true }) { Text("Remove") }
-                    }
-                }
-            }
-        }
-
-        HorizontalDivider()
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Speed", Modifier.weight(1f))
-            Text("${"%.2f".format(st.speed)}×", fontWeight = FontWeight.Medium)
-        }
-        Slider(value = st.speed, valueRange = 0.8f..1.3f, steps = 9,
-            onValueChange = { v -> vm.update { it.copy(speed = (v * 20).toInt() / 20f) } })
-    }
-}
-
-/** A dropdown of voices with a play button beside it. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun VoicePicker(
-    options: List<Pair<String, String>>,
-    details: Map<String, String>,
-    selected: String,
-    loading: Boolean,
-    onSelect: (String) -> Unit,
-    onPlay: () -> Unit,
-) {
     var open by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }, modifier = Modifier.weight(1f)) {
-            OutlinedTextField(
-                value = options.firstOrNull { it.first == selected }?.second ?: "",
-                onValueChange = {},
-                readOnly = true,
-                singleLine = true,
-                label = { Text("Voice") },
-                supportingText = details[selected]?.let { { Text(it) } },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = open) },
-                modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-            )
-            ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                for ((id, label) in options) {
-                    DropdownMenuItem(
-                        text = {
-                            Column {
-                                Text(label)
-                                details[id]?.let { Hint(it) }
+    val t = Mb.t
+
+    GlassGroup {
+        val current = kokoroVoice(st.voice) ?: KOKORO_VOICES.first()
+        ListRow("Voice",
+            value = when {
+                !natural -> "Phone"
+                pack == null -> "Natural, not downloaded"
+                else -> "${current.name} · ${current.accent}"
+            },
+            caret = !open, onClick = { open = !open })
+
+        if (open) Column(Modifier.padding(bottom = 14.dp)) {
+            Segmented(listOf("Phone", "Natural"), if (natural) 1 else 0) {
+                vm.update { s -> s.copy(voice = if (it == 0) PHONE_VOICE else lastKokoro) }
+            }
+            if (!natural) {
+                Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Hint("Your phone's built-in voice. No download, but flatter than the natural voices.", Modifier.weight(1f))
+                    Spacer(Modifier.width(12.dp))
+                    InkCircle(Icons.Filled.PlayArrow, "Play a sample", size = 40.dp, busy = previewing == PHONE_VOICE) {
+                        vm.previewVoice(PHONE_VOICE)
+                    }
+                }
+            } else {
+                val installed = pack
+                if (installed == null) {
+                    Hint("Lifelike Kokoro voices, the same ones as the web app. A one-time ${KokoroPack.HD.megabytes} MB " +
+                        "download (Wi-Fi recommended); after that they work offline.", Modifier.padding(top = 14.dp))
+                } else {
+                    Column(Modifier.padding(top = 6.dp)) {
+                        for (v in KOKORO_VOICES) {
+                            val on = v.id == current.id
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    lastKokoro = v.id
+                                    vm.update { it.copy(voice = v.id) }
+                                    vm.previewVoice(v.id)
+                                }.padding(vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                CheckDot(on)
+                                Spacer(Modifier.width(12.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text("${v.name} · ${v.accent}", style = if (on) Type.title else Type.body, color = t.ink)
+                                    Text(v.description, style = Type.meta, color = t.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                if (previewing == v.id) {
+                                    CircularProgressIndicator(Modifier.size(18.dp), color = t.ink, strokeWidth = 2.dp)
+                                }
                             }
-                        },
-                        onClick = { open = false; onSelect(id) },
-                    )
+                        }
+                    }
+                }
+
+                Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    when {
+                        download.running -> {
+                            Text("Downloading natural voices… ${(download.fraction * 100).toInt()}%", style = Type.body, color = t.ink)
+                            LinearProgressIndicator(
+                                progress = { download.fraction }, modifier = Modifier.fillMaxWidth().height(6.dp),
+                                color = t.ink, trackColor = t.track, strokeCap = StrokeCap.Round, gapSize = 0.dp, drawStopIndicator = {},
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Hint("You can leave this screen; it keeps going.", Modifier.weight(1f))
+                                PillButton("Cancel", filled = false) { vm.cancelDownload() }
+                            }
+                        }
+                        installed == null -> {
+                            download.error?.let { Hint(it, color = t.error) }
+                            PillButton("Download natural voices") { vm.downloadVoices(KokoroPack.HD) }
+                        }
+                        confirmRemove -> {
+                            Hint("Remove the voices? Briefings will use the phone's voice.")
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                PillButton("Keep", filled = false) { confirmRemove = false }
+                                PillButton("Remove") { confirmRemove = false; vm.removeVoices() }
+                            }
+                        }
+                        else -> {
+                            download.error?.let { Hint(it, color = t.error) }
+                            val mb = remember(installed) { vm.packSize() / 1_000_000 }
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Hint(if (installed == KokoroPack.STANDARD) "You have the older, smaller voices. The full-quality " +
+                                    "ones sound noticeably cleaner (${KokoroPack.HD.megabytes} MB)." else "Using $mb MB on this phone",
+                                    Modifier.weight(1f))
+                                if (installed == KokoroPack.STANDARD) PillButton("Upgrade") { vm.downloadVoices(KokoroPack.HD) }
+                                PillButton("Remove", filled = false) { confirmRemove = true }
+                            }
+                        }
+                    }
                 }
             }
         }
-        Spacer(Modifier.width(8.dp))
-        FilledTonalIconButton(onClick = onPlay, enabled = !loading) {
-            if (loading) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-            else Icon(Icons.Filled.PlayArrow, "Play a sample")
+
+        Hairline()
+        ListRow("Playback speed") {
+            val speed = (st.speed * 20).roundToInt()
+            PillStepper("${"%.2f".format(speed / 20f)}×", speed > 16, speed < 26, "Slower", "Faster",
+                { vm.update { it.copy(speed = (speed - 1) / 20f) } }, { vm.update { it.copy(speed = (speed + 1) / 20f) } })
         }
     }
 }
@@ -411,39 +385,37 @@ private fun openPage(context: Context, url: String) = openPage(context, Uri.pars
 private fun openPage(context: Context, uri: Uri) = CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, uri)
 
 @Composable
-private fun AccountSection(vm: AppViewModel) {
+private fun AccountGroup(vm: AppViewModel) {
     val email by vm.signedInEmail.collectAsState()
     val signIn by vm.signIn.collectAsState()
-    Section(Icons.Outlined.AccountCircle, "Account") {
-        if (email != null) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(email!!)
-                    Hint("Sources and settings sync with the web app")
-                }
-                OutlinedButton(onClick = { vm.signOut() }) { Text("Sign out") }
-            }
-            var confirm by remember { mutableStateOf(false) }
-            TextButton(onClick = { confirm = true }, contentPadding = PaddingValues(0.dp),
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                Icon(Icons.Outlined.DeleteForever, null, Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Delete account")
-            }
-            if (confirm) DeleteAccountDialog(vm, email!!) { confirm = false }
-            return@Section
+    val context = LocalContext.current
+    val t = Mb.t
+    var confirm by remember { mutableStateOf(false) }
+    GlassGroup {
+        val signedIn = email
+        if (signedIn != null) {
+            ListRow(signedIn) { Text("SYNCED", Modifier.padding(start = 12.dp), style = Type.tiny, color = t.muted) }
+            Hairline()
+            ListRow("Sign out", color = t.error, onClick = { vm.signOut() })
+            Hairline()
+            ListRow("Delete account", color = t.error, onClick = { confirm = true })
+            if (confirm) DeleteAccountDialog(vm, signedIn) { confirm = false }
+            return@GlassGroup
         }
-        Text("Not signed in")
-        Hint("Optional: sign in with the Google account you use on the web app to sync sources and settings")
-        signIn.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-        val context = LocalContext.current
-        OutlinedButton(onClick = {
-            openPage(context, vm.googleSignInUrl())
-        }, enabled = !signIn.busy) {
-            if (signIn.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-            else Icon(painterResource(R.drawable.ic_google), null, Modifier.size(18.dp), tint = Color.Unspecified)
-            Spacer(Modifier.width(8.dp))
-            Text("Continue with Google")
+        ListRow("Not signed in",
+            detail = "Optional: sign in with the Google account you use on the web app to sync sources and settings")
+        signIn.error?.let { Hint(it, Modifier.padding(bottom = 10.dp), color = t.error) }
+        Row(
+            Modifier.padding(bottom = 14.dp).height(44.dp).clip(CircleShape).background(t.ink)
+                .clickable(enabled = !signIn.busy) { openPage(context, vm.googleSignInUrl()) }.padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (signIn.busy) CircularProgressIndicator(Modifier.size(16.dp), color = t.onInk, strokeWidth = 2.dp)
+            else Box(Modifier.size(22.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
+                Icon(painterResource(R.drawable.ic_google), null, Modifier.size(14.dp), tint = Color.Unspecified)
+            }
+            Spacer(Modifier.width(10.dp))
+            Text("Continue with Google", style = Type.value.copy(fontWeight = FontWeight.Medium), color = t.onInk)
         }
     }
 }
@@ -454,36 +426,37 @@ private fun DeleteAccountDialog(vm: AppViewModel, email: String, onDismiss: () -
     val state by vm.deleting.collectAsState()
     val busy = state?.busy == true
     var understood by remember { mutableStateOf(false) }
+    val t = Mb.t
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
-        icon = { Icon(Icons.Outlined.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
+        icon = { Icon(Icons.Outlined.DeleteForever, null, tint = t.error) },
         title = { Text("Delete your account?") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("This can't be undone. Your sign-in for $email, your own news links, saved settings and web " +
-                    "briefings are removed for good, on every device.")
+                    "briefings are removed for good, on every device.", style = Type.body)
                 Hint("Briefings already on this phone stay here. You can sign up again later, but you'll start from scratch.")
                 Row(Modifier.fillMaxWidth().clickable(enabled = !busy) { understood = !understood },
                     verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(understood, { understood = it }, enabled = !busy)
-                    Text("I understand my account and its data will be permanently deleted.",
-                        style = MaterialTheme.typography.bodyMedium)
+                    Checkbox(understood, { understood = it }, enabled = !busy,
+                        colors = CheckboxDefaults.colors(checkedColor = t.ink, checkmarkColor = t.onInk))
+                    Text("I understand my account and its data will be permanently deleted.", style = Type.body)
                 }
                 if (busy) Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    CircularProgressIndicator(Modifier.size(16.dp), color = t.ink, strokeWidth = 2.dp)
                     Spacer(Modifier.width(8.dp))
                     Hint("Deleting your account. This can take up to a minute.")
                 }
-                state?.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                state?.error?.let { Hint(it, color = t.error) }
             }
         },
         confirmButton = {
             Button(onClick = { vm.deleteAccount() }, enabled = understood && !busy,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
+                colors = ButtonDefaults.buttonColors(containerColor = t.error, contentColor = if (t.dark) Color.Black else Color.White)) {
                 Text(if (busy) "Deleting…" else "Delete forever")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("Keep my account") } },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("Keep my account", color = t.ink) } },
     )
 }
 
@@ -499,9 +472,10 @@ internal fun CitySearch(vm: AppViewModel, onPick: (Place) -> Unit) {
         delay(350)
         results = vm.places(query.trim())
     }
-    OutlinedTextField(query, { query = it }, label = { Text("Search for a city") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    PillField(query, { query = it }, "Search for a city", Modifier.fillMaxWidth(), icon = Icons.Outlined.Search)
     for (p in results.take(5)) {
         Text("${p.name}${if (p.region.isNotBlank()) ", ${p.region}" else ""}",
-            Modifier.fillMaxWidth().clickable { onPick(p); query = ""; results = emptyList() }.padding(vertical = 8.dp))
+            Modifier.fillMaxWidth().clickable { onPick(p); query = ""; results = emptyList() }.padding(horizontal = 18.dp, vertical = 10.dp),
+            style = Type.body, color = Mb.t.ink)
     }
 }

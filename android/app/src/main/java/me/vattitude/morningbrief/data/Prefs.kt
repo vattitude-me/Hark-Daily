@@ -18,6 +18,11 @@ class Prefs(context: Context) {
         set(value) = sp.edit().putString("session", value?.toJson()?.toString()).apply()
 
     /** The PKCE secret for a Google sign-in in progress; kept here in case Android stops the app meanwhile. */
+    /** "light", "dark" or "system"; this phone only. */
+    var appearance: String
+        get() = sp.getString("appearance", null) ?: "system"
+        set(value) = sp.edit().putString("appearance", value).apply()
+
     var pkceVerifier: String?
         get() = sp.getString("pkce_verifier", null)
         set(value) = sp.edit().putString("pkce_verifier", value).apply()

@@ -10,6 +10,8 @@ data class Card(
     val source: String, val also: List<String>, val image: String?, val start: Double, val end: Double,
 )
 
+data class Weather(val city: String, val now: Int, val high: Int, val conditions: String, val code: Int)
+
 data class SectionInfo(val key: String, val title: String, val emoji: String, val count: Int)
 
 /** A saved briefing (the same JSON as the server's), shaped for the screen. */
@@ -18,6 +20,7 @@ data class Briefing(
     val sections: List<SectionInfo>, val chapters: List<Chapter>, val cards: List<Card>, val notes: List<String>,
     /** The voice it was recorded in ("kokoro:bf_emma", or the phone voice's name), and when it was recorded. */
     val voiceId: String = "", val voiceName: String = "", val version: String = "",
+    val wx: Weather? = null,
 ) {
     /** Changes whenever the audio is recorded again, so the player knows to reload it. */
     val mediaId: String get() = "$date@$version"
@@ -56,6 +59,9 @@ data class Briefing(
                 voiceId = j.optJSONObject("voice")?.optString("id") ?: "",
                 voiceName = j.optJSONObject("voice")?.optString("name") ?: "",
                 version = j.optString("generated_at"),
+                wx = j.optJSONObject("weather")?.let {
+                    Weather(it.optString("city"), it.optInt("now"), it.optInt("high"), it.optString("conditions"), it.optInt("code", -1))
+                },
             )
         }
     }

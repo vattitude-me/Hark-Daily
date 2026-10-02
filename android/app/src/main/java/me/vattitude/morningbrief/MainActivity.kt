@@ -1,11 +1,17 @@
 package me.vattitude.morningbrief
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import me.vattitude.morningbrief.ui.isDark
 import me.vattitude.morningbrief.ui.AppViewModel
 import me.vattitude.morningbrief.ui.MorningBriefTheme
 import me.vattitude.morningbrief.ui.Root
@@ -19,7 +25,15 @@ class MainActivity : ComponentActivity() {
         handleShare(intent)
         if (savedInstanceState == null) handleSignIn(intent)
         setContent {
-            MorningBriefTheme {
+            val appearance by vm.appearance.collectAsState()
+            val dark = isDark(appearance)
+            DisposableEffect(dark) {
+                val bars = if (dark) SystemBarStyle.dark(Color.TRANSPARENT)
+                else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+                onDispose {}
+            }
+            MorningBriefTheme(appearance) {
                 Root(vm)
             }
         }

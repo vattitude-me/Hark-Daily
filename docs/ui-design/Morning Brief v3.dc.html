@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<script src="./image-slot.js"></script>
+<style>body{margin:0;background:#d6d6d2;font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased} a{color:#0d0d0d} a:hover{color:#555}</style>
+</helmet>
+<section style="--bg:#e9e9e5;--ink:#0d0d0d;--muted:#6c6c68;--line:rgba(0,0,0,.08);--glass:rgba(255,255,255,.45);--glassline:rgba(255,255,255,.85);--blur:blur(28px) saturate(150%);--ph:rgba(0,0,0,.06);--backdrop:radial-gradient(circle at 16% 10%,#bdbdb8 0,transparent 38%),radial-gradient(circle at 94% 48%,#c9c9c4 0,transparent 42%),radial-gradient(circle at 22% 90%,#b3b3ae 0,transparent 36%);display:flex;flex-wrap:wrap;gap:40px;padding:56px;align-items:flex-start">
+
+<div data-screen-label="01 Today" style="width:390px;height:844px;border-radius:52px;background-color:var(--bg);background-image:var(--backdrop);color:var(--ink);position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,.08),0 30px 60px -30px rgba(0,0,0,.25)">
+  <div style="position:absolute;top:0;left:0;right:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:18px 32px 0;font-size:16px;font-weight:600"><span>9:41</span><span style="display:flex;gap:6px;font-size:17px"><i class="ph-fill ph-cell-signal-full"></i><i class="ph ph-wifi-high"></i><i class="ph-fill ph-battery-full"></i></span></div>
+  <div style="height:100%;overflow:auto;padding:72px 20px 130px;box-sizing:border-box">
+    <div style="display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;font-size:12px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)"><span>Thu · 1 Oct</span><span style="display:flex;gap:6px;align-items:center"><i class="ph ph-cloud-rain"></i>Toronto 19°</span></div>
+    <h1 style="margin:10px 0 0;font-size:32px;font-weight:500;letter-spacing:-.025em;line-height:1.05">Morning Brief</h1>
+    <div style="margin-top:6px;font-size:15px;color:var(--muted)">12 stories, five minutes. Drizzle later, high 21°.</div>
+
+    <div style="margin-top:22px;padding:12px;border-radius:26px;background:var(--glass);border:1px solid var(--glassline);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)">
+      <div style="height:190px;border-radius:16px;overflow:hidden;background:var(--ph);filter:grayscale(1)"><image-slot id="v3-hero" shape="rect" placeholder="Cover photo"></image-slot></div>
+      <div style="display:flex;align-items:center;gap:14px;padding:14px 4px 4px">
+        <button style="flex:none;width:52px;height:52px;border-radius:50%;border:none;background:var(--ink);color:#f4f4f1;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer" style-active="transform:scale(.96)"><i class="ph-fill ph-play"></i></button>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;gap:3px;height:6px">
+            <sc-for list="{{ segs }}" as="g" hint-placeholder-count="8"><span style="flex:{{ g.f }};border-radius:3px;background:{{ g.c }}"></span></sc-for>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:8px;font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted)"><span>0:00</span><span>5:02</span></div>
+        </div>
+      </div>
+    </div>
+
+    <sc-for list="{{ sections }}" as="sec" hint-placeholder-count="2">
+      <div style="margin-top:22px;display:flex;justify-content:space-between;align-items:baseline;padding:0 4px;font-variant-numeric:tabular-nums;font-size:12px;letter-spacing:.02em;text-transform:uppercase"><span>{{ sec.name }}</span><span style="color:var(--muted)">{{ sec.count }}</span></div>
+      <div style="margin-top:10px;padding:0 14px;border-radius:22px;background:var(--glass);border:1px solid var(--glassline);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)">
+        <sc-for list="{{ sec.stories }}" as="s" hint-placeholder-count="3">
+          <div style="display:grid;grid-template-columns:40px minmax(0,1fr) 56px;gap:12px;padding:14px 0;border-top:{{ s.border }};align-items:start">
+            <span style="font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted);padding-top:2px">{{ s.t }}</span>
+            <div><div style="font-size:15px;font-weight:500;line-height:1.3;text-wrap:pretty">{{ s.title }}</div><div style="margin-top:5px;font-size:12px;color:var(--muted)">{{ s.meta }}</div></div>
+            <div style="width:56px;height:56px;border-radius:12px;overflow:hidden;background:var(--ph);filter:grayscale(1)"><image-slot id="{{ s.slot }}" shape="rect" placeholder=" "></image-slot></div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-for>
+  </div>
+  <div style="position:absolute;left:20px;right:20px;bottom:30px;height:64px;border-radius:999px;background:rgba(255,255,255,.55);border:1px solid var(--glassline);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:0 10px 30px -12px rgba(0,0,0,.2);display:flex;align-items:center;padding:6px;gap:4px;box-sizing:border-box">
+    <div style="flex:1;height:100%;border-radius:999px;background:var(--ink);color:#f4f4f1;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;font-weight:500"><i class="ph ph-headphones" style="font-size:19px"></i>Today</div>
+    <div style="flex:1;height:100%;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;color:var(--muted)"><i class="ph ph-rss" style="font-size:19px"></i>Sources</div>
+    <div style="flex:1;height:100%;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;color:var(--muted)"><i class="ph ph-sliders-horizontal" style="font-size:19px"></i>Settings</div>
+  </div>
+  <div style="position:absolute;bottom:9px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:var(--ink)"></div>
+</div>
+
+<div data-screen-label="02 Sources" style="width:390px;height:844px;border-radius:52px;background-color:var(--bg);background-image:var(--backdrop);color:var(--ink);position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,.08),0 30px 60px -30px rgba(0,0,0,.25)">
+  <div style="position:absolute;top:0;left:0;right:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:18px 32px 0;font-size:16px;font-weight:600"><span>9:41</span><span style="display:flex;gap:6px;font-size:17px"><i class="ph-fill ph-cell-signal-full"></i><i class="ph ph-wifi-high"></i><i class="ph-fill ph-battery-full"></i></span></div>
+  <div style="height:100%;overflow:auto;padding:72px 20px 130px;box-sizing:border-box">
+    <div style="font-variant-numeric:tabular-nums;font-size:12px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)">Synced with the web app</div>
+    <h1 style="margin:10px 0 0;font-size:32px;font-weight:500;letter-spacing:-.025em;line-height:1.05">Sources</h1>
+    <div style="margin-top:6px;font-size:15px;color:var(--muted)">What goes into tomorrow's brief.</div>
+
+    <div style="margin-top:22px;display:flex;gap:8px">
+      <div style="flex:1;height:50px;border-radius:999px;background:var(--glass);border:1px solid var(--glassline);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);display:flex;align-items:center;gap:10px;padding:0 18px;font-size:15px;color:var(--muted)"><i class="ph ph-magnifying-glass" style="font-size:18px"></i>A player, team, company…</div>
+      <button style="flex:none;width:50px;height:50px;border-radius:50%;border:none;background:var(--ink);color:#f4f4f1;font-size:19px;display:flex;align-items:center;justify-content:center;cursor:pointer"><i class="ph ph-plus"></i></button>
+    </div>
+
+    <div style="margin-top:26px;padding:0 4px;font-variant-numeric:tabular-nums;font-size:12px;letter-spacing:.02em;text-transform:uppercase">Following</div>
+    <div style="margin-top:10px;padding:14px;border-radius:22px;background:var(--glass);border:1px solid var(--glassline);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);display:flex;align-items:center;gap:12px">
+      <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:500">Toronto Raptors</div><div style="margin-top:3px;font-size:12px;color:var(--muted)">From anywhere it's reported</div></div>
+      <div style="display:flex;align-items:center;gap:2px;height:36px;border-radius:999px;background:rgba(255,255,255,.6);border:1px solid var(--glassline);font-variant-numeric:tabular-nums;font-size:14px">
+        <button onClick="{{ raptorsDown }}" style="width:34px;height:34px;border:none;background:transparent;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ph ph-minus"></i></button><span style="min-width:12px;text-align:center">{{ raptors }}</span><button onClick="{{ raptorsUp }}" style="width:34px;height:34px;border:none;background:transparent;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ph ph-plus"></i></button>
+      </div>
+    </div>
+
+    <div style="margin-top:26px;padding:0 4px;display:flex;justify-content:space-between;align-items:center">
+      <div><div style="font-variant-numeric:tabular-nums;font-size:12px;letter-spacing:.02em;text-transform:uppercase">Top stories · Canada</div><div style="margin-top:4px;font-size:12px;color:var(--muted)">Stories per brief. Set to 0 to skip.</div></div>
+      <div style="display:flex;align-items:center;gap:2px;height:36px;border-radius:999px;background:var(--glass);border:1px solid var(--glassline);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);font-variant-numeric:tabular-nums;font-size:14px">
+        <button onClick="{{ canadaDown }}" style="width:34px;height:34px;border:none;background:transparent;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ph ph-minus"></i></button><span style="min-width:12px;text-align:center">{{ canada }}</span><button onClick="{{ canadaUp }}" style="width:34px;height:34px;border:none;background:transparent;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ph ph-plus"></i></button>
+      </div>
+    </div>
+    <div style="margin-top:12px;padding:0 14px;border-radius:22px;background:var(--glass);border:1px solid var(--glassline);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)">
+      <sc-for list="{{ feeds }}" as="f" hint-placeholder-count="5">
+        <div onClick="{{ f.toggle }}" style="display:flex;align-items:center;gap:12px;padding:14px 0;border-top:{{ f.border }};cursor:pointer">
+          <div style="flex:1;min-width:0"><div style="font-size:15px">{{ f.name }}</div><div style="margin-top:3px;font-variant-numeric:tabular-nums;font-size:11px;color:var(--muted)">{{ f.domain }}</div></div>
+          <span style="width:24px;height:24px;border-radius:50%;border:1.5px solid {{ f.bd }};background:{{ f.bg }};color:#f4f4f1;font-size:12px;display:flex;align-items:center;justify-content:center;box-sizing:border-box"><i class="ph-bold ph-check" style="opacity:{{ f.op }}"></i></span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  <div style="position:absolute;left:20px;right:20px;bottom:30px;height:64px;border-radius:999px;background:rgba(255,255,255,.55);border:1px solid var(--glassline);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:0 10px 30px -12px rgba(0,0,0,.2);display:flex;align-items:center;padding:6px;gap:4px;box-sizing:border-box">
+    <div style="flex:1;height:100%;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;color:var(--muted)"><i class="ph ph-headphones" style="font-size:19px"></i>Today</div>
+    <div style="flex:1;height:100%;border-radius:999px;background:var(--ink);color:#f4f4f1;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;font-weight:500"><i class="ph ph-rss" style="font-size:19px"></i>Sources</div>
+    <div style="flex:1;height:100%;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;color:var(--muted)"><i class="ph ph-sliders-horizontal" style="font-size:19px"></i>Settings</div>
+  </div>
+  <div style="position:absolute;bottom:9px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:var(--ink)"></div>
+</div>
+
+<div data-screen-label="03 Settings" style="width:390px;height:844px;border-radius:52px;background-color:var(--bg);background-image:var(--backdrop);color:var(--ink);position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,.08),0 30px 60px -30px rgba(0,0,0,.25)">
+  <div style="position:absolute;top:0;left:0;right:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:18px 32px 0;font-size:16px;font-weight:600"><span>9:41</span><span style="display:flex;gap:6px;font-size:17px"><i class="ph-fill ph-cell-signal-full"></i><i class="ph ph-wifi-high"></i><i class="ph-fill ph-battery-full"></i></span></div>
+  <div style="height:100%;overflow:auto;padding:72px 20px 130px;box-sizing:border-box">
+    <div style="font-variant-numeric:tabular-nums;font-size:12px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)">Next brief · Fri 6:30 AM</div>
+    <h1 style="margin:10px 0 0;font-size:32px;font-weight:500;letter-spacing:-.025em;line-height:1.05">Settings</h1>
+
+    <div style="margin-top:26px;padding:0 4px;font-variant-numeric:tabular-nums;font-size:12px;letter-spacing:.02em;text-transform:uppercase">Brief</div>
+    <div style="margin-top:10px;padding:0 14px;border-radius:22px;background:var(--glass);border:1px solid var(--glassline);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)">
+      <div style="display:flex;align-items:center;padding:15px 0;font-size:15px"><span style="flex:1">Ready by</span><span style="font-variant-numeric:tabular-nums;font-size:14px;color:var(--muted)">6:30 AM</span><i class="ph ph-caret-right" style="margin-left:8px;color:var(--muted)"></i></div>
+      <div style="padding:14px 0;border-top:1px solid var(--line)">
+        <div style="font-size:15px">Length</div>
+        <div style="margin-top:10px;display:flex;gap:4px;padding:4px;border-radius:999px;background:rgba(0,0,0,.05)">
+          <sc-for list="{{ lengths }}" as="o" hint-placeholder-count="3"><button onClick="{{ o.pick }}" style="flex:1;height:34px;border:none;border-radius:999px;background:{{ o.bg }};color:{{ o.c }};font-variant-numeric:tabular-nums;font-size:13px;cursor:pointer">{{ o.v }}</button></sc-for>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;padding:15px 0;border-top:1px solid var(--line);font-size:15px"><span style="flex:1">Voice</span><span style="font-size:14px;color:var(--muted)">Ava · Calm</span><i class="ph ph-caret-right" style="margin-left:8px;color:var(--muted)"></i></div>
+      <div style="display:flex;align-items:center;padding:15px 0;border-top:1px solid var(--line);font-size:15px"><span style="flex:1">Playback speed</span><span style="font-variant-numeric:tabular-nums;font-size:14px;color:var(--muted)">1.2×</span><i class="ph ph-caret-right" style="margin-left:8px;color:var(--muted)"></i></div>
+    </div>
+
+    <div style="margin-top:26px;padding:0 4px;font-variant-numeric:tabular-nums;font-size:12px;letter-spacing:.02em;text-transform:uppercase">Location</div>
+    <div style="margin-top:10px;padding:0 14px;border-radius:22px;background:var(--glass);border:1px solid var(--glassline);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)">
+      <div style="display:flex;align-items:center;padding:15px 0;font-size:15px"><span style="flex:1">Weather</span><span style="font-size:14px;color:var(--muted)">Toronto</span><i class="ph ph-caret-right" style="margin-left:8px;color:var(--muted)"></i></div>
+      <div style="display:flex;align-items:center;padding:15px 0;border-top:1px solid var(--line);font-size:15px"><span style="flex:1">Edition</span><span style="font-size:14px;color:var(--muted)">Canada</span><i class="ph ph-caret-right" style="margin-left:8px;color:var(--muted)"></i></div>
+    </div>
+
+    <div style="margin-top:26px;padding:0 4px;font-variant-numeric:tabular-nums;font-size:12px;letter-spacing:.02em;text-transform:uppercase">Appearance</div>
+    <div style="margin-top:10px;display:flex;gap:4px;padding:4px;border-radius:999px;background:var(--glass);border:1px solid var(--glassline);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)">
+      <sc-for list="{{ looks }}" as="o" hint-placeholder-count="3"><button onClick="{{ o.pick }}" style="flex:1;height:40px;border:none;border-radius:999px;background:{{ o.bg }};color:{{ o.c }};font-family:'Inter',sans-serif;font-size:14px;cursor:pointer">{{ o.v }}</button></sc-for>
+    </div>
+
+    <div style="margin-top:26px;padding:0 4px;font-variant-numeric:tabular-nums;font-size:12px;letter-spacing:.02em;text-transform:uppercase">Account</div>
+    <div style="margin-top:10px;padding:0 14px;border-radius:22px;background:var(--glass);border:1px solid var(--glassline);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)">
+      <div style="display:flex;align-items:center;padding:15px 0;font-size:15px"><span style="flex:1">alex@gmail.com</span><span style="font-variant-numeric:tabular-nums;font-size:11px;color:var(--muted)">SYNCED</span></div>
+      <div style="padding:15px 0;border-top:1px solid var(--line);font-size:15px;color:#b3261e">Sign out</div>
+    </div>
+  </div>
+  <div style="position:absolute;left:20px;right:20px;bottom:30px;height:64px;border-radius:999px;background:rgba(255,255,255,.55);border:1px solid var(--glassline);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:0 10px 30px -12px rgba(0,0,0,.2);display:flex;align-items:center;padding:6px;gap:4px;box-sizing:border-box">
+    <div style="flex:1;height:100%;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;color:var(--muted)"><i class="ph ph-headphones" style="font-size:19px"></i>Today</div>
+    <div style="flex:1;height:100%;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;color:var(--muted)"><i class="ph ph-rss" style="font-size:19px"></i>Sources</div>
+    <div style="flex:1;height:100%;border-radius:999px;background:var(--ink);color:#f4f4f1;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;font-weight:500"><i class="ph ph-sliders-horizontal" style="font-size:19px"></i>Settings</div>
+  </div>
+  <div style="position:absolute;bottom:9px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:var(--ink)"></div>
+</div>
+
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    counts: { raptors: 3, canada: 3 },
+    feeds: [
+      { name: 'CBC News · Top Stories', domain: 'cbc.ca', on: true },
+      { name: 'CBC News · Canada', domain: 'cbc.ca', on: true },
+      { name: 'Global News · Canada', domain: 'globalnews.ca', on: true },
+      { name: 'The Globe and Mail · Canada', domain: 'theglobeandmail.com', on: true },
+      { name: 'National Post', domain: 'nationalpost.com', on: false }
+    ],
+    length: '5 min',
+    look: 'Light'
+  };
+  bump(k, d) { this.setState(s => ({ counts: { ...s.counts, [k]: Math.max(0, Math.min(9, s.counts[k] + d)) } })); }
+  seg(list, cur, key) {
+    return list.map(v => ({ v, on: v === cur, bg: v === cur ? 'var(--ink)' : 'transparent', c: v === cur ? '#f4f4f1' : 'var(--muted)', pick: () => this.setState({ [key]: v }) }));
+  }
+  renderVals() {
+    const S = this.state;
+    const segs = [12, 36, 61, 28, 44, 30, 51, 40].map((f, i) => ({ f, c: i === 0 ? 'var(--ink)' : 'rgba(0,0,0,.12)' }));
+    const sec = (name, list) => ({ name, count: list.length + ' stories', stories: list.map((s, i) => ({ ...s, border: i ? '1px solid var(--line)' : 'none', slot: 'v3-th-' + name.length + '-' + i })) });
+    return {
+      segs,
+      sections: [
+        sec('Canada', [
+          { t: '0:00', title: 'Ottawa designates West Coast pipeline a project of national interest', meta: 'Globe and Mail · 12s · +3 sources' },
+          { t: '0:12', title: "What it was like in the room for Christa Pike's botched execution", meta: 'CBC News · 36s · +1 source' },
+          { t: '0:48', title: 'Canadian astronaut set to take off for six-month stay on space station', meta: 'Globe and Mail · 1m 01s · +1 source' }
+        ]),
+        sec('Toronto Raptors', [
+          { t: '1:49', title: 'Raptors open training camp with a fully healthy roster', meta: 'TSN · 42s · +2 sources' },
+          { t: '2:31', title: 'Barnes on the leap: “I want to be the guy in the fourth”', meta: 'Sportsnet · 38s' }
+        ])
+      ],
+      raptors: S.counts.raptors, canada: S.counts.canada,
+      raptorsDown: () => this.bump('raptors', -1), raptorsUp: () => this.bump('raptors', 1),
+      canadaDown: () => this.bump('canada', -1), canadaUp: () => this.bump('canada', 1),
+      feeds: S.feeds.map((f, i) => ({ ...f, border: i ? '1px solid var(--line)' : 'none', bg: f.on ? 'var(--ink)' : 'transparent', bd: f.on ? 'var(--ink)' : 'rgba(0,0,0,.25)', op: f.on ? 1 : 0,
+        toggle: () => this.setState(s => ({ feeds: s.feeds.map((x, j) => j === i ? { ...x, on: !x.on } : x) })) })),
+      lengths: this.seg(['3 min', '5 min', '10 min'], S.length, 'length'),
+      looks: this.seg(['Light', 'Dark', 'System'], S.look, 'look')
+    };
+  }
+}
+</script>
+</body>
+</html>
