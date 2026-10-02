@@ -2,6 +2,7 @@ package me.vattitude.morningbrief.ui
 
 import android.Manifest
 import android.app.TimePickerDialog
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -10,12 +11,13 @@ import android.os.PowerManager
 import android.provider.Settings as AndroidSettings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Face
@@ -38,8 +41,11 @@ import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -72,8 +78,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -83,18 +89,18 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.delay
-import me.vattitude.morningbrief.R
 import me.vattitude.morningbrief.BuildConfig
+import me.vattitude.morningbrief.R
 import me.vattitude.morningbrief.pipeline.KOKORO_VOICES
 import me.vattitude.morningbrief.pipeline.PHONE_VOICE
 import me.vattitude.morningbrief.pipeline.Place
 import me.vattitude.morningbrief.pipeline.SECTIONS
 import me.vattitude.morningbrief.pipeline.kokoroVoice
 import me.vattitude.morningbrief.work.Scheduler
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 @Composable
 private fun Section(icon: ImageVector, title: String, content: @Composable () -> Unit) {
@@ -249,8 +255,13 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 }
             }
 
-            Text("Morning Brief ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val context = LocalContext.current
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Morning Brief ${BuildConfig.VERSION_NAME}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { openPage(context, PRIVACY_URL) }) { Text("Privacy") }
+                TextButton(onClick = { openPage(context, TERMS_URL) }) { Text("Terms") }
+            }
             // Room for the save bar.
             Spacer(Modifier.height(if (dirty) 72.dp else 8.dp))
         }
@@ -324,7 +335,7 @@ private fun VoiceSection(vm: AppViewModel) {
                         }
                     } else {
                         val mb = remember(installed) { vm.packSize() / 1_000_000 }
-                        TextButton(onClick = { confirmRemove = true }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+                        TextButton(onClick = { confirmRemove = true }, contentPadding = PaddingValues(0.dp)) {
                             Text("Remove download ($mb MB)", style = MaterialTheme.typography.bodySmall)
                         }
                     }
@@ -400,6 +411,13 @@ private fun VoicePicker(
     }
 }
 
+const val PRIVACY_URL = "https://mbv.vattitude.ca/privacy"
+const val TERMS_URL = "https://mbv.vattitude.ca/terms"
+
+/** Web pages open in a browser tab over the app. */
+private fun openPage(context: Context, url: String) = openPage(context, Uri.parse(url))
+private fun openPage(context: Context, uri: Uri) = CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, uri)
+
 @Composable
 private fun AccountSection(vm: AppViewModel) {
     val email by vm.signedInEmail.collectAsState()
@@ -413,6 +431,14 @@ private fun AccountSection(vm: AppViewModel) {
                 }
                 OutlinedButton(onClick = { vm.signOut() }) { Text("Sign out") }
             }
+            var confirm by remember { mutableStateOf(false) }
+            TextButton(onClick = { confirm = true }, contentPadding = PaddingValues(0.dp),
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                Icon(Icons.Outlined.DeleteForever, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Delete account")
+            }
+            if (confirm) DeleteAccountDialog(vm, email!!) { confirm = false }
             return@Section
         }
         Text("Not signed in")
@@ -420,7 +446,7 @@ private fun AccountSection(vm: AppViewModel) {
         signIn.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         val context = LocalContext.current
         OutlinedButton(onClick = {
-            CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, vm.googleSignInUrl())
+            openPage(context, vm.googleSignInUrl())
         }, enabled = !signIn.busy) {
             if (signIn.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             else Icon(painterResource(R.drawable.ic_google), null, Modifier.size(18.dp), tint = Color.Unspecified)
@@ -428,6 +454,45 @@ private fun AccountSection(vm: AppViewModel) {
             Text("Continue with Google")
         }
     }
+}
+
+/** A deliberate, two-step confirmation, worded like the web app's. */
+@Composable
+private fun DeleteAccountDialog(vm: AppViewModel, email: String, onDismiss: () -> Unit) {
+    val state by vm.deleting.collectAsState()
+    val busy = state?.busy == true
+    var understood by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = { if (!busy) onDismiss() },
+        icon = { Icon(Icons.Outlined.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
+        title = { Text("Delete your account?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("This can't be undone. Your sign-in for $email, your own news links, saved settings and web " +
+                    "briefings are removed for good, on every device.")
+                Hint("Briefings already on this phone stay here. You can sign up again later, but you'll start from scratch.")
+                Row(Modifier.fillMaxWidth().clickable(enabled = !busy) { understood = !understood },
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(understood, { understood = it }, enabled = !busy)
+                    Text("I understand my account and its data will be permanently deleted.",
+                        style = MaterialTheme.typography.bodyMedium)
+                }
+                if (busy) Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Hint("Deleting your account. This can take up to a minute.")
+                }
+                state?.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { vm.deleteAccount() }, enabled = understood && !busy,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
+                Text(if (busy) "Deleting…" else "Delete forever")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("Keep my account") } },
+    )
 }
 
 @Composable

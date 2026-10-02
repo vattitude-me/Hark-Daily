@@ -1,0 +1,11 @@
+/* Privacy and Terms: plain reading pages that share the app's colours and fonts. */
+.legal { max-width: 720px; margin: 0 auto; padding: 32px var(--gutter) 64px; line-height: 1.6; }
+.legal-top { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; color: var(--ink); text-decoration: none; font-weight: 600; }
+.legal h1 { font-family: var(--font-head); font-size: clamp(28px, 6vw, 40px); line-height: 1.15; margin: 0 0 6px; }
+.legal h2 { font-family: var(--font-head); font-size: 22px; margin: 32px 0 8px; }
+.legal p, .legal li { color: var(--ink-2); }
+.legal ul { padding-left: 20px; }
+.legal li { margin: 6px 0; }
+.legal a { color: var(--accent); }
+.legal .updated { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
+.legal-foot { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }

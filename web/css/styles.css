@@ -629,3 +629,7 @@ body.signed-out > :not(.landing):not(.toast):not(svg) { display: none; }
 .confirm-check input { width: 20px; height: 20px; margin: 1px 0 0; flex: none; accent-color: var(--err); }
 #deleteStatus { margin: 12px 0 0; }
 #deleteStatus:empty { display: none; }
+
+/* Privacy and Terms links under the landing page and in Settings */
+.legal-links { display: flex; gap: 16px; justify-content: center; font-size: 13px; margin: 8px 0 24px; }
+.legal-links a { color: var(--muted); }

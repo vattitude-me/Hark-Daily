@@ -3,6 +3,7 @@ package me.vattitude.morningbrief.data
 import android.net.Uri
 import android.util.Base64
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import me.vattitude.morningbrief.pipeline.Source
 import okhttp3.MediaType.Companion.toMediaType
@@ -74,6 +75,37 @@ class Supabase(private val prefs: Prefs) {
     }
 
     private fun b64(bytes: ByteArray) = Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
+
+    /**
+     * The web app's "Delete account": a request the server picks up, which removes the sign-in and everything that
+     * cascades from it. The request row goes with the account, so its disappearing means done.
+     */
+    suspend fun deleteAccount(timeoutMs: Long = 3 * 60_000L) {
+        fresh()
+        val rows = try {
+            call("POST", "/rest/v1/build_requests?select=id", JSONObject().put("kind", "delete_account"),
+                prefer = "return=representation") as JSONArray
+        } catch (e: SupabaseError) {
+            // An older database without 'delete_account' in its request kinds.
+            if (Regex("check constraint|row-level security", RegexOption.IGNORE_CASE).containsMatchIn(e.message.orEmpty())) {
+                throw SupabaseError("Account deletion isn't switched on for this server yet.")
+            }
+            throw e
+        }
+        val id = rows.getJSONObject(0).getLong("id")
+        val end = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < end) {
+            delay(3000)
+            // No refresh here: the session ends with the account, and a still-valid token then just sees no row.
+            val found = runCatching { call("GET", "/rest/v1/build_requests?select=status,message&id=eq.$id") as JSONArray }
+                .getOrNull() ?: continue
+            val row = found.optJSONObject(0) ?: return
+            if (row.optString("status") == "error") {
+                throw SupabaseError(row.optString("message").ifEmpty { "Your account couldn't be deleted." })
+            }
+        }
+        throw SupabaseError("The server hasn't picked this up yet. Your account is queued for deletion; check back in a few minutes.")
+    }
 
     fun signOut() {
         prefs.session = null

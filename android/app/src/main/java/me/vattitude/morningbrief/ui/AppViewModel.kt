@@ -44,6 +44,7 @@ enum class Tab { Today, Sources, Settings }
 
 data class PlayerState(val date: String? = null, val playing: Boolean = false, val position: Double = 0.0, val ready: Boolean = false)
 
+data class Deleting(val busy: Boolean = false, val error: String? = null)
 data class SignIn(val busy: Boolean = false, val error: String? = null)
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -416,6 +417,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         refreshSaved()
         loadSources()
         message.value = "Signed in. Your sources and settings now match the web app."
+    }
+
+    val deleting = MutableStateFlow<Deleting?>(null)
+
+    fun deleteAccount() {
+        deleting.value = Deleting(busy = true)
+        viewModelScope.launch {
+            runCatching { repo.supabase.deleteAccount() }.onSuccess {
+                deleting.value = null
+                signOut()
+                message.value = "Your account has been deleted."
+            }.onFailure {
+                deleting.value = Deleting(error = it.message)
+            }
+        }
     }
 
     fun signOut() {
