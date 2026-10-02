@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.vattitude.morningbrief.MorningBriefApp
 import me.vattitude.morningbrief.data.Settings
+import me.vattitude.morningbrief.pipeline.KOKORO_VOICES
 import me.vattitude.morningbrief.pipeline.Kokoro
 import me.vattitude.morningbrief.pipeline.KokoroPack
 import me.vattitude.morningbrief.pipeline.PHONE_VOICE
@@ -147,7 +148,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         dates.value = list
         val keep = selected.value?.takeIf { it in list && !selectLatest }
         select(keep ?: list.firstOrNull())
+        // A briefing recorded again replaces its audio: drop the old recording from the player.
+        controller?.let { c ->
+            val loaded = c.currentMediaItem?.mediaId ?: return@let
+            val date = loaded.substringBefore('@')
+            val now = repo.briefings.load(date)?.let { Briefing.from(it).mediaId }
+            if (now != loaded) {
+                c.stop()
+                c.clearMediaItems()
+                tick()
+            }
+        }
     }
+
+    /** The voice a briefing would be recorded in now: a Kokoro voice id, or [PHONE_VOICE]. */
+    fun currentVoice(st: Settings = _saved.value): Pair<String, String> {
+        val k = kokoroVoice(st.voice) ?: KOKORO_VOICES.first().takeIf { st.voice == null }
+        return if (k != null && packInstalled.value != null) k.id to k.name else PHONE_VOICE to "Phone voice"
+    }
+
+    /** Whether [b] was recorded in a different voice from the one now chosen. */
+    fun voiceChanged(b: Briefing, st: Settings = _saved.value): Boolean {
+        if (b.voiceId.isEmpty()) return false
+        val recorded = if (kokoroVoice(b.voiceId) != null) b.voiceId else PHONE_VOICE
+        return recorded != currentVoice(st).first
+    }
+
+    fun revoice(date: String) = Scheduler.revoice(getApplication(), date)
 
     fun select(date: String?) {
         selected.value = date
@@ -183,7 +210,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun tick() {
         val c = controller ?: return
         player.value = PlayerState(
-            date = c.currentMediaItem?.mediaId,
+            date = c.currentMediaItem?.mediaId?.substringBefore('@'),
             playing = c.isPlaying,
             position = c.currentPosition / 1000.0,
             ready = true,
@@ -193,10 +220,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Loads [date] into the player if it isn't already there. */
     private fun load(date: String): MediaController? {
         val c = controller ?: return null
-        if (c.currentMediaItem?.mediaId != date) {
-            val b = briefing.value?.takeIf { it.date == date } ?: repo.briefings.load(date)?.let { Briefing.from(it) }
+        val b = briefing.value?.takeIf { it.date == date } ?: repo.briefings.load(date)?.let { Briefing.from(it) }
+        val id = b?.mediaId ?: date
+        if (c.currentMediaItem?.mediaId != id) {
             val item = MediaItem.Builder()
-                .setMediaId(date)
+                .setMediaId(id)
                 .setUri(Uri.fromFile(repo.briefings.audio(date)))
                 .setMediaMetadata(MediaMetadata.Builder().setTitle(b?.title ?: date).setArtist("Morning Brief").build())
                 .build()
@@ -290,7 +318,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val problem = repo.saveSettings(new)
             if (old.daily != new.daily || old.readyBy != new.readyBy) Scheduler.schedule(getApplication(), new)
             _saved.value = repo.settings
-            message.value = problem ?: "Settings saved"
+            val today = briefing.value?.takeIf { it.date == LocalDate.now().toString() }
+            message.value = problem ?: if (old.voice != new.voice && today != null && voiceChanged(today)) {
+                "Saved. You can re-record today's briefing in the new voice on the Today page."
+            } else "Settings saved"
         }
     }
 

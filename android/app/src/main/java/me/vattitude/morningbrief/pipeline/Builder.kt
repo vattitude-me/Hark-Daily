@@ -131,6 +131,69 @@ class Builder(private val context: Context, private val repo: Repo) {
         doc
     }
 
+    /**
+     * Records [date]'s briefing again in the voice now chosen, from the script it already has: no news is fetched
+     * or rewritten, so it only takes the recording time. Chapter and story times are updated to the new audio.
+     */
+    suspend fun revoice(date: String, progress: suspend (String, Float) -> Unit): JSONObject = withContext(Dispatchers.Default) {
+        val doc = repo.briefings.load(date) ?: throw BuildFailed("That briefing isn't on this phone any more.")
+        val chapters = doc.optJSONArray("chapters") ?: JSONArray()
+        val list = (0 until chapters.length()).map { chapters.getJSONObject(it) }
+        if (list.isEmpty()) throw BuildFailed("That briefing has nothing to record.")
+        val st = repo.settings
+        progress("Warming up the voice", 0.05f)
+        val (narrator, voiceNote) = Narrator.open(context, st.voice, st.speed)
+        val work = File(context.cacheDir, "build").apply { deleteRecursively(); mkdirs() }
+        val out = File(work, "briefing.m4a")
+        val marks = HashMap<String, Pair<Double, Double>>()
+        try {
+            val aac = AacWriter(out)
+            try {
+                aac.silence(0.35)
+                list.forEachIndexed { i, ch ->
+                    progress("Recording in the new voice", 0.05f + 0.9f * i / list.size)
+                    val kind = ch.optString("kind")
+                    val pause = when (kind) {
+                        "intro" -> 0.9
+                        "section" -> 0.6
+                        "story" -> if (list.getOrNull(i + 1)?.optString("kind") == "story") 0.8 else 1.2
+                        else -> 0.8
+                    }
+                    val start = aac.seconds
+                    val text = ch.optString("text")
+                    if (text.isNotBlank()) aac.write(voice(narrator, text, work))
+                    marks[ch.optString("id")] = round2(start) to round2(aac.seconds)
+                    aac.silence(pause)
+                }
+            } finally {
+                aac.close()
+            }
+        } finally {
+            narrator.close()
+        }
+        for (ch in list) marks[ch.optString("id")]?.let { (start, end) ->
+            ch.put("start", start).put("end", if (ch.optString("kind") == "section") start else end)
+        }
+        val stories = doc.optJSONArray("stories") ?: JSONArray()
+        for (i in 0 until stories.length()) {
+            val card = stories.getJSONObject(i)
+            marks[card.optString("id")]?.let { (start, end) -> card.put("start", start).put("end", end) }
+        }
+        val notes = JSONArray()
+        doc.optJSONArray("notes")?.let { old ->
+            for (i in 0 until old.length()) old.optJSONObject(i)?.takeIf { it.optString("code") != "voice" }?.let { notes.put(it) }
+        }
+        voiceNote?.let { notes.put(JSONObject().put("code", "voice").put("message", it)) }
+        doc.put("voice", JSONObject().put("id", narrator.id).put("name", narrator.name))
+            .put("duration", (marks[list.last().optString("id")]?.second ?: 0.0) + 0.8)
+            .put("generated_at", Instant.now().toString())
+            .put("notes", notes)
+        progress("Saving", 0.97f)
+        repo.briefings.save(date, doc, out)
+        work.deleteRecursively()
+        doc
+    }
+
     /** One segment; copy written in beats (one per line) is voiced a beat at a time, with a pause between. */
     private suspend fun voice(narrator: Narrator, text: String, work: File): FloatArray {
         val beats = text.lines().filter { it.isNotBlank() }.map { prepareClip(narrator.read(speakable(it), work)) }

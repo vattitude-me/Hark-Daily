@@ -31,10 +31,11 @@ class BuildWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
 
     override suspend fun doWork(): Result {
         val scheduled = inputData.getBoolean(SCHEDULED, false)
+        val revoice = inputData.getString(REVOICE)
         val repo = app.repo
         if (!BuildState.lock.tryLock()) return Result.success()
         val result = try {
-            attempt(repo, scheduled)
+            if (revoice != null) revoice(repo, revoice) else attempt(repo, scheduled)
         } finally {
             if (BuildState.progress.value.running) BuildState.update(BuildState.Progress())
             BuildState.lock.unlock()
@@ -68,6 +69,25 @@ class BuildWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         }
     }
 
+    /** Records an existing briefing again in the voice now chosen. */
+    private suspend fun revoice(repo: Repo, date: String): Result {
+        runCatching { setForeground(foreground("Getting started", 0f, "Re-recording your briefing")) }
+        BuildState.update(BuildState.Progress(running = true, step = "Getting started"))
+        return try {
+            Builder(applicationContext, repo).revoice(date) { step, fraction ->
+                BuildState.update(BuildState.Progress(running = true, step = step, fraction = fraction))
+                runCatching { setForeground(foreground(step, fraction, "Re-recording your briefing")) }
+            }
+            BuildState.update(BuildState.Progress())
+            Result.success()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            val message = (e as? BuildFailed)?.message ?: "Couldn't re-record: ${e.message ?: e.javaClass.simpleName}"
+            BuildState.update(BuildState.Progress(error = message))
+            Result.failure()
+        }
+    }
+
     private fun readySummary(doc: JSONObject): String {
         val minutes = (doc.optDouble("duration") / 60).let { if (it < 1) 1 else Math.round(it).toInt() }
         val count = doc.optJSONArray("stories")?.length() ?: 0
@@ -80,10 +100,10 @@ class BuildWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
-    private fun foreground(step: String, fraction: Float): ForegroundInfo {
+    private fun foreground(step: String, fraction: Float, title: String = "Making your briefing"): ForegroundInfo {
         val n: Notification = NotificationCompat.Builder(applicationContext, MorningBriefApp.CHANNEL_BUILD)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Making your briefing")
+            .setContentTitle(title)
             .setContentText(step)
             .setProgress(100, (fraction * 100).toInt(), fraction <= 0f)
             .setOngoing(true)
@@ -108,6 +128,7 @@ class BuildWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
 
     companion object {
         const val SCHEDULED = "scheduled"
+        const val REVOICE = "revoice"
         private const val PROGRESS_ID = 41
         private const val DONE_ID = 42
     }

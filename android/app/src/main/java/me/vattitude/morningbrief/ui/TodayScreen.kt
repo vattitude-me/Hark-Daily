@@ -60,6 +60,7 @@ import coil.compose.AsyncImage
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import me.vattitude.morningbrief.pipeline.PHONE_VOICE
 
 fun clock(seconds: Double): String {
     val s = seconds.toInt().coerceAtLeast(0)
@@ -74,6 +75,8 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val selected by vm.selected.collectAsState()
     val build by vm.build.collectAsState()
     val player by vm.player.collectAsState()
+    val saved by vm.saved.collectAsState()
+    val pack by vm.packInstalled.collectAsState()
     val context = LocalContext.current
 
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { vm.buildNow() }
@@ -85,6 +88,7 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val mine = player.date == b?.date
     val position = if (mine) player.position else 0.0
     val playing = mine && player.playing
+    val voiceChanged = remember(b, saved, pack) { b != null && vm.voiceChanged(b, saved) }
 
     LazyColumn(modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -116,6 +120,20 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                         Text("The last briefing couldn't be made", fontWeight = FontWeight.SemiBold)
                         Text(err, style = MaterialTheme.typography.bodyMedium)
                     }
+                }
+            }
+        }
+
+        if (b != null && !build.running && voiceChanged) item {
+            val (id, name) = vm.currentVoice(saved)
+            val now = if (id == PHONE_VOICE) "the phone voice" else name
+            val then = if (b.voiceId.startsWith("kokoro:")) b.voiceName else "the phone voice"
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("You've switched to $now", fontWeight = FontWeight.SemiBold)
+                    Text("This briefing was recorded with $then. Re-record it with the same stories, " +
+                        "or the new voice starts with your next briefing.", style = MaterialTheme.typography.bodyMedium)
+                    Button(onClick = { vm.revoice(b.date) }) { Text("Re-record with $now") }
                 }
             }
         }

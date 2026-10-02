@@ -43,6 +43,7 @@ class Kokoro private constructor(private val tts: OfflineTts) {
     @Synchronized
     fun generate(text: String, voice: KokoroVoice, speed: Float): Pcm {
         val audio = tts.generate(text, sid = voice.sid, speed = speed)
+        if (audio.samples.isEmpty()) throw IllegalStateException("${voice.name} couldn't read that text")
         return Pcm(audio.samples, audio.sampleRate)
     }
 
@@ -61,7 +62,8 @@ class Kokoro private constructor(private val tts: OfflineTts) {
                         tokens = File(dir, "tokens.txt").path,
                         dataDir = File(dir, "espeak-ng-data").path,
                         lexicon = lexicon.path,
-                        lang = if (british) "en-gb" else "en-us",
+                        // espeak-ng has no "en-gb" voice: British English is Received Pronunciation.
+                        lang = if (british) "en-gb-x-rp" else "en-us",
                     ),
                     numThreads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4),
                 ),

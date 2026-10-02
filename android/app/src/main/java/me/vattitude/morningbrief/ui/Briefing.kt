@@ -16,7 +16,12 @@ data class SectionInfo(val key: String, val title: String, val emoji: String, va
 data class Briefing(
     val date: String, val title: String, val duration: Double, val intro: String, val weather: String?,
     val sections: List<SectionInfo>, val chapters: List<Chapter>, val cards: List<Card>, val notes: List<String>,
+    /** The voice it was recorded in ("kokoro:bf_emma", or the phone voice's name), and when it was recorded. */
+    val voiceId: String = "", val voiceName: String = "", val version: String = "",
 ) {
+    /** Changes whenever the audio is recorded again, so the player knows to reload it. */
+    val mediaId: String get() = "$date@$version"
+
     companion object {
         private fun JSONArray?.objects(): List<JSONObject> = if (this == null) emptyList() else (0 until length()).map { getJSONObject(it) }
 
@@ -48,6 +53,9 @@ data class Briefing(
                     )
                 },
                 notes = j.optJSONArray("notes").objects().map { it.optString("message") }.filter { it.isNotBlank() },
+                voiceId = j.optJSONObject("voice")?.optString("id") ?: "",
+                voiceName = j.optJSONObject("voice")?.optString("name") ?: "",
+                version = j.optString("generated_at"),
             )
         }
     }

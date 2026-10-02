@@ -46,6 +46,15 @@ object Scheduler {
         wm.enqueueUniqueWork(DAILY, if (fromWorker) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.REPLACE, request)
     }
 
+    /** Records [date]'s briefing again in the voice now chosen; shares the "now" slot so it never overlaps a build. */
+    fun revoice(context: Context, date: String) {
+        val request = OneTimeWorkRequestBuilder<BuildWorker>()
+            .setInputData(workDataOf(BuildWorker.REVOICE to date))
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(NOW, ExistingWorkPolicy.KEEP, request)
+    }
+
     fun buildNow(context: Context) {
         val request = OneTimeWorkRequestBuilder<BuildWorker>()
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
