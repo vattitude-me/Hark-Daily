@@ -217,7 +217,7 @@ fun extractArticle(html: String, url: String): Article {
         description = meta("og:description", "description", "twitter:description"),
         image = image,
         siteName = meta("og:site_name"),
-        text = text,
+        text = dropBoilerplate(text),
         isArticle = meta("og:type") == "article",
     )
 }

@@ -47,4 +47,23 @@ class SourcesTest {
         assertEquals("Sportsnet", items[0].sourceName)
         assertEquals("", items[0].summary)
     }
+
+    @Test fun defaultsFillTheBudgetExactly() {
+        assertEquals(STORY_BUDGET, DEFAULT_STORIES.values.sum())
+        assertEquals(DEFAULT_STORIES, fitBudget(DEFAULT_STORIES))
+    }
+
+    @Test fun oldCountsAreTrimmedToTheBudget() {
+        val fitted = fitBudget(mapOf("canada" to 6, "tech" to 6, "world" to 3, "follow" to 3, "custom" to 4))
+        assertTrue(fitted.values.sum() <= STORY_BUDGET)
+        assertTrue(fitted.filterKeys { it !in PICKS }.values.all { it <= MAX_PER_SECTION })
+        assertTrue(picksCount(fitted) <= MAX_PER_SECTION)
+        assertEquals(STORY_BUDGET, fitted.values.sum())
+        assertEquals(mapOf("follow" to 1, "custom" to 2), withPicks(emptyMap(), 3))
+    }
+
+    @Test fun aFullBriefIsAboutFiveMinutes() {
+        assertEquals(5, briefMinutes(STORY_BUDGET))
+        assertEquals(2, briefMinutes(4))
+    }
 }

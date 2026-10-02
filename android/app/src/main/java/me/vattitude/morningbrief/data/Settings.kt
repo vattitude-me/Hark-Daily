@@ -2,6 +2,7 @@ package me.vattitude.morningbrief.data
 
 import me.vattitude.morningbrief.pipeline.DEFAULT_STORIES
 import me.vattitude.morningbrief.pipeline.SECTIONS
+import me.vattitude.morningbrief.pipeline.fitBudget
 import me.vattitude.morningbrief.pipeline.kokoroVoice
 import org.json.JSONArray
 import org.json.JSONObject
@@ -69,8 +70,8 @@ data class Settings(
         weather = remote.optBoolean("weather", weather),
         saySources = remote.optBoolean("say_sources", saySources),
         stories = remote.optJSONObject("stories")?.let { s ->
-            SECTIONS.keys.associateWith { k -> s.optInt(k, stories[k] ?: 0).coerceIn(0, 10) }
-        } ?: stories,
+            fitBudget(SECTIONS.keys.associateWith { k -> s.optInt(k, stories[k] ?: 0) })
+        } ?: fitBudget(stories),
         newsCity = remote.optString("news_city", newsCity),
         disabledSources = remote.optJSONArray("disabled_sources")?.let { a -> (0 until a.length()).map { a.getLong(it) }.toSet() }
             ?: disabledSources,

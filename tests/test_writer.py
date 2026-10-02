@@ -132,11 +132,11 @@ def test_intro_does_not_count_stories_and_sections_are_announced_in_order():
     assert script.section_leads == {
         "canada": "First, the top stories from across Canada.",
         "tech": "Next, the latest in AI and technology.",
-        "custom": "And finally, stories from the sources you follow.",
+        "custom": "And finally, news on the names and sites you picked.",
     }
     # Two sections: no "Next"; one section: just the topic.
     assert section_leads(["tech", "custom"]) == {"tech": "First, the latest in AI and technology.",
-                                                 "custom": "And finally, stories from the sources you follow."}
+                                                 "custom": "And finally, news on the names and sites you picked."}
     assert section_leads(["tech"]) == {"tech": "The latest in AI and technology."}
 
 

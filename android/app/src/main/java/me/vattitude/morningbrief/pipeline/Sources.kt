@@ -2,10 +2,11 @@ package me.vattitude.morningbrief.pipeline
 
 import org.json.JSONObject
 import java.net.URLEncoder
+import kotlin.math.roundToInt
 
 /** A briefing section. [stories] is the default count; 0 leaves it off. */
 data class Section(val key: String, val title: String, val emoji: String, val topic: String, val stories: Int = 0) {
-    /** A topic picked from the catalog (World, Sports...), as opposed to Local, Following and My Sources. */
+    /** A topic picked from the catalog (World, Sports...), as opposed to Local and the user's picks. */
     val isCategory: Boolean get() = key !in setOf("local", "follow", "custom")
 }
 
@@ -44,6 +45,40 @@ val SECTIONS: LinkedHashMap<String, Section> by lazy {
 }
 
 val DEFAULT_STORIES: Map<String, Int> get() = SECTIONS.mapValues { it.value.stories }
+
+/**
+ * A story takes about 22 seconds to hear, its share of the section leads included, and the greeting,
+ * weather and sign-off about half a minute more. Twelve stories keep a brief near five minutes.
+ */
+const val STORY_BUDGET = 12
+const val MAX_PER_SECTION = 4
+private const val SECONDS_PER_STORY = 22
+private const val SECONDS_AROUND = 30
+
+/** Minutes to hear a brief of [stories] stories, rounded. */
+fun briefMinutes(stories: Int): Int = ((stories * SECONDS_PER_STORY + SECONDS_AROUND) / 60.0).roundToInt().coerceAtLeast(1)
+
+/** People followed and links added are one list on the phone, "Your picks", sharing one count. */
+val PICKS = listOf("follow", "custom")
+
+fun picksCount(stories: Map<String, Int>): Int = PICKS.sumOf { stories[it] ?: 0 }
+
+/** Splits the picks count between the two sections the web app and server keep apart. */
+fun withPicks(stories: Map<String, Int>, n: Int): Map<String, Int> = stories + ("follow" to n / 2) + ("custom" to n - n / 2)
+
+/** Fits counts to the limits: at most [MAX_PER_SECTION] a section (picks counted together) and [STORY_BUDGET] in all. */
+fun fitBudget(stories: Map<String, Int>): Map<String, Int> {
+    val out = LinkedHashMap<String, Int>()
+    for (k in SECTIONS.keys) if (k !in PICKS) out[k] = (stories[k] ?: 0).coerceIn(0, MAX_PER_SECTION)
+    out["picks"] = picksCount(stories).coerceIn(0, MAX_PER_SECTION)
+    // Over budget (counts from before the limit, or from the web app): trim the biggest, later sections first.
+    while (out.values.sum() > STORY_BUDGET) {
+        val key = out.entries.reversed().maxBy { it.value }.key
+        out[key] = out.getValue(key) - 1
+    }
+    val picks = out.remove("picks")!!
+    return withPicks(out, picks)
+}
 
 /** The catalog's sources. Their ids are negative and stable; signed in, the Supabase row's id replaces it. */
 val BUILTIN_SOURCES: List<Source> by lazy {

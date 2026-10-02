@@ -1,17 +1,17 @@
 {
   "_comment": "The source catalog, shared by the worker (app/sources.py) and the Android app (bundled as an asset). Sections are read in this order. 'stories' is the default count (0 = off). Weights nudge ranking; editor-curated top-story feeds get a boost. Local sources fill {city} from the user's weather city.",
   "sections": [
-    {"key": "canada", "title": "Top stories", "emoji": "🇨🇦", "topic": "the top stories from across Canada", "stories": 6},
+    {"key": "canada", "title": "Top stories", "emoji": "🇨🇦", "topic": "the top stories from across Canada", "stories": 4},
     {"key": "local", "title": "Local", "emoji": "📍", "topic": "the latest from around {city}", "stories": 0},
     {"key": "world", "title": "World", "emoji": "🌍", "topic": "the biggest stories from around the world", "stories": 0},
     {"key": "business", "title": "Business", "emoji": "💼", "topic": "the latest in business and the markets", "stories": 0},
-    {"key": "tech", "title": "AI & Tech", "emoji": "🤖", "topic": "the latest in AI and technology", "stories": 6},
+    {"key": "tech", "title": "AI & Tech", "emoji": "🤖", "topic": "the latest in AI and technology", "stories": 4},
     {"key": "health", "title": "Health", "emoji": "🩺", "topic": "the latest in health and medicine", "stories": 0},
     {"key": "science", "title": "Science", "emoji": "🔬", "topic": "new discoveries in science", "stories": 0},
     {"key": "sports", "title": "Sports", "emoji": "🏒", "topic": "the latest in sports", "stories": 0},
     {"key": "entertainment", "title": "Entertainment", "emoji": "🎬", "topic": "what's new in entertainment", "stories": 0},
-    {"key": "follow", "title": "Following", "emoji": "📌", "topic": "news on the people and topics you follow", "stories": 3},
-    {"key": "custom", "title": "My Sources", "emoji": "⭐", "topic": "stories from the sources you follow", "stories": 4}
+    {"key": "follow", "title": "Following", "emoji": "📌", "topic": "news on the people and topics you follow", "stories": 2},
+    {"key": "custom", "title": "Your picks", "emoji": "⭐", "topic": "news on the names and sites you picked", "stories": 2}
   ],
   "sources": [
     {"section": "canada", "name": "CBC News · Top Stories", "url": "https://www.cbc.ca/webfeed/rss/rss-topstories", "weight": 1.3},

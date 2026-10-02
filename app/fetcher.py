@@ -25,6 +25,12 @@ import trafilatura
 
 log = logging.getLogger(__name__)
 
+
+def _drop_boilerplate(text: str) -> str:
+    from .summarizer import drop_boilerplate  # summarizer -> ranking -> fetcher, so not at the top
+
+    return drop_boilerplate(text)
+
 USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/128.0 Safari/537.36 MorningBrief/2.0"
@@ -298,7 +304,7 @@ async def fetch_source(client: httpx.AsyncClient, source: dict) -> list[Item]:
             weight=source.get("weight", 1.2),
             summary=clean_text(art.get("description")),
             image=art.get("image"),
-            text=art.get("text", ""),
+            text=_drop_boilerplate(art.get("text", "")),
             kind="article",
             published=datetime.now(timezone.utc),
         )]

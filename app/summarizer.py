@@ -7,11 +7,24 @@ from collections import Counter
 from .ranking import STOPWORDS
 
 SENTENCE_SPLIT = re.compile(r"(?:(?<=[.!?])|(?<=[.!?][\"”’']))\s+(?=[A-Z0-9\"“‘'])")
+# A site's own furniture, not the story: sign-up prompts, follow buttons, credits, author bios.
 BOILERPLATE = re.compile(
-    r"(sign up|subscribe|newsletter|click here|read more|follow us|advertisement|©|all rights reserved|"
-    r"this article|photo:|image:|getty images|the canadian press$)",
+    r"(sign up|sign in|log in|subscribe|newsletter|click here|read more|continue reading|follow us|advertisement|"
+    r"©|all rights reserved|this article|photo:|image:|getty images|the canadian press$|"
+    r"posts from this|email digest|homepage feed|your feed|follow (this |the )?(author|topic|story|series)|"
+    r"see all (stories|posts)|listen to this (article|story)|share (this|the) (article|story)|"
+    r"we may earn|affiliate link|commission when you buy|cookie|reporting by|editing by|"
+    r"this story (has been|was) (updated|originally)|^related:|^recommended:|^more:|^watch:|^read:)",
     re.I,
 )
+
+
+def drop_boilerplate(text: str) -> str:
+    """Drops lines of site furniture from article text, so neither the summary nor the voice reads them."""
+    return "\n".join(
+        line for line in (text or "").splitlines()
+        if not (len(line.split()) <= 40 and BOILERPLATE.search(line.strip()))
+    )
 
 
 def split_sentences(text: str, title: str = "") -> list[str]:

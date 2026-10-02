@@ -170,7 +170,7 @@ class StoryWriter(
         val payload = JSONObject()
             .put("section", SECTIONS[section]?.title ?: section)
             .put("headline", lead.title)
-            .put("text", lead.text.ifEmpty { lead.summary }.ifEmpty { lead.title }.take(2500))
+            .put("text", dropBoilerplate(lead.text).ifEmpty { lead.summary }.ifEmpty { lead.title }.take(2500))
         val body = JSONObject()
             .put("model", model)
             .put("temperature", 0.4)

@@ -50,8 +50,7 @@ class Repo(context: Context) {
      * user's city, and the user's own links and follows, with [Source.enabled] reflecting their choices.
      * [remote] falls back to the cached copy.
      */
-    suspend fun sources(remote: Boolean = true): Pair<List<Source>, String?> {
-        val st = settings
+    suspend fun sources(remote: Boolean = true, st: Settings = settings): Pair<List<Source>, String?> {
         var note: String? = null
         val rows = when {
             !signedIn -> prefs.localSources

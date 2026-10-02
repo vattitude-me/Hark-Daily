@@ -5,11 +5,24 @@ import kotlin.math.pow
 /** Ports of app/summarizer.py (extractive summaries) and app/tts/text.py (text made easy to read aloud). */
 
 private val SENTENCE_SPLIT = Regex("(?:(?<=[.!?])|(?<=[.!?][\"”’']))\\s+(?=[A-Z0-9\"“‘'])")
+/** A site's own furniture, not the story: sign-up prompts, follow buttons, credits, author bios. */
 private val BOILERPLATE = Regex(
-    "(sign up|subscribe|newsletter|click here|read more|follow us|advertisement|©|all rights reserved|" +
-        "this article|photo:|image:|getty images|the canadian press$)",
+    "(sign up|sign in|log in|subscribe|newsletter|click here|read more|continue reading|follow us|advertisement|" +
+        "©|all rights reserved|this article|photo:|image:|getty images|the canadian press$|" +
+        "posts from this|email digest|homepage feed|your feed|follow (this |the )?(author|topic|story|series)|" +
+        "see all (stories|posts)|listen to this (article|story)|share (this|the) (article|story)|" +
+        "we may earn|affiliate link|commission when you buy|cookie|reporting by|editing by|" +
+        "this story (has been|was) (updated|originally)|^related:|^recommended:|^more:|^watch:|^read:)",
     RegexOption.IGNORE_CASE,
 )
+
+/** Drops lines of site furniture from article text, so neither the summary nor the voice reads them. */
+fun dropBoilerplate(text: String): String =
+    text.lines().filterNot { line ->
+        val l = line.trim()
+        l.split(' ').size <= 40 && BOILERPLATE.containsMatchIn(l)
+    }.joinToString("\n")
+
 private val SENTENCE_END = Regex("[.!?][\"”’']?$")
 private val NON_WORD = Regex("\\W+")
 private val SPACES = Regex("\\s+")

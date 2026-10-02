@@ -113,7 +113,6 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val st by vm.settings.collectAsState()
     val saved by vm.saved.collectAsState()
     val appearance by vm.appearance.collectAsState()
-    val dirty = st != saved
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current
     val t = Mb.t
@@ -137,7 +136,7 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize()) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = if (dirty) 190.dp else 120.dp),
+                .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = LocalBottomInset.current + 16.dp),
         ) {
             val ready = LocalTime.of(saved.readyHour, saved.readyMinute)
             ScreenHeader(
@@ -242,22 +241,6 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 Hint("Morning Brief ${BuildConfig.VERSION_NAME}", Modifier.weight(1f))
                 TextButton(onClick = { openPage(context, PRIVACY_URL) }) { Text("Privacy", style = Type.meta, color = t.ink) }
                 TextButton(onClick = { openPage(context, TERMS_URL) }) { Text("Terms", style = Type.meta, color = t.ink) }
-            }
-        }
-
-        if (dirty) {
-            // Floats just above the tab bar.
-            Row(
-                Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 20.dp, end = 20.dp, bottom = 92.dp)
-                    .fillMaxWidth().height(60.dp)
-                    .shadow(18.dp, CircleShape, ambientColor = Color.Black.copy(alpha = .2f), spotColor = Color.Black.copy(alpha = .2f))
-                    .clip(CircleShape).background(if (t.dark) Color(0xFF1E1E1C) else Color(0xFFF4F4F1))
-                    .border(1.dp, t.glassLine, CircleShape).padding(start = 20.dp, end = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Unsaved changes", Modifier.weight(1f), style = Type.value, color = t.ink)
-                TextButton(onClick = { vm.discard() }) { Text("Discard", style = Type.value, color = t.muted) }
-                PillButton("Save") { vm.save() }
             }
         }
     }

@@ -22,7 +22,7 @@ import httpx
 from .ranking import Story
 from .report import RunReport
 from .sources import SECTIONS
-from .summarizer import summarize
+from .summarizer import drop_boilerplate, summarize
 
 log = logging.getLogger(__name__)
 
@@ -244,7 +244,7 @@ class StoryWriter:
         payload = {
             "section": SECTIONS[section]["title"],
             "headline": lead.title,
-            "text": (lead.text or lead.summary or lead.title)[:MAX_ARTICLE_CHARS],
+            "text": (drop_boilerplate(lead.text) or lead.summary or lead.title)[:MAX_ARTICLE_CHARS],
         }
         body = {
             "model": model,

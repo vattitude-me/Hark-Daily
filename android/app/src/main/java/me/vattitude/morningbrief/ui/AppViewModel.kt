@@ -28,12 +28,17 @@ import me.vattitude.morningbrief.data.Settings
 import me.vattitude.morningbrief.pipeline.KOKORO_VOICES
 import me.vattitude.morningbrief.pipeline.Kokoro
 import me.vattitude.morningbrief.pipeline.KokoroPack
+import me.vattitude.morningbrief.pipeline.MAX_PER_SECTION
 import me.vattitude.morningbrief.pipeline.PHONE_VOICE
+import me.vattitude.morningbrief.pipeline.PICKS
 import me.vattitude.morningbrief.pipeline.Place
 import me.vattitude.morningbrief.pipeline.Source
+import me.vattitude.morningbrief.pipeline.STORY_BUDGET
 import me.vattitude.morningbrief.pipeline.Speech
 import me.vattitude.morningbrief.pipeline.kokoroVoice
+import me.vattitude.morningbrief.pipeline.picksCount
 import me.vattitude.morningbrief.pipeline.searchPlaces
+import me.vattitude.morningbrief.pipeline.withPicks
 import me.vattitude.morningbrief.playback.PlaybackService
 import me.vattitude.morningbrief.work.BuildState
 import me.vattitude.morningbrief.work.Scheduler
@@ -72,6 +77,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val build: StateFlow<BuildState.Progress> = BuildState.progress
 
     val player = MutableStateFlow(PlayerState())
+    /** The briefing in the player, which may not be the one on screen. */
+    val nowPlaying = MutableStateFlow<Briefing?>(null)
+    private var nowPlayingTried: String? = null
+    /** Whether the Today page's player card is on screen; when it isn't, a small player floats above the tabs. */
+    val heroVisible = MutableStateFlow(true)
+    /** Bumped to bring the Today page back to its player card. */
+    val showHero = MutableStateFlow(0)
     private var controller: MediaController? = null
     private var ticker: Job? = null
 
@@ -79,6 +91,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val sourcesNote = MutableStateFlow<String?>(null)
     val sourcesBusy = MutableStateFlow(false)
     val sharedUrl = MutableStateFlow<String?>(null)
+    /** Switches on the user's own sources not yet saved, by source id. */
+    val pendingEnabled = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
 
     private var preview: Speech? = null
 
@@ -215,12 +229,43 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun tick() {
         val c = controller ?: return
-        player.value = PlayerState(
-            date = c.currentMediaItem?.mediaId?.substringBefore('@'),
-            playing = c.isPlaying,
-            position = c.currentPosition / 1000.0,
-            ready = true,
-        )
+        val id = c.currentMediaItem?.mediaId
+        val date = id?.substringBefore('@')
+        if (nowPlaying.value?.mediaId != id && nowPlayingTried != id) {
+            nowPlayingTried = id
+            nowPlaying.value = date?.let { d -> briefing.value?.takeIf { it.date == d } ?: repo.briefings.load(d)?.let { Briefing.from(it) } }
+        }
+        player.value = PlayerState(date = date, playing = c.isPlaying, position = c.currentPosition / 1000.0, ready = true)
+    }
+
+    /** To the next story, or back to the start of this one (the one before, if this one just began). */
+    fun jump(forward: Boolean) {
+        val c = controller ?: return
+        val b = nowPlaying.value ?: return
+        val pos = c.currentPosition / 1000.0
+        val starts = b.cards.map { it.start }
+        val target = if (forward) {
+            starts.firstOrNull { it > pos + 0.5 } ?: return
+        } else {
+            val current = starts.lastOrNull { it <= pos + 0.5 }
+            if (current != null && pos - current > 3) current else starts.lastOrNull { it < (current ?: pos) - 0.5 } ?: 0.0
+        }
+        c.seekTo((target * 1000).toLong())
+        tick()
+    }
+
+    /** From the floating player: back to Today, showing the briefing that's playing. */
+    fun openPlayer() {
+        nowPlaying.value?.date?.let { if (it != selected.value) select(it) }
+        tab.value = Tab.Today
+        showHero.value++
+    }
+
+    fun togglePlaying() {
+        val c = controller ?: return
+        if (c.currentMediaItem == null) return
+        if (c.isPlaying) c.pause() else c.play()
+        tick()
     }
 
     /** Loads [date] into the player if it isn't already there. */
@@ -267,19 +312,35 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun loadSources() {
         viewModelScope.launch {
             sourcesBusy.value = true
-            val (list, note) = repo.sources()
+            val (list, note) = repo.sources(st = _settings.value)
             sources.value = list
             sourcesNote.value = note
             sourcesBusy.value = false
         }
     }
 
+    /** Whether [source] is on in the draft: catalog switches live in the settings, the user's own in [pendingEnabled]. */
+    fun isOn(source: Source, st: Settings, pending: Map<Long, Boolean>): Boolean = when {
+        source.builtin -> source.url !in st.disabledUrls && source.id !in st.disabledSources
+        else -> pending[source.id] ?: source.enabled
+    }
+
+    /** Switches a source on or off in the draft; nothing is kept until [save]. */
     fun setEnabled(source: Source, enabled: Boolean) {
-        sources.value = sources.value.map { if (it.id == source.id && it.url == source.url) it.copy(enabled = enabled) else it }
-        viewModelScope.launch {
-            repo.setEnabled(source, enabled)?.let { message.value = it }
-            refreshSaved()
-            loadSources()
+        if (source.builtin) {
+            update { st ->
+                st.copy(
+                    disabledUrls = if (enabled) st.disabledUrls - source.url else st.disabledUrls + source.url,
+                    disabledSources = when {
+                        source.id < 0 -> st.disabledSources
+                        enabled -> st.disabledSources - source.id
+                        else -> st.disabledSources + source.id
+                    },
+                )
+            }
+        } else {
+            val pending = pendingEnabled.value
+            pendingEnabled.value = if (enabled == source.enabled) pending - source.id else pending + (source.id to enabled)
         }
     }
 
@@ -308,18 +369,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         e.message ?: "Couldn't follow that."
     }
 
-    /** Stories per section, saved straight away: the Sources page has no Save button. */
-    fun setStories(section: String, n: Int) = saveNow { it.copy(stories = it.stories + (section to n.coerceIn(0, 10))) }
+    /** Stories for a topic, in the draft, within [MAX_PER_SECTION] a topic and [STORY_BUDGET] in all. */
+    fun setStories(section: String, n: Int) = update { st ->
+        val others = st.stories.filterKeys { it != section && it !in PICKS }.values.sum() + picksCount(st.stories)
+        st.copy(stories = st.stories + (section to n.coerceIn(0, minOf(MAX_PER_SECTION, STORY_BUDGET - others))))
+    }
+
+    /** Stories from the user's picks: follows and links share one count. */
+    fun setPicks(n: Int) = update { st ->
+        val others = st.stories.filterKeys { it !in PICKS }.values.sum()
+        st.copy(stories = withPicks(st.stories, n.coerceIn(0, minOf(MAX_PER_SECTION, STORY_BUDGET - others))))
+    }
 
     /** The city for local news; blank follows the weather city. */
-    fun setNewsCity(city: String) = saveNow { it.copy(newsCity = city) }
-
-    private fun saveNow(change: (Settings) -> Settings) {
-        viewModelScope.launch {
-            repo.saveSettings(change(repo.settings))?.let { message.value = it }
-            refreshSaved()
-            loadSources()
-        }
+    fun setNewsCity(city: String) {
+        update { it.copy(newsCity = city) }
+        loadSources()
     }
 
     fun removeSource(source: Source) {
@@ -343,30 +408,37 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun save() {
         val new = _settings.value
+        val switches = pendingEnabled.value
         viewModelScope.launch {
             val old = repo.settings
             val problem = repo.saveSettings(new)
+            val switchProblem = sources.value.filter { !it.builtin && it.id in switches }.firstNotNullOfOrNull { src ->
+                repo.setEnabled(src, switches.getValue(src.id))
+            }
+            pendingEnabled.value = emptyMap()
             if (old.daily != new.daily || old.readyBy != new.readyBy) Scheduler.schedule(getApplication(), new)
             _saved.value = repo.settings
+            if (switches.isNotEmpty() || old.localCity != new.localCity) loadSources()
             val today = briefing.value?.takeIf { it.date == LocalDate.now().toString() }
-            message.value = problem ?: if (old.voice != new.voice && today != null && voiceChanged(today)) {
+            message.value = problem ?: switchProblem ?: if (old.voice != new.voice && today != null && voiceChanged(today)) {
                 "Saved. You can re-record today's briefing in the new voice on the Today page."
-            } else "Settings saved"
+            } else "Saved. Your next briefing uses these."
         }
     }
 
     fun discard() {
+        val cityChanged = _settings.value.localCity != _saved.value.localCity
         _settings.value = _saved.value
+        pendingEnabled.value = emptyMap()
+        if (cityChanged) loadSources()
     }
 
-    /** Takes in changes saved elsewhere (sync, source switches, a finished download) without losing the draft. */
+    /** Takes in changes saved elsewhere (sync, sign-in, a finished download), keeping a draft in progress. */
     private fun refreshSaved() {
         val before = _saved.value
         val now = repo.settings
         _saved.value = now
-        _settings.value = if (_settings.value == before) now
-        else _settings.value.copy(disabledSources = now.disabledSources, disabledUrls = now.disabledUrls,
-            stories = now.stories, newsCity = now.newsCity)
+        if (_settings.value == before) _settings.value = now
     }
 
     suspend fun places(query: String): List<Place> = withContext(Dispatchers.IO) { searchPlaces(query) }

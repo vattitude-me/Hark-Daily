@@ -27,4 +27,12 @@ class TextTest {
         assertFalse(out, "http" in out || "🚀" in out || "(" in out)
         assertTrue(speakable("C\$2.5 billion deal").startsWith("2.5 billion Canadian dollars"))
     }
+
+    @Test fun siteFurnitureIsDropped() {
+        val text = "Posts from this author will be added to your daily email digest and your homepage feed.\n" +
+            "Apple released a phone today with a bigger battery, the company said.\n" +
+            "Follow topics and authors from this story to see more like this in your personalized homepage feed.\n" +
+            "Sign up for our newsletter"
+        assertEquals("Apple released a phone today with a bigger battery, the company said.", dropBoilerplate(text))
+    }
 }

@@ -1,10 +1,16 @@
 package me.vattitude.morningbrief.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.isImeVisible
@@ -23,6 +29,10 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.RssFeed
 import androidx.compose.material.icons.outlined.Tune
@@ -31,7 +41,12 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -41,17 +56,40 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 
-/** Room each screen leaves above and below its content: the status bar, and the floating tab bar. */
-val ScreenPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 120.dp)
+/** How much of the bottom of the screen the floating bars cover; screens pad their content by it. */
+val LocalBottomInset = compositionLocalOf { 120.dp }
+
+/** Room each screen leaves around its content, clear of the floating bars. */
+@Composable
+fun screenPadding() = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = LocalBottomInset.current + 16.dp)
+
+/** The opaque fill of the floating bars, so text scrolling under them never shows through. */
+val Tokens.bar: Color get() = if (dark) Color(0xFF1E1E1C) else Color(0xFFF4F4F1)
+
+/** The floating bars' pill: shadow, opaque fill and a fine edge. */
+fun Modifier.floating(t: Tokens) = this
+    .shadow(18.dp, CircleShape, ambientColor = Color.Black.copy(alpha = .2f), spotColor = Color.Black.copy(alpha = .2f))
+    .clip(CircleShape).background(t.bar).border(1.dp, t.glassLine, CircleShape)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun Root(vm: AppViewModel) {
     val tab by vm.tab.collectAsState()
     val message by vm.message.collectAsState()
+    val st by vm.settings.collectAsState()
+    val saved by vm.saved.collectAsState()
+    val pending by vm.pendingEnabled.collectAsState()
+    val player by vm.player.collectAsState()
+    val playing by vm.nowPlaying.collectAsState()
+    val heroVisible by vm.heroVisible.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(message) {
         message?.let {
@@ -60,19 +98,91 @@ fun Root(vm: AppViewModel) {
         }
     }
     val t = Mb.t
+    val density = LocalDensity.current
+    var inset by remember { mutableStateOf(120.dp) }
+    val keyboard = WindowInsets.isImeVisible
+    val dirty = st != saved || pending.isNotEmpty()
+    val showSave = dirty && tab != Tab.Today && !keyboard
+    val showMini = playing != null && player.date == playing?.date && (tab != Tab.Today || !heroVisible) && !keyboard
     Box(Modifier.fillMaxSize().backdrop(t)) {
-        val m = Modifier.fillMaxSize().statusBarsPadding()
-        when (tab) {
-            Tab.Today -> TodayScreen(vm, m)
-            Tab.Sources -> SourcesScreen(vm, m)
-            Tab.Settings -> SettingsScreen(vm, m)
+        CompositionLocalProvider(LocalBottomInset provides inset) {
+            val m = Modifier.fillMaxSize().statusBarsPadding()
+            when (tab) {
+                Tab.Today -> TodayScreen(vm, m)
+                Tab.Sources -> SourcesScreen(vm, m)
+                Tab.Settings -> SettingsScreen(vm, m)
+            }
         }
-        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().imePadding()
-            .padding(start = 20.dp, end = 20.dp, bottom = 16.dp)) {
-            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 76.dp)) {
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .onSizeChanged { inset = with(density) { it.height.toDp() } }
+                .navigationBarsPadding().imePadding().padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            SnackbarHost(snackbar, Modifier.align(Alignment.CenterHorizontally)) {
                 Snackbar(it, containerColor = t.ink, contentColor = t.onInk, shape = CircleShape)
             }
-            if (!WindowInsets.isImeVisible) TabBar(tab) { vm.tab.value = it }
+            AnimatedVisibility(showSave, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+                SaveBar(onDiscard = vm::discard, onSave = vm::save)
+            }
+            AnimatedVisibility(showMini && !showSave, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+                playing?.let { MiniPlayer(it, player, onOpen = vm::openPlayer, onToggle = vm::togglePlaying, onNext = { vm.jump(true) }) }
+            }
+            if (!keyboard) TabBar(tab) { vm.tab.value = it }
+        }
+    }
+}
+
+/** Unsaved changes on Sources or Settings; the same draft, so either page can save it. */
+@Composable
+private fun SaveBar(onDiscard: () -> Unit, onSave: () -> Unit) {
+    val t = Mb.t
+    Row(
+        Modifier.fillMaxWidth().height(60.dp).floating(t).padding(start = 20.dp, end = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Unsaved changes", Modifier.weight(1f), style = Type.value, color = t.ink)
+        TextButton(onClick = onDiscard) { Text("Discard", style = Type.value, color = t.muted) }
+        PillButton("Save", onClick = onSave)
+    }
+}
+
+/** The briefing that's playing, when its player card is out of sight: tap to go back to it. */
+@Composable
+private fun MiniPlayer(b: Briefing, player: PlayerState, onOpen: () -> Unit, onToggle: () -> Unit, onNext: () -> Unit) {
+    val t = Mb.t
+    val pos = player.position
+    val card = b.cards.lastOrNull { pos >= it.start && pos < it.end }
+    val chapter = b.chapters.lastOrNull { pos >= it.start }
+    val section = card?.let { c -> b.sections.firstOrNull { it.key == c.section }?.title }
+    val title = card?.headline ?: chapter?.title?.ifBlank { null } ?: b.title
+    val total = b.duration.coerceAtLeast(1.0)
+    Box(Modifier.fillMaxWidth().height(64.dp).floating(t).clickable(onClick = onOpen)) {
+        Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            val image = card?.image ?: b.cards.firstOrNull { it.image != null }?.image
+            if (image != null) {
+                AsyncImage(model = image, contentDescription = null, contentScale = ContentScale.Crop, colorFilter = Grayscale,
+                    modifier = Modifier.size(46.dp).clip(CircleShape).background(t.track))
+            } else {
+                Box(Modifier.size(46.dp).clip(CircleShape).background(t.track), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.GraphicEq, null, Modifier.size(20.dp), tint = t.ink)
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = Type.value.copy(fontWeight = FontWeight.Medium), color = t.ink, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis)
+                Text(listOfNotNull(section, "${clock(pos)} / ${clock(b.duration)}").joinToString(" · "),
+                    Modifier.padding(top = 2.dp), style = Type.tiny, color = t.muted, maxLines = 1)
+                // How far through.
+                Box(Modifier.padding(top = 6.dp, end = 8.dp).fillMaxWidth().height(2.dp).clip(CircleShape).background(t.track)) {
+                    Box(Modifier.fillMaxWidth((pos / total).toFloat().coerceIn(0f, 1f)).fillMaxHeight().background(t.ink))
+                }
+            }
+            InkCircle(if (player.playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                if (player.playing) "Pause" else "Play", size = 42.dp, onClick = onToggle)
+            Icon(Icons.Filled.SkipNext, "Next story", Modifier.padding(start = 4.dp).size(42.dp).clip(CircleShape)
+                .clickable(onClick = onNext).padding(9.dp), tint = t.ink)
         }
     }
 }
@@ -80,12 +190,8 @@ fun Root(vm: AppViewModel) {
 @Composable
 private fun TabBar(tab: Tab, onSelect: (Tab) -> Unit) {
     val t = Mb.t
-    val bar = if (t.dark) Color(0xFF1E1E1C) else Color(0xFFF4F4F1)
     Row(
-        Modifier.fillMaxWidth().height(64.dp)
-            .shadow(18.dp, CircleShape, ambientColor = Color.Black.copy(alpha = .2f), spotColor = Color.Black.copy(alpha = .2f))
-            .clip(CircleShape).background(bar).border(1.dp, t.glassLine, CircleShape)
-            .padding(6.dp),
+        Modifier.fillMaxWidth().height(64.dp).floating(t).padding(6.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         for ((item, icon) in listOf(

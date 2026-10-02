@@ -64,8 +64,12 @@ class Builder(private val context: Context, private val repo: Repo) {
 
         // 3. Rank, skipping what the last two briefings already told ---------------------
         progress("Picking the top stories", 0.15f)
-        val limits = SECTIONS.keys.associateWith { (st.stories[it] ?: 0).coerceIn(0, 10) }
-        val picked = selectTop(items, limits, Instant.now(), repo.briefings.heard(now.toLocalDate()))
+        // Follows and added links are read as one section, "custom", sharing the picks count.
+        val budget = fitBudget(st.stories)
+        val limits = SECTIONS.keys.filter { it != "follow" }
+            .associateWith { if (it == "custom") picksCount(budget) else budget[it] ?: 0 }
+        val ranked = items.map { if (it.section == "follow") it.copy(section = "custom") else it }
+        val picked = selectTop(ranked, limits, Instant.now(), repo.briefings.heard(now.toLocalDate()))
         if (picked.isEmpty()) throw BuildFailed("No new stories turned up. Try again later or add more sources.")
         val stories = picked.values.flatten()
 

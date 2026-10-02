@@ -41,7 +41,7 @@ class WriterTest {
         assertEquals(mapOf(
             "canada" to "First, the top stories from across Canada.",
             "tech" to "Next, the latest in AI and technology.",
-            "custom" to "And finally, stories from the sources you follow.",
+            "custom" to "And finally, news on the names and sites you picked.",
         ), script.sectionLeads)
         assertEquals(mapOf("tech" to "The latest in AI and technology."), sectionLeads(listOf("tech")))
     }

@@ -1,7 +1,9 @@
 package me.vattitude.morningbrief.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -44,12 +47,23 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import me.vattitude.morningbrief.pipeline.FOLLOW_EXAMPLES
+import me.vattitude.morningbrief.pipeline.MAX_PER_SECTION
+import me.vattitude.morningbrief.pipeline.PICKS
 import me.vattitude.morningbrief.pipeline.SECTIONS
+import me.vattitude.morningbrief.pipeline.STORY_BUDGET
 import me.vattitude.morningbrief.pipeline.Source
+import me.vattitude.morningbrief.pipeline.briefMinutes
+import me.vattitude.morningbrief.pipeline.picksCount
 import java.net.URI
 
 /** A page of links the app can read without a feed, to show that any link works. */
-private const val LINK_EXAMPLE = "https://www.cbc.ca/sports/hockey/nhl"
+private const val LINK_EXAMPLE = "cbc.ca/sports/hockey/nhl"
+
+/** A web address rather than a name: "https://…", or a bare domain with an optional path. */
+private val LINKISH = Regex("^([\\w-]+\\.)+[a-z]{2,}(:\\d+)?(/\\S*)?$", RegexOption.IGNORE_CASE)
+
+internal fun looksLikeLink(input: String): Boolean =
+    input.trim().let { it.startsWith("http://", true) || it.startsWith("https://", true) || LINKISH.matches(it) }
 
 @Composable
 fun SourcesScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
@@ -57,13 +71,17 @@ fun SourcesScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val note by vm.sourcesNote.collectAsState()
     val busy by vm.sourcesBusy.collectAsState()
     val email by vm.signedInEmail.collectAsState()
-    val st by vm.saved.collectAsState()
+    val st by vm.settings.collectAsState()
+    val pending by vm.pendingEnabled.collectAsState()
     var removing by remember { mutableStateOf<Source?>(null) }
     val t = Mb.t
+    val total = SECTIONS.keys.sumOf { st.stories[it] ?: 0 }
+    val full = total >= STORY_BUDGET
+    fun on(src: Source) = vm.isOn(src, st, pending)
 
     LaunchedEffect(email) { vm.loadSources() }
 
-    LazyColumn(modifier.fillMaxSize(), contentPadding = ScreenPadding) {
+    LazyColumn(modifier.fillMaxSize(), contentPadding = screenPadding()) {
         item {
             ScreenHeader(
                 overline = { Overline(if (email != null) "Synced with the web app" else "On this phone") },
@@ -76,27 +94,29 @@ fun SourcesScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
             CircularProgressIndicator(Modifier.padding(top = 22.dp).size(24.dp), color = t.ink, strokeWidth = 2.dp)
         }
 
-        item { Follow(vm, st.stories["follow"] ?: 0, sources.filter { it.section == "follow" }) { removing = it } }
+        item { Budget(total) }
+
+        item {
+            Picks(vm, picksCount(st.stories), canRaise = !full, sources.filter { it.section in PICKS }, ::on) { removing = it }
+        }
 
         SECTIONS.values.filter { it.isCategory || it.key == "local" }.forEachIndexed { index, s ->
             item(key = "s:${s.key}") {
                 val n = st.stories[s.key] ?: 0
-                val city = st.newsCity.ifBlank { st.city }.substringBefore(",").trim()
+                val city = st.localCity.substringBefore(",").trim()
                 val label = if (s.key == "local" && city.isNotBlank()) "${s.title} · $city" else s.title
-                SectionLabel(label, detail = if (index == 0) "Stories per brief. Set to 0 to skip." else null) {
-                    PillStepper(n) { vm.setStories(s.key, it) }
+                SectionLabel(label, detail = if (index == 0) "Stories from each topic. Set to Off to skip it." else null) {
+                    Stepper(n, canRaise = !full) { vm.setStories(s.key, it) }
                 }
                 if (n > 0) GlassGroup {
                     if (s.key == "local") LocalCity(vm, st.newsCity, st.city)
                     sources.filter { it.section == s.key }.forEachIndexed { i, src ->
                         if (i > 0 || s.key == "local") Hairline()
-                        SourceRow(vm, src)
+                        SourceRow(src, on(src), onToggle = { vm.setEnabled(src, it) })
                     }
                 }
             }
         }
-
-        item { MyLinks(vm, st.stories["custom"] ?: 0, sources.filter { it.section == "custom" }) { removing = it } }
     }
 
     removing?.let { src ->
@@ -109,22 +129,52 @@ fun SourcesScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     }
 }
 
+/** Stories for a topic: up to [MAX_PER_SECTION], and only while the brief has room. */
+@Composable
+private fun Stepper(n: Int, canRaise: Boolean, onChange: (Int) -> Unit) =
+    PillStepper(if (n == 0) "Off" else "$n", n > 0, canRaise && n < MAX_PER_SECTION, "Fewer stories", "More stories",
+        { onChange(n - 1) }, { onChange(n + 1) })
+
+/** How full the brief is: one tick per story, and about how long it will take to hear. */
+@Composable
+private fun Budget(total: Int) {
+    val t = Mb.t
+    Glass(Modifier.fillMaxWidth().padding(top = 22.dp)) {
+        Column(Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text("$total of $STORY_BUDGET stories", Modifier.weight(1f), style = Type.title, color = t.ink)
+                Text(if (total == 0) "Nothing picked" else "About ${briefMinutes(total)} min", style = Type.meta, color = t.muted)
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                repeat(STORY_BUDGET) { i ->
+                    Box(Modifier.weight(1f).height(6.dp).clip(CircleShape).background(if (i < total) t.ink else t.track))
+                }
+            }
+            Hint(
+                if (total >= STORY_BUDGET) "Your brief is full. Lower one topic to make room for another."
+                else "Up to $MAX_PER_SECTION from each topic and $STORY_BUDGET in all, so a brief stays near five minutes.",
+                Modifier.padding(top = 10.dp),
+            )
+        }
+    }
+}
+
 private fun host(url: String) = runCatching { URI(url).host?.removePrefix("www.") }.getOrNull() ?: url
 
 @Composable
-private fun SourceRow(vm: AppViewModel, src: Source, onRemove: ((Source) -> Unit)? = null) {
+private fun SourceRow(src: Source, on: Boolean, onToggle: (Boolean) -> Unit, onRemove: ((Source) -> Unit)? = null) {
     val t = Mb.t
     Row(
-        Modifier.fillMaxWidth().clickable { vm.setEnabled(src, !src.enabled) }.padding(vertical = 14.dp),
+        Modifier.fillMaxWidth().clickable { onToggle(!on) }.padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
             Text(src.name, style = if (src.section == "follow") Type.title else Type.body, color = t.ink,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val detail = if (src.section == "follow") "From anywhere it's reported" else host(src.url) + when (src.kind) {
+            val detail = if (src.section == "follow") "Followed · news from anywhere it's reported" else host(src.url) + when (src.kind) {
                 "article" -> " · single article"
                 "page" -> " · page of links"
-                else -> ""
+                else -> " · feed"
             }
             Text(detail, Modifier.padding(top = 3.dp), style = Type.tiny, color = t.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -132,7 +182,7 @@ private fun SourceRow(vm: AppViewModel, src: Source, onRemove: ((Source) -> Unit
             Icon(Icons.Outlined.Close, "Remove", Modifier.padding(end = 6.dp).size(36.dp).clip(CircleShape)
                 .clickable { onRemove(src) }.padding(9.dp), tint = t.muted)
         }
-        CheckDot(src.enabled)
+        CheckDot(on)
     }
 }
 
@@ -189,77 +239,56 @@ private fun AddField(
     }
 }
 
+/**
+ * The user's own picks in one place: type a name (a player, team, company, topic) to follow it through the news,
+ * or paste a link to read that site. Both share one story count.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Follow(vm: AppViewModel, n: Int, followed: List<Source>, onRemove: (Source) -> Unit) {
+private fun Picks(
+    vm: AppViewModel,
+    n: Int,
+    canRaise: Boolean,
+    picks: List<Source>,
+    on: (Source) -> Boolean,
+    onRemove: (Source) -> Unit,
+) {
     val scope = rememberCoroutineScope()
-    var query by remember { mutableStateOf("") }
+    val shared by vm.sharedUrl.collectAsState()
+    var input by remember { mutableStateOf("") }
     var working by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(shared) { shared?.let { input = it } }
+    val link = looksLikeLink(input)
     fun go() {
-        if (query.isBlank() || working) return
+        if (input.isBlank() || working) return
         working = true
         scope.launch {
-            error = vm.follow(query)
-            if (error == null) query = ""
+            error = if (link) vm.addSource(input, "custom") else vm.follow(input)
+            if (error == null) input = ""
             working = false
         }
     }
-    AddField(query, { query = it; error = null }, "A player, team, company…", Icons.Outlined.Search, "Follow",
-        working, "Looking for news…", error, KeyboardOptions(imeAction = ImeAction.Done), Modifier.padding(top = 22.dp)) { go() }
-    if (followed.isEmpty()) {
+    SectionLabel(SECTIONS.getValue("custom").title,
+        detail = "Follow a person, team or topic by name, or paste any news link. You can also share a link to this app.") {
+        Stepper(n, canRaise) { vm.setPicks(it) }
+    }
+    AddField(input, { input = it; error = null }, "A name, team, topic or link", if (link) Icons.Outlined.Link else Icons.Outlined.Search,
+        if (link) "Add link" else "Follow", working, if (link) "Checking the link…" else "Looking for news about ${input.trim()}…",
+        error, KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done)) { go() }
+    if (picks.isEmpty()) {
         FlowRow(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (ex in FOLLOW_EXAMPLES) Chip(ex) { query = ex; error = null }
+            for (ex in FOLLOW_EXAMPLES + LINK_EXAMPLE) Chip(ex) { input = ex; error = null }
         }
-        return
-    }
-    SectionLabel("Following", detail = "Their news from wherever it's reported, in its own section.") {
-        PillStepper(n) { vm.setStories("follow", it) }
-    }
-    GlassGroup {
-        followed.forEachIndexed { i, src ->
-            if (i > 0) Hairline()
-            SourceRow(vm, src, onRemove)
-        }
-    }
-    if (n == 0) Hint("Following is off, so these won't be in your briefing.", Modifier.padding(top = 8.dp, start = 4.dp),
-        color = Mb.t.error)
-}
-
-@Composable
-private fun MyLinks(vm: AppViewModel, n: Int, mine: List<Source>, onRemove: (Source) -> Unit) {
-    val scope = rememberCoroutineScope()
-    val shared by vm.sharedUrl.collectAsState()
-    var url by remember { mutableStateOf("") }
-    var adding by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(shared) { shared?.let { url = it } }
-    fun go() {
-        if (url.isBlank() || adding) return
-        adding = true
-        scope.launch {
-            error = vm.addSource(url, "custom")
-            if (error == null) url = ""
-            adding = false
-        }
-    }
-    SectionLabel(SECTIONS.getValue("custom").title,
-        detail = "Any link with news on it: a site, a feed, a team's page, an article. Or share one to this app.") {
-        PillStepper(n) { vm.setStories("custom", it) }
-    }
-    AddField(url, { url = it; error = null }, "https://…", Icons.Outlined.Link, "Add link", adding, "Checking the link…", error,
-        KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go)) { go() }
-    if (mine.isEmpty()) {
-        Row(Modifier.padding(top = 12.dp)) { Chip("Try: cbc.ca/sports/hockey/nhl") { url = LINK_EXAMPLE; error = null } }
         return
     }
     GlassGroup(Modifier.padding(top = 12.dp)) {
-        mine.forEachIndexed { i, src ->
+        picks.forEachIndexed { i, src ->
             if (i > 0) Hairline()
-            SourceRow(vm, src, onRemove)
+            SourceRow(src, on(src), onToggle = { vm.setEnabled(src, it) }, onRemove = onRemove)
         }
     }
-    if (n == 0) Hint("My Sources is off, so these won't be in your briefing.", Modifier.padding(top = 8.dp, start = 4.dp),
+    if (n == 0) Hint("Your picks are set to Off, so these won't be in your briefing.", Modifier.padding(top = 8.dp, start = 4.dp),
         color = Mb.t.error)
 }

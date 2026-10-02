@@ -338,5 +338,5 @@ fun MbSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
 
 /** Muted small print. */
 @Composable
-fun Hint(text: String, modifier: Modifier = Modifier, color: Color = Mb.t.muted) =
-    Text(text, modifier, style = Type.meta, color = color)
+fun Hint(text: String, modifier: Modifier = Modifier, color: Color = Mb.t.muted, textAlign: TextAlign? = null) =
+    Text(text, modifier, style = Type.meta, color = color, textAlign = textAlign)
