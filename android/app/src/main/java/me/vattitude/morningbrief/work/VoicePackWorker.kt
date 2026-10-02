@@ -15,6 +15,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,16 +28,17 @@ import me.vattitude.morningbrief.pipeline.kokoroVoice
 /** Downloads the Kokoro voices in the background, so leaving the app doesn't stop it. */
 class VoicePackWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     private val app = context.applicationContext as MorningBriefApp
+    private val pack = runCatching { KokoroPack.valueOf(inputData.getString(PACK) ?: "") }.getOrDefault(KokoroPack.STANDARD)
 
     override suspend fun getForegroundInfo(): ForegroundInfo = foreground(0f)
 
     override suspend fun doWork(): Result {
         runCatching { setForeground(foreground(0f)) }
-        _state.value = State(running = true)
+        _state.value = State(running = true, pack = pack)
         var last = -1
         return try {
-            KokoroPack.install(applicationContext) { fraction ->
-                _state.value = State(running = true, fraction = fraction)
+            pack.install(applicationContext) { fraction ->
+                _state.value = State(running = true, fraction = fraction, pack = pack)
                 val pct = (fraction * 100).toInt()
                 if (pct != last && canNotify()) {
                     last = pct
@@ -52,7 +54,7 @@ class VoicePackWorker(context: Context, params: WorkerParameters) : CoroutineWor
             _state.value = State()
             throw e
         } catch (e: Exception) {
-            _state.value = State(error = "The download stopped: ${e.message ?: e.javaClass.simpleName}. Try again.")
+            _state.value = State(pack = pack, error = "The download stopped: ${e.message ?: e.javaClass.simpleName}. Try again.")
             Result.failure()
         }
     }
@@ -64,7 +66,7 @@ class VoicePackWorker(context: Context, params: WorkerParameters) : CoroutineWor
         NotificationCompat.Builder(applicationContext, MorningBriefApp.CHANNEL_BUILD)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Downloading natural voices")
-            .setContentText("${(fraction * 100).toInt()}% of 130 MB")
+            .setContentText("${(fraction * 100).toInt()}% of ${pack.megabytes} MB")
             .setProgress(100, (fraction * 100).toInt(), fraction <= 0f)
             .setOngoing(true)
             .setSilent(true)
@@ -73,18 +75,26 @@ class VoicePackWorker(context: Context, params: WorkerParameters) : CoroutineWor
     private fun foreground(fraction: Float) =
         ForegroundInfo(NOTIFICATION_ID, notification(fraction), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
 
-    data class State(val running: Boolean = false, val fraction: Float = 0f, val done: Boolean = false, val error: String? = null)
+    data class State(
+        val running: Boolean = false,
+        val fraction: Float = 0f,
+        val done: Boolean = false,
+        val error: String? = null,
+        val pack: KokoroPack? = null,
+    )
 
     companion object {
         private const val WORK = "voice-pack"
         private const val NOTIFICATION_ID = 43
+        private const val PACK = "pack"
 
         private val _state = MutableStateFlow(State())
         val state: StateFlow<State> = _state
 
-        fun start(context: Context) {
-            _state.value = State(running = true)
+        fun start(context: Context, pack: KokoroPack) {
+            _state.value = State(running = true, pack = pack)
             val request = OneTimeWorkRequestBuilder<VoicePackWorker>()
+                .setInputData(workDataOf(PACK to pack.name))
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(WORK, ExistingWorkPolicy.KEEP, request)

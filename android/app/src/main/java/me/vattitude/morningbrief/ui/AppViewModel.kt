@@ -31,7 +31,6 @@ import me.vattitude.morningbrief.pipeline.PHONE_VOICE
 import me.vattitude.morningbrief.pipeline.Place
 import me.vattitude.morningbrief.pipeline.Source
 import me.vattitude.morningbrief.pipeline.Speech
-import me.vattitude.morningbrief.pipeline.VoiceOption
 import me.vattitude.morningbrief.pipeline.kokoroVoice
 import me.vattitude.morningbrief.pipeline.searchPlaces
 import me.vattitude.morningbrief.playback.PlaybackService
@@ -74,15 +73,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val sourcesBusy = MutableStateFlow(false)
     val sharedUrl = MutableStateFlow<String?>(null)
 
-    val voices = MutableStateFlow<List<VoiceOption>>(emptyList())
-    val voiceEngine = MutableStateFlow("")
     private var preview: Speech? = null
 
-    val packInstalled = MutableStateFlow(KokoroPack.installed(app))
+    /** The natural-voice pack on the phone, if any. */
+    val packInstalled = MutableStateFlow(KokoroPack.current(app))
     val packDownload: StateFlow<VoicePackWorker.State> = VoicePackWorker.state
     /** The voice whose sample is being prepared, for a spinner. */
     val previewing = MutableStateFlow<String?>(null)
-    private var kokoro: Pair<Boolean, Kokoro>? = null
+    private var kokoro: Pair<Pair<KokoroPack, Boolean>, Kokoro>? = null
     private var sample: AudioTrack? = null
     private var sampleJob: Job? = null
 
@@ -100,7 +98,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             VoicePackWorker.state.collect {
                 if (it.done) {
-                    packInstalled.value = true
+                    releaseKokoro()
+                    packInstalled.value = KokoroPack.current(getApplication())
                     refreshSaved()
                 }
             }
@@ -115,7 +114,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             repo.prefs.lastBuild.optString("day").ifEmpty { null })
         refreshBriefings()
         connectPlayer()
-        packInstalled.value = KokoroPack.installed(getApplication())
+        packInstalled.value = KokoroPack.current(getApplication())
         viewModelScope.launch {
             repo.pullSettings()
             refreshSaved()
@@ -311,27 +310,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun places(query: String): List<Place> = withContext(Dispatchers.IO) { searchPlaces(query) }
 
     fun loadVoices() {
-        packInstalled.value = KokoroPack.installed(getApplication())
-        viewModelScope.launch {
-            val s = preview ?: runCatching { Speech.open(getApplication()) }.getOrNull()?.also { preview = it }
-            if (s == null) {
-                voices.value = emptyList()
-                return@launch
-            }
-            voices.value = s.voices()
-            voiceEngine.value = s.engine
+        packInstalled.value = KokoroPack.current(getApplication())
+        if (preview == null) viewModelScope.launch {
+            preview = preview ?: runCatching { Speech.open(getApplication()) }.getOrNull()
         }
     }
 
-    fun downloadVoices() = VoicePackWorker.start(getApplication())
+    fun downloadVoices(pack: KokoroPack) = VoicePackWorker.start(getApplication(), pack)
 
     fun cancelDownload() = VoicePackWorker.cancel(getApplication())
 
     fun removeVoices() {
         stopSample()
         releaseKokoro()
-        KokoroPack.remove(getApplication())
-        packInstalled.value = false
+        KokoroPack.entries.forEach { it.remove(getApplication()) }
+        packInstalled.value = null
         viewModelScope.launch {
             val st = repo.settings
             if (kokoroVoice(st.voice) != null) repo.saveSettings(st.copy(voice = PHONE_VOICE))
@@ -341,7 +334,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun packSize(): Long = KokoroPack.sizeOnDisk(getApplication())
+    fun packSize(): Long = packInstalled.value?.sizeOnDisk(getApplication()) ?: 0L
 
     /** Plays a short greeting in [voice]: Kokoro voices are generated here, phone voices spoken directly. */
     fun previewVoice(voice: String?) {
@@ -351,9 +344,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val who = settings.value.name.trim().ifEmpty { null }
         val line = "Good morning${who?.let { ", $it" } ?: ""}! Here's your briefing for today, starting with the top stories."
         val k = kokoroVoice(voice)
-        if (k == null || !packInstalled.value) {
+        val pack = packInstalled.value
+        if (k == null || pack == null) {
             val s = preview ?: return
-            s.setVoice(voice?.takeIf { it != PHONE_VOICE && kokoroVoice(it) == null })
+            s.setVoice(null)
             s.setSpeed(speed)
             s.speak(line)
             return
@@ -362,9 +356,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         sampleJob = viewModelScope.launch {
             try {
                 val pcm = withContext(Dispatchers.Default) {
-                    val engine = kokoro?.takeIf { it.first == k.british }?.second ?: run {
+                    val key = pack to k.british
+                    val engine = kokoro?.takeIf { it.first == key }?.second ?: run {
                         releaseKokoro()
-                        Kokoro.open(KokoroPack.dir(getApplication()), k.british).also { kokoro = k.british to it }
+                        Kokoro.open(pack.dir(getApplication()), k.british).also { kokoro = key to it }
                     }
                     engine.generate(line, k, speed)
                 }

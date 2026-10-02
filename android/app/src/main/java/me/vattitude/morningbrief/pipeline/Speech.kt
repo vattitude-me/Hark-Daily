@@ -17,8 +17,6 @@ import java.util.concurrent.atomic.AtomicInteger
 const val GOOGLE_TTS = "com.google.android.tts"
 
 /** A voice the briefing can use. [needsDownload] voices are listed but must be installed first. */
-data class VoiceOption(val name: String, val label: String, val locale: Locale, val quality: Int, val needsDownload: Boolean)
-
 /**
  * The phone's text-to-speech engine. Each script segment is rendered to a WAV file with
  * synthesizeToFile(), then stitched, the same "voice each segment, then join" approach the server uses.
@@ -47,21 +45,7 @@ class Speech private constructor(private val tts: TextToSpeech) {
 
     val engine: String get() = tts.defaultEngine ?: ""
 
-    /**
-     * A short list of installed English voices, best first: up to three per accent, labelled
-     * "American · Voice 2" rather than by engine codes.
-     */
-    fun voices(limit: Int = 8): List<VoiceOption> {
-        val all = runCatching { tts.voices }.getOrNull() ?: emptySet<Voice>()
-        val usable = all.filter { offline(it) && TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in it.features }
-            .sortedWith(compareBy<Voice>({ regionOrder(it.locale) }, { -it.quality }, { it.name }))
-        return usable.groupBy { accent(it.locale) }.flatMap { (accent, voices) ->
-            voices.take(3).mapIndexed { i, v ->
-                VoiceOption(v.name, if (voices.size > 1) "$accent · Voice ${i + 1}" else accent, v.locale, v.quality, false)
-            }
-        }.take(limit)
-    }
-
+    /** Picks the named voice, else the phone's default English one; returns its name. */
     fun setVoice(name: String?): String? {
         val all = runCatching { tts.voices }.getOrNull() ?: emptySet<Voice>()
         val usable = all.filter { offline(it) && TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in it.features }
@@ -129,15 +113,6 @@ class Speech private constructor(private val tts: TextToSpeech) {
             "GB" -> 2
             "AU" -> 3
             else -> 4
-        }
-
-        fun accent(locale: Locale) = when (locale.country) {
-            "CA" -> "Canadian"
-            "US" -> "American"
-            "GB" -> "British"
-            "AU" -> "Australian"
-            "IN" -> "Indian"
-            else -> locale.getDisplayCountry(Locale.ENGLISH).ifEmpty { "English" }
         }
     }
 }

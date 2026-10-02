@@ -3,6 +3,7 @@ package me.vattitude.morningbrief.pipeline
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.json.JSONArray
 import org.junit.Test
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -43,5 +44,13 @@ class WriterTest {
             "custom" to "And finally, stories from the sources you follow.",
         ), script.sectionLeads)
         assertEquals(mapOf("tech" to "The latest in AI and technology."), sectionLeads(listOf("tech")))
+    }
+
+    @Test fun spokenCopyComesBackAsBeatsOnePerLine() {
+        val beats = JSONArray(listOf("The plant will close in March.", "  About 400 people  work there. ", ""))
+        assertEquals("The plant will close in March.\nAbout 400 people work there.", spokenBeats(beats))
+        assertEquals("One line.", spokenBeats("One line."))
+        assertEquals("", spokenBeats(null))
+        assertTrue(stories(3).all { "\n" in templateCopy(it).spoken })
     }
 }

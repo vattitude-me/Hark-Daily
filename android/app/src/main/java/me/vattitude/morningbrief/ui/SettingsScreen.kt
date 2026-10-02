@@ -96,6 +96,7 @@ import kotlinx.coroutines.delay
 import me.vattitude.morningbrief.BuildConfig
 import me.vattitude.morningbrief.R
 import me.vattitude.morningbrief.pipeline.KOKORO_VOICES
+import me.vattitude.morningbrief.pipeline.KokoroPack
 import me.vattitude.morningbrief.pipeline.PHONE_VOICE
 import me.vattitude.morningbrief.pipeline.Place
 import me.vattitude.morningbrief.pipeline.SECTIONS
@@ -283,23 +284,47 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
 @Composable
 private fun VoiceSection(vm: AppViewModel) {
     val st by vm.settings.collectAsState()
-    val installed by vm.packInstalled.collectAsState()
+    val pack by vm.packInstalled.collectAsState()
     val download by vm.packDownload.collectAsState()
-    val phoneVoices by vm.voices.collectAsState()
     val previewing by vm.previewing.collectAsState()
-    val natural = kokoroVoice(st.voice) != null || (st.voice == null && installed)
+    val natural = kokoroVoice(st.voice) != null || (st.voice == null && pack != null)
     var lastKokoro by remember { mutableStateOf(kokoroVoice(st.voice)?.id ?: KOKORO_VOICES.first().id) }
     var confirmRemove by remember { mutableStateOf(false) }
 
     Section(Icons.Outlined.RecordVoiceOver, "Voice") {
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            SegmentedButton(selected = natural, onClick = { vm.update { it.copy(voice = lastKokoro) } },
-                shape = SegmentedButtonDefaults.itemShape(0, 2)) { Text("Natural") }
             SegmentedButton(selected = !natural, onClick = { vm.update { it.copy(voice = PHONE_VOICE) } },
-                shape = SegmentedButtonDefaults.itemShape(1, 2)) { Text("Phone") }
+                shape = SegmentedButtonDefaults.itemShape(0, 2)) { Text("Phone") }
+            SegmentedButton(selected = natural, onClick = { vm.update { it.copy(voice = lastKokoro) } },
+                shape = SegmentedButtonDefaults.itemShape(1, 2)) { Text("Natural") }
         }
 
-        if (natural) {
+        if (!natural) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Your phone's voice")
+                    Hint("Built in, no download, but flatter than the natural voices.")
+                }
+                Spacer(Modifier.width(8.dp))
+                FilledTonalIconButton(onClick = { vm.previewVoice(PHONE_VOICE) }) { Icon(Icons.Filled.PlayArrow, "Play a sample") }
+            }
+        } else {
+            val installed = pack
+            if (installed == null) {
+                Hint("Lifelike Kokoro voices, the same ones as the web app. A one-time ${KokoroPack.HD.megabytes} MB " +
+                    "download (Wi-Fi recommended); after that they work offline.")
+            } else {
+                val current = kokoroVoice(st.voice) ?: KOKORO_VOICES.first()
+                VoicePicker(
+                    options = KOKORO_VOICES.map { it.id to "${it.name} · ${it.accent}" },
+                    details = KOKORO_VOICES.associate { it.id to it.description },
+                    selected = current.id,
+                    loading = previewing == current.id,
+                    onSelect = { id -> lastKokoro = id; vm.update { it.copy(voice = id) }; vm.previewVoice(id) },
+                    onPlay = { vm.previewVoice(current.id) },
+                )
+            }
+
             when {
                 download.running -> {
                     Text("Downloading natural voices… ${(download.fraction * 100).toInt()}%")
@@ -310,49 +335,30 @@ private fun VoiceSection(vm: AppViewModel) {
                         TextButton(onClick = { vm.cancelDownload() }) { Text("Cancel") }
                     }
                 }
-                !installed -> {
-                    Hint("Lifelike Kokoro voices, the same ones as the web app. A one-time 130 MB download " +
-                        "(Wi-Fi recommended); after that they work offline.")
+                installed == null -> {
                     download.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-                    Button(onClick = { vm.downloadVoices() }) { Text("Download natural voices") }
+                    Button(onClick = { vm.downloadVoices(KokoroPack.HD) }) { Text("Download natural voices") }
+                }
+                confirmRemove -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    Hint("Remove the voices? Briefings will use the phone's voice.")
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = { confirmRemove = false }) { Text("Keep") }
+                    TextButton(onClick = { confirmRemove = false; vm.removeVoices() }) { Text("Remove") }
                 }
                 else -> {
-                    val current = kokoroVoice(st.voice) ?: KOKORO_VOICES.first()
-                    VoicePicker(
-                        options = KOKORO_VOICES.map { it.id to "${it.name} · ${it.accent}" },
-                        details = KOKORO_VOICES.associate { it.id to it.description },
-                        selected = current.id,
-                        loading = previewing == current.id,
-                        onSelect = { id -> lastKokoro = id; vm.update { it.copy(voice = id) }; vm.previewVoice(id) },
-                        onPlay = { vm.previewVoice(current.id) },
-                    )
-                    if (confirmRemove) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Hint("Remove the voices? Briefings will use the phone's voice.")
-                            Spacer(Modifier.weight(1f))
-                            TextButton(onClick = { confirmRemove = false }) { Text("Keep") }
-                            TextButton(onClick = { confirmRemove = false; vm.removeVoices() }) { Text("Remove") }
+                    download.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                    val mb = remember(installed) { vm.packSize() / 1_000_000 }
+                    if (installed == KokoroPack.STANDARD) Hint("You have the older, smaller voices. The full-quality ones sound " +
+                        "noticeably cleaner (${KokoroPack.HD.megabytes} MB).")
+                    else Hint("Using $mb MB on this phone")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (installed == KokoroPack.STANDARD) {
+                            OutlinedButton(onClick = { vm.downloadVoices(KokoroPack.HD) }) { Text("Upgrade voices") }
                         }
-                    } else {
-                        val mb = remember(installed) { vm.packSize() / 1_000_000 }
-                        TextButton(onClick = { confirmRemove = true }, contentPadding = PaddingValues(0.dp)) {
-                            Text("Remove download ($mb MB)", style = MaterialTheme.typography.bodySmall)
-                        }
+                        TextButton(onClick = { confirmRemove = true }) { Text("Remove") }
                     }
                 }
             }
-        } else {
-            val options = listOf(PHONE_VOICE to "Automatic") + phoneVoices.map { it.name to it.label }
-            val selected = st.voice?.takeIf { v -> options.any { it.first == v } } ?: PHONE_VOICE
-            VoicePicker(
-                options = options,
-                details = emptyMap(),
-                selected = selected,
-                loading = false,
-                onSelect = { id -> vm.update { it.copy(voice = id) }; vm.previewVoice(id) },
-                onPlay = { vm.previewVoice(selected) },
-            )
-            Hint("Your phone's built-in voice: no download, but flatter than the natural voices.")
         }
 
         HorizontalDivider()

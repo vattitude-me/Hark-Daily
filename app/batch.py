@@ -54,6 +54,7 @@ CACHE_DAYS = 3
 SHOWCASE_DIR = "showcase"
 # Stories told in briefings from this many days back aren't told again.
 HEARD_DAYS = 2
+BEAT_PAUSE = 0.4       # seconds between the beats of a story, longer than the voice's own sentence gap
 
 
 def settings_for(profile: dict) -> dict:
@@ -418,7 +419,17 @@ class Batch:
         }
 
     def _voice(self, voice_id: str, text: str, speed: float, user_id: str) -> np.ndarray:
-        """Synthesize one segment, reusing audio another user's briefing already recorded."""
+        """Synthesize one segment, reusing audio another user's briefing already recorded.
+
+        Copy written in beats (one per line) is voiced a beat at a time, with a pause between."""
+        beats = [b for b in text.split("\n") if b.strip()]
+        if len(beats) > 1:
+            parts: list[np.ndarray] = []
+            for beat in beats:
+                if parts:
+                    parts.append(audio.silence(BEAT_PAUSE))
+                parts.append(audio.trim_silence(self._voice(voice_id, beat, speed, user_id)))
+            return np.concatenate(parts)
         key = hashlib.sha1(f"{voice_id}|{speed}|{text}".encode()).hexdigest()
         path = self.tts_cache / f"{key}.npy"
         if path.exists():

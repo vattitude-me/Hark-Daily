@@ -81,7 +81,7 @@ def template_copy(story: Story) -> StoryCopy:
     connector = CONNECTORS[int(story.id, 16) % len(CONNECTORS)]
     title = lead.title.rstrip(".")
     opener = f"{connector} {title}." if connector else f"{title}."
-    spoken = f"{opener} {spoken_body}".strip()
+    spoken = f"{opener}\n{spoken_body}".strip()
     return StoryCopy(headline=lead.title, summary=summary, spoken=spoken, writer="built-in")
 
 
@@ -109,7 +109,7 @@ def compose(picked: dict[str, list[Story]], copies: dict[str, StoryCopy], when: 
     intro = f"{hello} It's {date}. {weather + ' ' if weather else ''}Here's your briefing."
     stories = {s.id: copies[s.id] for group in picked.values() for s in group}
     if say_sources:
-        stories = {s.id: replace(copies[s.id], spoken=f"{copies[s.id].spoken} {credit(s)}")
+        stories = {s.id: replace(copies[s.id], spoken=f"{copies[s.id].spoken}\n{credit(s)}")
                    for group in picked.values() for s in group}
     used = {c.writer for c in stories.values()}
     writer = "built-in" if used == {"built-in"} else ("groq" if "built-in" not in used else "mixed")
@@ -124,18 +124,36 @@ def compose(picked: dict[str, list[Story]], copies: dict[str, StoryCopy], when: 
 
 # ---------------------------------------------------------------------- Groq
 SYSTEM_PROMPT = """You write copy for a warm, trustworthy morning audio news briefing for listeners in Canada.
-The spoken text is read aloud by a text-to-speech voice; the summary appears on a news card.
+The spoken text is read aloud by a text-to-speech voice, so it is written for the ear; the summary appears on a news card.
 
 Return a JSON object with exactly these keys:
 - "headline": a clear, neutral headline of at most 12 words.
 - "summary": the card text, 40 to 60 words of plain factual prose built only from the supplied text.
-- "spoken": what the host says, 2 to 4 sentences and 45 to 85 words, conversational like a good radio host.
-  Never name the news outlet or say "reports" or "according to" about it: the app credits the source
-  separately. Start with the news itself, not a greeting.
+- "spoken": what the host says, as an array of 2 to 4 beats, 45 to 85 words in all. The app leaves a short pause
+  between beats, so each beat is one idea in one or two sentences. The first beat is the news itself, who did
+  what, in one sentence; then the key detail; then why it matters or what happens next.
 
-Write for the ear: no URLs, emoji, bullet points, brackets or markdown; spell out symbols
-("percent", "billion dollars"); keep sentences short. Stay strictly factual and neutral.
-Never add facts that aren't in the text; if the text is thin, say less."""
+How the spoken beats should sound:
+- Like a calm radio host talking to one listener: plain words, contractions, active voice.
+- Sentences of 8 to 20 words, with the subject and verb near the start. No long lead-in clauses.
+- Attribution after the fact, not before it: "The plant will close in March, the company said."
+- Commas only where a speaker would breathe. No semicolons, colons, dashes, brackets or quotation marks;
+  paraphrase quotes instead.
+- Numbers the way people say them: rounded, at most two in a sentence, written as digits with "percent" and
+  "dollars" in words (55 percent, 64 million dollars, 11 a.m.).
+- Use a person's full name and role the first time, then the surname. Expand initials a listener
+  might not know.
+- Never name the news outlet or say "reports" or "according to" about it: the app credits the source
+  separately. Start with the news itself, not a greeting or a transition: the app adds those.
+- No URLs, emoji, lists or markdown.
+
+Stay strictly factual and neutral. Never add facts that aren't in the text; if the text is thin, say less."""
+
+
+def spoken_beats(value) -> str:
+    """The spoken copy as beats, one per line: the voice pauses between lines."""
+    beats = value if isinstance(value, list) else str(value or "").split("\n")
+    return "\n".join(" ".join(str(b).split()) for b in beats if str(b).strip())
 
 
 class LimitHit(Exception):
@@ -182,7 +200,7 @@ class StoryWriter:
 
     # ---------------------------------------------------------------- public
     def copy(self, section: str, story: Story) -> StoryCopy:
-        path = self.cache_dir / f"{story.id}.v2.json"  # v2: spoken copy no longer names the outlet
+        path = self.cache_dir / f"{story.id}.v3.json"  # v3: spoken copy in beats, one per line
         if path.exists():
             try:
                 cached = StoryCopy(**json.loads(path.read_text()))
@@ -260,7 +278,8 @@ class StoryWriter:
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
             data = json.loads(content)
-            headline, summary, spoken = (str(data.get(k, "")).strip() for k in ("headline", "summary", "spoken"))
+            headline, summary = (str(data.get(k, "")).strip() for k in ("headline", "summary"))
+            spoken = spoken_beats(data.get("spoken"))
             if not (summary and spoken):
                 raise ValueError("empty summary or spoken text")
             self.failures = 0

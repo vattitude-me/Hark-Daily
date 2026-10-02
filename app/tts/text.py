@@ -34,6 +34,7 @@ def speakable(text: str) -> str:
     text = re.sub(r"https?://\S+", "", text)
     text = EMOJI.sub("", text)
     text = text.replace("&", " and ").replace("%", " percent").replace("…", ".")
+    text = re.sub("[\u2010\u2011\u00ad]", "-", text)  # the hyphens models use that voices trip on
     text = re.sub(r"\s*[—–]\s*", ", ", text)
     text = re.sub(
         r"(?:\b(C|CA|US|U\.S\.))?\$\s?(\d[\d,]*(?:\.\d+)?)(?:\s?(thousand|million|billion|trillion)\b|(bn|mn|tn|[kmbt])\b)?",

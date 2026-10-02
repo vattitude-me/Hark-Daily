@@ -236,3 +236,15 @@ def test_store_retries_a_dropped_connection_but_not_a_plain_insert(monkeypatch):
     with pytest.raises(StoreError):
         s.insert("sources", {"url": "x"})
     assert calls == ["POST"], "a plain insert might have landed, so it isn't repeated"
+
+
+def test_a_story_in_beats_is_voiced_with_a_pause_between_them(cfg, store):
+    from app.batch import BEAT_PAUSE
+    from app.tts import SAMPLE_RATE
+
+    batch = Batch(cfg, store, RunReport("test"), progress=lambda *a: None)
+    one = batch._voice("fake:tone", "One two three four.", 1.0, "u")
+    two = batch._voice("fake:tone", "One two three four.\nFive six seven eight.", 1.0, "u")
+    assert two.size >= 2 * one.size - 0.02 * SAMPLE_RATE + BEAT_PAUSE * SAMPLE_RATE
+    middle = two[one.size - 50: one.size + int(BEAT_PAUSE * SAMPLE_RATE) - 50]
+    assert not middle[100:-100].any()  # silence between the beats

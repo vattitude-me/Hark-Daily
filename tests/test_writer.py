@@ -9,7 +9,7 @@ from app.ranking import select_top
 from app.report import RunReport
 from datetime import datetime
 
-from app.writer import StoryWriter, compose, section_leads, template_copy
+from app.writer import StoryWriter, compose, section_leads, spoken_beats, template_copy
 
 from . import fakenews
 from .conftest import BASE
@@ -138,3 +138,15 @@ def test_intro_does_not_count_stories_and_sections_are_announced_in_order():
     assert section_leads(["tech", "custom"]) == {"tech": "First, the latest in AI and technology.",
                                                  "custom": "And finally, stories from the sources you follow."}
     assert section_leads(["tech"]) == {"tech": "The latest in AI and technology."}
+
+
+def test_spoken_copy_comes_back_as_beats_one_per_line(tmp_path):
+    def respond(model, n):
+        content = json.dumps({"headline": "H", "summary": "Card summary.",
+                              "spoken": ["The plant will close in March.", "  About 400 people  work there. ", ""]})
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    w, _, _ = _writer(tmp_path, respond)
+    assert w.copy("tech", _stories(1)[0]).spoken == "The plant will close in March.\nAbout 400 people work there."
+    assert spoken_beats("One line.") == "One line."
+    assert all("\n" in template_copy(s).spoken for s in _stories() if template_copy(s).spoken.count(".") > 1)

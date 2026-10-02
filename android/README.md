@@ -7,9 +7,9 @@ optional; it syncs your settings and sources.
 
 - Android 10+. Download the APK from the [releases](https://github.com/vattitude-me/morning-brief-voice/releases) tagged `android-v*`.
 - Builds every morning before your "ready by" time, and again if a scheduled build was missed.
-- **Natural voices:** Settings → Voice → Natural downloads Kokoro (about 130 MB, once) and runs it offline with
-  [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx). It's the same seven voices as the web app. Recording takes a few
-  minutes instead of seconds, which is fine for the early-morning build.
+- **Natural voices:** Settings → Voice → Natural downloads the full-quality Kokoro model (about 350 MB, once) and runs
+  it offline with [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx). It's the same seven voices as the web app.
+  Otherwise the phone's own voice reads the briefing.
 
 ## Build
 

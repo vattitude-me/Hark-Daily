@@ -16,6 +16,9 @@ import kotlin.math.roundToInt
 
 class BuildFailed(message: String) : Exception(message)
 
+/** Seconds between the beats of a story, longer than the voice's own gap between sentences. */
+const val BEAT_PAUSE = 0.4
+
 /**
  * The whole morning pipeline, on the phone: the same steps as the server's batch.py for one user.
  *
@@ -103,7 +106,7 @@ class Builder(private val context: Context, private val repo: Repo) {
                 aac.silence(0.35)
                 segments.forEachIndexed { i, (key, text, pause) ->
                     progress("Recording your briefing", 0.45f + 0.5f * i / segments.size)
-                    val clip = prepareClip(narrator.read(speakable(text), work))
+                    val clip = voice(narrator, text, work)
                     val start = aac.seconds
                     aac.write(clip)
                     marks[key] = round2(start) to round2(aac.seconds)
@@ -126,6 +129,21 @@ class Builder(private val context: Context, private val repo: Repo) {
         repo.prefs.consumed = consumed + articleSources + used
         work.deleteRecursively()
         doc
+    }
+
+    /** One segment; copy written in beats (one per line) is voiced a beat at a time, with a pause between. */
+    private suspend fun voice(narrator: Narrator, text: String, work: File): FloatArray {
+        val beats = text.lines().filter { it.isNotBlank() }.map { prepareClip(narrator.read(speakable(it), work)) }
+        if (beats.size <= 1) return beats.firstOrNull() ?: FloatArray(0)
+        val gap = (BEAT_PAUSE * SAMPLE_RATE).roundToInt()
+        val out = FloatArray(beats.sumOf { it.size } + gap * (beats.size - 1))
+        var at = 0
+        beats.forEachIndexed { i, beat ->
+            if (i > 0) at += gap
+            beat.copyInto(out, at)
+            at += beat.size
+        }
+        return out
     }
 
     private fun round2(v: Double) = (v * 100).roundToInt() / 100.0

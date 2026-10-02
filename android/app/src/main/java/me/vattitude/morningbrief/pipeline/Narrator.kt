@@ -5,7 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/** "Phone voice, whichever sounds best": the setting for people who chose the phone over Kokoro. */
+/** The phone's own default voice: the setting for people who chose it over Kokoro. */
 const val PHONE_VOICE = "phone"
 
 /**
@@ -23,13 +23,13 @@ interface Narrator {
     companion object {
         /** Returns the narrator and, when the chosen voice couldn't be used, a note saying so. */
         suspend fun open(context: Context, voice: String?, speed: Float): Pair<Narrator, String?> {
-            val installed = KokoroPack.installed(context)
-            val wanted = kokoroVoice(voice) ?: KOKORO_VOICES.first().takeIf { voice == null && installed }
+            val pack = KokoroPack.current(context)
+            val wanted = kokoroVoice(voice) ?: KOKORO_VOICES.first().takeIf { voice == null && pack != null }
             var note: String? = null
             if (wanted != null) {
-                if (installed) {
+                if (pack != null) {
                     val kokoro = runCatching {
-                        withContext(Dispatchers.Default) { Kokoro.open(KokoroPack.dir(context), wanted.british) }
+                        withContext(Dispatchers.Default) { Kokoro.open(pack.dir(context), wanted.british) }
                     }
                     kokoro.getOrNull()?.let { return KokoroNarrator(it, wanted, speed) to null }
                     note = "The natural voice couldn't start (${kokoro.exceptionOrNull()?.message}), so your phone's voice read today's briefing."
@@ -38,7 +38,7 @@ interface Narrator {
                 }
             }
             val speech = Speech.open(context)
-            val name = speech.setVoice(voice?.takeIf { it != PHONE_VOICE && kokoroVoice(it) == null })
+            val name = speech.setVoice(null)
             speech.setSpeed(speed)
             return PhoneNarrator(speech, name) to note
         }

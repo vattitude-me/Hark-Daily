@@ -49,7 +49,7 @@ fun templateCopy(story: Story): StoryCopy {
     val connector = CONNECTORS[pick(story, CONNECTORS.size)]
     val title = lead.title.trimEnd('.')
     val opener = if (connector.isNotEmpty()) "$connector $title." else "$title."
-    return StoryCopy(lead.title, summary, "$opener $body".trim())
+    return StoryCopy(lead.title, summary, "$opener\n$body".trim())
 }
 
 fun sectionLeads(sections: List<String>): Map<String, String> = sections.mapIndexed { i, key ->
@@ -76,7 +76,7 @@ fun compose(
     val intro = "$hello It's ${spokenDate(now)}. ${if (weather != null) "$weather " else ""}Here's your briefing."
     val stories = picked.values.flatten().associate { s ->
         val copy = copies.getValue(s.id)
-        s.id to if (saySources) copy.copy(spoken = "${copy.spoken} ${credit(s)}") else copy
+        s.id to if (saySources) copy.copy(spoken = "${copy.spoken}\n${credit(s)}") else copy
     }
     val used = stories.values.map { it.writer }.toSet()
     val writer = if (used == setOf("built-in")) "built-in" else if ("built-in" !in used) used.first() else "mixed"
@@ -92,18 +92,40 @@ fun compose(
 
 // ------------------------------------------------------------------ Groq
 private const val SYSTEM_PROMPT = """You write copy for a warm, trustworthy morning audio news briefing for listeners in Canada.
-The spoken text is read aloud by a text-to-speech voice; the summary appears on a news card.
+The spoken text is read aloud by a text-to-speech voice, so it is written for the ear; the summary appears on a news card.
 
 Return a JSON object with exactly these keys:
 - "headline": a clear, neutral headline of at most 12 words.
 - "summary": the card text, 40 to 60 words of plain factual prose built only from the supplied text.
-- "spoken": what the host says, 2 to 4 sentences and 45 to 85 words, conversational like a good radio host.
-  Never name the news outlet or say "reports" or "according to" about it: the app credits the source
-  separately. Start with the news itself, not a greeting.
+- "spoken": what the host says, as an array of 2 to 4 beats, 45 to 85 words in all. The app leaves a short pause
+  between beats, so each beat is one idea in one or two sentences. The first beat is the news itself, who did
+  what, in one sentence; then the key detail; then why it matters or what happens next.
 
-Write for the ear: no URLs, emoji, bullet points, brackets or markdown; spell out symbols
-("percent", "billion dollars"); keep sentences short. Stay strictly factual and neutral.
-Never add facts that aren't in the text; if the text is thin, say less."""
+How the spoken beats should sound:
+- Like a calm radio host talking to one listener: plain words, contractions, active voice.
+- Sentences of 8 to 20 words, with the subject and verb near the start. No long lead-in clauses.
+- Attribution after the fact, not before it: "The plant will close in March, the company said."
+- Commas only where a speaker would breathe. No semicolons, colons, dashes, brackets or quotation marks;
+  paraphrase quotes instead.
+- Numbers the way people say them: rounded, at most two in a sentence, written as digits with "percent" and
+  "dollars" in words (55 percent, 64 million dollars, 11 a.m.).
+- Use a person's full name and role the first time, then the surname. Expand initials a listener
+  might not know.
+- Never name the news outlet or say "reports" or "according to" about it: the app credits the source
+  separately. Start with the news itself, not a greeting or a transition: the app adds those.
+- No URLs, emoji, lists or markdown.
+
+Stay strictly factual and neutral. Never add facts that aren't in the text; if the text is thin, say less."""
+
+/** The spoken copy as beats, one per line: the voice pauses between lines. */
+fun spokenBeats(value: Any?): String {
+    val beats = when (value) {
+        is JSONArray -> (0 until value.length()).map { value.opt(it)?.toString() ?: "" }
+        null, JSONObject.NULL -> emptyList()
+        else -> value.toString().split("\n")
+    }
+    return beats.map { it.trim().replace(Regex("\\s+"), " ") }.filter { it.isNotEmpty() }.joinToString("\n")
+}
 
 /**
  * Writes each story's copy with the user's own Groq key when one is set, falling back to the
@@ -176,7 +198,7 @@ class StoryWriter(
                 .getJSONObject("message").getString("content")
             val data = JSONObject(content)
             val summary = data.optString("summary").trim()
-            val spoken = data.optString("spoken").trim()
+            val spoken = spokenBeats(data.opt("spoken"))
             require(summary.isNotEmpty() && spoken.isNotEmpty()) { "empty summary or spoken text" }
             failures = 0
             return StoryCopy(data.optString("headline").trim().ifEmpty { lead.title }, summary, spoken, model)

@@ -72,15 +72,17 @@ class Kokoro private constructor(private val tts: OfflineTts) {
 }
 
 /**
- * The optional voice download: sherpa-onnx's int8 build of Kokoro v1.0 (about 130 MB). Only the English
- * files are kept. It's unpacked into a temporary folder and only moved into place once complete.
+ * The optional voice download: sherpa-onnx's full-precision Kokoro v1.0 (about 350 MB). Its int8 build (STANDARD,
+ * about 130 MB) is what earlier versions downloaded; it still works but is no longer offered. Only the English files
+ * are kept. Each unpacks into a temporary folder and is only moved into place once complete.
  */
-object KokoroPack {
-    const val URL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_0.tar.bz2"
-    const val DOWNLOAD_BYTES = 132_303_094L
-    private const val READY = ".ready"
+enum class KokoroPack(private val url: String, val downloadBytes: Long, private val folder: String) {
+    STANDARD("$RELEASES/kokoro-int8-multi-lang-v1_0.tar.bz2", 132_303_094L, "kokoro-v1_0"),
+    HD("$RELEASES/kokoro-multi-lang-v1_0.tar.bz2", 349_906_910L, "kokoro-v1_0-hd");
 
-    fun dir(context: Context) = File(context.filesDir, "voices/kokoro-v1_0")
+    val megabytes: Int get() = (downloadBytes / 1_000_000).toInt().let { (it + 5) / 10 * 10 }
+
+    fun dir(context: Context) = File(context.filesDir, "voices/$folder")
     fun installed(context: Context) = File(dir(context), READY).exists()
 
     fun sizeOnDisk(context: Context): Long = dir(context).walkBottomUp().filter { it.isFile }.sumOf { it.length() }
@@ -93,13 +95,13 @@ object KokoroPack {
     suspend fun install(context: Context, progress: (Float) -> Unit) = withContext(Dispatchers.IO) {
         val job = coroutineContext[Job]
         val target = dir(context)
-        val tmp = File(target.parentFile, "kokoro-v1_0.part").apply { deleteRecursively(); mkdirs() }
+        val tmp = File(target.parentFile, "$folder.part").apply { deleteRecursively(); mkdirs() }
         val client = OkHttpClient.Builder().connectTimeout(30, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS).build()
         try {
-            client.newCall(Request.Builder().url(URL).build()).execute().use { resp ->
+            client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
                 if (!resp.isSuccessful) throw IllegalStateException("Download failed (HTTP ${resp.code})")
                 val body = resp.body ?: throw IllegalStateException("Download failed")
-                val total = body.contentLength().takeIf { it > 0 } ?: DOWNLOAD_BYTES
+                val total = body.contentLength().takeIf { it > 0 } ?: downloadBytes
                 val counted = Counting(body.byteStream(), job) { read -> progress((read.toFloat() / total).coerceIn(0f, 1f)) }
                 TarArchiveInputStream(BZip2CompressorInputStream(counted.buffered(1 shl 16))).use { tar ->
                     while (true) {
@@ -116,9 +118,11 @@ object KokoroPack {
             for (name in listOf("model.onnx", "voices.bin", "tokens.txt", "lexicon-us-en.txt", "espeak-ng-data")) {
                 if (!File(tmp, name).exists()) throw IllegalStateException("The voice download was incomplete ($name)")
             }
-            File(tmp, READY).writeText("kokoro-int8-multi-lang-v1_0")
+            File(tmp, READY).writeText(url.substringAfterLast('/'))
             target.deleteRecursively()
             if (!tmp.renameTo(target)) throw IllegalStateException("Couldn't save the voices")
+            // One pack at a time: the other is the same voices at a different quality.
+            entries.filter { it != this@KokoroPack }.forEach { it.remove(context) }
         } finally {
             tmp.deleteRecursively()
         }
@@ -149,4 +153,13 @@ object KokoroPack {
         override fun read(): Int = super.read().also { if (it >= 0) count(1) else count(0) }
         override fun read(b: ByteArray, off: Int, len: Int): Int = super.read(b, off, len).also { count(it) }
     }
+
+    companion object {
+        private const val READY = ".ready"
+
+        /** The pack on the phone, if any (HD first, should both somehow be there). */
+        fun current(context: Context): KokoroPack? = listOf(HD, STANDARD).firstOrNull { it.installed(context) }
+    }
 }
+
+private const val RELEASES = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models"
