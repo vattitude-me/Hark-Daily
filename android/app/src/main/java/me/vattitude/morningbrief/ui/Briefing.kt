@@ -8,6 +8,8 @@ data class Chapter(val id: String, val kind: String, val title: String, val star
 data class Card(
     val id: String, val section: String, val headline: String, val summary: String, val url: String,
     val source: String, val also: List<String>, val image: String?, val start: Double, val end: Double,
+    /** Who wrote the summary: an AI model's name, or "built-in". */
+    val writer: String = "",
 )
 
 data class Weather(val city: String, val now: Int, val high: Int, val conditions: String, val code: Int)
@@ -52,7 +54,7 @@ data class Briefing(
                         summary = c.optString("summary"), url = c.optString("url"), source = c.optString("source"),
                         also = if (also == null) emptyList() else (0 until also.length()).map { also.getString(it) },
                         image = c.optString("image").takeIf { it.startsWith("http") },
-                        start = c.optDouble("start"), end = c.optDouble("end"),
+                        start = c.optDouble("start"), end = c.optDouble("end"), writer = c.optString("writer"),
                     )
                 },
                 notes = j.optJSONArray("notes").objects().map { it.optString("message") }.filter { it.isNotBlank() },

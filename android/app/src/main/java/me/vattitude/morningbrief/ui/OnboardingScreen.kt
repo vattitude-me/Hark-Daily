@@ -167,16 +167,16 @@ private fun Welcome(vm: AppViewModel) {
     AppMark()
     Spacer(Modifier.height(26.dp))
     Title("Morning Brief", "Your news, read aloud every morning.",
-        "A five-minute briefing made on your phone overnight, from the sources you pick, " +
-            "ready with your coffee. No ads, no account needed.")
+        "Five minutes of the stories you care about, waiting when you wake. Made on your phone, " +
+            "with no ads and no account.")
     Glass(Modifier.fillMaxWidth()) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             InkCircle(if (demo != null) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                if (demo != null) "Pause the sample" else "Play a sample briefing", size = 52.dp) { vm.toggleDemo() }
+                if (demo != null) "Pause the sample" else "Play a sample brief", size = 52.dp) { vm.toggleDemo() }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text("Hear a sample", style = Type.title, color = t.ink)
-                Text("The start of a real briefing, in the natural voice Heart", Modifier.padding(top = 2.dp),
+                Text("Hear how it sounds", style = Type.title, color = t.ink)
+                Text("The start of a real brief, read by Heart", Modifier.padding(top = 2.dp),
                     style = Type.meta, color = t.muted)
                 Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(3.dp).clip(CircleShape).background(t.track)) {
                     Box(Modifier.fillMaxWidth(demo ?: 0f).fillMaxHeight().background(t.ink))
@@ -185,9 +185,9 @@ private fun Welcome(vm: AppViewModel) {
         }
     }
     Column(Modifier.padding(top = 22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Feature(Icons.Outlined.RecordVoiceOver, "A natural voice", "Lifelike voices that run on the phone, even offline")
-        Feature(Icons.Outlined.Schedule, "Ready when you wake", "Made before your alarm, with a nudge when it's done")
-        Feature(Icons.Outlined.AutoAwesome, "Your sources", "Topics, local news, people you follow or any site")
+        Feature(Icons.Outlined.RecordVoiceOver, "Sounds like a real host", "Natural voices that run on your phone, even offline")
+        Feature(Icons.Outlined.Schedule, "Ready before your alarm", "Made overnight, with one quiet alert when it's done")
+        Feature(Icons.Outlined.AutoAwesome, "Only what you follow", "Topics, local news, people, teams or any site you like")
     }
 }
 
@@ -215,9 +215,9 @@ private fun VoiceStep(vm: AppViewModel) {
         vm.loadVoices()
         if (st.voice == null && pack == null) vm.update { it.copy(voice = KOKORO_VOICES.first().id) }
     }
-    Title("Step 1 of 3 · Voice", "Pick a voice.",
-        "The natural voices sound like a real host. Download them once and they work offline. " +
-            "The phone's own voice needs no download.")
+    Title("Step 1 of 3 · Voice", "Who should read your news?",
+        "Natural voices sound like a real host and work offline once downloaded. " +
+            "The phone's own voice works right away.")
     Glass(Modifier.fillMaxWidth()) { VoicePicker(vm, Modifier.padding(14.dp)) }
 }
 
@@ -227,8 +227,8 @@ private fun MorningStep(vm: AppViewModel, canNotify: Boolean, onAllow: () -> Uni
     val context = LocalContext.current
     val t = Mb.t
     val time = LocalTime.of(st.readyHour, st.readyMinute)
-    Title("Step 2 of 3 · Every morning", "When do you want it?",
-        "Your brief is made before this time each day, so it's waiting when you wake.")
+    Title("Step 2 of 3 · Every morning", "When do you want your brief?",
+        "Pick when you usually wake or head out. Your brief is ready by then, every day.")
     Glass(Modifier.fillMaxWidth().clickable {
         TimePickerDialog(context, { _, h, m -> vm.update { it.copy(readyBy = "%02d:%02d".format(h, m)) } },
             st.readyHour, st.readyMinute, false).show()
@@ -257,17 +257,17 @@ private fun MorningStep(vm: AppViewModel, canNotify: Boolean, onAllow: () -> Uni
             }
         }
     }
-    Hint("Building starts about ${Scheduler.LEAD_MINUTES} minutes earlier, whenever the phone is online.",
+    Hint("The phone starts on it about ${Scheduler.LEAD_MINUTES} minutes before, as long as it's online.",
         Modifier.padding(top = 14.dp, start = 4.dp))
 }
 
 @Composable
 private fun SummariesStep(vm: AppViewModel) {
     Title("Step 3 of 3 · Optional", "Want sharper summaries?",
-        "Your brief already works: the app picks the key sentences from each article. Add a free AI key " +
-            "and each story is rewritten for listening, with a clear headline and why it matters.")
+        "Your brief already works without this: the app picks the key sentences from each article. " +
+            "Add a free AI key and every story is rewritten to be heard, short and clear.")
     Glass(Modifier.fillMaxWidth()) { SummaryPicker(vm, Modifier.padding(14.dp)) }
-    Hint("You can skip this and add a key later in Settings, under Advanced.", Modifier.padding(top = 14.dp, start = 4.dp))
+    Hint("Takes about a minute. You can also skip it and add a key later in Settings, under Advanced.", Modifier.padding(top = 14.dp, start = 4.dp))
 }
 
 @Composable
@@ -276,7 +276,7 @@ private fun ReadyStep(vm: AppViewModel, canNotify: Boolean) {
     val pack by vm.packInstalled.collectAsState()
     val download by vm.packDownload.collectAsState()
     val t = Mb.t
-    Title("All set", "You're ready.", "Here's your setup. Change any of it later in Settings, and pick topics in Sources.")
+    Title("All set", "Your first brief is one tap away.", "Here's your setup. Change any of it later, and pick topics in Sources.")
     GlassGroup {
         val voice = kokoroVoice(st.voice)
         ListRow("Voice", value = when {
@@ -314,7 +314,8 @@ private fun ReadyStep(vm: AppViewModel, canNotify: Boolean) {
         }
     }
     Hint(if (kokoroVoice(st.voice) != null && pack == null && download.running)
-        "Your first brief starts as soon as the natural voices finish downloading. It takes a minute or two after that."
-    else "Your first brief takes a few minutes to make. It appears on the Today page when it's ready.",
+        "Your first brief starts as soon as the natural voices finish downloading, then takes a few minutes."
+    else "Your first brief takes a few minutes. After that, a new one is waiting every morning by " +
+        LocalTime.of(st.readyHour, st.readyMinute).format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)) + ".",
         Modifier.padding(top = 14.dp, start = 4.dp), color = t.muted)
 }

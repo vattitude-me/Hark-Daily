@@ -38,6 +38,7 @@ you get up. Press play over coffee, on the commute or on a run, and hear the day
 **Smarter summaries, if you want them**
 • Works out of the box with built-in summaries
 • Add a free key from Groq, Gemini or OpenRouter and each story is rewritten for listening
+• Spot a summary that's wrong? Report it right from the story
 
 Free. Natural voices are an optional one-time download that then works offline.
 
@@ -58,6 +59,7 @@ personalized news
 | Email address | Only if you sign in | Account and settings sync | No |
 | App settings and sources | Only if you sign in | Sync across devices | No |
 | City for weather | Typed by you, sent to the weather service | Forecast | No |
+| Summary reports | Only when you report a summary: the story, your reason and an optional note | Fixing summaries | No |
 | Story text | Sent only to the AI service you pick (Groq, Gemini, OpenRouter, OpenAI or your own), and only if you add your own key | Summaries | No |
 
 No location permission, no advertising ID, no analytics. Data is encrypted in transit. Users can delete their

@@ -175,9 +175,11 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 if (!canNotify) Nudge("Notifications are off", "Allow") {
                     askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
-                if (!unrestricted) Nudge("The phone may pause the morning build", "Fix") {
+                // Battery limits can stop the overnight build; the app's page in system settings is where
+                // the person can lift them (under Battery or App battery usage).
+                if (!unrestricted) Nudge("Allow background use so your brief is ready on time", "Open") {
                     runCatching {
-                        context.startActivity(Intent(AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        context.startActivity(Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS,
                             Uri.parse("package:${context.packageName}")))
                     }
                 }
@@ -302,7 +304,7 @@ internal fun VoicePicker(vm: AppViewModel, modifier: Modifier = Modifier) = Colu
     } else {
         val installed = pack
         if (installed == null) {
-            Hint("Lifelike Kokoro voices, the same ones as the web app. A one-time ${KokoroPack.HD.megabytes} MB " +
+            Hint("Lifelike voices that run on your phone. A one-time ${KokoroPack.HD.megabytes} MB " +
                 "download (Wi-Fi recommended); after that they work offline.", Modifier.padding(top = 14.dp))
         } else {
             Column(Modifier.padding(top = 6.dp)) {

@@ -56,7 +56,7 @@ class BuildWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             }
             repo.prefs.lastBuild = repo.prefs.lastBuild.put("ok", true).put("finished", Instant.now().toString())
             BuildState.update(BuildState.Progress())
-            notifyDone("Your briefing is ready", readySummary(doc))
+            notifyDone("Your morning brief is ready", readySummary(doc))
             Result.success()
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -64,19 +64,19 @@ class BuildWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             repo.prefs.lastBuild = repo.prefs.lastBuild.put("ok", false).put("error", message)
             BuildState.update(BuildState.Progress(error = message))
             if (scheduled && e !is BuildFailed && runAttemptCount < 2) return Result.retry()
-            notifyDone("Couldn't make today's briefing", message)
+            notifyDone("Couldn't make today's brief", message)
             Result.failure()
         }
     }
 
     /** Records an existing briefing again in the voice now chosen. */
     private suspend fun revoice(repo: Repo, date: String): Result {
-        runCatching { setForeground(foreground("Getting started", 0f, "Re-recording your briefing")) }
+        runCatching { setForeground(foreground("Getting started", 0f, "Re-recording your brief")) }
         BuildState.update(BuildState.Progress(running = true, step = "Getting started"))
         return try {
             Builder(applicationContext, repo).revoice(date) { step, fraction ->
                 BuildState.update(BuildState.Progress(running = true, step = step, fraction = fraction))
-                runCatching { setForeground(foreground(step, fraction, "Re-recording your briefing")) }
+                runCatching { setForeground(foreground(step, fraction, "Re-recording your brief")) }
             }
             BuildState.update(BuildState.Progress())
             Result.success()
@@ -90,8 +90,12 @@ class BuildWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
 
     private fun readySummary(doc: JSONObject): String {
         val minutes = (doc.optDouble("duration") / 60).let { if (it < 1) 1 else Math.round(it).toInt() }
-        val count = doc.optJSONArray("stories")?.length() ?: 0
-        return "$count stories, about $minutes min. Tap to listen."
+        val stories = doc.optJSONArray("stories")
+        val count = stories?.length() ?: 0
+        // Leading with the top story gives a reason to tap.
+        val lead = stories?.optJSONObject(0)?.optString("headline")?.trim().orEmpty()
+        val tail = "$count stories, about $minutes min."
+        return if (lead.isBlank()) "$tail Tap to listen." else "$lead · $tail"
     }
 
     private fun openApp(): PendingIntent = PendingIntent.getActivity(
@@ -100,7 +104,7 @@ class BuildWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
-    private fun foreground(step: String, fraction: Float, title: String = "Making your briefing"): ForegroundInfo {
+    private fun foreground(step: String, fraction: Float, title: String = "Making your brief"): ForegroundInfo {
         val n: Notification = NotificationCompat.Builder(applicationContext, MorningBriefApp.CHANNEL_BUILD)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
@@ -118,6 +122,7 @@ class BuildWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setAutoCancel(true)
             .setContentIntent(openApp())
             .build()

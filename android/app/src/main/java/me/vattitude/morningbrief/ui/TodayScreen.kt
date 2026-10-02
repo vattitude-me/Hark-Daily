@@ -59,6 +59,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -99,6 +104,9 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val player by vm.player.collectAsState()
     val saved by vm.saved.collectAsState()
     val pack by vm.packInstalled.collectAsState()
+    val reported by vm.reported.collectAsState()
+    var reporting by remember { mutableStateOf<Pair<Card, String>?>(null) }
+    reporting?.let { (card, date) -> ReportDialog(vm, card, date) { reporting = null } }
     val context = LocalContext.current
     val t = Mb.t
 
@@ -173,19 +181,19 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
 
         if (build.running) entry {
             Notice(Modifier.padding(top = 22.dp)) {
-                Text("Making your briefing", style = Type.title, color = t.ink)
+                Text("Making your brief", style = Type.title, color = t.ink)
                 Hint(build.step, Modifier.padding(top = 4.dp))
                 LinearProgressIndicator(
                     progress = { build.fraction },
                     modifier = Modifier.fillMaxWidth().padding(top = 14.dp).height(6.dp),
                     color = t.ink, trackColor = t.track, strokeCap = StrokeCap.Round, gapSize = 0.dp, drawStopIndicator = {},
                 )
-                Hint("This takes a few minutes. You can leave the app.", Modifier.padding(top = 10.dp))
+                Hint("This takes a few minutes. Feel free to leave the app; it keeps going.", Modifier.padding(top = 10.dp))
             }
         } else build.error?.let { err ->
             entry {
                 Notice(Modifier.padding(top = 22.dp)) {
-                    Text("The last briefing couldn't be made", style = Type.title, color = t.error)
+                    Text("Your last brief couldn't be made", style = Type.title, color = t.error)
                     Text(err, Modifier.padding(top = 4.dp), style = Type.body, color = t.ink)
                 }
             }
@@ -197,8 +205,8 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
             val then = if (b.voiceId.startsWith("kokoro:")) b.voiceName else "the phone voice"
             Notice(Modifier.padding(top = 22.dp)) {
                 Text("You've switched to $now", style = Type.title, color = t.ink)
-                Text("This briefing was recorded with $then. Re-record it with the same stories, " +
-                    "or the new voice starts with your next briefing.", Modifier.padding(top = 4.dp), style = Type.body, color = t.muted)
+                Text("This brief was recorded with $then. Re-record it with the same stories, " +
+                    "or the new voice starts with your next brief.", Modifier.padding(top = 4.dp), style = Type.body, color = t.muted)
                 PillButton("Re-record with $now", Modifier.padding(top = 14.dp)) { vm.revoice(b.date) }
             }
         }
@@ -206,11 +214,11 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
         if (b == null) {
             entry {
                 Notice(Modifier.padding(top = 22.dp)) {
-                    Text("Good morning", style = Type.title, color = t.ink)
-                    Text("Morning Brief reads the news you choose and turns it into a short spoken briefing, " +
-                        "made right here on your phone. Pick your sources and voice, or start with the defaults.",
+                    Text("Your first brief is a tap away", style = Type.title, color = t.ink)
+                    Text("Five minutes of the news you choose, read aloud and made right here on your phone. " +
+                        "Start with the defaults; you can change sources and voice any time.",
                         Modifier.padding(top = 6.dp), style = Type.body, color = t.muted)
-                    PillButton("Make my first briefing", Modifier.padding(top = 16.dp), enabled = !build.running) { startBuild() }
+                    PillButton("Make my first brief", Modifier.padding(top = 16.dp), enabled = !build.running) { startBuild() }
                 }
             }
             return@LazyColumn
@@ -303,6 +311,8 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                                 },
                                 onPlay = { vm.seekTo(card.start) },
                                 onOpen = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(card.url))) },
+                                reported = card.id in reported,
+                                onReport = { reporting = card to b.date },
                             )
                         }
                     }
@@ -318,7 +328,7 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
 
         entry {
             PillButton(
-                if (b.date == LocalDate.now().toString()) "Make a fresh briefing" else "Make today's briefing",
+                if (b.date == LocalDate.now().toString()) "Make a fresh brief" else "Make today's brief",
                 Modifier.fillMaxWidth().padding(top = 22.dp), filled = false, enabled = !build.running, icon = Icons.Outlined.Refresh,
             ) { startBuild() }
         }
@@ -418,6 +428,8 @@ private fun StoryRow(
     modifier: Modifier = Modifier,
     onPlay: () -> Unit,
     onOpen: () -> Unit,
+    reported: Boolean = false,
+    onReport: () -> Unit = {},
 ) {
     val t = Mb.t
     var open by remember(current) { mutableStateOf(current) }
@@ -472,9 +484,80 @@ private fun StoryRow(
                     if (!current) PillButton("Play from here", icon = Icons.Filled.PlayArrow, onClick = onPlay)
                     PillButton("Article", filled = false, icon = Icons.AutoMirrored.Outlined.OpenInNew, onClick = onOpen)
                 }
+                // Summaries are written by AI, so anyone can flag one that's wrong or harmful without leaving the app.
+                Row(
+                    Modifier.padding(top = 10.dp).clip(CircleShape)
+                        .clickable(enabled = !reported, onClickLabel = "Report this summary", onClick = onReport)
+                        .padding(vertical = 6.dp, horizontal = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Outlined.Flag, null, Modifier.size(14.dp), tint = t.muted)
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (reported) "Reported. Thanks" else "Report this summary", style = Type.meta, color = t.muted)
+                }
             }
         }
     }
+}
+
+private val REPORT_REASONS = listOf(
+    "inaccurate" to "Wrong or misleading",
+    "offensive" to "Offensive or harmful",
+    "broken" to "Doesn't match the article",
+    "other" to "Something else",
+)
+
+/** Flags a story's AI-written summary for review. */
+@Composable
+private fun ReportDialog(vm: AppViewModel, card: Card, date: String, onDismiss: () -> Unit) {
+    val t = Mb.t
+    val scope = rememberCoroutineScope()
+    var reason by remember { mutableStateOf<String?>(null) }
+    var note by remember { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = { if (!sending) onDismiss() },
+        containerColor = t.bg,
+        title = { Text("Report this summary", style = Type.title, color = t.ink) },
+        text = {
+            Column {
+                Text("Summaries are written by AI and can get things wrong. What's the problem?",
+                    style = Type.body, color = t.muted)
+                Column(Modifier.padding(top = 12.dp)) {
+                    REPORT_REASONS.forEach { (key, label) ->
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { reason = key }
+                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CheckDot(reason == key)
+                            Spacer(Modifier.width(12.dp))
+                            Text(label, style = Type.value, color = t.ink)
+                        }
+                    }
+                }
+                PillField(note, { note = it.take(1000) }, "Anything to add? (optional)", Modifier.padding(top = 8.dp).fillMaxWidth())
+                error?.let { Hint(it, Modifier.padding(top = 8.dp), color = t.error) }
+            }
+        },
+        confirmButton = {
+            PillButton("Send", enabled = reason != null, busy = sending) {
+                val why = reason ?: return@PillButton
+                sending = true
+                error = null
+                scope.launch {
+                    error = vm.report(card, date, why, note)
+                    sending = false
+                    if (error == null) {
+                        vm.message.value = "Thanks. We'll take a look."
+                        onDismiss()
+                    }
+                }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !sending) { Text("Cancel", color = t.ink) } },
+    )
 }
 
 private fun dayLabel(date: String): String {

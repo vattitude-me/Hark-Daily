@@ -12,12 +12,12 @@ val appVersionCode = (findProperty("versionCode") as String?)?.toInt() ?: 1
 
 android {
     namespace = "me.vattitude.morningbrief"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "me.vattitude.morningbrief"
         minSdk = 29
-        targetSdk = 35
+        targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
         // Phones only: the Kokoro engine's native libraries are large, so x86 builds are left out.

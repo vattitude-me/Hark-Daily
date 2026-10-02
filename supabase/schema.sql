@@ -103,6 +103,23 @@ create table if not exists public.app_status (
   updated_at  timestamptz not null default now()
 );
 
+-- --------------------------------------------------------- content reports
+-- Readers flagging a summary from the app (Google Play requires a way to report AI-written text).
+-- Anyone may add one, signed in or not; nobody but the secret key can read them.
+create table if not exists public.content_reports (
+  id          bigint generated always as identity primary key,
+  user_id     uuid default auth.uid() references auth.users (id) on delete cascade,
+  reason      text not null check (reason in ('inaccurate', 'offensive', 'broken', 'other')),
+  note        text check (char_length(note) <= 1000),
+  headline    text not null check (char_length(headline) <= 500),
+  summary     text check (char_length(summary) <= 4000),
+  url         text check (char_length(url) <= 2000),
+  source      text check (char_length(source) <= 200),
+  writer      text check (char_length(writer) <= 100),
+  app         text check (char_length(app) <= 40),
+  created_at  timestamptz not null default now()
+);
+
 -- ------------------------------------------------------ row-level security
 alter table public.profiles           enable row level security;
 alter table public.sources            enable row level security;
@@ -110,6 +127,7 @@ alter table public.briefings          enable row level security;
 alter table public.push_subscriptions enable row level security;
 alter table public.build_requests     enable row level security;
 alter table public.app_status         enable row level security;
+alter table public.content_reports    enable row level security;
 
 create or replace function public.is_admin() returns boolean
 language sql stable security definer set search_path = '' as $$
@@ -147,17 +165,21 @@ drop policy if exists "create requests" on public.build_requests;
 create policy "create requests" on public.build_requests for insert to authenticated
   with check (user_id = auth.uid() and status = 'queued' and (kind in ('push_test', 'delete_account') or public.is_admin()));
 
+drop policy if exists "send reports" on public.content_reports;
+create policy "send reports" on public.content_reports for insert to anon, authenticated with check (true);
+
 drop policy if exists "read app status" on public.app_status;
 create policy "read app status" on public.app_status for select to authenticated using (true);
 
 -- Column-level limits: users may only touch the columns the app needs.
 -- (is_admin, feed_token, status and the worker's source bookkeeping stay worker-only.)
 revoke all on public.profiles, public.sources, public.briefings, public.push_subscriptions,
-              public.build_requests, public.app_status from anon, authenticated;
+              public.build_requests, public.app_status, public.content_reports from anon, authenticated;
 grant select on public.profiles, public.sources, public.briefings, public.push_subscriptions,
                 public.build_requests, public.app_status to authenticated;
 grant update (settings) on public.profiles to authenticated;
 grant insert (user_id, name, url, section, enabled) on public.sources to authenticated;
+grant insert (reason, note, headline, summary, url, source, writer, app) on public.content_reports to anon, authenticated;
 grant update (name, section, enabled) on public.sources to authenticated;
 grant delete on public.sources to authenticated;
 grant insert (endpoint, user_id, p256dh, auth) on public.push_subscriptions to authenticated;

@@ -80,6 +80,12 @@ class Supabase(private val prefs: Prefs) {
      * The web app's "Delete account": a request the server picks up, which removes the sign-in and everything that
      * cascades from it. The request row goes with the account, so its disappearing means done.
      */
+    /** A reader flagging a summary; anyone may send one, signed in or not. Nothing can be read back. */
+    suspend fun report(fields: JSONObject) {
+        if (prefs.session != null) runCatching { fresh() }
+        call("POST", "/rest/v1/content_reports", fields, prefer = "return=minimal")
+    }
+
     suspend fun deleteAccount(timeoutMs: Long = 3 * 60_000L) {
         fresh()
         val rows = try {

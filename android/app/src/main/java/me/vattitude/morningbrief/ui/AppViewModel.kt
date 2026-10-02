@@ -25,6 +25,7 @@ import kotlinx.coroutines.guava.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import me.vattitude.morningbrief.BuildConfig
 import me.vattitude.morningbrief.MorningBriefApp
 import me.vattitude.morningbrief.R
 import me.vattitude.morningbrief.pipeline.StoryWriter
@@ -204,6 +205,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Tries the draft's summary key on a made-up story: null when it works, otherwise what went wrong. */
     suspend fun checkSummaries(): String? = withContext(Dispatchers.IO) { StoryWriter.forSettings(_settings.value).check() }
+
+    // ---- Reports -----------------------------------------------------------------------------
+
+    /** Stories reported from this phone, so their button says so. */
+    val reported = MutableStateFlow(repo.prefs.reported)
+
+    /** Sends a reader's report on a story's summary: null when it's sent, otherwise why not. */
+    suspend fun report(card: Card, date: String, reason: String, note: String): String? {
+        val fields = org.json.JSONObject()
+            .put("reason", reason).put("note", note.trim().take(1000))
+            .put("headline", card.headline.take(500)).put("summary", card.summary.take(4000))
+            .put("url", card.url.take(2000)).put("source", card.source.take(200))
+            .put("writer", card.writer.ifBlank { "unknown" }.take(100))
+            .put("app", "android ${BuildConfig.VERSION_NAME} · $date".take(40))
+        return try {
+            withContext(Dispatchers.IO) { repo.supabase.report(fields) }
+            repo.prefs.reported = repo.prefs.reported + card.id
+            reported.value = repo.prefs.reported
+            null
+        } catch (e: Exception) {
+            android.util.Log.w("MorningBrief", "Report failed", e)
+            "Couldn't send the report. Check your connection and try again."
+        }
+    }
 
     fun onClose() {
         stopDemo()
@@ -485,8 +510,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (switches.isNotEmpty() || old.localCity != new.localCity) loadSources()
             val today = briefing.value?.takeIf { it.date == LocalDate.now().toString() }
             message.value = problem ?: switchProblem ?: if (old.voice != new.voice && today != null && voiceChanged(today)) {
-                "Saved. You can re-record today's briefing in the new voice on the Today page."
-            } else "Saved. Your next briefing uses these."
+                "Saved. You can re-record today's brief in the new voice on the Today page."
+            } else "Saved. Your next brief uses these."
         }
     }
 

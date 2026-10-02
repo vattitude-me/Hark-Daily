@@ -26,8 +26,9 @@ jobs:
       - name: Unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
 
-      # A tag like android-v0.2.0 builds a signed APK and attaches it to a GitHub release.
-      - name: Signed release APK
+      # A tag like android-v0.2.0 builds a signed APK (to sideload) and app bundle (for Google Play)
+      # and attaches both to a GitHub release.
+      - name: Signed release APK and bundle
         if: startsWith(github.ref, 'refs/tags/android-v')
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -40,8 +41,11 @@ jobs:
           code=$(( major * 10000 + minor * 100 + ${patch:-0} ))
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
           export ANDROID_KEYSTORE="$RUNNER_TEMP/release.jks"
-          ./gradlew --no-daemon assembleRelease -PversionName="$version" -PversionCode="$code"
+          ./gradlew --no-daemon assembleRelease bundleRelease -PversionName="$version" -PversionCode="$code"
+          aab="app/build/outputs/bundle/release/morning-brief-$version.aab"
+          cp app/build/outputs/bundle/release/*.aab "$aab.tmp" && mv "$aab.tmp" "$aab"
           echo "APK=android/app/build/outputs/apk/release/morning-brief-$version.apk" >> "$GITHUB_ENV"
+          echo "AAB=android/$aab" >> "$GITHUB_ENV"
 
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/android-v')
@@ -50,8 +54,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$APK" --clobber
+            gh release upload "$GITHUB_REF_NAME" "$APK" "$AAB" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "$APK" --title "Android ${GITHUB_REF_NAME#android-v}" \
-              --notes "Install the APK on an Android 10+ phone (allow installs from this source when asked)."
+            gh release create "$GITHUB_REF_NAME" "$APK" "$AAB" --title "Android ${GITHUB_REF_NAME#android-v}" \
+              --notes "Install the APK on an Android 10+ phone (allow installs from this source when asked). The .aab is for Google Play."
           fi

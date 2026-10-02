@@ -32,9 +32,9 @@ interface Narrator {
                         withContext(Dispatchers.Default) { Kokoro.open(pack.dir(context), wanted.british) }
                     }
                     kokoro.getOrNull()?.let { return KokoroNarrator(it, wanted, speed) to null }
-                    note = "The natural voice couldn't start (${kokoro.exceptionOrNull()?.message}), so your phone's voice read today's briefing."
+                    note = "The natural voice couldn't start (${kokoro.exceptionOrNull()?.message}), so your phone's voice read today's brief."
                 } else {
-                    note = "The natural voices aren't downloaded, so your phone's voice read today's briefing. Download them in Settings."
+                    note = "The natural voices aren't downloaded, so your phone's voice read today's brief. Download them in Settings."
                 }
             }
             val speech = Speech.open(context)

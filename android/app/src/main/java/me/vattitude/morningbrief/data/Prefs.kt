@@ -22,6 +22,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("onboarded", sp.contains("settings") || sp.contains("last_build"))
         set(value) = sp.edit().putBoolean("onboarded", value).apply()
 
+    /** Ids of stories this phone has reported. */
+    var reported: Set<String>
+        get() = sp.getStringSet("reported", emptySet())!!
+        set(value) = sp.edit().putStringSet("reported", value.toList().takeLast(200).toSet()).apply()
+
     /** "light", "dark" or "system"; this phone only. */
     var appearance: String
         get() = sp.getString("appearance", null) ?: "system"

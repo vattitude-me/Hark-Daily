@@ -289,6 +289,6 @@ private fun Picks(
             SourceRow(src, on(src), onToggle = { vm.setEnabled(src, it) }, onRemove = onRemove)
         }
     }
-    if (n == 0) Hint("Your picks are set to Off, so these won't be in your briefing.", Modifier.padding(top = 8.dp, start = 4.dp),
+    if (n == 0) Hint("Your picks are set to Off, so these won't be in your brief.", Modifier.padding(top = 8.dp, start = 4.dp),
         color = Mb.t.error)
 }

@@ -12,12 +12,12 @@ class MorningBriefApp : Application() {
         super.onCreate()
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_BUILD, "Building your briefing", NotificationManager.IMPORTANCE_LOW)
-                .apply { description = "Shown while the morning briefing is being put together" },
+            NotificationChannel(CHANNEL_BUILD, "Making your brief", NotificationManager.IMPORTANCE_LOW)
+                .apply { description = "Shown while the morning brief is being made" },
         )
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_READY, "Briefing ready", NotificationManager.IMPORTANCE_DEFAULT)
-                .apply { description = "When your briefing is ready, or couldn't be made" },
+                .apply { description = "When your brief is ready, or couldn't be made" },
         )
     }
 

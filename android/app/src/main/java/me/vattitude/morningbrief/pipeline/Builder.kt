@@ -45,7 +45,7 @@ class Builder(private val context: Context, private val repo: Repo) {
         val wanted = all.filter { it.enabled && (st.stories[it.section] ?: 0) > 0 && !(it.kind == "article" && it.url in consumed) }
         val sources = wanted.mapNotNull { repo.resolve(it) }
             .filterNot { it.kind == "article" && it.url in consumed }
-        if (sources.isEmpty()) throw BuildFailed("Switch on at least one source to get a briefing.")
+        if (sources.isEmpty()) throw BuildFailed("Switch on at least one source to get a brief.")
 
         // 2. Fetch -------------------------------------------------------------------------
         progress("Gathering today's headlines", 0.06f)
@@ -111,7 +111,7 @@ class Builder(private val context: Context, private val repo: Repo) {
             try {
                 aac.silence(0.35)
                 segments.forEachIndexed { i, (key, text, pause) ->
-                    progress("Recording your briefing", 0.45f + 0.5f * i / segments.size)
+                    progress("Recording your brief", 0.45f + 0.5f * i / segments.size)
                     val clip = voice(narrator, text, work)
                     val start = aac.seconds
                     aac.write(clip)
@@ -142,10 +142,10 @@ class Builder(private val context: Context, private val repo: Repo) {
      * or rewritten, so it only takes the recording time. Chapter and story times are updated to the new audio.
      */
     suspend fun revoice(date: String, progress: suspend (String, Float) -> Unit): JSONObject = withContext(Dispatchers.Default) {
-        val doc = repo.briefings.load(date) ?: throw BuildFailed("That briefing isn't on this phone any more.")
+        val doc = repo.briefings.load(date) ?: throw BuildFailed("That brief isn't on this phone any more.")
         val chapters = doc.optJSONArray("chapters") ?: JSONArray()
         val list = (0 until chapters.length()).map { chapters.getJSONObject(it) }
-        if (list.isEmpty()) throw BuildFailed("That briefing has nothing to record.")
+        if (list.isEmpty()) throw BuildFailed("That brief has nothing to record.")
         val st = repo.settings
         progress("Warming up the voice", 0.05f)
         val (narrator, voiceNote) = Narrator.open(context, st.voice, st.speed)
