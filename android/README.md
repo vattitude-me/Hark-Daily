@@ -1,15 +1,25 @@
 # Morning Brief for Android
 
-A standalone Android app that builds the briefing **on the phone**: it fetches the feeds, ranks them, writes the
-summaries (with Groq if you add a key, otherwise a built-in summarizer), records them in a natural Kokoro voice or the
-phone's own text-to-speech, and plays the result. No server worker is needed. Signing in with Google (the same account as the web app) is
-optional; it syncs your settings and sources.
+A standalone Android app that builds the briefing **on the phone**. It fetches the feeds, ranks them, writes the
+summaries and records them in a natural voice, then plays the result. No server is needed. Signing in with Google
+(the same account as the web app) is optional; it syncs your settings and sources.
 
-- Android 10+. Download the APK from the [releases](https://github.com/vattitude-me/morning-brief-voice/releases) tagged `android-v*`.
-- Builds every morning before your "ready by" time, and again if a scheduled build was missed.
-- **Natural voices:** Settings → Voice → Natural downloads the full-quality Kokoro model (about 350 MB, once) and runs
-  it offline with [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx). It's the same seven voices as the web app.
-  Otherwise the phone's own voice reads the briefing.
+| Today | Following along | Sources | Settings |
+|---|---|---|---|
+| ![](../docs/screenshots/android-today-light.png) | ![](../docs/screenshots/android-playing-dark.png) | ![](../docs/screenshots/android-sources-light.png) | ![](../docs/screenshots/android-settings-light.png) |
+
+- **About five minutes:** 12 stories in total, at most 4 per topic. Sources shows how full the brief is.
+- **Sources:** topics, local news for your city, and *Your picks*: follow a name or add any site or link.
+  Changes are a draft until you save them.
+- **Follow along:** the story being read is highlighted and scrolled into view. Tap ▶ beside any story to start there.
+  A mini player follows you to the other tabs.
+- **Summaries:** written by Groq when you add your own free key, otherwise by a built-in summarizer.
+- **Voices:** Settings → Voice → Natural downloads the Kokoro model (about 350 MB, once) and runs it offline with
+  [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx). Otherwise the phone's own voice reads the briefing.
+- **Every morning:** builds before your "ready by" time, and again if a scheduled build was missed.
+
+Android 10+. Download the APK from the [releases](https://github.com/vattitude-me/morning-brief-voice/releases)
+tagged `android-v*`. Store listing text and assets are in [`docs/play-store`](../docs/play-store).
 
 ## Build
 

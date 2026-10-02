@@ -1,3 +1,24 @@
-<shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="@color/icon_background" />
-</shape>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- The app's backdrop: soft light grey with a glow at the top left and a shade at the bottom right. -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="108" android:endY="108"
+                android:startColor="#FFF6F6F3" android:endColor="#FFD6D6D1" />
+        </aapt:attr>
+    </path>
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="28" android:centerY="26" android:gradientRadius="40"
+                android:startColor="#F2FFFFFF" android:endColor="#00FFFFFF" />
+        </aapt:attr>
+    </path>
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="86" android:centerY="88" android:gradientRadius="38"
+                android:startColor="#CCBDBDB7" android:endColor="#00BDBDB7" />
+        </aapt:attr>
+    </path>
+</vector>

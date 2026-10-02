@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 108 108">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F6F6F3"/><stop offset="1" stop-color="#D6D6D1"/>
+    </linearGradient>
+    <radialGradient id="blobA" cx="28" cy="26" r="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".95"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="blobB" cx="86" cy="88" r="38" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#BDBDB7" stop-opacity=".8"/><stop offset="1" stop-color="#BDBDB7" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="shadow" cx="54" cy="58" r="33" gradientUnits="userSpaceOnUse">
+      <stop offset=".72" stop-color="#000000" stop-opacity=".16"/><stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".92"/><stop offset="1" stop-color="#FFFFFF" stop-opacity=".45"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="1"/><stop offset="1" stop-color="#FFFFFF" stop-opacity=".35"/>
+    </linearGradient>
+  </defs>
+  <!-- background layer -->
+  <rect width="108" height="108" fill="url(#bg)"/>
+  <rect width="108" height="108" fill="url(#blobA)"/>
+  <rect width="108" height="108" fill="url(#blobB)"/>
+  <!-- foreground: glass disc -->
+  <circle cx="54" cy="58" r="33" fill="url(#shadow)"/>
+  <circle cx="54" cy="54" r="27" fill="url(#glass)"/>
+  <circle cx="54" cy="54" r="26.4" fill="none" stroke="url(#rim)" stroke-width="1.2"/>
+  <!-- ink mark: the sun on the horizon, its rays drawn as sound waves -->
+  <g fill="#0D0D0D">
+    <path d="M46,62 A8,8 0 0 1 62,62 Z"/>
+    <rect x="34" y="64" width="40" height="2.6" rx="1.3"/>
+  </g>
+  <g fill="none" stroke="#0D0D0D" stroke-width="2.6" stroke-linecap="round">
+    <path d="M41.31,56.08 A14,14 0 0 1 66.69,56.08"/>
+    <path d="M36.8,49.95 A21,21 0 0 1 71.2,49.95"/>
+  </g>
+</svg>

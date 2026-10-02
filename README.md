@@ -10,6 +10,12 @@ and any link. Each user gets their own briefing and a phone notification every m
 |---|---|---|
 | ![](docs/screenshots/mobile-dark.png) | ![](docs/screenshots/mobile-swipe.png) | ![](docs/screenshots/settings.png) |
 
+**Android app**
+
+| Today | Following along | Sources | Dark |
+|---|---|---|---|
+| ![](docs/screenshots/android-today-light.png) | ![](docs/screenshots/android-playing-dark.png) | ![](docs/screenshots/android-sources-light.png) | ![](docs/screenshots/android-today-dark.png) |
+
 ## Architecture
 
 ```

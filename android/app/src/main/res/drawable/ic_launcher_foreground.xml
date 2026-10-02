@@ -1,12 +1,29 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <!-- A rising sun over the horizon, with a sound wave for the voice. -->
-    <path android:fillColor="#FFFFFF"
-        android:pathData="M34,62 A20,20 0 0 1 74,62 Z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M28,66 h52 v4 h-52 Z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M52,30 h4 v10 h-4 Z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M30.6,40.2 l2.8,-2.8 l7,7 l-2.8,2.8 Z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M77.4,40.2 l-2.8,-2.8 l-7,7 l2.8,2.8 Z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M38,74 h4 v6 h-4 Z M46,74 h4 v10 h-4 Z M54,74 h4 v12 h-4 Z M62,74 h4 v8 h-4 Z M70,74 h4 v5 h-4 Z" />
+    <!-- A glass disc, like the app's panels, holding the sun on the horizon with its rays drawn as sound waves. -->
+    <path android:pathData="M21,58a33,33 0 1,0 66,0a33,33 0 1,0 -66,0z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="54" android:centerY="58" android:gradientRadius="33">
+                <item android:offset="0.72" android:color="#29000000" />
+                <item android:offset="1" android:color="#00000000" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M27,54a27,27 0 1,0 54,0a27,27 0 1,0 -54,0z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="54" android:startY="27" android:endX="54" android:endY="81"
+                android:startColor="#EBFFFFFF" android:endColor="#73FFFFFF" />
+        </aapt:attr>
+    </path>
+    <path android:pathData="M27.6,54a26.4,26.4 0 1,0 52.8,0a26.4,26.4 0 1,0 -52.8,0z" android:strokeWidth="1.2">
+        <aapt:attr name="android:strokeColor">
+            <gradient android:type="linear" android:startX="54" android:startY="27" android:endX="54" android:endY="81"
+                android:startColor="#FFFFFFFF" android:endColor="#59FFFFFF" />
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#FF0D0D0D" android:pathData="M46,62A8,8 0 0 1 62,62Z" />
+    <path android:strokeColor="#FF0D0D0D" android:strokeWidth="2.6" android:strokeLineCap="round"
+        android:pathData="M35.3,65.3H72.7 M41.31,56.08A14,14 0 0 1 66.69,56.08 M36.8,49.95A21,21 0 0 1 71.2,49.95" />
 </vector>
