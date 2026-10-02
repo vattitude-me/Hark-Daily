@@ -55,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -71,13 +72,21 @@ val LocalBottomInset = compositionLocalOf { 120.dp }
 @Composable
 fun screenPadding() = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = LocalBottomInset.current + 16.dp)
 
-/** The opaque fill of the floating bars, so text scrolling under them never shows through. */
-val Tokens.bar: Color get() = if (dark) Color(0xFF1E1E1C) else Color(0xFFF4F4F1)
+/**
+ * The floating bars' fill: opaque, and a clear step lighter than the panels behind it in dark mode
+ * (white in light mode), so the controls read as a layer above the news.
+ */
+val Tokens.bar: Color get() = if (dark) Color(0xFF2E2E2B) else Color.White
 
-/** The floating bars' pill: shadow, opaque fill and a fine edge. */
+/** The bars' edge: a fine light rim in dark mode, a soft dark one in light mode. */
+private val Tokens.barLine: Color get() = if (dark) Color(0x33FFFFFF) else Color(0x1A000000)
+
+/** The floating bars' pill: a deep shadow, opaque fill and a crisp edge. */
 fun Modifier.floating(t: Tokens) = this
-    .shadow(18.dp, CircleShape, ambientColor = Color.Black.copy(alpha = .2f), spotColor = Color.Black.copy(alpha = .2f))
-    .clip(CircleShape).background(t.bar).border(1.dp, t.glassLine, CircleShape)
+    .shadow(if (t.dark) 24.dp else 16.dp, CircleShape,
+        ambientColor = Color.Black.copy(alpha = if (t.dark) .7f else .18f),
+        spotColor = Color.Black.copy(alpha = if (t.dark) .8f else .28f))
+    .clip(CircleShape).background(t.bar).border(1.dp, t.barLine, CircleShape)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -113,6 +122,12 @@ fun Root(vm: AppViewModel) {
                 Tab.Settings -> SettingsScreen(vm, m)
             }
         }
+        // The news fades into the background behind the bars, so a headline never runs into a control.
+        Box(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(inset + 40.dp).background(
+                Brush.verticalGradient(0f to t.bg.copy(alpha = 0f), .3f to t.bg.copy(alpha = .9f), .5f to t.bg),
+            ),
+        )
         Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 .onSizeChanged { inset = with(density) { it.height.toDp() } }
