@@ -131,6 +131,12 @@ private fun StepButton(icon: ImageVector, label: String, enabled: Boolean, onCli
 fun PillStepper(n: Int, max: Int = 10, label: String = "stories", onChange: (Int) -> Unit) =
     PillStepper(if (n == 0) "Off" else "$n", n > 0, n < max, "Fewer $label", "More $label", { onChange(n - 1) }, { onChange(n + 1) })
 
+/** A section's story count: − n +, 0 reads "Off", and the raise is only offered while the brief has room. */
+@Composable
+fun StoryStepper(n: Int, canRaise: Boolean, max: Int, onChange: (Int) -> Unit) =
+    PillStepper(if (n == 0) "Off" else "$n", n > 0, canRaise && n < max, "Fewer stories", "More stories",
+        { onChange(n - 1) }, { onChange(n + 1) })
+
 @Composable
 fun PillStepper(
     text: String,

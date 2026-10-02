@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -72,10 +73,13 @@ import java.util.Locale
 import me.vattitude.morningbrief.R
 import me.vattitude.morningbrief.pipeline.KOKORO_VOICES
 import me.vattitude.morningbrief.pipeline.KokoroPack
+import me.vattitude.morningbrief.pipeline.MAX_PER_SECTION
+import me.vattitude.morningbrief.pipeline.SECTIONS
+import me.vattitude.morningbrief.pipeline.STORY_BUDGET
 import me.vattitude.morningbrief.pipeline.kokoroVoice
 import me.vattitude.morningbrief.work.Scheduler
 
-private enum class Step { Welcome, Voice, Morning, Summaries, Ready }
+private enum class Step { Welcome, Voice, Morning, Topics, Summaries, Ready }
 
 /**
  * First run: hear what a briefing sounds like, then pick the voice, the morning time (and allow the
@@ -116,6 +120,7 @@ fun OnboardingScreen(vm: AppViewModel) {
                     Step.Welcome -> Welcome(vm)
                     Step.Voice -> VoiceStep(vm)
                     Step.Morning -> MorningStep(vm, canNotify) { askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS) }
+                    Step.Topics -> TopicsStep(vm)
                     Step.Summaries -> SummariesStep(vm)
                     Step.Ready -> ReadyStep(vm, canNotify)
                 }
@@ -125,13 +130,16 @@ fun OnboardingScreen(vm: AppViewModel) {
             verticalAlignment = Alignment.CenterVertically) {
             if (index > 0) TextButton(onClick = { index-- }) { Text("Back", style = Type.value, color = t.muted) }
             Spacer(Modifier.weight(1f))
+            val totalStories = SECTIONS.keys.sumOf { st.stories[it] ?: 0 }
+            val topicsEmpty = step == Step.Topics && totalStories == 0
             val label = when (step) {
                 Step.Welcome -> "Get started"
+                Step.Topics -> if (topicsEmpty) "Pick at least one topic" else "Continue"
                 Step.Summaries -> if (st.summaryKey.isBlank()) "Skip for now" else "Continue"
                 Step.Ready -> "Make my first brief"
                 else -> "Continue"
             }
-            PillButton(label, filled = !(step == Step.Summaries && st.summaryKey.isBlank())) {
+            PillButton(label, filled = !(step == Step.Summaries && st.summaryKey.isBlank()), enabled = !topicsEmpty) {
                 when {
                     step == Step.Morning && !canNotify && !asked -> askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
                     step == Step.Ready -> vm.finishOnboarding()
@@ -215,7 +223,7 @@ private fun VoiceStep(vm: AppViewModel) {
         vm.loadVoices()
         if (st.voice == null && pack == null) vm.update { it.copy(voice = KOKORO_VOICES.first().id) }
     }
-    Title("Step 1 of 3 · Voice", "Who should read your news?",
+    Title("Step 1 of 4 · Voice", "Who should read your news?",
         "Natural voices sound like a real host and work offline once downloaded. " +
             "The phone's own voice works right away.")
     Glass(Modifier.fillMaxWidth()) { VoicePicker(vm, Modifier.padding(14.dp)) }
@@ -227,7 +235,7 @@ private fun MorningStep(vm: AppViewModel, canNotify: Boolean, onAllow: () -> Uni
     val context = LocalContext.current
     val t = Mb.t
     val time = LocalTime.of(st.readyHour, st.readyMinute)
-    Title("Step 2 of 3 · Every morning", "When do you want your brief?",
+    Title("Step 2 of 4 · Every morning", "When do you want your brief?",
         "Pick when you usually wake or head out. Your brief is ready by then, every day.")
     Glass(Modifier.fillMaxWidth().clickable {
         TimePickerDialog(context, { _, h, m -> vm.update { it.copy(readyBy = "%02d:%02d".format(h, m)) } },
@@ -262,8 +270,51 @@ private fun MorningStep(vm: AppViewModel, canNotify: Boolean, onAllow: () -> Uni
 }
 
 @Composable
+private fun TopicsStep(vm: AppViewModel) {
+    val st by vm.settings.collectAsState()
+    val t = Mb.t
+    val total = SECTIONS.keys.sumOf { st.stories[it] ?: 0 }
+    val full = total >= STORY_BUDGET
+    Title("Step 3 of 4 · Topics", "What goes in your brief?",
+        "Twelve stories, split however you like — up to $MAX_PER_SECTION from each topic. Nothing is picked for you.")
+    Glass(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text("$total of $STORY_BUDGET stories", Modifier.weight(1f), style = Type.title, color = t.ink)
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                repeat(STORY_BUDGET) { i ->
+                    Box(Modifier.weight(1f).height(6.dp).clip(CircleShape).background(if (i < total) t.ink else t.track))
+                }
+            }
+            PillButton(if (total == 0) "Start with a balanced mix" else "Fill a balanced mix", filled = false,
+                modifier = Modifier.padding(top = 14.dp), onClick = { vm.applyQuickMix() })
+        }
+    }
+    GlassGroup(Modifier.padding(top = 12.dp)) {
+        SECTIONS.values.filter { it.isCategory || it.key == "local" }.forEachIndexed { i, s ->
+            if (i > 0) Hairline()
+            val n = st.stories[s.key] ?: 0
+            Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(32.dp).clip(CircleShape).background(t.glass), contentAlignment = Alignment.Center) {
+                    Text(s.emoji, style = Type.body)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(s.title, style = Type.body, color = t.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("Up to $MAX_PER_SECTION stories", Modifier.padding(top = 2.dp), style = Type.tiny, color = t.muted)
+                }
+                StoryStepper(n, canRaise = !full, max = MAX_PER_SECTION) { vm.setStories(s.key, it) }
+            }
+        }
+    }
+    if (total == 0) Hint("Pick at least one topic — or start with the balanced mix above.",
+        Modifier.padding(top = 12.dp, start = 4.dp), color = t.error)
+}
+
+@Composable
 private fun SummariesStep(vm: AppViewModel) {
-    Title("Step 3 of 3 · Optional", "Want sharper summaries?",
+    Title("Step 4 of 4 · Optional", "Want sharper summaries?",
         "Your brief already works without this: the app picks the key sentences from each article. " +
             "Add a free AI key and every story is rewritten to be heard, short and clear.")
     Glass(Modifier.fillMaxWidth()) { SummaryPicker(vm, Modifier.padding(14.dp)) }
@@ -288,6 +339,10 @@ private fun ReadyStep(vm: AppViewModel, canNotify: Boolean) {
         Hairline()
         ListRow("Ready by", value = LocalTime.of(st.readyHour, st.readyMinute).format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)) +
             if (canNotify) "" else ", no alert")
+        Hairline()
+        val total = SECTIONS.keys.sumOf { st.stories[it] ?: 0 }
+        val topics = SECTIONS.values.filter { (st.stories[it.key] ?: 0) > 0 }.joinToString(", ") { it.title }
+        ListRow("Topics", detail = topics.ifEmpty { "None yet" }, value = "$total stories")
         Hairline()
         ListRow("Summaries", value = if (st.summaryKey.isBlank()) "Built-in" else st.provider.name)
         Hairline()

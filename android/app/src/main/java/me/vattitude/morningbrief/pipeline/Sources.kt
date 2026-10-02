@@ -44,7 +44,20 @@ val SECTIONS: LinkedHashMap<String, Section> by lazy {
     }
 }
 
-val DEFAULT_STORIES: Map<String, Int> get() = SECTIONS.mapValues { it.value.stories }
+/**
+ * What a brand-new phone starts with: every topic off. Nothing is pre-allocated, so the setup
+ * (and the Sources tab) let the user choose how their twelve stories are spent.
+ */
+val DEFAULT_STORIES: Map<String, Int> get() = SECTIONS.mapValues { 0 }
+
+/** A balanced twelve-story first brief, offered as a one-tap start during setup. */
+val QUICK_MIX: Map<String, Int> = mapOf(
+    "canada" to 4,
+    "local" to 2,
+    "world" to 2,
+    "business" to 2,
+    "tech" to 2,
+)
 
 /**
  * A story takes about 22 seconds to hear, its share of the section leads included, and the greeting,

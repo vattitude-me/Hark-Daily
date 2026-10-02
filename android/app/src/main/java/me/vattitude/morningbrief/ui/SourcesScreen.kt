@@ -1,5 +1,8 @@
 package me.vattitude.morningbrief.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,8 +23,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
@@ -33,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -51,6 +57,7 @@ import me.vattitude.morningbrief.pipeline.MAX_PER_SECTION
 import me.vattitude.morningbrief.pipeline.PICKS
 import me.vattitude.morningbrief.pipeline.SECTIONS
 import me.vattitude.morningbrief.pipeline.STORY_BUDGET
+import me.vattitude.morningbrief.pipeline.Section
 import me.vattitude.morningbrief.pipeline.Source
 import me.vattitude.morningbrief.pipeline.briefMinutes
 import me.vattitude.morningbrief.pipeline.picksCount
@@ -74,6 +81,7 @@ fun SourcesScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val st by vm.settings.collectAsState()
     val pending by vm.pendingEnabled.collectAsState()
     var removing by remember { mutableStateOf<Source?>(null) }
+    val expanded = remember { mutableStateMapOf<String, Boolean>() }
     val t = Mb.t
     val total = SECTIONS.keys.sumOf { st.stories[it] ?: 0 }
     val full = total >= STORY_BUDGET
@@ -97,23 +105,33 @@ fun SourcesScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
         item { Budget(total) }
 
         item {
+            Hint("Tap a topic to see its sources, and use − and + to set how many stories it gets. A topic set to Off is skipped.",
+                Modifier.padding(start = 4.dp, top = 4.dp))
+        }
+
+        item {
             Picks(vm, picksCount(st.stories), canRaise = !full, sources.filter { it.section in PICKS }, ::on) { removing = it }
         }
 
-        SECTIONS.values.filter { it.isCategory || it.key == "local" }.forEachIndexed { index, s ->
+        SECTIONS.values.filter { it.isCategory || it.key == "local" }.forEach { s ->
             item(key = "s:${s.key}") {
                 val n = st.stories[s.key] ?: 0
                 val city = st.localCity.substringBefore(",").trim()
                 val label = if (s.key == "local" && city.isNotBlank()) "${s.title} · $city" else s.title
-                SectionLabel(label, detail = if (index == 0) "Stories from each topic. Set to Off to skip it." else null) {
-                    Stepper(n, canRaise = !full) { vm.setStories(s.key, it) }
-                }
-                if (n > 0) GlassGroup {
+                val open = expanded[s.key] ?: (n > 0)
+                Topic(
+                    section = s,
+                    label = label,
+                    n = n,
+                    canRaise = !full,
+                    open = open,
+                    onExpand = { expanded[s.key] = !open },
+                    onChange = { vm.setStories(s.key, it) },
+                    sources = sources.filter { it.section == s.key },
+                    on = ::on,
+                    onToggle = { src, enabled -> vm.setEnabled(src, enabled) },
+                ) {
                     if (s.key == "local") LocalCity(vm, st.newsCity, st.city)
-                    sources.filter { it.section == s.key }.forEachIndexed { i, src ->
-                        if (i > 0 || s.key == "local") Hairline()
-                        SourceRow(src, on(src), onToggle = { vm.setEnabled(src, it) })
-                    }
                 }
             }
         }
@@ -129,11 +147,68 @@ fun SourcesScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     }
 }
 
-/** Stories for a topic: up to [MAX_PER_SECTION], and only while the brief has room. */
+/**
+ * One topic as an expandable card: the header always shows its story count, and tapping it reveals
+ * every source in the topic (so a topic set to Off can still be browsed and its sources toggled).
+ */
 @Composable
-private fun Stepper(n: Int, canRaise: Boolean, onChange: (Int) -> Unit) =
-    PillStepper(if (n == 0) "Off" else "$n", n > 0, canRaise && n < MAX_PER_SECTION, "Fewer stories", "More stories",
-        { onChange(n - 1) }, { onChange(n + 1) })
+private fun Topic(
+    section: Section,
+    label: String,
+    n: Int,
+    canRaise: Boolean,
+    open: Boolean,
+    onExpand: () -> Unit,
+    onChange: (Int) -> Unit,
+    sources: List<Source>,
+    on: (Source) -> Boolean,
+    onToggle: (Source, Boolean) -> Unit,
+    local: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    val t = Mb.t
+    val onCount = sources.count(on)
+    Glass(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+        Column {
+            Row(
+                Modifier.fillMaxWidth().clickable(onClick = onExpand).padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(36.dp).clip(CircleShape).background(t.glass), contentAlignment = Alignment.Center) {
+                    Text(section.emoji, style = Type.body)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(label, style = Type.title, color = t.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${sources.size} source${if (sources.size == 1) "" else "s"} · $onCount on",
+                        Modifier.padding(top = 2.dp), style = Type.tiny, color = t.muted, maxLines = 1)
+                }
+                StoryStepper(n, canRaise, MAX_PER_SECTION, onChange)
+                Spacer(Modifier.width(4.dp))
+                Icon(if (open) Icons.Outlined.KeyboardArrowDown else Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                    if (open) "Hide ${section.title}" else "Show ${section.title}",
+                    Modifier.size(20.dp), tint = t.muted)
+            }
+            AnimatedVisibility(open, enter = expandVertically(), exit = shrinkVertically()) {
+                Column {
+                    Hairline()
+                    Column(Modifier.padding(horizontal = 14.dp)) {
+                        local()
+                        if (sources.isEmpty()) {
+                            Hint("No sources for this topic yet.", Modifier.padding(vertical = 14.dp))
+                        } else {
+                            sources.forEachIndexed { i, src ->
+                                if (i > 0 || section.key == "local") Hairline()
+                                SourceRow(src, on(src), onToggle = { onToggle(src, it) })
+                            }
+                        }
+                        if (n == 0) Hint("This topic is Off — raise the count to include its stories.",
+                            Modifier.padding(bottom = 12.dp), color = t.error)
+                    }
+                }
+            }
+        }
+    }
+}
 
 /** How full the brief is: one tick per story, and about how long it will take to hear. */
 @Composable
@@ -271,7 +346,7 @@ private fun Picks(
     }
     SectionLabel(SECTIONS.getValue("custom").title,
         detail = "Follow a person, team or topic by name, or paste any news link. You can also share a link to this app.") {
-        Stepper(n, canRaise) { vm.setPicks(it) }
+        StoryStepper(n, canRaise, MAX_PER_SECTION) { vm.setPicks(it) }
     }
     AddField(input, { input = it; error = null }, "A name, team, topic or link", if (link) Icons.Outlined.Link else Icons.Outlined.Search,
         if (link) "Add link" else "Follow", working, if (link) "Checking the link…" else "Looking for news about ${input.trim()}…",

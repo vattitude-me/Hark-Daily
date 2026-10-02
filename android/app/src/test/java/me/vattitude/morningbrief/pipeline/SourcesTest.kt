@@ -10,7 +10,7 @@ class SourcesTest {
             assertEquals(s.key, 5, BUILTIN_SOURCES.count { it.section == s.key })
         }
         assertEquals(BUILTIN_SOURCES.size, BUILTIN_SOURCES.map { it.url }.toSet().size)
-        assertEquals(setOf("canada", "tech", "follow", "custom"), DEFAULT_STORIES.filterValues { it > 0 }.keys)
+        assertEquals(setOf<String>(), DEFAULT_STORIES.filterValues { it > 0 }.keys)
     }
 
     @Test fun localNewsUsesCityOutletsAndGoogleForAnywhere() {
@@ -48,9 +48,17 @@ class SourcesTest {
         assertEquals("", items[0].summary)
     }
 
-    @Test fun defaultsFillTheBudgetExactly() {
-        assertEquals(STORY_BUDGET, DEFAULT_STORIES.values.sum())
-        assertEquals(DEFAULT_STORIES, fitBudget(DEFAULT_STORIES))
+    @Test fun freshInstallStartsWithNothingOn() {
+        assertTrue(DEFAULT_STORIES.values.all { it == 0 })
+        assertTrue(DEFAULT_STORIES.keys.containsAll(SECTIONS.keys))
+    }
+
+    @Test fun quickMixFillsTheBudgetExactly() {
+        assertEquals(STORY_BUDGET, QUICK_MIX.values.sum())
+        val fitted = fitBudget(QUICK_MIX)
+        assertEquals(STORY_BUDGET, fitted.values.sum())
+        for ((k, v) in QUICK_MIX) assertEquals(v, fitted[k])
+        assertEquals(0, picksCount(fitted))
     }
 
     @Test fun oldCountsAreTrimmedToTheBudget() {

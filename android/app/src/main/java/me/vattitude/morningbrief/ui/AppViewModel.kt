@@ -37,9 +37,11 @@ import me.vattitude.morningbrief.pipeline.MAX_PER_SECTION
 import me.vattitude.morningbrief.pipeline.PHONE_VOICE
 import me.vattitude.morningbrief.pipeline.PICKS
 import me.vattitude.morningbrief.pipeline.Place
+import me.vattitude.morningbrief.pipeline.QUICK_MIX
 import me.vattitude.morningbrief.pipeline.Source
 import me.vattitude.morningbrief.pipeline.STORY_BUDGET
 import me.vattitude.morningbrief.pipeline.Speech
+import me.vattitude.morningbrief.pipeline.fitBudget
 import me.vattitude.morningbrief.pipeline.kokoroVoice
 import me.vattitude.morningbrief.pipeline.picksCount
 import me.vattitude.morningbrief.pipeline.searchPlaces
@@ -469,6 +471,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val others = st.stories.filterKeys { it !in PICKS }.values.sum()
         st.copy(stories = withPicks(st.stories, n.coerceIn(0, minOf(MAX_PER_SECTION, STORY_BUDGET - others))))
     }
+
+    /** Fills the draft with the suggested balanced mix of topics. */
+    fun applyQuickMix() = update { it.copy(stories = fitBudget(QUICK_MIX)) }
 
     /** The city for local news; blank follows the weather city. */
     fun setNewsCity(city: String) {
