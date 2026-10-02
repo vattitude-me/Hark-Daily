@@ -4,11 +4,11 @@ Your daily news on cards, **read aloud every morning by a natural neural voice**
 business, tech, health, science, sports, entertainment), local news for your city, people and teams to follow,
 and any link. Each user gets their own briefing and a phone notification every morning.
 
-![Morning Brief on desktop](docs/screenshots/desktop.png)
+![Morning Brief on desktop](docs/screenshots/archived/desktop.png)
 
 | Mobile (dark) | Swipe deck | Voice picker |
 |---|---|---|
-| ![](docs/screenshots/mobile-dark.png) | ![](docs/screenshots/mobile-swipe.png) | ![](docs/screenshots/settings.png) |
+| ![](docs/screenshots/archived/mobile-dark.png) | ![](docs/screenshots/archived/mobile-swipe.png) | ![](docs/screenshots/archived/settings.png) |
 
 **Android app**
 
