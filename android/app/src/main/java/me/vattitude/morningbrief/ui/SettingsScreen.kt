@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
@@ -78,7 +77,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -417,42 +415,17 @@ private fun AccountSection(vm: AppViewModel) {
             }
             return@Section
         }
-        var open by remember { mutableStateOf(signIn.codeSent) }
-        if (!open) {
-            Text("Not signed in")
-            Hint("Optional: sign in with the account you use on the web app to sync sources and settings")
-            signIn.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-            val context = LocalContext.current
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = {
-                    CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, vm.googleSignInUrl())
-                }, enabled = !signIn.busy) {
-                    if (signIn.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    else Icon(painterResource(R.drawable.ic_google), null, Modifier.size(18.dp), tint = Color.Unspecified)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Continue with Google")
-                }
-                TextButton(onClick = { vm.cancelSignIn(); open = true }, enabled = !signIn.busy) { Text("Use email") }
-            }
-        } else if (!signIn.codeSent) {
-            var input by remember { mutableStateOf(signIn.email) }
-            OutlinedTextField(input, { input = it }, label = { Text("Email you use on the web app") }, singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth())
-            signIn.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { vm.sendCode(input) }, enabled = "@" in input && !signIn.busy) { Text("Email me a code") }
-                TextButton(onClick = { open = false }) { Text("Cancel") }
-            }
-        } else {
-            Text("Enter the code we sent to ${signIn.email}.")
-            var code by remember { mutableStateOf("") }
-            OutlinedTextField(code, { code = it.filter(Char::isDigit).take(10) }, label = { Text("Code") }, singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), modifier = Modifier.fillMaxWidth())
-            signIn.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { vm.verify(code) }, enabled = code.length >= 6 && !signIn.busy) { Text("Sign in") }
-                TextButton(onClick = { vm.cancelSignIn() }) { Text("Use another email") }
-            }
+        Text("Not signed in")
+        Hint("Optional: sign in with the Google account you use on the web app to sync sources and settings")
+        signIn.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        val context = LocalContext.current
+        OutlinedButton(onClick = {
+            CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, vm.googleSignInUrl())
+        }, enabled = !signIn.busy) {
+            if (signIn.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            else Icon(painterResource(R.drawable.ic_google), null, Modifier.size(18.dp), tint = Color.Unspecified)
+            Spacer(Modifier.width(8.dp))
+            Text("Continue with Google")
         }
     }
 }

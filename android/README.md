@@ -2,7 +2,7 @@
 
 A standalone Android app that builds the briefing **on the phone**: it fetches the feeds, ranks them, writes the
 summaries (with Groq if you add a key, otherwise a built-in summarizer), records them in a natural Kokoro voice or the
-phone's own text-to-speech, and plays the result. No server worker is needed. Signing in (Google or an email code, the same account as the web app) is
+phone's own text-to-speech, and plays the result. No server worker is needed. Signing in with Google (the same account as the web app) is
 optional; it syncs your settings and sources.
 
 - Android 10+. Download the APK from the [releases](https://github.com/vattitude-me/morning-brief-voice/releases) tagged `android-v*`.

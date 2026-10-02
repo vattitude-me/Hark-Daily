@@ -33,7 +33,7 @@ data class Session(val accessToken: String, val refreshToken: String, val expire
 class SupabaseError(message: String, val status: Int = 0) : Exception(message)
 
 /**
- * Sign-in (Google or an email code, the same as the web app) and the sources/profiles tables, over plain REST.
+ * Google sign-in (the same account as the web app) and the sources/profiles tables, over plain REST.
  * The app never touches briefings or storage: briefings are built and kept on the phone.
  */
 class Supabase(private val prefs: Prefs) {
@@ -41,16 +41,6 @@ class Supabase(private val prefs: Prefs) {
     private val json = "application/json".toMediaType()
 
     val session: Session? get() = prefs.session
-
-    suspend fun sendCode(email: String) {
-        call("POST", "/auth/v1/otp", JSONObject().put("email", email).put("create_user", true), auth = false)
-    }
-
-    suspend fun verify(email: String, code: String): Session {
-        val body = JSONObject().put("type", "email").put("email", email).put("token", code.trim())
-        val res = call("POST", "/auth/v1/verify", body, auth = false) as JSONObject
-        return saveSession(res)
-    }
 
     /**
      * The web app's "Continue with Google", in a browser tab. Google sends people back to [redirect] (the app's own
@@ -73,7 +63,7 @@ class Supabase(private val prefs: Prefs) {
         val params = Uri.parse("?" + listOfNotNull(callback.encodedQuery, callback.encodedFragment).joinToString("&"))
         params.getQueryParameter("error_description")?.let {
             throw SupabaseError(if (Regex("provider is not enabled|unsupported provider", RegexOption.IGNORE_CASE)
-                    .containsMatchIn(it)) "Google sign-in isn't switched on yet. Use email instead." else it)
+                    .containsMatchIn(it)) "Google sign-in isn't switched on yet." else it)
         }
         val code = params.getQueryParameter("code") ?: throw SupabaseError("Google sign-in didn't finish. Try again.")
         val verifier = prefs.pkceVerifier ?: throw SupabaseError("That sign-in link has expired. Try again.")
@@ -194,8 +184,6 @@ class Supabase(private val prefs: Prefs) {
             Regex("row-level security.*sources", RegexOption.IGNORE_CASE).containsMatchIn(msg) ->
                 "You can have up to 25 links. Remove one to add another."
             Regex("duplicate key.*sources", RegexOption.IGNORE_CASE).containsMatchIn(msg) -> "You've already added that link."
-            Regex("expired|invalid", RegexOption.IGNORE_CASE).containsMatchIn(msg) && "token" in msg.lowercase() ->
-                "That code didn't work. Check it, or ask for a new one."
             Regex("flow state|code verifier", RegexOption.IGNORE_CASE).containsMatchIn(msg) ->
                 "Google sign-in didn't finish. Try again."
             else -> msg

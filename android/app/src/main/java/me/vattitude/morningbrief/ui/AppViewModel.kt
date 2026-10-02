@@ -44,7 +44,7 @@ enum class Tab { Today, Sources, Settings }
 
 data class PlayerState(val date: String? = null, val playing: Boolean = false, val position: Double = 0.0, val ready: Boolean = false)
 
-data class SignIn(val email: String = "", val codeSent: Boolean = false, val busy: Boolean = false, val error: String? = null)
+data class SignIn(val busy: Boolean = false, val error: String? = null)
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = (app as MorningBriefApp).repo
@@ -397,26 +397,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         sample = null
     }
 
-    fun sendCode(email: String) {
-        signIn.value = SignIn(email = email, busy = true)
-        viewModelScope.launch {
-            signIn.value = runCatching { repo.supabase.sendCode(email.trim()) }.fold(
-                { SignIn(email = email, codeSent = true) },
-                { SignIn(email = email, error = it.message) },
-            )
-        }
-    }
-
-    fun verify(code: String) {
-        val email = signIn.value.email
-        signIn.value = signIn.value.copy(busy = true, error = null)
-        viewModelScope.launch {
-            runCatching { repo.supabase.verify(email.trim(), code) }.onSuccess { signedIn() }.onFailure {
-                signIn.value = signIn.value.copy(busy = false, error = it.message)
-            }
-        }
-    }
-
     /** The web app's Google sign-in page; Google sends people back to the app's own link, handled by [finishGoogle]. */
     fun googleSignInUrl(): Uri = repo.supabase.googleUrl("${getApplication<Application>().packageName}://auth")
 
@@ -436,10 +416,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         refreshSaved()
         loadSources()
         message.value = "Signed in. Your sources and settings now match the web app."
-    }
-
-    fun cancelSignIn() {
-        signIn.value = SignIn()
     }
 
     fun signOut() {
