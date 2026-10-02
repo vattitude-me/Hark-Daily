@@ -13,7 +13,10 @@ summaries and records them in a natural voice, then plays the result. No server 
   Changes are a draft until you save them.
 - **Follow along:** the story being read is highlighted and scrolled into view. Tap ▶ beside any story to start there.
   A mini player follows you to the other tabs.
-- **Summaries:** written by Groq when you add your own free key, otherwise by a built-in summarizer.
+- **Summaries:** built in, or written by an AI service with your own key: Groq, Gemini, OpenRouter, OpenAI or any
+  OpenAI-compatible endpoint.
+- **First run:** a short setup with a sample briefing to hear, then voice, morning time and notifications, and an
+  optional summary key.
 - **Voices:** Settings → Voice → Natural downloads the Kokoro model (about 350 MB, once) and runs it offline with
   [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx). Otherwise the phone's own voice reads the briefing.
 - **Every morning:** builds before your "ready by" time, and again if a scheduled build was missed.

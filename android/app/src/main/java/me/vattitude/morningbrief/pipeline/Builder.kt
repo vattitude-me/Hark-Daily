@@ -77,7 +77,7 @@ class Builder(private val context: Context, private val repo: Repo) {
         fetcher.enrich(stories.map { it.lead })
 
         // 4. Copy ----------------------------------------------------------------------------
-        val writer = StoryWriter(st.groqKey.ifBlank { null })
+        val writer = StoryWriter.forSettings(st)
         val copies = HashMap<String, StoryCopy>()
         var n = 0
         for ((section, group) in picked) for (story in group) {

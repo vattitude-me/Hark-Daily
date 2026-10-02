@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import me.vattitude.morningbrief.ui.isDark
 import me.vattitude.morningbrief.ui.AppViewModel
 import me.vattitude.morningbrief.ui.MorningBriefTheme
+import me.vattitude.morningbrief.ui.OnboardingScreen
 import me.vattitude.morningbrief.ui.Root
 
 class MainActivity : ComponentActivity() {
@@ -33,8 +34,9 @@ class MainActivity : ComponentActivity() {
                 enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
                 onDispose {}
             }
+            val onboarded by vm.onboarded.collectAsState()
             MorningBriefTheme(appearance) {
-                Root(vm)
+                if (onboarded) Root(vm) else OnboardingScreen(vm)
             }
         }
     }

@@ -18,6 +18,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.Search
@@ -53,6 +56,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,8 +82,10 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import me.vattitude.morningbrief.BuildConfig
 import me.vattitude.morningbrief.R
+import me.vattitude.morningbrief.pipeline.AI_PROVIDERS
 import me.vattitude.morningbrief.pipeline.KOKORO_VOICES
 import me.vattitude.morningbrief.pipeline.KokoroPack
 import me.vattitude.morningbrief.pipeline.PHONE_VOICE
@@ -228,13 +234,9 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
             GlassGroup {
                 var open by remember { mutableStateOf(false) }
                 ListRow("AI-written summaries",
-                    detail = if (st.groqKey.isBlank()) "Off: summaries are made on the phone" else "On, with your Groq key",
+                    detail = if (st.summaryKey.isBlank()) "Off: summaries are made on the phone" else "On, with ${st.provider.name}",
                     caret = !open, onClick = { open = !open })
-                if (open) Column(Modifier.padding(bottom = 14.dp)) {
-                    Hint("Paste a free key from console.groq.com. It stays on this phone.", Modifier.padding(bottom = 10.dp))
-                    PillField(st.groqKey, { v -> vm.update { it.copy(groqKey = v.trim()) } }, "Groq API key",
-                        visualTransformation = PasswordVisualTransformation())
-                }
+                if (open) SummaryPicker(vm, Modifier.padding(bottom = 14.dp))
             }
 
             Row(Modifier.padding(top = 22.dp, start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -250,13 +252,8 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
 private fun VoiceGroup(vm: AppViewModel) {
     val st by vm.settings.collectAsState()
     val pack by vm.packInstalled.collectAsState()
-    val download by vm.packDownload.collectAsState()
-    val previewing by vm.previewing.collectAsState()
     val natural = kokoroVoice(st.voice) != null || (st.voice == null && pack != null)
-    var lastKokoro by remember { mutableStateOf(kokoroVoice(st.voice)?.id ?: KOKORO_VOICES.first().id) }
-    var confirmRemove by remember { mutableStateOf(false) }
     var open by remember { mutableStateOf(false) }
-    val t = Mb.t
 
     GlassGroup {
         val current = kokoroVoice(st.voice) ?: KOKORO_VOICES.first()
@@ -268,88 +265,7 @@ private fun VoiceGroup(vm: AppViewModel) {
             },
             caret = !open, onClick = { open = !open })
 
-        if (open) Column(Modifier.padding(bottom = 14.dp)) {
-            Segmented(listOf("Phone", "Natural"), if (natural) 1 else 0) {
-                vm.update { s -> s.copy(voice = if (it == 0) PHONE_VOICE else lastKokoro) }
-            }
-            if (!natural) {
-                Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Hint("Your phone's built-in voice. No download, but flatter than the natural voices.", Modifier.weight(1f))
-                    Spacer(Modifier.width(12.dp))
-                    InkCircle(Icons.Filled.PlayArrow, "Play a sample", size = 40.dp, busy = previewing == PHONE_VOICE) {
-                        vm.previewVoice(PHONE_VOICE)
-                    }
-                }
-            } else {
-                val installed = pack
-                if (installed == null) {
-                    Hint("Lifelike Kokoro voices, the same ones as the web app. A one-time ${KokoroPack.HD.megabytes} MB " +
-                        "download (Wi-Fi recommended); after that they work offline.", Modifier.padding(top = 14.dp))
-                } else {
-                    Column(Modifier.padding(top = 6.dp)) {
-                        for (v in KOKORO_VOICES) {
-                            val on = v.id == current.id
-                            Row(
-                                Modifier.fillMaxWidth().clickable {
-                                    lastKokoro = v.id
-                                    vm.update { it.copy(voice = v.id) }
-                                    vm.previewVoice(v.id)
-                                }.padding(vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                CheckDot(on)
-                                Spacer(Modifier.width(12.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text("${v.name} · ${v.accent}", style = if (on) Type.title else Type.body, color = t.ink)
-                                    Text(v.description, style = Type.meta, color = t.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                }
-                                if (previewing == v.id) {
-                                    CircularProgressIndicator(Modifier.size(18.dp), color = t.ink, strokeWidth = 2.dp)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    when {
-                        download.running -> {
-                            Text("Downloading natural voices… ${(download.fraction * 100).toInt()}%", style = Type.body, color = t.ink)
-                            LinearProgressIndicator(
-                                progress = { download.fraction }, modifier = Modifier.fillMaxWidth().height(6.dp),
-                                color = t.ink, trackColor = t.track, strokeCap = StrokeCap.Round, gapSize = 0.dp, drawStopIndicator = {},
-                            )
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Hint("You can leave this screen; it keeps going.", Modifier.weight(1f))
-                                PillButton("Cancel", filled = false) { vm.cancelDownload() }
-                            }
-                        }
-                        installed == null -> {
-                            download.error?.let { Hint(it, color = t.error) }
-                            PillButton("Download natural voices") { vm.downloadVoices(KokoroPack.HD) }
-                        }
-                        confirmRemove -> {
-                            Hint("Remove the voices? Briefings will use the phone's voice.")
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                PillButton("Keep", filled = false) { confirmRemove = false }
-                                PillButton("Remove") { confirmRemove = false; vm.removeVoices() }
-                            }
-                        }
-                        else -> {
-                            download.error?.let { Hint(it, color = t.error) }
-                            val mb = remember(installed) { vm.packSize() / 1_000_000 }
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Hint(if (installed == KokoroPack.STANDARD) "You have the older, smaller voices. The full-quality " +
-                                    "ones sound noticeably cleaner (${KokoroPack.HD.megabytes} MB)." else "Using $mb MB on this phone",
-                                    Modifier.weight(1f))
-                                if (installed == KokoroPack.STANDARD) PillButton("Upgrade") { vm.downloadVoices(KokoroPack.HD) }
-                                PillButton("Remove", filled = false) { confirmRemove = true }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        if (open) VoicePicker(vm, Modifier.padding(bottom = 14.dp))
 
         Hairline()
         ListRow("Playback speed") {
@@ -360,11 +276,161 @@ private fun VoiceGroup(vm: AppViewModel) {
     }
 }
 
+/** Phone or natural voices: download, choose and hear them. In Settings and in the first-run setup. */
+@Composable
+internal fun VoicePicker(vm: AppViewModel, modifier: Modifier = Modifier) = Column(modifier) {
+    val st by vm.settings.collectAsState()
+    val pack by vm.packInstalled.collectAsState()
+    val download by vm.packDownload.collectAsState()
+    val previewing by vm.previewing.collectAsState()
+    val natural = kokoroVoice(st.voice) != null || (st.voice == null && pack != null)
+    var lastKokoro by remember { mutableStateOf(kokoroVoice(st.voice)?.id ?: KOKORO_VOICES.first().id) }
+    var confirmRemove by remember { mutableStateOf(false) }
+    val t = Mb.t
+    val current = kokoroVoice(st.voice) ?: KOKORO_VOICES.first()
+    Segmented(listOf("Phone", "Natural"), if (natural) 1 else 0) {
+        vm.update { s -> s.copy(voice = if (it == 0) PHONE_VOICE else lastKokoro) }
+    }
+    if (!natural) {
+        Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Hint("Your phone's built-in voice. No download, but flatter than the natural voices.", Modifier.weight(1f))
+            Spacer(Modifier.width(12.dp))
+            InkCircle(Icons.Filled.PlayArrow, "Play a sample", size = 40.dp, busy = previewing == PHONE_VOICE) {
+                vm.previewVoice(PHONE_VOICE)
+            }
+        }
+    } else {
+        val installed = pack
+        if (installed == null) {
+            Hint("Lifelike Kokoro voices, the same ones as the web app. A one-time ${KokoroPack.HD.megabytes} MB " +
+                "download (Wi-Fi recommended); after that they work offline.", Modifier.padding(top = 14.dp))
+        } else {
+            Column(Modifier.padding(top = 6.dp)) {
+                for (v in KOKORO_VOICES) {
+                    val on = v.id == current.id
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
+                            lastKokoro = v.id
+                            vm.update { it.copy(voice = v.id) }
+                            vm.previewVoice(v.id)
+                        }.padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CheckDot(on)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("${v.name} · ${v.accent}", style = if (on) Type.title else Type.body, color = t.ink)
+                            Text(v.description, style = Type.meta, color = t.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        if (previewing == v.id) {
+                            CircularProgressIndicator(Modifier.size(18.dp), color = t.ink, strokeWidth = 2.dp)
+                        }
+                    }
+                }
+            }
+        }
+
+        Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            when {
+                download.running -> {
+                    Text("Downloading natural voices… ${(download.fraction * 100).toInt()}%", style = Type.body, color = t.ink)
+                    LinearProgressIndicator(
+                        progress = { download.fraction }, modifier = Modifier.fillMaxWidth().height(6.dp),
+                        color = t.ink, trackColor = t.track, strokeCap = StrokeCap.Round, gapSize = 0.dp, drawStopIndicator = {},
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Hint("You can leave this screen; it keeps going.", Modifier.weight(1f))
+                        PillButton("Cancel", filled = false) { vm.cancelDownload() }
+                    }
+                }
+                installed == null -> {
+                    download.error?.let { Hint(it, color = t.error) }
+                    PillButton("Download natural voices") { vm.downloadVoices(KokoroPack.HD) }
+                }
+                confirmRemove -> {
+                    Hint("Remove the voices? Briefings will use the phone's voice.")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PillButton("Keep", filled = false) { confirmRemove = false }
+                        PillButton("Remove") { confirmRemove = false; vm.removeVoices() }
+                    }
+                }
+                else -> {
+                    download.error?.let { Hint(it, color = t.error) }
+                    val mb = remember(installed) { vm.packSize() / 1_000_000 }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Hint(if (installed == KokoroPack.STANDARD) "You have the older, smaller voices. The full-quality " +
+                            "ones sound noticeably cleaner (${KokoroPack.HD.megabytes} MB)." else "Using $mb MB on this phone",
+                            Modifier.weight(1f))
+                        if (installed == KokoroPack.STANDARD) PillButton("Upgrade") { vm.downloadVoices(KokoroPack.HD) }
+                        PillButton("Remove", filled = false) { confirmRemove = true }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Who writes the summaries: a service and the user's key for it, with a link to get one and a check. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun SummaryPicker(vm: AppViewModel, modifier: Modifier = Modifier) = Column(modifier) {
+    val st by vm.settings.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val t = Mb.t
+    val p = st.provider
+    var checking by remember { mutableStateOf(false) }
+    var result by remember(st.aiProvider, st.summaryKey, st.aiBaseUrl, st.aiModel) { mutableStateOf<String?>(null) }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (option in AI_PROVIDERS) Chip(option.name, selected = option.id == p.id) {
+            vm.update { it.copy(aiProvider = option.id) }
+        }
+    }
+    Hint(p.note, Modifier.padding(top = 12.dp))
+    if (p.keyUrl.isNotEmpty()) {
+        TextButton(onClick = { openPage(context, p.keyUrl) }, Modifier.padding(start = 0.dp)) {
+            Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, Modifier.size(16.dp), tint = t.ink)
+            Spacer(Modifier.width(6.dp))
+            Text("Get a ${p.name} key", style = Type.value.copy(fontWeight = FontWeight.Medium), color = t.ink)
+        }
+    } else Spacer(Modifier.height(10.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (p.id == "custom") {
+            PillField(st.aiBaseUrl, { v -> vm.update { it.copy(aiBaseUrl = v.trim()) } }, "Base URL, e.g. https://…/v1",
+                Modifier.fillMaxWidth())
+            PillField(st.aiModel, { v -> vm.update { it.copy(aiModel = v.trim()) } }, "Model", Modifier.fillMaxWidth())
+        }
+        PillField(st.summaryKey, { v ->
+            vm.update { if (p.id == "groq") it.copy(groqKey = v.trim()) else it.copy(aiKey = v.trim()) }
+        }, "${if (p.id == "custom") "API" else p.name} key", Modifier.fillMaxWidth(),
+            visualTransformation = PasswordVisualTransformation())
+    }
+    Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        val message = result
+        Hint(when {
+            checking -> "Writing a test summary…"
+            message == "" -> "It works. Summaries will be written by ${p.name}."
+            message != null -> message
+            else -> "Your key stays on this phone and is only sent to ${if (p.id == "custom") "that service" else p.name}."
+        }, Modifier.weight(1f), color = if (message != null && message != "") t.error else t.muted)
+        if (st.summaryKey.isNotBlank()) {
+            Spacer(Modifier.width(12.dp))
+            PillButton("Check", filled = false, busy = checking) {
+                checking = true
+                scope.launch {
+                    result = vm.checkSummaries() ?: ""
+                    checking = false
+                }
+            }
+        }
+    }
+}
+
 const val PRIVACY_URL = "https://mbv.vattitude.ca/privacy"
 const val TERMS_URL = "https://mbv.vattitude.ca/terms"
 
 /** Web pages open in a browser tab over the app. */
-private fun openPage(context: Context, url: String) = openPage(context, Uri.parse(url))
+internal fun openPage(context: Context, url: String) = openPage(context, Uri.parse(url))
 private fun openPage(context: Context, uri: Uri) = CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, uri)
 
 @Composable

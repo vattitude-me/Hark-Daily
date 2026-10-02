@@ -35,6 +35,10 @@ you get up. Press play over coffee, on the commute or on a run, and hear the day
 • No ads, no tracking
 • Signing in is optional and only syncs your settings
 
+**Smarter summaries, if you want them**
+• Works out of the box with built-in summaries
+• Add a free key from Groq, Gemini or OpenRouter and each story is rewritten for listening
+
 Free. Natural voices are an optional one-time download that then works offline.
 
 ## Category and tags
@@ -54,7 +58,7 @@ personalized news
 | Email address | Only if you sign in | Account and settings sync | No |
 | App settings and sources | Only if you sign in | Sync across devices | No |
 | City for weather | Typed by you, sent to the weather service | Forecast | No |
-| Story text | Sent to Groq only if you add your own key | Summaries | No |
+| Story text | Sent only to the AI service you pick (Groq, Gemini, OpenRouter, OpenAI or your own), and only if you add your own key | Summaries | No |
 
 No location permission, no advertising ID, no analytics. Data is encrypted in transit. Users can delete their
 account in Settings.

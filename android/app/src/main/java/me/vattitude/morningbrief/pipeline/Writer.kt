@@ -130,14 +130,17 @@ fun spokenBeats(value: Any?): String {
 }
 
 /**
- * Writes each story's copy with the user's own Groq key when one is set, falling back to the
- * built-in template for the rest of the build after a limit or repeated failures.
+ * Writes each story's copy with the user's own key for an OpenAI-compatible service, falling back
+ * to the built-in template for the rest of the build after a limit or repeated failures.
  */
 class StoryWriter(
     private val apiKey: String?,
-    models: List<String> = listOf("openai/gpt-oss-120b", "openai/gpt-oss-20b"),
+    models: List<String> = AI_PROVIDERS.first().models,
+    baseUrl: String = AI_PROVIDERS.first().baseUrl,
+    private val label: String = "Groq",
 ) {
-    private val models = if (apiKey.isNullOrBlank()) mutableListOf() else models.toMutableList()
+    private val endpoint = baseUrl.trim().trimEnd('/').removeSuffix("/chat/completions") + "/chat/completions"
+    private val models = if (apiKey.isNullOrBlank() || baseUrl.isBlank()) mutableListOf() else models.toMutableList()
     private var failures = 0
     val notes = mutableListOf<String>()
     private val client = OkHttpClient.Builder().callTimeout(60, TimeUnit.SECONDS).build()
@@ -154,7 +157,7 @@ class StoryWriter(
             } catch (e: Exception) {
                 failures++
                 if (failures >= 3) {
-                    notes.add("Groq unavailable: ${e.message?.take(120)}")
+                    notes.add("$label unavailable: ${e.message?.take(120)}")
                     models.clear()
                 }
                 return null
@@ -164,6 +167,24 @@ class StoryWriter(
     }
 
     private class LimitHit(msg: String) : Exception(msg)
+
+    /** Summarizes a made-up story once, so a key can be checked as it's added. Null when it works. */
+    fun check(): String? {
+        val model = models.firstOrNull() ?: return "Add a key${if (endpoint.startsWith("/")) " and a base URL" else ""} first."
+        val text = "The city library will open on Sundays from next month, the board said on Tuesday. " +
+            "It is hiring four more staff to cover the extra hours."
+        val lead = Item("Library extends weekend hours", "https://example.com/check", 0, "Check", "top", text = text)
+        return try {
+            call(model, "top", Story(lead))
+            null
+        } catch (e: Exception) {
+            notes.lastOrNull() ?: when (e.message) {
+                "rate limited" -> "$label is busy right now; the key looks fine, try again in a minute."
+                "model gone" -> "$label doesn't offer the model $model."
+                else -> "Couldn't reach $label: ${e.message?.take(100)}"
+            }
+        }
+    }
 
     private fun call(model: String, section: String, story: Story): StoryCopy {
         val lead = story.lead
@@ -179,8 +200,10 @@ class StoryWriter(
             .put("messages", JSONArray()
                 .put(JSONObject().put("role", "system").put("content", SYSTEM_PROMPT))
                 .put(JSONObject().put("role", "user").put("content", payload.toString())))
-        if (model.startsWith("openai/gpt-oss")) body.put("reasoning_effort", "low")
-        val request = Request.Builder().url("https://api.groq.com/openai/v1/chat/completions")
+        // Keep thinking short so the answer fits: gpt-oss reasons a little, Gemini Flash not at all.
+        if ("gpt-oss" in model) body.put("reasoning_effort", "low")
+        if (model.startsWith("gemini-2.5-flash")) body.put("reasoning_effort", "none")
+        val request = Request.Builder().url(endpoint)
             .header("Authorization", "Bearer $apiKey")
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
@@ -188,7 +211,7 @@ class StoryWriter(
             val text = resp.body?.string() ?: ""
             when {
                 resp.code == 401 || resp.code == 403 -> {
-                    notes.add("Your Groq key was rejected.")
+                    notes.add("Your $label key was rejected.")
                     models.clear()
                     throw LimitHit("auth")
                 }
@@ -198,12 +221,22 @@ class StoryWriter(
             }
             val content = JSONObject(text).getJSONArray("choices").getJSONObject(0)
                 .getJSONObject("message").getString("content")
-            val data = JSONObject(content)
+            val data = JSONObject(content.trim().removePrefix("```json").removePrefix("```").removeSuffix("```"))
             val summary = data.optString("summary").trim()
             val spoken = spokenBeats(data.opt("spoken"))
             require(summary.isNotEmpty() && spoken.isNotEmpty()) { "empty summary or spoken text" }
             failures = 0
             return StoryCopy(data.optString("headline").trim().ifEmpty { lead.title }, summary, spoken, model)
+        }
+    }
+
+    companion object {
+        /** The writer for the user's chosen service and key; built-in only when there's no key. */
+        fun forSettings(st: me.vattitude.morningbrief.data.Settings): StoryWriter {
+            val p = st.provider
+            val models = st.aiModel.trim().takeIf { it.isNotEmpty() }?.let { listOf(it) + p.models.filter { m -> m != it } } ?: p.models
+            return StoryWriter(st.summaryKey.trim().ifBlank { null }, models,
+                if (p.id == "custom") st.aiBaseUrl else p.baseUrl, if (p.id == "custom") "Your AI service" else p.name)
         }
     }
 }

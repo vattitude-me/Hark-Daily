@@ -1,6 +1,8 @@
 package me.vattitude.morningbrief.data
 
+import me.vattitude.morningbrief.pipeline.AiProvider
 import me.vattitude.morningbrief.pipeline.DEFAULT_STORIES
+import me.vattitude.morningbrief.pipeline.aiProvider
 import me.vattitude.morningbrief.pipeline.SECTIONS
 import me.vattitude.morningbrief.pipeline.fitBudget
 import me.vattitude.morningbrief.pipeline.kokoroVoice
@@ -33,11 +35,20 @@ data class Settings(
     val voice: String? = null,
     val speed: Float = 1.0f,
     val groqKey: String = "",
+    /** Who writes the summaries: an [AI_PROVIDERS] id. Groq uses [groqKey], the others [aiKey]. */
+    val aiProvider: String = "groq",
+    val aiKey: String = "",
+    /** For a custom provider: an OpenAI-compatible base URL and model; for the others, an optional model override. */
+    val aiBaseUrl: String = "",
+    val aiModel: String = "",
     val welcomed: Boolean = false,
 ) {
     val localCity: String get() = newsCity.ifBlank { city }
     val readyHour: Int get() = readyBy.substringBefore(':').toIntOrNull()?.coerceIn(0, 23) ?: 7
     val readyMinute: Int get() = readyBy.substringAfter(':').toIntOrNull()?.coerceIn(0, 59) ?: 0
+    val provider: AiProvider get() = aiProvider(aiProvider)
+    /** The key for the chosen provider; blank means built-in summaries. */
+    val summaryKey: String get() = if (provider.id == "groq") groqKey else aiKey
 
     fun toJson(): JSONObject = sharedJson()
         .put("android_daily", daily)
@@ -45,6 +56,10 @@ data class Settings(
         .put("android_voice", voice ?: JSONObject.NULL)
         .put("android_speed", speed.toDouble())
         .put("groq_key", groqKey)
+        .put("android_ai_provider", aiProvider)
+        .put("android_ai_key", aiKey)
+        .put("android_ai_base_url", aiBaseUrl)
+        .put("android_ai_model", aiModel)
         .put("welcomed", welcomed)
 
     /** Only the fields the web app also uses. */
@@ -93,6 +108,10 @@ data class Settings(
                 voice = json.optString("android_voice").takeIf { it.isNotEmpty() && it != "null" },
                 speed = json.optDouble("android_speed", 1.0).toFloat(),
                 groqKey = json.optString("groq_key", ""),
+                aiProvider = json.optString("android_ai_provider", "groq"),
+                aiKey = json.optString("android_ai_key", ""),
+                aiBaseUrl = json.optString("android_ai_base_url", ""),
+                aiModel = json.optString("android_ai_model", ""),
                 welcomed = json.optBoolean("welcomed", false),
             )
         }

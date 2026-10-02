@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.media.MediaPlayer
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -19,11 +20,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.guava.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.vattitude.morningbrief.MorningBriefApp
+import me.vattitude.morningbrief.R
+import me.vattitude.morningbrief.pipeline.StoryWriter
 import me.vattitude.morningbrief.data.Settings
 import me.vattitude.morningbrief.pipeline.KOKORO_VOICES
 import me.vattitude.morningbrief.pipeline.Kokoro
@@ -131,7 +135,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onOpen() {
         val today = LocalDate.now().toString()
-        Scheduler.catchUp(getApplication(), repo.settings, repo.briefings.load(today) != null,
+        // Before setup is done there's nothing to build with yet; setup makes the first brief itself.
+        if (repo.prefs.onboarded) Scheduler.catchUp(getApplication(), repo.settings, repo.briefings.load(today) != null,
             repo.prefs.lastBuild.optString("day").ifEmpty { null })
         refreshBriefings()
         connectPlayer()
@@ -142,7 +147,66 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---- First run -------------------------------------------------------------------------
+
+    val onboarded = MutableStateFlow(repo.prefs.onboarded)
+
+    /** Keeps the choices from setup, schedules the daily brief and makes the first one now. */
+    fun finishOnboarding() {
+        stopDemo()
+        val new = _settings.value.copy(daily = true)
+        _settings.value = new
+        viewModelScope.launch {
+            repo.saveSettings(new)
+            _saved.value = repo.settings
+            Scheduler.schedule(getApplication(), new)
+            repo.prefs.onboarded = true
+            tab.value = Tab.Today
+            onboarded.value = true
+            // A natural voice still downloading: wait for it, so the first brief isn't in the phone's voice.
+            if (kokoroVoice(new.voice) != null && packDownload.value.running) {
+                message.value = "Your first brief starts when the voices finish downloading."
+                packDownload.first { !it.running }
+            }
+            Scheduler.buildNow(getApplication())
+        }
+    }
+
+    /** A recorded briefing to hear on the welcome screen: the fraction played, or null when stopped. */
+    val demo = MutableStateFlow<Float?>(null)
+    private var demoPlayer: MediaPlayer? = null
+    private var demoJob: Job? = null
+
+    fun toggleDemo() {
+        if (demoPlayer != null) return stopDemo()
+        stopSample()
+        val speech = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
+        val mp = MediaPlayer.create(getApplication(), R.raw.sample_brief, speech, 0) ?: return
+        demoPlayer = mp
+        mp.setOnCompletionListener { stopDemo() }
+        mp.start()
+        demo.value = 0f
+        demoJob = viewModelScope.launch {
+            while (isActive) {
+                demoPlayer?.let { demo.value = it.currentPosition / it.duration.coerceAtLeast(1).toFloat() }
+                delay(200)
+            }
+        }
+    }
+
+    fun stopDemo() {
+        demoJob?.cancel()
+        demoPlayer?.release()
+        demoPlayer = null
+        demo.value = null
+    }
+
+    /** Tries the draft's summary key on a made-up story: null when it works, otherwise what went wrong. */
+    suspend fun checkSummaries(): String? = withContext(Dispatchers.IO) { StoryWriter.forSettings(_settings.value).check() }
+
     fun onClose() {
+        stopDemo()
         ticker?.cancel()
         controller?.release()
         controller = null

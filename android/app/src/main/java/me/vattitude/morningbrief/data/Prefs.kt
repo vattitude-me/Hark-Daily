@@ -17,12 +17,17 @@ class Prefs(context: Context) {
         get() = sp.getString("session", null)?.let { runCatching { Session.fromJson(JSONObject(it)) }.getOrNull() }
         set(value) = sp.edit().putString("session", value?.toJson()?.toString()).apply()
 
-    /** The PKCE secret for a Google sign-in in progress; kept here in case Android stops the app meanwhile. */
+    /** Whether the first-run setup is done; installs from before it existed count as done. */
+    var onboarded: Boolean
+        get() = sp.getBoolean("onboarded", sp.contains("settings") || sp.contains("last_build"))
+        set(value) = sp.edit().putBoolean("onboarded", value).apply()
+
     /** "light", "dark" or "system"; this phone only. */
     var appearance: String
         get() = sp.getString("appearance", null) ?: "system"
         set(value) = sp.edit().putString("appearance", value).apply()
 
+    /** The PKCE secret for a Google sign-in in progress; kept here in case Android stops the app meanwhile. */
     var pkceVerifier: String?
         get() = sp.getString("pkce_verifier", null)
         set(value) = sp.edit().putString("pkce_verifier", value).apply()
