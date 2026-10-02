@@ -1,14 +1,8 @@
 // Morning Brief: main UI.
-import { api, clockLabel, fmtTime, h, icon, sb, store, timeAgo, toast } from './api.js';
+import { SECTIONS, api, clockLabel, fmtTime, h, icon, sb, store, timeAgo, toast } from './api.js';
 import { Player } from './player.js';
 import { Landing } from './landing.js';
 import { SettingsSheet, SourcesSheet, WelcomeSheet, installMode, onInstallChange, promptInstall, pushSupported, wireSheet } from './sheets.js';
-
-const SECTIONS = {
-  canada: { title: 'Canada', emoji: '🇨🇦' },
-  tech: { title: 'AI & Tech', emoji: '🤖' },
-  custom: { title: 'My Sources', emoji: '⭐' },
-};
 
 const state = {
   briefing: null,

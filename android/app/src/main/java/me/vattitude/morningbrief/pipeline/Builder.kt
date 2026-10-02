@@ -41,7 +41,8 @@ class Builder(private val context: Context, private val repo: Repo) {
         val (all, offline) = repo.sources()
         offline?.let { note("sources_cached", it) }
         val consumed = repo.prefs.consumed
-        val wanted = all.filter { it.enabled && !(it.kind == "article" && it.url in consumed) }
+        // A section set to 0 stories is off, so its sources aren't fetched.
+        val wanted = all.filter { it.enabled && (st.stories[it.section] ?: 0) > 0 && !(it.kind == "article" && it.url in consumed) }
         val sources = wanted.mapNotNull { repo.resolve(it) }
             .filterNot { it.kind == "article" && it.url in consumed }
         if (sources.isEmpty()) throw BuildFailed("Switch on at least one source to get a briefing.")
@@ -82,7 +83,8 @@ class Builder(private val context: Context, private val repo: Repo) {
         writer.notes.forEach { note("ai", it) }
 
         val wx = if (st.weather) withContext(Dispatchers.IO) { forecast(st.latitude, st.longitude, st.city, zone.id) } else null
-        val script = compose(picked, copies, now, spokenWeather(wx), st.name.trim().ifEmpty { null }, st.saySources)
+        val script = compose(picked, copies, now, spokenWeather(wx), st.name.trim().ifEmpty { null }, st.saySources,
+            st.localCity)
 
         // 5. Voice and assemble -----------------------------------------------------------------
         val segments = mutableListOf(Triple("intro", script.intro, 0.9))

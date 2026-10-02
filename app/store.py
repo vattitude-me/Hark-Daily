@@ -116,6 +116,8 @@ class Store:
         rows = [{"name": s["name"], "url": s["url"], "feed_url": s["url"], "kind": "feed",
                  "section": s["section"], "weight": s.get("weight", 1.0), "user_id": None} for s in builtins]
         self.insert("sources", rows, on_conflict="user_id,url", ignore_duplicates=True)
+        # Built-ins dropped from the catalog go too.
+        self.delete("sources", {"user_id": "is.null", "url": "not." + self._in(s["url"] for s in builtins)})
 
     def update_source(self, source_id: int, values: dict) -> None:
         self.update("sources", {"id": f"eq.{source_id}"}, values)

@@ -101,16 +101,24 @@ fun parseFeed(body: String, source: Source): Pair<String, List<Item>> {
     }
     val kept = entries.take(MAX_ITEMS_PER_SOURCE)
     val items = kept.mapIndexedNotNull { pos, e ->
-        val title = cleanText(e.childText("title"))
+        var title = cleanText(e.childText("title"))
         val link = entryLink(e)
         if (title.isEmpty() || link.isNullOrEmpty()) return@mapIndexedNotNull null
         var summary = cleanText(e.childHtml("description", "summary") ?: e.childHtml("content"))
+        var sourceName = source.name
+        val outlet = cleanText(e.childText("source"))
+        if (outlet.isNotEmpty() && isGoogleNews(link)) {
+            // Google News: "Headline - Outlet", and the summary only repeats the headline.
+            title = title.removeSuffix(" - $outlet").trim().ifEmpty { title }
+            sourceName = outlet
+            summary = ""
+        }
         if (summary.length > 1200) summary = summary.take(1200).substringBeforeLast(' ') + "…"
         Item(
             title = title,
             url = link,
             sourceId = source.id,
-            sourceName = source.name,
+            sourceName = sourceName,
             section = source.section,
             weight = source.weight,
             published = parseDate(e.childText("pubDate", "published", "updated", "dc:date")),
@@ -124,6 +132,9 @@ fun parseFeed(body: String, source: Source): Pair<String, List<Item>> {
     val name = cleanText(channel?.child("title")?.text()).ifEmpty { runCatching { URI(source.url).host }.getOrNull() ?: "" }
     return name to items
 }
+
+fun isGoogleNews(url: String): Boolean =
+    runCatching { URI(url).host }.getOrNull() == "news.google.com" && "/articles/" in url
 
 fun discoverFeedLinks(doc: Document): List<String> =
     doc.select("link[rel=alternate][href]").filter {

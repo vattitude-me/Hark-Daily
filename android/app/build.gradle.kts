@@ -27,6 +27,9 @@ android {
     // Compressed native libraries keep the download small; they're unpacked once at install.
     packaging { jniLibs { useLegacyPackaging = true } }
 
+    // The source catalog is shared with the worker: app/catalog/sources.json at the repo root.
+    sourceSets["main"].resources.srcDir("../../app/catalog")
+
     base.archivesName = "morning-brief"
 
     applicationVariants.all {

@@ -1,5 +1,7 @@
 package me.vattitude.morningbrief.data
 
+import me.vattitude.morningbrief.pipeline.DEFAULT_STORIES
+import me.vattitude.morningbrief.pipeline.SECTIONS
 import me.vattitude.morningbrief.pipeline.kokoroVoice
 import org.json.JSONArray
 import org.json.JSONObject
@@ -15,10 +17,13 @@ data class Settings(
     val longitude: Double = -79.3832,
     val weather: Boolean = true,
     val saySources: Boolean = false,
-    val stories: Map<String, Int> = mapOf("canada" to 6, "tech" to 6, "custom" to 4),
+    /** Stories per section; 0 turns a section off. */
+    val stories: Map<String, Int> = DEFAULT_STORIES,
+    /** The city for local news; blank means the weather [city]. */
+    val newsCity: String = "",
     /** Supabase ids of built-in sources switched off (signed in). */
     val disabledSources: Set<Long> = emptySet(),
-    /** URLs of built-in sources switched off (signed out). */
+    /** URLs of catalog and local-news sources switched off (the Supabase id, when there is one, is in [disabledSources] too). */
     val disabledUrls: Set<String> = emptySet(),
     // Phone-only settings.
     val daily: Boolean = true,
@@ -29,11 +34,11 @@ data class Settings(
     val groqKey: String = "",
     val welcomed: Boolean = false,
 ) {
+    val localCity: String get() = newsCity.ifBlank { city }
     val readyHour: Int get() = readyBy.substringBefore(':').toIntOrNull()?.coerceIn(0, 23) ?: 7
     val readyMinute: Int get() = readyBy.substringAfter(':').toIntOrNull()?.coerceIn(0, 59) ?: 0
 
     fun toJson(): JSONObject = sharedJson()
-        .put("disabled_urls", JSONArray(disabledUrls.toList()))
         .put("android_daily", daily)
         .put("ready_by", readyBy)
         .put("android_voice", voice ?: JSONObject.NULL)
@@ -50,7 +55,9 @@ data class Settings(
         .put("weather", weather)
         .put("say_sources", saySources)
         .put("stories", JSONObject(stories))
+        .put("news_city", newsCity)
         .put("disabled_sources", JSONArray(disabledSources.toList()))
+        .put("disabled_urls", JSONArray(disabledUrls.toList()))
         .apply { if (kokoroVoice(voice) != null) put("voice", voice) }
 
     /** Takes the shared fields from the server's copy, keeping phone-only settings. */
@@ -61,9 +68,14 @@ data class Settings(
         longitude = remote.optDouble("longitude", longitude),
         weather = remote.optBoolean("weather", weather),
         saySources = remote.optBoolean("say_sources", saySources),
-        stories = remote.optJSONObject("stories")?.let { s -> stories.mapValues { (k, v) -> s.optInt(k, v) } } ?: stories,
+        stories = remote.optJSONObject("stories")?.let { s ->
+            SECTIONS.keys.associateWith { k -> s.optInt(k, stories[k] ?: 0).coerceIn(0, 10) }
+        } ?: stories,
+        newsCity = remote.optString("news_city", newsCity),
         disabledSources = remote.optJSONArray("disabled_sources")?.let { a -> (0 until a.length()).map { a.getLong(it) }.toSet() }
             ?: disabledSources,
+        disabledUrls = remote.optJSONArray("disabled_urls")?.let { a -> (0 until a.length()).map { a.getString(it) }.toSet() }
+            ?: disabledUrls,
         // A Kokoro voice picked on the web carries over, unless the phone's own voice was chosen here.
         voice = remote.optString("voice").takeIf { kokoroVoice(it) != null && (voice == null || kokoroVoice(voice) != null) } ?: voice,
     )

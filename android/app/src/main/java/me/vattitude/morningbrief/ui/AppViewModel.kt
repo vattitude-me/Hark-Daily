@@ -292,6 +292,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         e.message ?: "That link couldn't be added."
     }
 
+    /** Follows a name or topic; returns an error to show, or null. */
+    suspend fun follow(query: String): String? = try {
+        val headlines = repo.follow(query)
+        loadSources()
+        message.value = "Following ${query.trim()}. Today: ${headlines.first()}"
+        null
+    } catch (e: Exception) {
+        e.message ?: "Couldn't follow that."
+    }
+
+    /** Stories per section, saved straight away: the Sources page has no Save button. */
+    fun setStories(section: String, n: Int) = saveNow { it.copy(stories = it.stories + (section to n.coerceIn(0, 10))) }
+
+    /** The city for local news; blank follows the weather city. */
+    fun setNewsCity(city: String) = saveNow { it.copy(newsCity = city) }
+
+    private fun saveNow(change: (Settings) -> Settings) {
+        viewModelScope.launch {
+            repo.saveSettings(change(repo.settings))?.let { message.value = it }
+            refreshSaved()
+            loadSources()
+        }
+    }
+
     fun removeSource(source: Source) {
         viewModelScope.launch {
             runCatching { repo.removeSource(source) }.exceptionOrNull()?.let { message.value = it.message }
@@ -335,7 +359,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val now = repo.settings
         _saved.value = now
         _settings.value = if (_settings.value == before) now
-        else _settings.value.copy(disabledSources = now.disabledSources, disabledUrls = now.disabledUrls)
+        else _settings.value.copy(disabledSources = now.disabledSources, disabledUrls = now.disabledUrls,
+            stories = now.stories, newsCity = now.newsCity)
     }
 
     suspend fun places(query: String): List<Place> = withContext(Dispatchers.IO) { searchPlaces(query) }

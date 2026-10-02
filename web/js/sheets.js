@@ -1,7 +1,5 @@
 // Sources and Voice & settings sheets.
-import { api, clockLabel, h, icon, timeAgo, toast } from './api.js';
-
-const SECTION_LABEL = { canada: '🇨🇦 Canada', tech: '🤖 AI & Tech', custom: '⭐ My Sources' };
+import { SECTIONS, api, clockLabel, h, icon, sectionLabel, timeAgo, toast } from './api.js';
 
 export function wireSheet(dialog) {
   dialog.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => dialog.close()));
@@ -61,10 +59,6 @@ export class SourcesSheet {
     await this.refresh();
   }
 
-  section() {
-    return this.form.querySelector('input[name="section"]:checked').value;
-  }
-
   async check() {
     let url = this.urlInput.value.trim();
     if (!url) return;
@@ -76,7 +70,7 @@ export class SourcesSheet {
     this.checkBtn.disabled = true;
     this.checkBtn.textContent = 'Adding…';
     try {
-      await api.addSource({ url, section: this.section() });
+      await api.addSource({ url, section: 'custom' });
       toast('Added. It will be checked at the next morning build.');
       this.urlInput.value = '';
       await this.refresh();
@@ -90,7 +84,7 @@ export class SourcesSheet {
 
   async refresh() {
     const { sources } = await api.sources();
-    const groups = { custom: [], canada: [], tech: [] };
+    const groups = Object.fromEntries(Object.keys(SECTIONS).map((k) => [k, []]));
     sources.forEach((s) => (groups[s.section] || groups.custom).push(s));
     // Your own links first, then built-ins alphabetically.
     Object.values(groups).forEach((g) => g.sort((a, b) => a.builtin - b.builtin || a.name.localeCompare(b.name)));
@@ -98,7 +92,7 @@ export class SourcesSheet {
       ...Object.entries(groups)
         .filter(([, items]) => items.length)
         .map(([key, items]) => h('section', { class: 'source-group' },
-          h('h3', {}, SECTION_LABEL[key], h('span', { class: 'tag' }, `${items.filter((s) => s.enabled).length} on`)),
+          h('h3', {}, sectionLabel(key), h('span', { class: 'tag' }, `${items.filter((s) => s.enabled).length} on`)),
           items.map((s) => this.row(s)))),
     );
   }
@@ -314,12 +308,13 @@ export class SettingsSheet {
   }
 
   renderSteppers(stories) {
-    const labels = { canada: '🇨🇦 Canada', tech: '🤖 AI & Tech', custom: '⭐ My Sources' };
     this.stories = { ...stories };
     document.getElementById('storySteppers').replaceChildren(
-      ...Object.entries(labels).map(([key, label]) => {
-        const out = h('output', {}, this.stories[key]);
-        const step = (d) => { this.stories[key] = Math.max(0, Math.min(10, this.stories[key] + d)); out.textContent = this.stories[key]; };
+      ...Object.keys(SECTIONS).map((key) => {
+        const label = sectionLabel(key);
+        this.stories[key] ??= 0;
+        const out = h('output', {}, this.stories[key] || 'Off');
+        const step = (d) => { this.stories[key] = Math.max(0, Math.min(10, this.stories[key] + d)); out.textContent = this.stories[key] || 'Off'; };
         return h('div', { class: 'stepper' }, h('span', {}, label),
           h('div', { class: 'stepper-ctrl' },
             h('button', { type: 'button', 'aria-label': `Fewer ${label} stories`, onclick: () => step(-1) }, '−'),
@@ -512,14 +507,14 @@ export class WelcomeSheet {
   }
 
   paintSources() {
-    const groups = { canada: [], tech: [] };
+    const groups = Object.fromEntries(Object.keys(SECTIONS).filter((k) => k !== 'custom' && k !== 'follow').map((k) => [k, []]));
     this.sources.forEach((s) => groups[s.section]?.push(s));
     document.getElementById('welcomeSources').replaceChildren(...Object.entries(groups).filter(([, items]) => items.length).map(([key, items]) => {
       const count = h('span', { class: 'tag' });
       const paintCount = () => { count.textContent = `${items.filter((s) => !this.disabled.has(s.id)).length} of ${items.length}`; };
       paintCount();
       return h('section', { class: 'source-pick' },
-        h('h3', {}, SECTION_LABEL[key], count),
+        h('h3', {}, sectionLabel(key), count),
         h('div', { class: 'chip-row' }, items.map((s) => {
           const chip = h('button', { type: 'button', class: 'source-chip', 'aria-pressed': String(!this.disabled.has(s.id)) }, s.name);
           chip.addEventListener('click', () => {

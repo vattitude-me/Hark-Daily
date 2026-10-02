@@ -1,7 +1,8 @@
 # ☀️ Morning Brief Voice
 
-Your daily news on cards, **read aloud every morning by a natural neural voice**: top Canadian news, AI & tech,
-plus any sites each person adds. Each user gets their own briefing and a phone notification every morning.
+Your daily news on cards, **read aloud every morning by a natural neural voice**. Pick topics (top stories, world,
+business, tech, health, science, sports, entertainment), local news for your city, people and teams to follow,
+and any link. Each user gets their own briefing and a phone notification every morning.
 
 ![Morning Brief on desktop](docs/screenshots/desktop.png)
 

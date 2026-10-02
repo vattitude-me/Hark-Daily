@@ -43,7 +43,7 @@ create table if not exists public.sources (
   url             text not null check (char_length(url) <= 2000 and url ~* '^https?://'),
   feed_url        text,
   kind            text not null default 'auto' check (kind in ('auto', 'feed', 'page', 'article')),
-  section         text not null default 'custom' check (section in ('canada', 'tech', 'custom')),
+  section         text not null default 'custom',
   enabled         boolean not null default true,
   weight          real not null default 1.0,
   created_at      timestamptz not null default now(),
@@ -54,6 +54,10 @@ create table if not exists public.sources (
   unique nulls not distinct (user_id, url)
 );
 create index if not exists sources_user_idx on public.sources (user_id);
+-- The sections of app/catalog/sources.json; replaced on each run so new sections can be added.
+alter table public.sources drop constraint if exists sources_section_check;
+alter table public.sources add constraint sources_section_check check (section in
+  ('canada', 'local', 'world', 'business', 'tech', 'health', 'science', 'sports', 'entertainment', 'follow', 'custom'));
 
 -- --------------------------------------------------------------- briefings
 create table if not exists public.briefings (

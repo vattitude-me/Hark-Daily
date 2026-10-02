@@ -52,8 +52,9 @@ fun templateCopy(story: Story): StoryCopy {
     return StoryCopy(lead.title, summary, "$opener\n$body".trim())
 }
 
-fun sectionLeads(sections: List<String>): Map<String, String> = sections.mapIndexed { i, key ->
-    val topic = SECTIONS[key]?.topic ?: "news from $key"
+fun sectionLeads(sections: List<String>, city: String? = null): Map<String, String> = sections.mapIndexed { i, key ->
+    val place = city?.substringBefore(',')?.trim().orEmpty().ifEmpty { "town" }
+    val topic = (SECTIONS[key]?.topic ?: "news from $key").replace("{city}", place)
     key to if (sections.size == 1) topic.replaceFirstChar { it.uppercase() } + "." else {
         val opener = if (i == 0) "First" else if (i == sections.size - 1) "And finally" else "Next"
         "$opener, $topic."
@@ -71,6 +72,7 @@ fun compose(
     weather: String?,
     name: String?,
     saySources: Boolean,
+    city: String? = null,
 ): Script {
     val hello = if (!name.isNullOrBlank()) "Good morning, $name!" else "Good morning!"
     val intro = "$hello It's ${spokenDate(now)}. ${if (weather != null) "$weather " else ""}Here's your briefing."
@@ -83,7 +85,7 @@ fun compose(
     val day = now.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
     return Script(
         intro = intro,
-        sectionLeads = sectionLeads(picked.keys.toList()),
+        sectionLeads = sectionLeads(picked.keys.toList(), city),
         stories = stories,
         outro = "That's your briefing for this $day. Have a wonderful day, and I'll talk to you tomorrow morning.",
         writer = writer,

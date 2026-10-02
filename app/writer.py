@@ -85,11 +85,12 @@ def template_copy(story: Story) -> StoryCopy:
     return StoryCopy(headline=lead.title, summary=summary, spoken=spoken, writer="built-in")
 
 
-def section_leads(sections: list[str]) -> dict[str, str]:
+def section_leads(sections: list[str], city: str | None = None) -> dict[str, str]:
     """'First, ...', 'Next, ...', 'And finally, ...' in the order the sections are read."""
     leads = {}
     for i, key in enumerate(sections):
         topic = SECTIONS.get(key, {}).get("topic") or f"news from {SECTIONS.get(key, {}).get('title', key)}"
+        topic = topic.replace("{city}", (city or "").split(",")[0].strip() or "town")
         if len(sections) == 1:
             leads[key] = f"{topic[0].upper()}{topic[1:]}."
         else:
@@ -99,7 +100,8 @@ def section_leads(sections: list[str]) -> dict[str, str]:
 
 
 def compose(picked: dict[str, list[Story]], copies: dict[str, StoryCopy], when: datetime,
-            weather: str | None, name: str | None = None, say_sources: bool = False) -> Script:
+            weather: str | None, name: str | None = None, say_sources: bool = False,
+            city: str | None = None) -> Script:
     """Wrap shared story copy in a personal intro, section transitions and sign-off.
 
     The intro doesn't count stories: each section is announced as it starts, which is enough to
@@ -115,7 +117,7 @@ def compose(picked: dict[str, list[Story]], copies: dict[str, StoryCopy], when: 
     writer = "built-in" if used == {"built-in"} else ("groq" if "built-in" not in used else "mixed")
     return Script(
         intro=intro,
-        section_leads=section_leads(list(picked)),
+        section_leads=section_leads(list(picked), city),
         stories=stories,
         outro=f"That's your briefing for this {when:%A}. Have a wonderful day, and I'll talk to you tomorrow morning.",
         writer=writer,

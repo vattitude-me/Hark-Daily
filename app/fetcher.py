@@ -167,13 +167,19 @@ def parse_feed(body: bytes, source: dict) -> tuple[str, list[Item]]:
         if not title or not link:
             continue
         summary = clean_text(entry.get("summary") or "")
+        source_name = source.get("name", "")
+        outlet = clean_text((entry.get("source") or {}).get("title"))
+        if outlet and _is_google_news(link):
+            # Google News: "Headline - Outlet", and the summary only repeats the headline.
+            title = title.removesuffix(f" - {outlet}").strip() or title
+            source_name, summary = outlet, ""
         if len(summary) > 1200:
             summary = summary[:1200].rsplit(" ", 1)[0] + "…"
         items.append(Item(
             title=title,
             url=link,
             source_id=source.get("id", 0),
-            source_name=source.get("name", ""),
+            source_name=source_name,
             section=source.get("section", "custom"),
             weight=source.get("weight", 1.0),
             published=_entry_time(entry),
@@ -336,6 +342,27 @@ async def fetch_all(sources: list[dict], concurrency: int = 8) -> tuple[list[Ite
     return items, statuses
 
 
+def _is_google_news(url: str) -> bool:
+    return urlparse(url).hostname == "news.google.com" and "/articles/" in url
+
+
+async def google_news_target(client: httpx.AsyncClient, url: str) -> str | None:
+    """The publisher's link behind a Google News article link, which only redirects in a browser."""
+    gid = urlparse(url).path.rsplit("/", 1)[-1]
+    page = (await _get(client, f"https://news.google.com/rss/articles/{gid}")).text
+    sig = re.search(r'data-n-a-sg="([^"]+)"', page)
+    ts = re.search(r'data-n-a-ts="([^"]+)"', page)
+    if not (sig and ts):
+        return None
+    inner = json.dumps(["garturlreq", [["X", "X", ["X", "X"], None, None, 1, 1, "US:en", None, 1, None, None, None,
+                                        None, None, 0, 1], "X", "X", 1, [1, 1, 1], 1, 1, None, 0, 0, None, 0],
+                        gid, int(ts.group(1)), sig.group(1)])
+    resp = await client.post("https://news.google.com/_/DotsSplashUi/data/batchexecute",
+                             data={"f.req": json.dumps([[["Fbv4je", inner, None, "generic"]]])})
+    found = re.search(r'\[\\"garturlres\\",\\"(.*?)\\"', resp.text)
+    return found.group(1) if found and found.group(1).startswith("http") else None
+
+
 async def enrich_items(items: list[Item], concurrency: int = 6) -> None:
     """Download full article text and a lead image for the stories that made the cut."""
     sem = asyncio.Semaphore(concurrency)
@@ -345,6 +372,13 @@ async def enrich_items(items: list[Item], concurrency: int = 6) -> None:
             if item.text and item.image:
                 return
             async with sem:
+                if _is_google_news(item.url):
+                    try:
+                        item.url = await google_news_target(client, item.url) or item.url
+                    except Exception as exc:  # noqa: BLE001
+                        log.info("Could not follow %s: %s", item.url, exc)
+                    if _is_google_news(item.url):
+                        return
                 try:
                     resp = await _get(client, item.url)
                     art = await asyncio.to_thread(extract_article, resp.text, str(resp.url))

@@ -10,7 +10,7 @@ import kotlin.math.max
 
 data class Item(
     val title: String,
-    val url: String,
+    var url: String,
     val sourceId: Long,
     val sourceName: String,
     val section: String,
@@ -167,7 +167,7 @@ fun selectTop(
     val picked = HashMap<String, List<Story>>()
     val taken = mutableListOf<Set<String>>() // the same story can surface in two sections; tell it once
     // Hand-picked sources claim their stories first, so a duplicate elsewhere is the one dropped.
-    for (section in limits.keys.sortedBy { it != "custom" }) {
+    for (section in limits.keys.sortedBy { it !in setOf("custom", "follow") }) {
         val limit = limits[section] ?: 0
         if (limit <= 0) continue
         val chosen = mutableListOf<Story>()

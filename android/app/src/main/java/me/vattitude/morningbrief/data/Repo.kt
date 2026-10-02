@@ -5,6 +5,9 @@ import me.vattitude.morningbrief.pipeline.BUILTIN_SOURCES
 import me.vattitude.morningbrief.pipeline.Detection
 import me.vattitude.morningbrief.pipeline.Fetcher
 import me.vattitude.morningbrief.pipeline.Source
+import me.vattitude.morningbrief.pipeline.followUrl
+import me.vattitude.morningbrief.pipeline.isFollowUrl
+import me.vattitude.morningbrief.pipeline.localSources
 import me.vattitude.morningbrief.pipeline.normalizeUrl
 import org.json.JSONObject
 
@@ -42,31 +45,42 @@ class Repo(context: Context) {
         runCatching { supabase.profileSettings() }.getOrNull()?.let { settings = settings.withShared(it) }
     }
 
-    /** Every source with [Source.enabled] reflecting this user's choice. [remote] falls back to the cached copy. */
+    /**
+     * The catalog (from the app, so new categories work before the server lists them), local news for the
+     * user's city, and the user's own links and follows, with [Source.enabled] reflecting their choices.
+     * [remote] falls back to the cached copy.
+     */
     suspend fun sources(remote: Boolean = true): Pair<List<Source>, String?> {
         val st = settings
-        if (!signedIn) {
-            val builtins = BUILTIN_SOURCES.map { it.copy(enabled = it.url !in st.disabledUrls) }
-            return builtins + prefs.localSources to null
-        }
         var note: String? = null
-        val rows = if (remote) {
-            runCatching { supabase.sources().also { prefs.cachedSources = it } }.getOrElse {
+        val rows = when {
+            !signedIn -> prefs.localSources
+            remote -> runCatching { supabase.sources().also { prefs.cachedSources = it } }.getOrElse {
                 note = "Couldn't reach your account, so your saved list of sources was used."
                 prefs.cachedSources
             }
-        } else prefs.cachedSources
-        val list = rows.ifEmpty { BUILTIN_SOURCES }
-        return list.map { if (it.builtin) it.copy(enabled = it.id !in st.disabledSources) else it } to note
+            else -> prefs.cachedSources
+        }
+        // Signed in, a catalog source takes its Supabase id, so switching it off also reaches the web app.
+        val ids = rows.filter { it.builtin }.associate { it.url to it.id }
+        val catalog = (BUILTIN_SOURCES + localSources(st.localCity)).map { s ->
+            val id = ids[s.url] ?: s.id
+            s.copy(id = id, enabled = s.url !in st.disabledUrls && id !in st.disabledSources)
+        }
+        return catalog + rows.filter { !it.builtin } to note
     }
 
     suspend fun setEnabled(source: Source, enabled: Boolean): String? {
         val st = settings
         return when {
-            source.builtin && signedIn ->
-                saveSettings(st.copy(disabledSources = if (enabled) st.disabledSources - source.id else st.disabledSources + source.id))
-            source.builtin ->
-                saveSettings(st.copy(disabledUrls = if (enabled) st.disabledUrls - source.url else st.disabledUrls + source.url))
+            source.builtin -> saveSettings(st.copy(
+                disabledUrls = if (enabled) st.disabledUrls - source.url else st.disabledUrls + source.url,
+                disabledSources = when {
+                    source.id < 0 -> st.disabledSources
+                    enabled -> st.disabledSources - source.id
+                    else -> st.disabledSources + source.id
+                },
+            ))
             signedIn -> runCatching { supabase.updateSource(source.id, JSONObject().put("enabled", enabled)) }
                 .exceptionOrNull()?.message
             else -> {
@@ -94,6 +108,27 @@ class Repo(context: Context) {
         return found
     }
 
+    /** Follows a person, team or topic through a news search; returns a few of today's headlines about it. */
+    suspend fun follow(query: String): List<String> {
+        val name = query.trim().take(100)
+        if (name.length < 2) throw IllegalArgumentException("Type a name or a topic to follow.")
+        val url = followUrl(name)
+        val probe = Source(0, name, url, "follow", feedUrl = url)
+        val found = Fetcher(15).fetchSource(probe)
+        if (found.isEmpty()) throw IllegalArgumentException("No recent news about $name. Check the spelling, or try a broader topic.")
+        prefs.saveDetection(url, JSONObject().put("kind", "feed").put("feed_url", url).put("name", name))
+        if (signedIn) {
+            supabase.addSource(url, "follow", name)
+        } else {
+            val local = prefs.localSources
+            if (local.any { it.url == url }) throw IllegalArgumentException("You're already following $name.")
+            if (local.size >= 25) throw IllegalArgumentException("You can have up to 25 links and follows. Remove one to add another.")
+            val id = (local.minOfOrNull { it.id } ?: 0L).coerceAtMost(0L) - 1
+            prefs.localSources = local + Source(id, name, url, "follow", kind = "feed", feedUrl = url)
+        }
+        return found.take(3).map { it.title }
+    }
+
     suspend fun removeSource(source: Source) {
         if (signedIn) supabase.deleteSource(source.id)
         else prefs.localSources = prefs.localSources.filter { it.id != source.id }
@@ -102,6 +137,7 @@ class Repo(context: Context) {
     /** Links Supabase still lists as "auto" (the server hasn't looked at them) are detected here, once. */
     suspend fun resolve(source: Source): Source? {
         if (source.kind != "auto") return source
+        if (isFollowUrl(source.url)) return source.copy(kind = "feed", feedUrl = source.url)
         val url = normalizeUrl(source.url)
         val known = prefs.detection(url) ?: runCatching { detectionJson(Fetcher(15).detect(url)) }.getOrNull()
             ?.also { prefs.saveDetection(url, it) } ?: return null

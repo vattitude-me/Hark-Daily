@@ -1,13 +1,13 @@
 package me.vattitude.morningbrief.pipeline
 
-/** Built-in sections and sources, mirroring app/sources.py on the server. */
-data class Section(val key: String, val title: String, val emoji: String, val topic: String)
+import org.json.JSONObject
+import java.net.URLEncoder
 
-val SECTIONS = linkedMapOf(
-    "canada" to Section("canada", "Canada", "🇨🇦", "the top stories from across Canada"),
-    "tech" to Section("tech", "AI & Tech", "🤖", "the latest in AI and technology"),
-    "custom" to Section("custom", "My Sources", "⭐", "stories from the sources you follow"),
-)
+/** A briefing section. [stories] is the default count; 0 leaves it off. */
+data class Section(val key: String, val title: String, val emoji: String, val topic: String, val stories: Int = 0) {
+    /** A topic picked from the catalog (World, Sports...), as opposed to Local, Following and My Sources. */
+    val isCategory: Boolean get() = key !in setOf("local", "follow", "custom")
+}
 
 /**
  * A news source. [id] is the Supabase row id when signed in; local sources use negative ids.
@@ -25,21 +25,61 @@ data class Source(
     val builtin: Boolean = false,
 )
 
-val BUILTIN_SOURCES = listOf(
-    Source(1, "CBC News · Top Stories", "https://www.cbc.ca/webfeed/rss/rss-topstories", "canada", 1.3),
-    Source(2, "CBC News · Canada", "https://www.cbc.ca/webfeed/rss/rss-canada", "canada", 1.1),
-    Source(3, "CBC News · Toronto", "https://www.cbc.ca/webfeed/rss/rss-canada-toronto", "canada", 0.9),
-    Source(4, "Global News · Canada", "https://globalnews.ca/canada/feed/", "canada", 1.0),
-    Source(5, "The Globe and Mail · Canada", "https://www.theglobeandmail.com/arc/outboundfeeds/rss/category/canada/", "canada", 1.0),
-    Source(6, "National Post", "https://nationalpost.com/feed", "canada", 0.9),
-    Source(7, "CityNews Toronto", "https://toronto.citynews.ca/feed/", "canada", 0.8),
-    Source(8, "TechCrunch · AI", "https://techcrunch.com/category/artificial-intelligence/feed/", "tech", 1.1),
-    Source(9, "The Verge · AI", "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", "tech", 1.1),
-    Source(10, "MIT Technology Review", "https://www.technologyreview.com/feed/", "tech", 1.0),
-    Source(11, "Ars Technica", "https://feeds.arstechnica.com/arstechnica/index", "tech", 0.9),
-    Source(12, "VentureBeat · AI", "https://venturebeat.com/category/ai/feed/", "tech", 0.9),
-    Source(13, "The Decoder", "https://the-decoder.com/feed/", "tech", 0.9),
-    Source(14, "BetaKit (Canadian tech)", "https://betakit.com/feed/", "tech", 1.0),
-    Source(15, "CBC · Technology & Science", "https://www.cbc.ca/webfeed/rss/rss-technology", "tech", 0.8),
-    Source(16, "Hacker News · Best", "https://hnrss.org/best", "tech", 0.7),
-).map { it.copy(builtin = true) }
+/** app/catalog/sources.json, shared with the worker and bundled as a resource. */
+private val CATALOG: JSONObject by lazy {
+    val stream = Source::class.java.getResourceAsStream("/sources.json") ?: error("The source catalog is missing")
+    JSONObject(stream.bufferedReader().use { it.readText() })
+}
+
+/** Every section, in the order a briefing reads them. */
+val SECTIONS: LinkedHashMap<String, Section> by lazy {
+    val arr = CATALOG.getJSONArray("sections")
+    LinkedHashMap<String, Section>().apply {
+        for (i in 0 until arr.length()) {
+            val j = arr.getJSONObject(i)
+            put(j.getString("key"), Section(j.getString("key"), j.getString("title"), j.getString("emoji"),
+                j.getString("topic"), j.optInt("stories")))
+        }
+    }
+}
+
+val DEFAULT_STORIES: Map<String, Int> get() = SECTIONS.mapValues { it.value.stories }
+
+/** The catalog's sources. Their ids are negative and stable; signed in, the Supabase row's id replaces it. */
+val BUILTIN_SOURCES: List<Source> by lazy {
+    val arr = CATALOG.getJSONArray("sources")
+    (0 until arr.length()).map { i ->
+        val j = arr.getJSONObject(i)
+        Source(-100_000L - i, j.getString("name"), j.getString("url"), j.getString("section"), j.optDouble("weight", 1.0),
+            feedUrl = j.getString("url"), builtin = true)
+    }
+}
+
+/** News for a city: its own outlets where the catalog knows them, and Google News for anywhere. */
+fun localSources(city: String): List<Source> {
+    val name = city.substringBefore(',').trim()
+    if (name.isEmpty()) return emptyList()
+    val local = CATALOG.getJSONObject("local")
+    val key = name.lowercase().let { local.getJSONObject("aliases").optString(it).ifEmpty { it } }
+    val known = local.getJSONObject("cities").optJSONArray(key)
+    val everywhere = local.getJSONArray("everywhere")
+    val picks = (0 until (known?.length() ?: 0)).map { known!!.getJSONObject(it) } +
+        (0 until everywhere.length()).map { everywhere.getJSONObject(it) }
+    val encoded = URLEncoder.encode(name, "UTF-8").replace("+", "%20")
+    return picks.mapIndexed { i, j ->
+        val url = j.getString("url").replace("{city}", encoded)
+        Source(-200_000L - i, j.getString("name").replace("{city}", name), url, "local", j.optDouble("weight", 1.0),
+            feedUrl = url, builtin = true)
+    }
+}
+
+/** A news search feed for a person, team or topic. */
+fun followUrl(query: String): String =
+    CATALOG.getJSONObject("follow").getString("url").replace("{query}", URLEncoder.encode(query.trim(), "UTF-8"))
+
+fun isFollowUrl(url: String): Boolean = url.startsWith(followUrl("").substringBefore('?'))
+
+/** Names to try in the Follow box. */
+val FOLLOW_EXAMPLES: List<String> by lazy {
+    CATALOG.getJSONObject("follow").getJSONArray("examples").let { a -> (0 until a.length()).map { a.getString(it) } }
+}

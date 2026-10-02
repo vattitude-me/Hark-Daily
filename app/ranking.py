@@ -162,7 +162,7 @@ def select_top(items: list[Item], limits: dict[str, int], now: datetime | None =
     picked: dict[str, list[Story]] = {}
     taken: list[set[str]] = []  # the same story can surface in two sections; tell it once
     # Hand-picked sources claim their stories first, so a duplicate elsewhere is the one dropped.
-    for section in sorted(limits, key=lambda k: k != "custom"):
+    for section in sorted(limits, key=lambda k: k not in ("custom", "follow")):
         limit = limits[section]
         if limit <= 0:
             continue

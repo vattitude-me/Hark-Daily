@@ -27,7 +27,7 @@ from .config import Config
 from .fetcher import FetchError, Item, check_public_url, detect, enrich_items, fetch_all
 from .ranking import Story, select_top
 from .report import MESSAGES, RunReport
-from .sources import BUILTIN_SOURCES, SECTIONS
+from .sources import BUILTIN_SOURCES, DEFAULT_STORIES, SECTIONS, local_sources
 from .store import Store, StoreError, cutoff, now_iso
 from .writer import StoryCopy, StoryWriter, compose
 
@@ -40,8 +40,9 @@ DEFAULT_SETTINGS = {
     "voice": "kokoro:af_heart",
     "speed": 1.0,
     "daily": True,
-    "stories": {"canada": 6, "tech": 6, "custom": 4},
+    "stories": DEFAULT_STORIES,
     "city": "Toronto",
+    "news_city": "",          # local news; empty = the weather city
     "latitude": 43.6532,
     "longitude": -79.3832,
     "weather": True,
@@ -181,9 +182,9 @@ class Batch:
 
         # 4. Write copy once per story -----------------------------------------------
         copies: dict[str, StoryCopy] = {}
-        for n, (sid, (section, story)) in enumerate(stories.items()):
+        for n, (section, story) in enumerate(stories.values()):
             self.progress("Writing summaries", 0.3 + 0.2 * n / max(1, len(stories)))
-            copies[sid] = self.writer.copy(section, story)
+            copies[story.id] = self.writer.copy(section, story)  # after enrich: a Google News link is now the article's
 
         # 5. Per user: voice, assemble, upload, notify ----------------------------------
         weather_cache: dict[tuple, dict | None] = {}
@@ -231,7 +232,14 @@ class Batch:
                 allowed.append(s)
             except FetchError as exc:
                 self._update_source(s["id"], {"last_status": str(exc), "last_fetched_at": now_iso()})
-        return UserPlan(profile, settings, mine + allowed)
+        local = []
+        if settings["stories"].get("local"):
+            disabled_urls = set(settings.get("disabled_urls") or [])
+            city = settings.get("news_city") or settings.get("city") or ""
+            local = [{**s, "id": -int(hashlib.sha1(s["url"].encode()).hexdigest()[:12], 16), "user_id": None,
+                      "kind": "feed", "feed_url": s["url"], "enabled": True}
+                     for s in local_sources(city) if s["url"] not in disabled_urls]
+        return UserPlan(profile, settings, mine + local + allowed)
 
     def _heard(self, user_ids: list[str], today) -> dict[str, list[dict]]:
         """Story cards from each user's recent briefings (not today's, which a rebuild replaces)."""
@@ -252,6 +260,8 @@ class Batch:
             counts[it.source_id] = counts.get(it.source_id, 0) + 1
         stamp = now_iso()
         for sid, status in statuses.items():
+            if sid < 0:  # local news isn't a row
+                continue
             self._update_source(sid, {"last_fetched_at": stamp, "last_status": status, "last_count": counts.get(sid, 0)})
 
     def _update_source(self, source_id: int, values: dict) -> None:
@@ -354,7 +364,7 @@ class Batch:
             if key not in weather_cache:
                 weather_cache[key] = weather.forecast(key[0], key[1], st["city"], self.cfg.timezone)
             wx = weather_cache[key]
-        script = compose(plan.picked, copies, now, weather.spoken(wx), name=(st.get("name") or "").strip() or None,
+        script = compose(plan.picked, copies, now, weather.spoken(wx), city=st.get("news_city") or st.get("city"), name=(st.get("name") or "").strip() or None,
                          say_sources=bool(st.get("say_sources")))
 
         voice_id = st["voice"]
@@ -564,7 +574,11 @@ class BatchLock:
 
 
 def seed_builtins(store: Store) -> None:
-    store.seed_builtins(BUILTIN_SOURCES)
+    try:
+        store.seed_builtins(BUILTIN_SOURCES)
+    except StoreError as exc:
+        # Most likely supabase/schema.sql hasn't been re-run since sections were added.
+        log.warning("Couldn't update the built-in sources (re-run supabase/schema.sql?): %s", exc)
 
 
 def next_run(cfg: Config, now: datetime | None = None) -> str:

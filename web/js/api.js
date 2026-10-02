@@ -6,12 +6,29 @@ export const sb = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 
+/** Briefing sections in reading order, as in app/catalog/sources.json. */
+export const SECTIONS = {
+  canada: { title: 'Top stories', emoji: '🇨🇦' },
+  local: { title: 'Local', emoji: '📍' },
+  world: { title: 'World', emoji: '🌍' },
+  business: { title: 'Business', emoji: '💼' },
+  tech: { title: 'AI & Tech', emoji: '🤖' },
+  health: { title: 'Health', emoji: '🩺' },
+  science: { title: 'Science', emoji: '🔬' },
+  sports: { title: 'Sports', emoji: '🏒' },
+  entertainment: { title: 'Entertainment', emoji: '🎬' },
+  follow: { title: 'Following', emoji: '📌' },
+  custom: { title: 'My Sources', emoji: '⭐' },
+};
+
+export const sectionLabel = (key) => { const s = SECTIONS[key] || SECTIONS.custom; return `${s.emoji} ${s.title}`; };
+
 export const DEFAULT_SETTINGS = {
   name: '',
   voice: 'kokoro:af_heart',
   speed: 1.0,
   daily: true,
-  stories: { canada: 6, tech: 6, custom: 4 },
+  stories: { canada: 6, tech: 6, follow: 3, custom: 4 },
   city: 'Toronto',
   latitude: 43.6532,
   longitude: -79.3832,

@@ -1,5 +1,5 @@
 // Signed-out landing: play the admin's latest briefing (or the one shipped with the site), show its headlines and voices, then sign in.
-import { api, h, store, toast } from './api.js';
+import { SECTIONS, api, h, store, toast } from './api.js';
 import { SUPABASE_URL } from '../config.js';
 
 // Written by the worker after each admin briefing; refetched at most hourly.
@@ -12,7 +12,6 @@ const MAILBOXES = [
   [/@(icloud|me|mac)\.com$/, 'iCloud Mail', 'https://www.icloud.com/mail'],
 ];
 
-const SECTION = { canada: ['🇨🇦', 'Canada'], tech: ['🤖', 'AI & Tech'], custom: ['⭐', 'My Sources'] };
 const $ = (id) => document.getElementById(id);
 
 export class Landing {
@@ -67,7 +66,7 @@ export class Landing {
   }
 
   card(s) {
-    const [emoji, label] = SECTION[s.section] || SECTION.custom;
+    const { emoji, title: label } = SECTIONS[s.section] || SECTIONS.custom;
     const media = s.image
       ? h('div', { class: 'card-media' }, h('img', {
         src: s.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer',

@@ -8,8 +8,10 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import net.dankito.readability4j.Readability4J
+import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.jsoup.Jsoup
 import java.io.IOException
 import java.net.URI
@@ -122,6 +124,10 @@ class Fetcher(timeoutSeconds: Long = 20) {
             async {
                 if (item.text.isNotEmpty() && item.image != null) return@async
                 val art = sem.withPermit {
+                    if (isGoogleNews(item.url)) {
+                        runCatching { googleNewsTarget(item.url) }.getOrNull()?.let { item.url = it }
+                        if (isGoogleNews(item.url)) return@withPermit null
+                    }
                     runCatching {
                         val page = get(item.url)
                         withContext(Dispatchers.Default) { extractArticle(page.body, page.url) }
@@ -132,6 +138,26 @@ class Fetcher(timeoutSeconds: Long = 20) {
                 if (item.summary.isEmpty()) item.summary = cleanText(art.description)
             }
         }.awaitAll()
+    }
+
+    /** The publisher's link behind a Google News article link, which only redirects in a browser. */
+    suspend fun googleNewsTarget(url: String): String? {
+        val gid = URI(url).path.substringAfterLast('/')
+        val page = get("https://news.google.com/rss/articles/$gid").body
+        val sig = Regex("data-n-a-sg=\"([^\"]+)\"").find(page)?.groupValues?.get(1) ?: return null
+        val ts = Regex("data-n-a-ts=\"([^\"]+)\"").find(page)?.groupValues?.get(1)?.toLongOrNull() ?: return null
+        val inner = JSONArray(listOf("garturlreq",
+            JSONArray(listOf(JSONArray(listOf("X", "X", JSONArray(listOf("X", "X")), null, null, 1, 1, "US:en", null, 1,
+                null, null, null, null, null, 0, 1)), "X", "X", 1, JSONArray(listOf(1, 1, 1)), 1, 1, null, 0, 0, null, 0)),
+            gid, ts, sig))
+        val req = JSONArray(listOf(JSONArray(listOf(JSONArray(listOf("Fbv4je", inner.toString(), null, "generic"))))))
+        val body = withContext(Dispatchers.IO) {
+            client.newCall(Request.Builder().url("https://news.google.com/_/DotsSplashUi/data/batchexecute")
+                .header("User-Agent", USER_AGENT)
+                .post(FormBody.Builder().add("f.req", req.toString()).build()).build()
+            ).execute().use { it.body?.string() ?: "" }
+        }
+        return Regex("""\[\\"garturlres\\",\\"(.*?)\\"""").find(body)?.groupValues?.get(1)?.takeIf { it.startsWith("http") }
     }
 
     /** Work out what a user-supplied link is: a feed, a site with a feed, a page or an article. */

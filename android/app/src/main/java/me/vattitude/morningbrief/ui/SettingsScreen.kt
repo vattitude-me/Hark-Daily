@@ -31,13 +31,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.AccountCircle
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Face
 import androidx.compose.material.icons.outlined.RecordVoiceOver
-import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.WbSunny
@@ -54,7 +52,6 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
@@ -99,7 +96,6 @@ import me.vattitude.morningbrief.pipeline.KOKORO_VOICES
 import me.vattitude.morningbrief.pipeline.KokoroPack
 import me.vattitude.morningbrief.pipeline.PHONE_VOICE
 import me.vattitude.morningbrief.pipeline.Place
-import me.vattitude.morningbrief.pipeline.SECTIONS
 import me.vattitude.morningbrief.pipeline.kokoroVoice
 import me.vattitude.morningbrief.work.Scheduler
 
@@ -208,17 +204,7 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
             VoiceSection(vm)
 
             Section(Icons.AutoMirrored.Outlined.Article, "Stories") {
-                for (s in SECTIONS.values) {
-                    val n = st.stories[s.key] ?: 0
-                    fun set(v: Int) = vm.update { it.copy(stories = it.stories + (s.key to v.coerceIn(0, 10))) }
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("${s.emoji}  ${s.title}", Modifier.weight(1f))
-                        IconButton(onClick = { set(n - 1) }, enabled = n > 0) { Icon(Icons.Outlined.Remove, "Fewer") }
-                        Text(if (n == 0) "Off" else "$n", Modifier.width(32.dp), fontWeight = FontWeight.Medium,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                        IconButton(onClick = { set(n + 1) }, enabled = n < 10) { Icon(Icons.Outlined.Add, "More") }
-                    }
-                }
+                Hint("Choose topics, local news and people to follow, and how many stories each, on the Sources page.")
                 SwitchRow("Say where each story is from", st.saySources) { on -> vm.update { it.copy(saySources = on) } }
             }
 
@@ -502,7 +488,7 @@ private fun DeleteAccountDialog(vm: AppViewModel, email: String, onDismiss: () -
 }
 
 @Composable
-private fun CitySearch(vm: AppViewModel, onPick: (Place) -> Unit) {
+internal fun CitySearch(vm: AppViewModel, onPick: (Place) -> Unit) {
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<Place>>(emptyList()) }
     LaunchedEffect(query) {
