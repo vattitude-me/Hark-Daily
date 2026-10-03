@@ -118,7 +118,7 @@ fun SourcesScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 val n = st.stories[s.key] ?: 0
                 val city = st.localCity.substringBefore(",").trim()
                 val label = if (s.key == "local" && city.isNotBlank()) "${s.title} · $city" else s.title
-                val open = expanded[s.key] ?: (n > 0)
+                val open = expanded[s.key] ?: false
                 Topic(
                     section = s,
                     label = label,

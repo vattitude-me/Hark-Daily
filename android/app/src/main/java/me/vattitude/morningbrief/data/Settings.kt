@@ -35,9 +35,10 @@ data class Settings(
     val voice: String? = null,
     val speed: Float = 1.0f,
     val groqKey: String = "",
-    /** Who writes the summaries: an [AI_PROVIDERS] id. Groq uses [groqKey], the others [aiKey]. */
+    /** Who writes the summaries: an [AI_PROVIDERS] id. Groq uses [groqKey]; each other service keeps its own key in [aiKeys]. */
     val aiProvider: String = "groq",
-    val aiKey: String = "",
+    /** API key per non-Groq provider, keyed by provider id, so a Gemini key never shows up under OpenRouter. */
+    val aiKeys: Map<String, String> = emptyMap(),
     /** For a custom provider: an OpenAI-compatible base URL and model; for the others, an optional model override. */
     val aiBaseUrl: String = "",
     val aiModel: String = "",
@@ -48,7 +49,7 @@ data class Settings(
     val readyMinute: Int get() = readyBy.substringAfter(':').toIntOrNull()?.coerceIn(0, 59) ?: 0
     val provider: AiProvider get() = aiProvider(aiProvider)
     /** The key for the chosen provider; blank means built-in summaries. */
-    val summaryKey: String get() = if (provider.id == "groq") groqKey else aiKey
+    val summaryKey: String get() = if (provider.id == "groq") groqKey else aiKeys[provider.id].orEmpty()
 
     fun toJson(): JSONObject = sharedJson()
         .put("android_daily", daily)
@@ -57,7 +58,7 @@ data class Settings(
         .put("android_speed", speed.toDouble())
         .put("groq_key", groqKey)
         .put("android_ai_provider", aiProvider)
-        .put("android_ai_key", aiKey)
+        .put("android_ai_keys", JSONObject(aiKeys))
         .put("android_ai_base_url", aiBaseUrl)
         .put("android_ai_model", aiModel)
         .put("welcomed", welcomed)
@@ -100,6 +101,12 @@ data class Settings(
         fun fromJson(json: JSONObject?): Settings {
             json ?: return Settings()
             val base = Settings().withShared(json)
+            // New installs save a key per provider; older ones had one shared "android_ai_key",
+            // which belongs to whichever provider was chosen when it was saved.
+            val aiKeys = json.optJSONObject("android_ai_keys")?.let { o ->
+                o.keys().asSequence().associateWith { o.optString(it) }.filterValues { it.isNotEmpty() }
+            } ?: json.optString("android_ai_key", "").takeIf { it.isNotEmpty() }
+                ?.let { mapOf(json.optString("android_ai_provider", "groq") to it) } ?: emptyMap()
             return base.copy(
                 disabledUrls = json.optJSONArray("disabled_urls")?.let { a -> (0 until a.length()).map { a.getString(it) }.toSet() }
                     ?: emptySet(),
@@ -109,7 +116,7 @@ data class Settings(
                 speed = json.optDouble("android_speed", 1.0).toFloat(),
                 groqKey = json.optString("groq_key", ""),
                 aiProvider = json.optString("android_ai_provider", "groq"),
-                aiKey = json.optString("android_ai_key", ""),
+                aiKeys = aiKeys,
                 aiBaseUrl = json.optString("android_ai_base_url", ""),
                 aiModel = json.optString("android_ai_model", ""),
                 welcomed = json.optBoolean("welcomed", false),

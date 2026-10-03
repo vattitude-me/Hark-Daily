@@ -403,7 +403,7 @@ internal fun SummaryPicker(vm: AppViewModel, modifier: Modifier = Modifier) = Co
             PillField(st.aiModel, { v -> vm.update { it.copy(aiModel = v.trim()) } }, "Model", Modifier.fillMaxWidth())
         }
         PillField(st.summaryKey, { v ->
-            vm.update { if (p.id == "groq") it.copy(groqKey = v.trim()) else it.copy(aiKey = v.trim()) }
+            vm.update { if (p.id == "groq") it.copy(groqKey = v.trim()) else it.copy(aiKeys = it.aiKeys + (p.id to v.trim())) }
         }, "${if (p.id == "custom") "API" else p.name} key", Modifier.fillMaxWidth(),
             visualTransformation = PasswordVisualTransformation())
     }
