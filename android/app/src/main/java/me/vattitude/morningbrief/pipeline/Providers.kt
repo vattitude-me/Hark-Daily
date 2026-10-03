@@ -20,7 +20,7 @@ val AI_PROVIDERS = listOf(
         listOf("openai/gpt-oss-120b", "openai/gpt-oss-20b"), "https://console.groq.com/keys",
         "Free, fast and enough for a daily brief. Sign in and create a key."),
     AiProvider("gemini", "Gemini", "https://generativelanguage.googleapis.com/v1beta/openai",
-        listOf("gemini-2.5-flash", "gemini-2.5-flash-lite"), "https://aistudio.google.com/apikey",
+        listOf("gemini-3.8-flash", "gemini-3.5-flash-lite"), "https://aistudio.google.com/apikey",
         "Free tier with a Google account, in Google AI Studio."),
     AiProvider("openrouter", "OpenRouter", "https://openrouter.ai/api/v1",
         listOf("openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"), "https://openrouter.ai/keys",

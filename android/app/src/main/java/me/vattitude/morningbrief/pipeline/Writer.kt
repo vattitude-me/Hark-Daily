@@ -200,9 +200,10 @@ class StoryWriter(
             .put("messages", JSONArray()
                 .put(JSONObject().put("role", "system").put("content", SYSTEM_PROMPT))
                 .put(JSONObject().put("role", "user").put("content", payload.toString())))
-        // Keep thinking short so the answer fits: gpt-oss reasons a little, Gemini Flash not at all.
+        // Keep thinking short so the answer fits: gpt-oss reasons a little, Gemini Flash as little as possible.
         if ("gpt-oss" in model) body.put("reasoning_effort", "low")
-        if (model.startsWith("gemini-2.5-flash")) body.put("reasoning_effort", "none")
+        // "none" only works on the 2.5 line; Gemini 3 accepts low/medium/high.
+        if (model.startsWith("gemini-")) body.put("reasoning_effort", "low")
         val request = Request.Builder().url(endpoint)
             .header("Authorization", "Bearer $apiKey")
             .post(body.toString().toRequestBody("application/json".toMediaType()))
