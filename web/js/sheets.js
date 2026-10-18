@@ -39,11 +39,38 @@ export const subscribedWith = (sub) => {
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 };
 
+export async function requestNotificationPermission() {
+  if (typeof Notification === 'undefined') return 'denied';
+  if (Notification.permission === 'granted') return 'granted';
+  if (Notification.permission === 'denied') return 'denied';
+  try {
+    const p = Notification.requestPermission();
+    if (p && typeof p.then === 'function') {
+      return await p;
+    }
+  } catch {}
+  return new Promise((resolve) => {
+    try {
+      Notification.requestPermission((permission) => resolve(permission));
+    } catch {
+      resolve(Notification.permission || 'denied');
+    }
+  });
+}
+
 // Asks permission and registers this device. Must be called from a tap. Throws a readable message on failure.
 export async function enablePush(publicKey) {
   if (!publicKey) throw new Error("The server hasn't published its notification key yet. Try again later.");
-  if (await Notification.requestPermission() !== 'granted') throw new Error('Permission was not granted.');
-  const reg = await navigator.serviceWorker.ready;
+  if (Notification.permission !== 'granted') {
+    const perm = await requestNotificationPermission();
+    if (perm !== 'granted') {
+      throw new Error(perm === 'denied' ? 'Notifications are blocked in your browser settings.' : 'Permission was not granted.');
+    }
+  }
+  const reg = await Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Service worker took too long to activate. Please refresh.')), 8000)),
+  ]);
   const pad = '='.repeat((4 - (publicKey.length % 4)) % 4);
   const raw = atob((publicKey + pad).replace(/-/g, '+').replace(/_/g, '/'));
   const key = Uint8Array.from(raw, (c) => c.charCodeAt(0));
@@ -58,6 +85,7 @@ export async function enablePush(publicKey) {
   }
   sub = sub || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
   await api.pushSubscribe(sub.toJSON());
+  return sub;
 }
 
 /* ----------------------------------------------------------- Delete account */
