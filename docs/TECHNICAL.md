@@ -107,21 +107,24 @@ Rather than using generative LLMs that risk hallucination and impose per-call AP
 Neural audio synthesis requires an NVIDIA GPU (running Chatterbox-Turbo / PyTorch). To prevent the high cost of a 24/7 GPU VM (~$500/month), [`app/gce.py`](file:///Users/vattitude/Coding/Morning_Brief/app/gce.py) manages the instance lifecycle dynamically via Compute Engine REST APIs:
 
 ```text
-Run cost comparison:
-- 24/7 GCE T4 GPU:            ~$500.00 / month
-- 1-hour static daily cron:    ~$21.00 / month
-- Dynamic on-demand lifecycle:   ~$4.50 / month (~$0.15 / day for ~12-14 min runtime)
+Run cost breakdown (4 voices: Alice, Mike, Jerry, C-3PO):
+- 24/7 GCE L4 GPU:               ~$600.00 / month
+- 1-hour static daily cron:       ~$26.00 / month
+- Dynamic on-demand lifecycle:      ~$16.80 / month (~$0.56 / day total)
+    • GPU Compute (26 min/day @ $0.84/hr):  ~$0.36 / day
+    • 60 GB Boot Disk (pd-balanced):         ~$0.20 / day ($6.00 / mo)
+    • Static External IP:                    $0.00 (ephemeral IP released on stop)
 ```
 
 ### Dynamic VM Session Flow
 [`app/gce.py:voice_vm_session`](file:///Users/vattitude/Coding/Morning_Brief/app/gce.py#L104-L180) handles authentication, boot, IP resolution, and shutdown in a Python context manager:
 
 1. **Authentication**: Requests an OAuth2 access token via Google Cloud internal metadata server (`http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token`) in Cloud Run, or falls back to `gcloud auth print-access-token` locally.
-2. **Dynamic IP Resolution**: Queries `https://compute.googleapis.com/compute/v1/projects/{project}/zones/{zone}/instances/{instance}` to read the instance's current external NAT IP. This eliminates hardcoded IP addresses.
+2. **Ephemeral Dynamic IP Resolution**: When the instance starts, GCE allocates an ephemeral external IP. The session loop queries `https://compute.googleapis.com/compute/v1/projects/{project}/zones/{zone}/instances/{instance}` to read the instance's active `natIP`. Using an ephemeral IP avoids GCP's $0.010/hr ($7.20/month) idle reservation fee when the VM is powered down.
 3. **Instance Start**: Calls the GCE start endpoint if the instance is not already running.
-4. **Health Check**: Polls `GET http://<VM_IP>:8090/health` until the FastAPI service responds with `{"status": "ok"}`.
+4. **Health Check**: Polls `GET http://<VM_IP>:8090/health` up to 180 seconds (configurable via `GCE_HEALTH_TIMEOUT`) until the FastAPI service responds with `{"status": "ok"}`.
 5. **Synthesis**: Synthesizes the day's stories and voice framing notes across all 4 narrators.
-6. **Automatic Teardown**: An outer `finally` block unconditionally calls the GCE stop endpoint once audio generation completes (or on error).
+6. **Automatic Teardown**: An outer `finally` block unconditionally calls the GCE stop endpoint once audio generation completes (or on error), which automatically releases the ephemeral IP.
 
 ### Voice Service API Contracts
 The TTS service in [`voice_service/`](file:///Users/vattitude/Coding/Morning_Brief/voice_service) exposes three primary endpoints on port `8090`:

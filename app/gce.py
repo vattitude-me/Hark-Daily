@@ -117,34 +117,23 @@ def voice_vm_session(cfg):
         return
 
     token = get_access_token()
-
-    # Dynamically resolve external IP of the GCE instance if token is available
-    if token and cfg.gce_instance:
-        discovered_ip = get_instance_ip(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token)
-        if discovered_ip:
-            dynamic_url = f"http://{discovered_ip}:8090"
-            if dynamic_url != voice_url:
-                log.info("Discovered active GCE VM IP dynamically: %s (was configured: %s)", dynamic_url, voice_url or "unset")
-                voice_url = dynamic_url
-
-    if not voice_url:
-        log.warning("VOICE_SERVICE_URL could not be determined; proceeding with empty URL")
-        yield voice_url
-        return
-
-    # Check if voice service is already healthy
-    if is_service_healthy(voice_url):
-        log.info("Chatterbox-Turbo voice service is already running at %s", voice_url)
-        try:
-            yield voice_url
-        finally:
-            pass
-        return
-
     if not token:
-        log.warning("No GCP access token available to manage GCE instance %s; proceeding directly", cfg.gce_instance)
+        log.warning(
+            "No GCP access token available to manage GCE instance %s; proceeding directly with %s",
+            cfg.gce_instance,
+            voice_url or "empty URL",
+        )
         yield voice_url
         return
+
+    # Check if VM is already running and voice service is already healthy
+    discovered_ip = get_instance_ip(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token)
+    if discovered_ip:
+        voice_url = f"http://{discovered_ip}:8090"
+        if is_service_healthy(voice_url):
+            log.info("Chatterbox-Turbo voice service is already running at %s", voice_url)
+            yield voice_url
+            return
 
     log.info(
         "Starting GCE GPU VM '%s' (%s/%s) for Chatterbox-Turbo...",
@@ -155,22 +144,31 @@ def voice_vm_session(cfg):
     if not start_vm(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token):
         log.warning("Failed to send start command to %s", cfg.gce_instance)
 
-    # Re-check dynamically resolved IP once started
-    time.sleep(3)
-    fresh_ip = get_instance_ip(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token)
-    if fresh_ip:
-        voice_url = f"http://{fresh_ip}:8090"
-
-    # Wait for Chatterbox-Turbo to become healthy (up to 180 seconds, polling every 3s)
-    log.info("Waiting for Chatterbox-Turbo voice service at %s to report healthy...", voice_url)
+    # Wait for GCE to assign external IP (ephemeral or static) and for service to report healthy
     ready = False
     start_time = time.monotonic()
     timeout = getattr(cfg, "gce_health_timeout", 180.0)
+    log.info(
+        "Waiting for Chatterbox-Turbo voice service on %s to report healthy (timeout: %.0fs)...",
+        cfg.gce_instance,
+        timeout,
+    )
+
     while time.monotonic() - start_time < timeout:
+        if not voice_url or "auto" in voice_url:
+            fresh_ip = get_instance_ip(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token)
+            if fresh_ip:
+                voice_url = f"http://{fresh_ip}:8090"
+                log.info("Discovered active GCE VM IP dynamically: %s", voice_url)
+            else:
+                time.sleep(3)
+                continue
+
         if is_service_healthy(voice_url):
             ready = True
             log.info(
-                "✓ Chatterbox-Turbo voice service is online and ready (took %.1fs)!",
+                "✓ Chatterbox-Turbo voice service is online and ready at %s (took %.1fs)!",
+                voice_url,
                 time.monotonic() - start_time,
             )
             break
@@ -182,7 +180,7 @@ def voice_vm_session(cfg):
             timeout,
         )
         stop_vm(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token)
-        raise RuntimeError(f"Chatterbox-Turbo service at {voice_url} did not respond within {timeout}s")
+        raise RuntimeError(f"Chatterbox-Turbo service at {voice_url or cfg.gce_instance} did not respond within {timeout}s")
 
     try:
         yield voice_url
