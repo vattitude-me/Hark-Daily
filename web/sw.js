@@ -1,6 +1,6 @@
 // Offline shell: our static files network-first with a cache fallback.
 // Supabase (data, audio) and CDN requests are cross-origin and go straight to the network.
-const CACHE = 'hark-daily-v1';
+const CACHE = 'hark-daily-v2';
 const SHELL = ['/', '/config.js', '/css/styles.css', '/js/app.js', '/js/api.js', '/js/storypack.js', '/js/player.js', '/js/sheets.js', '/js/landing.js',
   '/js/design.js', '/js/audio-processor.js', '/js/pages/sources.js', '/js/pages/settings.js', '/js/pages/admin.js',
   '/icons/icon.svg', '/manifest.webmanifest', '/audio/gap.mp3'];
@@ -27,12 +27,18 @@ self.addEventListener('fetch', (e) => {
 
 self.addEventListener('push', (e) => {
   let data = {};
-  try { data = e.data ? e.data.json() : {}; } catch { /* plain-text payload */ }
+  try {
+    data = e.data ? e.data.json() : {};
+  } catch {
+    try { data = { body: e.data.text() }; } catch { /* ignore */ }
+  }
   e.waitUntil(self.registration.showNotification(data.title || 'Hark Daily', {
     body: data.body || "Today's briefing is ready.",
     icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
+    badge: '/icons/icon-96.png',
     tag: 'hark-daily',
+    renotify: true,
+    vibrate: [200, 100, 200],
     data: { url: data.url || '/' },
   }));
 });
@@ -41,7 +47,13 @@ self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   const target = e.notification.data?.url || '/';
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
-    for (const w of wins) if ('focus' in w) return w.focus();
+    for (const w of wins) {
+      if ('focus' in w) {
+        if ('navigate' in w && target && target !== '/') w.navigate(target);
+        return w.focus();
+      }
+    }
     return self.clients.openWindow(target);
   }));
 });
+

@@ -69,7 +69,7 @@ class Config:
     admin_emails: tuple[str, ...] = _list("ADMIN_EMAILS")
     # "issues" pushes the admin only when a run had problems; "always" after every run.
     admin_notify: str = os.getenv("ADMIN_NOTIFY", "issues").strip().lower()
-    vapid_subject: str = os.getenv("VAPID_SUBJECT", "mailto:admin@example.com")
+    vapid_subject: str = os.getenv("VAPID_SUBJECT", "https://hark.vattitude.ca")
     allow_private_urls: bool = _bool("ALLOW_PRIVATE_URLS")
     max_custom_sources: int = int(os.getenv("MAX_CUSTOM_SOURCES", "15"))
     # The Cloned narrator: the LAN/GPU voice service that voices the shared daily stories.
