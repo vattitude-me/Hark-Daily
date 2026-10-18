@@ -42,6 +42,9 @@ export const BUILTIN_VOICES = [
   { id: 'c3po_reference', name: 'C-3PO', gender: 'male', desc: 'Polite protocol droid', style: 'Polite & Precise', icon: 'bot', builtin: true },
 ];
 
+/** The narrator a new visitor hears first: the most distinctive of the four. */
+export const DEFAULT_VOICE_ID = 'c3po_reference';
+
 export function getCustomVoices() {
   return store.get('custom_voices', []);
 }
@@ -92,7 +95,7 @@ export const isAdmin = (profile) =>
 
 export const DEFAULT_SETTINGS = {
   name: '',
-  voice: 'her_reference',
+  voice: DEFAULT_VOICE_ID,
   speed: 1.0,
   daily: true,
   // Every section starts on, at three stories, so a first brief covers all seven.

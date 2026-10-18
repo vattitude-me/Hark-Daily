@@ -1,5 +1,5 @@
 // Signed-out landing: play the latest published top stories in the narrator the visitor picks, then offer sign-in for the full brief.
-import { BUILTIN_VOICES, SECTIONS, api, h, icon, store, toast } from './api.js';
+import { BUILTIN_VOICES, DEFAULT_VOICE_ID, SECTIONS, api, h, icon, store, toast } from './api.js';
 import { SUPABASE_URL } from '../config.js';
 
 // How much a visitor hears before the account prompt: the greeting plus this many stories.
@@ -44,7 +44,7 @@ export class Landing {
     this.cap = Infinity;
     this.gated = false;
     const saved = store.get('pending-voice', null);
-    this.voiceId = BUILTIN_VOICES.some((v) => v.id === saved) ? saved : BUILTIN_VOICES[0].id;
+    this.voiceId = BUILTIN_VOICES.some((v) => v.id === saved) ? saved : DEFAULT_VOICE_ID;
     this.bindPlayer();
     this.bindSignIn();
   }
@@ -60,6 +60,8 @@ export class Landing {
       this.paintVoices();
       data = await this.fetchSample(this.voiceId);
     }
+    // Whatever they heard first is what their account starts with, picked or not.
+    store.set('pending-voice', this.voiceId);
     this.render(data || {});
   }
 
