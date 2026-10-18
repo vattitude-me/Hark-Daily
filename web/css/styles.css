@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Morning Brief — v2 design system
+   Hark Daily — v2 design system
    Tactile glass over a calm, deep canvas. Sunrise amber marks the one thing
    to press; a soft sky blue carries audio. Light and dark share every token.
    ========================================================================== */
@@ -565,7 +565,7 @@ body.booting .app-shell { visibility: hidden; }
   z-index: 30;
 }
 .brand { display: inline-flex; align-items: center; gap: .65rem; text-decoration: none; padding: 0 .5rem; }
-.brand img { border-radius: 10px; box-shadow: var(--shadow-sm); }
+.brand img { flex: 0 0 auto; aspect-ratio: 1 / 1; }
 .brand-name { font-family: var(--font-head); font-weight: 700; font-size: 1.15rem; letter-spacing: -.02em; }
 .brand-compact { display: none; padding: 0; }
 
@@ -1312,7 +1312,7 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
 .signin { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 1rem; background: rgba(5, 8, 14, .55); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); animation: fade .25s var(--ease); }
 @keyframes fade { from { opacity: 0; } }
 .login-card { position: relative; width: min(26rem, 100%); padding: 2rem 1.75rem 1.75rem; border-radius: var(--r-xl); background: var(--glass-solid); border: 1px solid var(--line-2); box-shadow: var(--shadow-lg); text-align: center; animation: sheet-in .3s var(--ease); }
-.login-mark { margin: 0 auto 1rem; border-radius: 12px; }
+.login-mark { margin: 0 auto 1rem; }
 .login-card h1 { font-size: 1.5rem; letter-spacing: -.02em; }
 .login-intro { margin-top: .5rem; color: var(--muted); font-size: .9rem; }
 .signin-close { position: absolute; top: .9rem; right: .9rem; }
@@ -1372,7 +1372,7 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   .topbar { gap: .4rem; padding: .45rem var(--gutter); }
   .topbar .spacer { display: none; }
   .brand-compact { display: inline-flex; }
-  .brand-compact img { border-radius: 8px; flex: 0 0 auto !important; aspect-ratio: 1 / 1 !important; }
+  .brand-compact img { flex: 0 0 auto !important; aspect-ratio: 1 / 1 !important; }
   .greeting { font-size: .88rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .greeting svg { display: none; }
   .search { display: none !important; }

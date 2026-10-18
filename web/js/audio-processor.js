@@ -1,5 +1,5 @@
 /**
- * Audio Processor for Morning Brief Voice Cloning.
+ * Audio Processor for Hark Daily Voice Cloning.
  * Converts any user audio (WAV, MP3, M4A, AAC, OGG) directly in the browser
  * into the exact format required by the Chatterbox-Turbo engine:
  *   - 24,000 Hz (24 kHz) sample rate

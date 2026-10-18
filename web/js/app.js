@@ -44,7 +44,7 @@ function syncInstallBtn() {
 
 async function install() {
   if (installMode() === 'ios') { $('installSheet').showModal(); return; }
-  if (await promptInstall()) toast('Installed. Next time, open Morning Brief from your home screen.');
+  if (await promptInstall()) toast('Installed. Next time, open Hark Daily from your home screen.');
 }
 
 function syncThemeIcon() {

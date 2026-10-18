@@ -411,7 +411,7 @@ export class Landing {
     this.voiceAudio.pause();
     // Only reword the first step; later steps (email sent, code) own their own copy.
     if (!$('providerStep').classList.contains('hidden')) {
-      $('signinTitle').textContent = reason === 'gate' ? 'Keep listening' : 'Start your morning brief';
+      $('signinTitle').textContent = reason === 'gate' ? 'Keep listening' : 'Start your daily brief';
       $('loginHint').textContent = reason === 'gate'
         ? "Sign in free to hear the rest of today's brief. The voice you picked comes with you."
         : DEFAULT_INTRO;

@@ -10,7 +10,7 @@ const PROVIDERS = {
   }),
   openrouter: (key) => ({
     url: 'https://openrouter.ai/api/v1/chat/completions',
-    headers: { Authorization: `Bearer ${key}`, 'HTTP-Referer': 'https://morningbrief.app', 'X-Title': 'Morning Brief' },
+    headers: { Authorization: `Bearer ${key}`, 'HTTP-Referer': 'https://hark.vattitude.ca', 'X-Title': 'Hark Daily' },
     openai: true,
   }),
 };

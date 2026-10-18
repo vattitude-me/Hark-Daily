@@ -15,7 +15,7 @@ export default async function handler(req, res) {
   try {
     const upstream = await fetch(url, {
       headers: {
-        'User-Agent': 'MorningBrief/1.0 (+https://morningbrief.app)',
+        'User-Agent': 'HarkDaily/1.0 (+https://hark.vattitude.ca)',
         Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
       },
       redirect: 'follow',

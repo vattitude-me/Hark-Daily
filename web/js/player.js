@@ -522,7 +522,7 @@ export class Player extends EventTarget {
     const art = story?.image ? [{ src: story.image, sizes: '512x512' }] : [];
     navigator.mediaSession.metadata = new MediaMetadata({
       title: ch.title,
-      artist: 'Morning Brief',
+      artist: 'Hark Daily',
       album: this.briefing.title,
       artwork: [...art, { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' }],
     });

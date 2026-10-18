@@ -28,11 +28,11 @@ self.addEventListener('fetch', (e) => {
 self.addEventListener('push', (e) => {
   let data = {};
   try { data = e.data ? e.data.json() : {}; } catch { /* plain-text payload */ }
-  e.waitUntil(self.registration.showNotification(data.title || 'Morning Brief', {
+  e.waitUntil(self.registration.showNotification(data.title || 'Hark Daily', {
     body: data.body || "Today's briefing is ready.",
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
-    tag: 'morning-brief',
+    tag: 'hark-daily',
     data: { url: data.url || '/' },
   }));
 });

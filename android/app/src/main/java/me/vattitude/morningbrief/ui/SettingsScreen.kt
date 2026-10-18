@@ -447,8 +447,8 @@ internal fun SummaryPicker(vm: AppViewModel, modifier: Modifier = Modifier, save
     }
 }
 
-const val PRIVACY_URL = "https://mbv.vattitude.ca/privacy"
-const val TERMS_URL = "https://mbv.vattitude.ca/terms"
+const val PRIVACY_URL = "https://hark.vattitude.ca/privacy"
+const val TERMS_URL = "https://hark.vattitude.ca/terms"
 
 /** Web pages open in a browser tab over the app. */
 internal fun openPage(context: Context, url: String) = openPage(context, Uri.parse(url))
