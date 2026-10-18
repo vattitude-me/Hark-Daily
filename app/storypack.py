@@ -57,6 +57,13 @@ def voice_name(voice: str | None) -> str:
 # their top stories, carrying the same clip timeline the clients assemble. No second
 # render, no extra voice work — the sample is literally the day's own clips.
 SHOWCASE_KEY = "showcase/sample.json"
+
+
+def showcase_key(voice: str) -> str:
+    """Where one narrator's landing sample lives, so a visitor can try any voice before signing in."""
+    return f"showcase/sample-{voice}.json"
+
+
 SHOWCASE_SECTIONS: tuple[str, ...] = ("top", "ai")
 SHOWCASE_PER_SECTION = 3
 
@@ -346,7 +353,10 @@ async def publish_showcase(cfg, store, *, day: str | None = None, voice: str | N
     payload = showcase_payload(rows, notes, store.public_url, day=day, voice=voice,
                               sections=sections, per_section=per_section)
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
-    store.upload(SHOWCASE_KEY, body, content_type="application/json", cache="max-age=300")
+    store.upload(showcase_key(voice), body, content_type="application/json", cache="max-age=300")
+    if voice == (cfg.story_voices or (DEFAULT_VOICE,))[0]:
+        # The default narrator's sample is also the one older clients fetch.
+        store.upload(SHOWCASE_KEY, body, content_type="application/json", cache="max-age=300")
     log.info("Published the landing sample: %d clips, %.1fs",
              len(payload["briefing"]["clips"]), payload["briefing"]["duration"])
     return payload
@@ -557,7 +567,8 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
     log.info("Published %d clips (%.1fs of audio)", len(rows), total_seconds(rows))
     # The landing page's sample rides along with the pack, so it can't quietly go stale.
     try:
-        await publish_showcase(cfg, store, day=day, voice=voices[0])
+        for name in voices:
+            await publish_showcase(cfg, store, day=day, voice=name)
         tick("landing sample")
     except Exception as exc:  # noqa: BLE001 — a sample is worth having, a pack is not
         log.warning("Could not publish the landing sample: %s", exc)

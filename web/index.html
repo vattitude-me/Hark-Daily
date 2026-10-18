@@ -121,8 +121,8 @@
             <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Free to listen, with no ads</span></li>
           </ul>
           <div class="landing-cta">
-            <button class="pill-btn lg" type="button" data-signin>Start your brief</button>
-            <span class="hint">Sign in with Google or email. No password needed.</span>
+            <button class="pill-btn lg" type="button" id="startPreview">Start your brief</button>
+            <span class="hint">Listen to a preview in the voice you like. Sign in free to hear the whole brief.</span>
           </div>
         </section>
 
@@ -143,6 +143,7 @@
                 <h3 class="hero-title" id="sampleTitle">Loading today's briefing…</h3>
               </div>
             </div>
+            <div class="voice-picker" id="sampleVoices" role="radiogroup" aria-label="Choose a narrator"></div>
             <div class="wave-panel">
               <div class="wave-head">
                 <div class="times"><span class="t-cur" id="sampleCur">0:00</span><span class="t-sep">/</span><span id="sampleDur">-0:00</span></div>
@@ -162,6 +163,12 @@
                 </div>
               </div>
             </div>
+            <div class="sample-gate hidden" id="sampleGate" role="status" aria-live="polite">
+              <b id="gateTitle">That's the preview.</b>
+              <p id="gateText">Sign in free to hear the rest of today's brief, in any voice.</p>
+              <button class="pill-btn" type="button" id="gateContinue">Keep listening</button>
+              <button class="link-btn" type="button" id="gateReplay">Replay the preview</button>
+            </div>
             <audio id="sampleAudio" preload="none"></audio>
           </section>
         </section>
@@ -170,8 +177,8 @@
       <section class="landing-next" aria-label="Getting started">
         <p class="overline">Three quick steps</p>
         <ol class="landing-steps">
-          <li><span>01</span><div><b>Sign in</b><small>Google or email</small></div></li>
-          <li><span>02</span><div><b>Choose your topics</b><small>Make the brief yours</small></div></li>
+          <li><span>01</span><div><b>Listen and pick a voice</b><small>No account needed</small></div></li>
+          <li><span>02</span><div><b>Sign in to hear it all</b><small>Google or email</small></div></li>
           <li><span>03</span><div><b>Your morning brief</b><small>Ready when you wake</small></div></li>
         </ol>
       </section>
