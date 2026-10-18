@@ -86,6 +86,7 @@ class Config:
     gce_zone: str = os.getenv("GCE_ZONE", "us-central1-c")
     gce_instance: str = os.getenv("GCE_INSTANCE", "morning-brief-voice")
     gce_manage_vm: bool = _bool("GCE_MANAGE_VM", True)
+    gce_health_timeout: float = float(os.getenv("GCE_HEALTH_TIMEOUT", "180.0"))
 
     @property
     def cache_dir(self) -> Path:
