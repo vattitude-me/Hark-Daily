@@ -1,4 +1,4 @@
-// Signed-out landing: play the admin's latest briefing (or the one shipped with the site), show its headlines and voices, then sign in.
+// Signed-out landing: play the latest published top stories in the narrator the visitor picks, then offer sign-in for the full brief.
 import { BUILTIN_VOICES, SECTIONS, api, h, icon, store, toast } from './api.js';
 import { SUPABASE_URL } from '../config.js';
 
@@ -7,11 +7,7 @@ const PREVIEW_STORIES = 2;
 // timeupdate fires a few times a second; stop this early so the next story never starts.
 const GRACE = 0.25;
 
-// The sample the site ships with, built by `python -m app pack --sample-bundle`: the
-// day's own clips joined into one file, so the player works on the first tap for anyone.
-const SAMPLE_URL = '/sample/sample.json';
-
-// The same sample as published by the pack. Only used if the bundled copy is missing.
+// The default narrator's sample as the pack has always published it; a fallback for voiceUrl().
 const DEMO_URL = `${SUPABASE_URL}/storage/v1/object/public/briefings/showcase/sample.json`;
 
 /** The published sample for one narrator, refreshed hourly. */
@@ -67,10 +63,10 @@ export class Landing {
     this.render(data || {});
   }
 
-  /** One narrator's sample, or null when it isn't playable. The default also has a copy shipped with the site. */
+  /** One narrator's latest published top stories, or null when they aren't playable. */
   async fetchSample(voiceId) {
     const urls = voiceId === BUILTIN_VOICES[0].id
-      ? [SAMPLE_URL, voiceUrl(voiceId), `${DEMO_URL}?h=${Math.floor(Date.now() / 3600000)}`]
+      ? [voiceUrl(voiceId), `${DEMO_URL}?h=${Math.floor(Date.now() / 3600000)}`]
       : [voiceUrl(voiceId)];
     for (const url of urls) {
       try {
@@ -172,7 +168,7 @@ export class Landing {
   paintHero() {
     const ready = this.clips.length > 0;
     const name = BUILTIN_VOICES.find((v) => v.id === this.voiceId)?.name;
-    $('sampleLabel').textContent = ready ? `Preview${name ? ` · ${name}` : ''}` : 'Sample briefing';
+    $('sampleLabel').textContent = ready ? `Today's top stories${name ? ` · ${name}` : ''}` : 'Today\'s brief';
     $('sampleTitle').textContent = ready
       ? (this.stories[0]?.headline || 'Tap play to hear the briefing')
       : "The sample isn't available right now. Try again in a moment.";
@@ -188,7 +184,7 @@ export class Landing {
     seg.querySelectorAll('.seg').forEach((n) => n.remove());
     this.segments = this.chapters.filter((c) => c.kind === 'story');
     // The preview ends where the last free story ends; everything after it is for signed-in listeners.
-    this.cap = this.segments.length > PREVIEW_STORIES ? this.segments[PREVIEW_STORIES - 1].end : Infinity;
+    this.cap = this.segments.length ? this.segments[Math.min(PREVIEW_STORIES, this.segments.length) - 1].end : Infinity;
     this.segments.forEach((c, i) => {
       seg.insertBefore(h('div', {
         class: `seg${i >= PREVIEW_STORIES ? ' locked' : ''}`,

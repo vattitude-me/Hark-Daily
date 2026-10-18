@@ -64,8 +64,8 @@ def showcase_key(voice: str) -> str:
     return f"showcase/sample-{voice}.json"
 
 
-SHOWCASE_SECTIONS: tuple[str, ...] = ("top", "ai")
-SHOWCASE_PER_SECTION = 3
+SHOWCASE_SECTIONS: tuple[str, ...] = ("top",)
+SHOWCASE_PER_SECTION = 2
 
 # The landing page's own copy of the sample, checked into the site so it plays for
 # anyone, instantly, with no account and no storage bucket in the path. Regenerate it

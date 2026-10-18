@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.39] - 2026-10-18
+
+### Changed
+- **Web onboarding no longer forces sign-in**: "Start your brief" plays today's top 2 stories in the chosen narrator, with voice chips (Alice, Mike, Jerry, C-3PO). A "Keep listening" prompt follows, and the chosen voice carries into the new account.
+- The pack publishes a landing sample per narrator (`showcase/sample-<voice>.json`), top 2 stories only. The checked-in `web/sample` bundle is removed.
+- Web service worker cache bumped to `morning-brief-v44`.
+
+---
+
 ## [0.1.35] - 2026-10-10
 
 ### Added
