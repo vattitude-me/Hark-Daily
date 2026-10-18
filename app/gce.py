@@ -155,18 +155,17 @@ def voice_vm_session(cfg):
     if not start_vm(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token):
         log.warning("Failed to send start command to %s", cfg.gce_instance)
 
-    # Re-check dynamically resolved IP once started if it was empty
-    if not voice_url or "auto" in voice_url:
-        time.sleep(5)
-        fresh_ip = get_instance_ip(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token)
-        if fresh_ip:
-            voice_url = f"http://{fresh_ip}:8090"
+    # Re-check dynamically resolved IP once started
+    time.sleep(3)
+    fresh_ip = get_instance_ip(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token)
+    if fresh_ip:
+        voice_url = f"http://{fresh_ip}:8090"
 
-    # Wait for Chatterbox-Turbo to become healthy (up to 90 seconds, polling every 3s)
+    # Wait for Chatterbox-Turbo to become healthy (up to 180 seconds, polling every 3s)
     log.info("Waiting for Chatterbox-Turbo voice service at %s to report healthy...", voice_url)
     ready = False
     start_time = time.monotonic()
-    timeout = 90.0
+    timeout = getattr(cfg, "gce_health_timeout", 180.0)
     while time.monotonic() - start_time < timeout:
         if is_service_healthy(voice_url):
             ready = True
