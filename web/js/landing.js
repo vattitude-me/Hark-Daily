@@ -1,6 +1,11 @@
 // Signed-out landing: play the admin's latest briefing (or the one shipped with the site), show its headlines and voices, then sign in.
-import { SECTIONS, api, h, icon, toast } from './api.js';
+import { BUILTIN_VOICES, SECTIONS, api, h, icon, store, toast } from './api.js';
 import { SUPABASE_URL } from '../config.js';
+
+// How much a visitor hears before the account prompt: the greeting plus this many stories.
+const PREVIEW_STORIES = 2;
+// timeupdate fires a few times a second; stop this early so the next story never starts.
+const GRACE = 0.25;
 
 // The sample the site ships with, built by `python -m app pack --sample-bundle`: the
 // day's own clips joined into one file, so the player works on the first tap for anyone.
@@ -8,6 +13,12 @@ const SAMPLE_URL = '/sample/sample.json';
 
 // The same sample as published by the pack. Only used if the bundled copy is missing.
 const DEMO_URL = `${SUPABASE_URL}/storage/v1/object/public/briefings/showcase/sample.json`;
+
+/** The published sample for one narrator, refreshed hourly. */
+const voiceUrl = (id) =>
+  `${SUPABASE_URL}/storage/v1/object/public/briefings/showcase/sample-${id}.json?h=${Math.floor(Date.now() / 3600000)}`;
+
+const DEFAULT_INTRO = 'Sign in once. Your brief and settings follow you between the web and Android apps.';
 
 const MAILBOXES = [
   [/@(gmail|googlemail)\.com$/, 'Gmail', 'https://mail.google.com/mail/u/0/#search/%22sign-in+link%22'],
@@ -34,6 +45,10 @@ export class Landing {
     this.segments = [];
     this.stories = [];
     this.current = null;
+    this.cap = Infinity;
+    this.gated = false;
+    const saved = store.get('pending-voice', null);
+    this.voiceId = BUILTIN_VOICES.some((v) => v.id === saved) ? saved : BUILTIN_VOICES[0].id;
     this.bindPlayer();
     this.bindSignIn();
   }
@@ -42,16 +57,70 @@ export class Landing {
     const hr = new Date().getHours();
     $('lgGreeting').textContent = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
     this.checkLinkError();
-    let data = {};
-    for (const url of [SAMPLE_URL, `${DEMO_URL}?h=${Math.floor(Date.now() / 3600000)}`]) {
+    this.paintVoices();
+    let data = await this.fetchSample(this.voiceId);
+    if (!data && this.voiceId !== BUILTIN_VOICES[0].id) {
+      this.voiceId = BUILTIN_VOICES[0].id;
+      this.paintVoices();
+      data = await this.fetchSample(this.voiceId);
+    }
+    this.render(data || {});
+  }
+
+  /** One narrator's sample, or null when it isn't playable. The default also has a copy shipped with the site. */
+  async fetchSample(voiceId) {
+    const urls = voiceId === BUILTIN_VOICES[0].id
+      ? [SAMPLE_URL, voiceUrl(voiceId), `${DEMO_URL}?h=${Math.floor(Date.now() / 3600000)}`]
+      : [voiceUrl(voiceId)];
+    for (const url of urls) {
       try {
         const res = await fetch(url);
-        if (res.ok) data = await res.json();
+        if (!res.ok) continue;
+        const data = await res.json();
+        // A playable sample is either one joined file or, from the published copy, clips.
+        if (data.briefing?.clips?.length || data.briefing?.audio_url) return data;
       } catch { /* missing or offline: try the next one */ }
-      // A playable sample is either one joined file or, from the published copy, clips.
-      if (data.briefing?.clips?.length || data.briefing?.audio_url) break;
     }
-    this.render(data);
+    return null;
+  }
+
+  // ------------------------------------------------------------------ voices
+  paintVoices() {
+    $('sampleVoices').replaceChildren(...BUILTIN_VOICES.map((v) => {
+      const on = v.id === this.voiceId;
+      const chip = h('button', {
+        class: `voice-chip${on ? ' active' : ''}`, type: 'button', role: 'radio',
+        'aria-checked': String(on), title: v.desc,
+      }, icon(v.icon || 'mic'), h('span', {}, v.name));
+      chip.addEventListener('click', () => this.switchVoice(v.id));
+      return chip;
+    }));
+  }
+
+  /** Swap narrators mid-listen, landing on the same story in the new voice. */
+  async switchVoice(id) {
+    if (id === this.voiceId || this.switching) return;
+    this.switching = true;
+    const box = $('sampleVoices');
+    box.classList.add('busy');
+    const resume = this.playing || this.gated;
+    const storyId = this.current;
+    try {
+      const data = await this.fetchSample(id);
+      if (!data) { toast("That voice isn't ready yet. Try another."); return; }
+      this.voiceId = id;
+      // Remembered so the account starts with this narrator once they sign in.
+      store.set('pending-voice', id);
+      this.paintVoices();
+      this.render(data);
+      const seg = this.segments.find((c) => c.id === storyId);
+      const from = seg && seg.start < this.cap - GRACE ? seg.start : 0;
+      if (resume) this.seekTo(from, true);
+      else if (from) this.seekTo(from, false);
+    } finally {
+      box.classList.remove('busy');
+      this.switching = false;
+    }
   }
 
   // ------------------------------------------------------------------ sample
@@ -70,6 +139,12 @@ export class Landing {
     this.duration = b.duration || this.clips.reduce((n, c) => n + c.duration, 0);
     this.index = 0;
     this.current = null;
+    // A new recording replaces the old one outright: drop its source and any gate.
+    this.audio.pause();
+    this.audio.removeAttribute('src');
+    this.audio.dataset.clip = '';
+    this.audio.load();
+    this.unlock();
 
     this.paintHero();
     this.buildSegments();
@@ -96,10 +171,8 @@ export class Landing {
 
   paintHero() {
     const ready = this.clips.length > 0;
-    const mins = Math.max(1, Math.round(this.duration / 60));
-    $('sampleLabel').textContent = ready
-      ? `Sample briefing · ${mins} min`
-      : 'Sample briefing';
+    const name = BUILTIN_VOICES.find((v) => v.id === this.voiceId)?.name;
+    $('sampleLabel').textContent = ready ? `Preview${name ? ` · ${name}` : ''}` : 'Sample briefing';
     $('sampleTitle').textContent = ready
       ? (this.stories[0]?.headline || 'Tap play to hear the briefing')
       : "The sample isn't available right now. Try again in a moment.";
@@ -114,9 +187,14 @@ export class Landing {
     const seg = $('sampleSegs');
     seg.querySelectorAll('.seg').forEach((n) => n.remove());
     this.segments = this.chapters.filter((c) => c.kind === 'story');
-    for (const c of this.segments) {
-      seg.insertBefore(h('div', { class: 'seg', style: `flex-grow:${Math.max(1, c.end - c.start)}` }, h('i')), $('sampleThumb'));
-    }
+    // The preview ends where the last free story ends; everything after it is for signed-in listeners.
+    this.cap = this.segments.length > PREVIEW_STORIES ? this.segments[PREVIEW_STORIES - 1].end : Infinity;
+    this.segments.forEach((c, i) => {
+      seg.insertBefore(h('div', {
+        class: `seg${i >= PREVIEW_STORIES ? ' locked' : ''}`,
+        style: `flex-grow:${Math.max(1, c.end - c.start)}`,
+      }, h('i')), $('sampleThumb'));
+    });
     seg.classList.toggle('hidden', !this.segments.length);
   }
 
@@ -137,9 +215,10 @@ export class Landing {
   }
 
   storyRow(s) {
-    const dot = h('button', { class: 'play-dot', type: 'button', 'aria-label': `Play from: ${s.headline}` },
+    const locked = (s.start || 0) >= this.cap - GRACE;
+    const dot = h('button', { class: 'play-dot', type: 'button', 'aria-label': locked ? `Sign in to hear: ${s.headline}` : `Play from: ${s.headline}` },
       icon('play', 'i-play'), icon('pause', 'i-pause'));
-    const row = h('article', { class: 'story-row', dataset: { id: s.id } },
+    const row = h('article', { class: `story-row${locked ? ' locked' : ''}`, dataset: { id: s.id } },
       h('div', { class: 'story-main' },
         h('div', { class: 'play-col' }, dot, h('span', { class: 't' }, fmtTime(s.start || 0))),
         h('div', { class: 'story-text' },
@@ -150,7 +229,8 @@ export class Landing {
           referrerpolicy: 'no-referrer', onerror: (e) => e.target.remove(),
         }) : null));
     // The dot is this story's own play/pause: tapping the one already playing stops it.
-    const play = () => (this.current === s.id ? this.toggle() : this.seekTo(s.start || 0, true));
+    // Stories past the preview ask for an account instead.
+    const play = () => (locked ? this.openSignIn('gate') : this.current === s.id ? this.toggle() : this.seekTo(s.start || 0, true));
     dot.addEventListener('click', (e) => { e.stopPropagation(); play(); });
     row.querySelector('.story-main').addEventListener('click', play);
     return row;
@@ -169,6 +249,8 @@ export class Landing {
     $('samplePlay').addEventListener('click', () => this.toggle());
     $('samplePrev').addEventListener('click', () => this.step(-1));
     $('sampleNext').addEventListener('click', () => this.step(1));
+    $('gateContinue').addEventListener('click', () => this.openSignIn('gate'));
+    $('gateReplay').addEventListener('click', () => this.seekTo(0, true));
 
     // Tap or drag the segmented bar to seek, exactly as in the app.
     const seekToPointer = (e) => {
@@ -215,6 +297,8 @@ export class Landing {
   toggle() {
     if (!this.clips.length) return;
     this.voiceAudio.pause();
+    // At the gate, play starts the preview over; signing in is the gate's own button.
+    if (this.gated) { this.seekTo(0, true); return; }
     if (this.playing) { this.audio.pause(); return; }
     if (!this.audio.src) this.loadClip(this.index, { autoplay: true });
     else this.audio.play().catch(() => {});
@@ -223,11 +307,34 @@ export class Landing {
   /** Jump anywhere on the sample's timeline, landing on whichever clip covers it. */
   seekTo(seconds, play = this.playing) {
     if (!this.clips.length) return;
+    // Past the preview: park just short of it and show the gate rather than playing on.
+    if (seconds >= this.cap - GRACE) {
+      this.seekTo(this.cap - GRACE - 0.01, false);
+      this.lock();
+      return;
+    }
+    if (this.gated) this.unlock();
     const t = Math.max(0, Math.min(seconds, this.total));
     let i = 0;
     for (let n = 0; n < this.clips.length; n += 1) if (t >= this.clips[n].start - 0.02) i = n;
     if (t >= this.total - 0.05) { this.loadClip(this.clips.length - 1, { seek: this.clips[this.clips.length - 1].duration, autoplay: false }); return; }
     this.loadClip(i, { seek: t - this.clips[i].start, autoplay: play });
+  }
+
+  /** The preview is over: stop, and offer the rest of the brief for an account. */
+  lock() {
+    this.gated = true;
+    this.audio.pause();
+    const name = BUILTIN_VOICES.find((v) => v.id === this.voiceId)?.name;
+    $('gateText').textContent = `Sign in free to hear the rest of today's brief${name ? `, read by ${name} or any other narrator` : ''}.`;
+    $('sampleGate').classList.remove('hidden');
+    $('sampleHero').classList.add('gated');
+  }
+
+  unlock() {
+    this.gated = false;
+    $('sampleGate').classList.add('hidden');
+    $('sampleHero').classList.remove('gated');
   }
 
   /** Previous or next story, skipping the greeting and section intros. */
@@ -251,6 +358,7 @@ export class Landing {
   tick() {
     if (!this.clips.length) return;
     const t = this.position;
+    if (!this.gated && t >= this.cap - GRACE) this.lock();
     const dur = this.duration || this.total || 0;
     const segs = $('sampleSegs').querySelectorAll('.seg');
     (this.segments || []).forEach((s, i) => {
@@ -285,6 +393,7 @@ export class Landing {
     $('sampleTitle').textContent = 'Want this every morning, before you wake?';
     this.current = null;
     this.highlight(null);
+    this.lock();
   }
 
   highlight(id) {
@@ -297,10 +406,18 @@ export class Landing {
   }
 
   // ----------------------------------------------------------------- sign in
-  openSignIn() {
+  /** `reason` is 'gate' when the visitor reached the end of the preview, so the copy can say so. */
+  openSignIn(reason) {
     $('signin').classList.remove('hidden');
     this.audio.pause();
     this.voiceAudio.pause();
+    // Only reword the first step; later steps (email sent, code) own their own copy.
+    if (!$('providerStep').classList.contains('hidden')) {
+      $('signinTitle').textContent = reason === 'gate' ? 'Keep listening' : 'Start your morning brief';
+      $('loginHint').textContent = reason === 'gate'
+        ? "Sign in free to hear the rest of today's brief. The voice you picked comes with you."
+        : DEFAULT_INTRO;
+    }
     if (!$('emailForm').classList.contains('hidden')) setTimeout(() => $('loginEmail').focus(), 50);
   }
 
@@ -324,6 +441,14 @@ export class Landing {
 
   bindSignIn() {
     document.querySelectorAll('[data-signin]').forEach((b) => b.addEventListener('click', () => this.openSignIn()));
+    $('startPreview').addEventListener('click', () => {
+      // No account yet: "Start your brief" plays the preview. Sign-in is offered once they've heard it.
+      if (!this.clips.length) { this.openSignIn(); return; }
+      const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      $('sampleHero').scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'center' });
+      if (this.gated) this.seekTo(0, true);
+      else if (!this.playing) this.toggle();
+    });
     $('signinClose').addEventListener('click', () => this.closeSignIn());
     $('signin').addEventListener('click', (e) => { if (e.target.id === 'signin') this.closeSignIn(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') this.closeSignIn(); });
