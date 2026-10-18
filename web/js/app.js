@@ -1,4 +1,4 @@
-import { api, fmtTime, h, icon, isAdmin, recordError, sb, store, timeAgo, toast, VOICES, voiceFor, SECTIONS } from './api.js';
+import { api, fmtTime, h, icon, isAdmin, recordError, sb, store, timeAgo, toast, VOICES, voiceFor, SECTIONS, DEFAULT_VOICE_ID } from './api.js';
 import { Player } from './player.js';
 import { Landing } from './landing.js';
 import { WelcomeSheet, installMode, onInstallChange, promptInstall, pushSupported, wireSheet } from './sheets.js';
@@ -130,7 +130,7 @@ function renderHeader() {
   }
 
   // Active narrator chip & preview
-  const activeVoiceId = b?.voice?.id || state.profile?.settings?.voice || 'her_reference';
+  const activeVoiceId = b?.voice?.id || state.profile?.settings?.voice || DEFAULT_VOICE_ID;
   const activeVoice = voiceFor(activeVoiceId);
   const nName = $('narratorName');
   if (nName) nName.textContent = activeVoice.name;
@@ -218,7 +218,7 @@ function renderHero() {
 function renderPersonas() {
   const row = $('personaRow');
   if (!row) return;
-  const activeVoiceId = state.briefing?.voice?.id || state.profile?.settings?.voice || 'her_reference';
+  const activeVoiceId = state.briefing?.voice?.id || state.profile?.settings?.voice || DEFAULT_VOICE_ID;
   const available = new Set(state.briefing?.availableVoices || []);
   row.replaceChildren(...VOICES.map((v) => {
     const on = v.id === activeVoiceId;

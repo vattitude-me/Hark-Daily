@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.40] - 2026-10-18
+
+### Changed
+- **C-3PO is the default narrator** for the landing preview and for new accounts (`DEFAULT_VOICE_ID`). The voice a visitor hears first carries into their account. Web service worker cache is now `morning-brief-v45`.
+
+---
+
 ## [0.1.39] - 2026-10-18
 
 ### Changed
