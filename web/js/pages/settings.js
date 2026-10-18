@@ -7,7 +7,10 @@ import {
   GlassGroup, Hairline, Hint, ListRow, Overline, PillButton, PillStepper,
   SectionLabel, Segmented, SwitchRow, Tag, applyPhotoMode,
 } from '../design.js';
-import { DeleteAccountSheet, SuggestSheet, enablePush, isIOS, isInstalled, pushSupported, subscribedWith } from '../sheets.js';
+import {
+  DeleteAccountSheet, SuggestSheet, enablePush, isIOS, isInstalled,
+  pushSupported, requestNotificationPermission, subscribedWith,
+} from '../sheets.js';
 
 const speedLabel = (v) => `${Number(v).toFixed(2).replace(/0$/, '')}×`;
 
@@ -27,6 +30,7 @@ export class SettingsPage {
     this.notesDay = null;
     this.loaded = false;
     this.pushHint = '';
+    this.status = null;
   }
 
   async load() {
@@ -86,13 +90,13 @@ export class SettingsPage {
       let sub = await reg.pushManager.getSubscription();
       const granted = Notification.permission === 'granted';
       if (granted && sub) {
-        // The server publishes the key its notifications are signed with. If that key has been
-        // replaced, this device is subscribed to the old one and would hear nothing, so quietly
-        // register it again. Opening this screen is enough; no tapping the switch.
         const status = await api.status().catch(() => ({}));
-        if (status?.vapid_public_key && subscribedWith(sub) !== status.vapid_public_key) {
-          await enablePush(status.vapid_public_key);
-          sub = await reg.pushManager.getSubscription();
+        if (status?.vapid_public_key) {
+          this.status = status;
+          if (subscribedWith(sub) !== status.vapid_public_key) {
+            await enablePush(status.vapid_public_key);
+            sub = await reg.pushManager.getSubscription();
+          }
         }
       }
       this.pushOn = !!sub && granted;
@@ -118,31 +122,68 @@ export class SettingsPage {
       this.render();
       return;
     }
+
+    if (on && Notification.permission === 'denied') {
+      this.pushHint = 'Notifications are blocked in this browser. Click the lock/tune icon in your address bar to allow them.';
+      this.pushOn = false;
+      this.render();
+      toast('Notifications are blocked in browser settings. Please allow them via the address bar.', { error: true, ms: 6000 });
+      return;
+    }
+
     try {
       if (!on) {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
-        if (sub) { await api.pushUnsubscribe(sub.toJSON()); await sub.unsubscribe(); }
+        if (sub) { await api.pushUnsubscribe(sub.toJSON()).catch(() => {}); await sub.unsubscribe().catch(() => {}); }
         this.pushOn = false;
         this.pushHint = '';
         this.render();
+        toast('Notifications turned off.');
         return;
       }
-      const status = await api.status().catch(() => ({}));
+
+      // Step 1: Request permission IMMEDIATELY while user tap gesture is active (critical for Safari/Chrome)
+      if (Notification.permission !== 'granted') {
+        const perm = await requestNotificationPermission();
+        if (perm !== 'granted') {
+          this.pushOn = false;
+          this.pushHint = perm === 'denied'
+            ? 'Notifications are blocked in this browser\u2019s site settings.'
+            : 'Notification permission was not granted.';
+          this.render();
+          toast(this.pushHint, { error: true });
+          return;
+        }
+      }
+
+      // Step 2: Show immediate progress feedback
+      this.pushHint = 'Setting up morning notifications…';
+      const hintEl = document.getElementById('pushHint');
+      if (hintEl) hintEl.textContent = this.pushHint;
+
+      // Step 3: Fetch status key if not already cached
+      const status = this.status?.vapid_public_key ? this.status : await api.status().catch(() => ({}));
       if (!status?.vapid_public_key) {
         this.pushOn = false;
         this.pushHint = 'Notifications are still setting up. Try again in a moment.';
         this.render();
+        toast(this.pushHint, { error: true });
         return;
       }
+      this.status = status;
+
+      // Step 4: Register subscription
       await enablePush(status.vapid_public_key);
       this.pushOn = true;
       this.pushHint = 'You will be notified when your briefing is ready.';
       this.render();
+      toast('Notifications enabled! A morning brief will nudge you when ready.');
     } catch (err) {
       this.pushOn = false;
+      this.pushHint = err.message || "Couldn't enable notifications.";
       this.render();
-      toast(err.message, { error: true });
+      toast(err.message, { error: true, ms: 6000 });
     }
   }
 
