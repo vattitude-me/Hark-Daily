@@ -3,19 +3,65 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Hark Daily: The day's news, read aloud every morning</title>
-  <meta name="description" content="Seven sections of the day's news, summarized and read aloud by the narrator you choose. Don't just read the news. Hear it with Hark Daily.">
-  <meta property="og:title" content="Hark Daily">
-  <meta property="og:description" content="Seven sections of the day's news, recorded before you wake. Don't just read the news. Hear it.">
+  <title>Hark Daily: The news you hear, not just read</title>
+  <meta name="description" content="Seven sections of the day's news, summarized and read aloud by the narrator you choose. Recorded before you wake with Hark Daily.">
+  <link rel="canonical" href="https://hark.vattitude.ca/">
+
+  <!-- OpenGraph / Facebook / LinkedIn -->
   <meta property="og:type" content="website">
+  <meta property="og:url" content="https://hark.vattitude.ca/">
   <meta property="og:site_name" content="Hark Daily">
+  <meta property="og:title" content="Hark Daily: The news you hear, not just read">
+  <meta property="og:description" content="Seven sections of the day's news, summarized and read aloud by the narrator you choose. Recorded before you wake with Hark Daily.">
+  <meta property="og:image" content="https://hark.vattitude.ca/icons/icon-512.png">
+  <meta property="og:image:secure_url" content="https://hark.vattitude.ca/icons/icon-512.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta property="og:image:alt" content="Hark Daily App Icon">
+
+  <!-- Twitter / X -->
   <meta name="twitter:card" content="summary">
+  <meta name="twitter:url" content="https://hark.vattitude.ca/">
+  <meta name="twitter:title" content="Hark Daily: The news you hear, not just read">
+  <meta name="twitter:description" content="Seven sections of the day's news, summarized and read aloud by the narrator you choose. Fresh every morning.">
+  <meta name="twitter:image" content="https://hark.vattitude.ca/icons/icon-512.png">
+
+  <!-- Apple iOS / PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Hark Daily">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+
+  <!-- Favicons and Manifest -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="/icons/icon-96.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+
+  <!-- Structured Data (JSON-LD) for Search Engines -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Hark Daily",
+    "url": "https://hark.vattitude.ca/",
+    "applicationCategory": "NewsApplication",
+    "operatingSystem": "All",
+    "description": "Daily spoken audio news briefing customized to your topics, read aloud by AI narrators every morning.",
+    "screenshot": "https://hark.vattitude.ca/icons/icon-512.png",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
+
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#f3f2ee" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0b0f17" media="(prefers-color-scheme: dark)">
-  <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -59,6 +105,9 @@
       <symbol id="i-sunrise" viewBox="0 0 24 24"><path d="M3 18h18M7 18a5 5 0 0 1 10 0M12 4v4M5.6 10.6 4.2 9.2M18.4 10.6l1.4-1.4M9.5 6.5 12 4l2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-linkedin" viewBox="0 0 24 24"><path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77Z" fill="currentColor"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" fill="currentColor"/></symbol>
+      <symbol id="i-apple" viewBox="0 0 24 24"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.87c.66-.82 1.11-1.96.99-3.1-.96.04-2.18.66-2.87 1.48-.61.71-1.14 1.88-1 2.99 1.08.08 2.22-.55 2.88-1.37Z" fill="currentColor"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
       <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -188,6 +237,24 @@
         <summary>Browse stories in this sample<svg aria-hidden="true"><use href="#i-chev-d"/></svg></summary>
         <div id="sampleStories"></div>
       </details>
+
+      <div class="landing-social" aria-label="Share Hark Daily">
+        <span class="social-label">Share Hark Daily:</span>
+        <div class="social-links">
+          <button class="social-chip" id="shareNativeBtn" type="button" aria-label="Share via device">
+            <svg aria-hidden="true"><use href="#i-share"/></svg>
+            <span>Share</span>
+          </button>
+          <a class="social-chip" href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fhark.vattitude.ca%2F" target="_blank" rel="noopener" aria-label="Share on LinkedIn">
+            <svg aria-hidden="true"><use href="#i-linkedin"/></svg>
+            <span>LinkedIn</span>
+          </a>
+          <a class="social-chip" href="https://twitter.com/intent/tweet?text=The%20news%20you%20hear%2C%20not%20just%20read.%20Listen%20to%20Hark%20Daily%3A&url=https%3A%2F%2Fhark.vattitude.ca%2F" target="_blank" rel="noopener" aria-label="Share on X">
+            <svg aria-hidden="true"><use href="#i-x"/></svg>
+            <span>Post</span>
+          </a>
+        </div>
+      </div>
 
       <p class="footnote"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
     </div>

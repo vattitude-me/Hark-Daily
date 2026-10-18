@@ -450,6 +450,30 @@ export class Landing {
     $('signinClose').addEventListener('click', () => this.closeSignIn());
     $('signin').addEventListener('click', (e) => { if (e.target.id === 'signin') this.closeSignIn(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') this.closeSignIn(); });
+
+    const shareBtn = $('shareNativeBtn');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', async () => {
+        const shareData = {
+          title: 'Hark Daily',
+          text: 'The news you hear, not just read. Listen to today’s Hark Daily briefing:',
+          url: 'https://hark.vattitude.ca/',
+        };
+        if (navigator.share) {
+          try { await navigator.share(shareData); } catch (e) { /* user cancelled */ }
+        } else {
+          try {
+            await navigator.clipboard.writeText('https://hark.vattitude.ca/');
+            const span = shareBtn.querySelector('span');
+            if (span) {
+              const old = span.textContent;
+              span.textContent = 'Copied!';
+              setTimeout(() => { span.textContent = old; }, 2000);
+            }
+          } catch (e) {}
+        }
+      });
+    }
     const busy = (btn, on, label) => { btn.disabled = on; btn.textContent = label; };
 
     const INTRO = "Enter your email and we'll send you a link. New here? That creates your account.";
