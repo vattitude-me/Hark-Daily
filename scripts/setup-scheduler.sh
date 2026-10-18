@@ -33,10 +33,7 @@ if [ -f "$ROOT/.env" ]; then
   set +a
 fi
 
-VOICE_URL="${VOICE_SERVICE_URL:-}"
-if [ -z "$VOICE_URL" ]; then
-  echo "⚠ VOICE_SERVICE_URL is not set in .env. Please deploy the voice service first."
-fi
+VOICE_URL="${VOICE_SERVICE_URL:-auto}"
 
 # Build the worker Docker image
 WORKER_TAG="${REGION}-docker.pkg.dev/${PROJECT_ID}/voice-service/morning-brief-worker:latest"
@@ -53,7 +50,7 @@ gcloud run jobs deploy "$JOB_NAME" \
   --project="$PROJECT_ID" \
   --command="python" \
   --args="-m,app,pack,--notify" \
-  --set-env-vars="^@^VOICE_SERVICE_URL=${VOICE_URL}@SUPABASE_URL=${SUPABASE_URL:-}@SUPABASE_SECRET_KEY=${SUPABASE_SECRET_KEY:-}@GROQ_API_KEY=${GROQ_API_KEY:-}@TZ=${TIMEZONE}@BRIEFING_TIMEZONE=${TIMEZONE}@ADMIN_EMAILS=vatsakrish@gmail.com@GCP_PROJECT=${PROJECT_ID}@GCE_ZONE=us-central1-c@GCE_INSTANCE=morning-brief-voice@GCE_MANAGE_VM=true@STORY_VOICES=her_reference,him_reference,jerry_reference,c3po_reference" \
+  --set-env-vars="^@^VOICE_SERVICE_URL=${VOICE_URL}@SUPABASE_URL=${SUPABASE_URL:-}@SUPABASE_SECRET_KEY=${SUPABASE_SECRET_KEY:-}@GROQ_API_KEY=${GROQ_API_KEY:-}@TZ=${TIMEZONE}@BRIEFING_TIMEZONE=${TIMEZONE}@ADMIN_EMAILS=vatsakrish@gmail.com@GCP_PROJECT=${PROJECT_ID}@GCE_ZONE=us-central1-c@GCE_INSTANCE=morning-brief-voice@GCE_MANAGE_VM=true@GCE_HEALTH_TIMEOUT=180.0@STORY_VOICES=her_reference,him_reference,jerry_reference,c3po_reference" \
   --cpu=2 \
   --memory=2Gi \
   --task-timeout=30m \
