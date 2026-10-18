@@ -7,7 +7,7 @@ import {
   GlassGroup, Hairline, Hint, ListRow, Overline, PillButton, PillStepper,
   SectionLabel, Segmented, SwitchRow, Tag, applyPhotoMode,
 } from '../design.js';
-import { DeleteAccountSheet, SuggestSheet, enablePush, pushSupported, subscribedWith } from '../sheets.js';
+import { DeleteAccountSheet, SuggestSheet, enablePush, isIOS, isInstalled, pushSupported, subscribedWith } from '../sheets.js';
 
 const speedLabel = (v) => `${Number(v).toFixed(2).replace(/0$/, '')}×`;
 
@@ -26,6 +26,7 @@ export class SettingsPage {
     this.notes = null;      // today's greeting per voice, for the "hear it" buttons
     this.notesDay = null;
     this.loaded = false;
+    this.pushHint = '';
   }
 
   async load() {
@@ -69,12 +70,15 @@ export class SettingsPage {
 
   /* ------------------------------------------------------------------ push */
   async refreshPush() {
-    const row = document.getElementById('pushRow');
-    if (!row) return;
     const supported = pushSupported();
-    const hint = document.getElementById('pushHint');
     if (!supported) {
-      hint.textContent = 'Notifications need HTTPS and an installed app.';
+      if (isIOS() && !isInstalled()) {
+        this.pushHint = 'On iPhone & iPad, add Hark Daily to your Home Screen to enable morning notifications.';
+      } else {
+        this.pushHint = 'Notifications need HTTPS and a supported browser.';
+      }
+      this.pushOn = false;
+      this.render();
       return;
     }
     try {
@@ -85,7 +89,7 @@ export class SettingsPage {
         // The server publishes the key its notifications are signed with. If that key has been
         // replaced, this device is subscribed to the old one and would hear nothing, so quietly
         // register it again. Opening this screen is enough; no tapping the switch.
-        const { status } = await api.status().catch(() => ({}));
+        const status = await api.status().catch(() => ({}));
         if (status?.vapid_public_key && subscribedWith(sub) !== status.vapid_public_key) {
           await enablePush(status.vapid_public_key);
           sub = await reg.pushManager.getSubscription();
@@ -93,46 +97,70 @@ export class SettingsPage {
       }
       this.pushOn = !!sub && granted;
     } catch { this.pushOn = false; }
-    hint.textContent = Notification.permission === 'denied' ? 'Notifications are blocked in this browser\u2019s site settings.' : '';
+    if (Notification.permission === 'denied') {
+      this.pushHint = 'Notifications are blocked in this browser\u2019s site settings.';
+    } else if (this.pushOn) {
+      this.pushHint = 'You will be notified when your briefing is ready.';
+    } else {
+      this.pushHint = '';
+    }
     this.render();
   }
 
   async setPush(on) {
-    const hint = document.getElementById('pushHint');
+    if (!pushSupported()) {
+      if (isIOS() && !isInstalled()) {
+        document.getElementById('installSheet')?.showModal();
+      } else {
+        toast('Push notifications are not supported in this browser.', { error: true });
+      }
+      this.pushOn = false;
+      this.render();
+      return;
+    }
     try {
       if (!on) {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
         if (sub) { await api.pushUnsubscribe(sub.toJSON()); await sub.unsubscribe(); }
         this.pushOn = false;
+        this.pushHint = '';
         this.render();
         return;
       }
-      const { status } = await api.status().catch(() => ({}));
+      const status = await api.status().catch(() => ({}));
       if (!status?.vapid_public_key) {
         this.pushOn = false;
-        hint.textContent = 'Notifications are still setting up. Try again in a moment.';
+        this.pushHint = 'Notifications are still setting up. Try again in a moment.';
         this.render();
         return;
       }
       await enablePush(status.vapid_public_key);
       this.pushOn = true;
-      hint.textContent = 'You will be notified when your briefing is ready.';
+      this.pushHint = 'You will be notified when your briefing is ready.';
       this.render();
     } catch (err) {
+      this.pushOn = false;
+      this.render();
       toast(err.message, { error: true });
     }
   }
 
   async testPush(btn) {
     btn.disabled = true;
+    this.pushHint = 'Sending a test…';
     const hint = document.getElementById('pushHint');
-    hint.textContent = 'Sending a test…';
+    if (hint) hint.textContent = this.pushHint;
     try {
       const r = await api.pushTest();
-      hint.textContent = r.message || 'Sent.';
-    } catch (err) { hint.textContent = err.message; }
-    finally { btn.disabled = false; }
+      this.pushHint = r.message || 'Sent.';
+      if (hint) hint.textContent = this.pushHint;
+    } catch (err) {
+      this.pushHint = err.message;
+      if (hint) hint.textContent = this.pushHint;
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   /* --------------------------------------------------------------- rendering */
@@ -155,7 +183,7 @@ export class SettingsPage {
         }),
         h('div', { class: 'push-test-row hidden', id: 'pushRow' },
           PillButton('Send a test notification', { filled: false, onClick: (e) => this.testPush(e.currentTarget) })),
-        h('p', { class: 'hint', id: 'pushHint' }),
+        h('p', { class: 'hint', id: 'pushHint' }, this.pushHint || ''),
         Hairline(),
         ListRow({
           label: 'Topics and story counts',
