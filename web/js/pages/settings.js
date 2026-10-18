@@ -184,7 +184,7 @@ export class SettingsPage {
       ),
 
       h('div', { class: 'legal-row' },
-        h('span', { class: 'hint' }, 'Morning Brief for web'),
+        h('span', { class: 'hint' }, 'Hark Daily for web'),
         h('a', { href: '/privacy', target: '_blank', rel: 'noopener' }, 'Privacy'),
         h('a', { href: '/terms', target: '_blank', rel: 'noopener' }, 'Terms')),
     );
@@ -320,7 +320,7 @@ export class SettingsPage {
       h('div', { class: 'suggest-callout-row' },
         h('div', { class: 'suggest-callout-text' },
           h('span', { class: 'suggest-title' }, 'Have a favorite voice or publication?'),
-          h('span', { class: 'suggest-sub' }, 'Tell us what you want to hear next in Morning Brief.')),
+          h('span', { class: 'suggest-sub' }, 'Tell us what you want to hear next in Hark Daily.')),
         PillButton('Suggest an idea', {
           filled: false,
           onClick: () => this.openSuggest('News Source'),

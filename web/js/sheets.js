@@ -157,7 +157,7 @@ export class WelcomeSheet {
       if (e.key === 'Enter') { e.preventDefault(); this.addSource(); }
     });
     document.getElementById('welcomeInstallBtn').addEventListener('click', async () => {
-      if (await promptInstall()) toast('Installed. Next time, open Morning Brief from your home screen.');
+      if (await promptInstall()) toast('Installed. Next time, open Hark Daily from your home screen.');
     });
     // Chrome may only offer the install prompt after the sheet is already open.
     onInstallChange(() => { if (this.dialog.open) this.paintInstall(); });

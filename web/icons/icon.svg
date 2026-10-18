@@ -1,39 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108" role="img" aria-label="Morning Brief">
-  <title>Morning Brief</title>
-  <!-- The Android launcher icon (res/drawable/ic_launcher_background.xml and
-       ic_launcher_foreground.xml), same paths and same gradients, so the PWA and the
-       app show one logo. A glass disc holding the sun on the horizon, its rays drawn
-       as sound waves, on the app's soft grey backdrop. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="21 21 66 66" width="66" height="66" role="img" aria-label="Hark Daily">
+  <title>Hark Daily</title>
   <defs>
-    <linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="108" y2="108">
-      <stop offset="0" stop-color="#F6F6F3"/>
-      <stop offset="1" stop-color="#D6D6D1"/>
-    </linearGradient>
-    <radialGradient id="glow" gradientUnits="userSpaceOnUse" cx="28" cy="26" r="40">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".95"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="shade" gradientUnits="userSpaceOnUse" cx="86" cy="88" r="38">
-      <stop offset="0" stop-color="#BDBDB7" stop-opacity=".8"/>
-      <stop offset="1" stop-color="#BDBDB7" stop-opacity="0"/>
-    </radialGradient>
     <radialGradient id="disc-shadow" gradientUnits="userSpaceOnUse" cx="54" cy="58" r="33">
-      <stop offset=".72" stop-color="#000000" stop-opacity=".16"/>
+      <stop offset=".72" stop-color="#000000" stop-opacity=".18"/>
       <stop offset="1" stop-color="#000000" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="disc" gradientUnits="userSpaceOnUse" x1="54" y1="27" x2="54" y2="81">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".92"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".45"/>
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".96"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".65"/>
     </linearGradient>
     <linearGradient id="disc-edge" gradientUnits="userSpaceOnUse" x1="54" y1="27" x2="54" y2="81">
       <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#E2E2DC" stop-opacity=".7"/>
     </linearGradient>
   </defs>
-
-  <rect width="108" height="108" fill="url(#bg)"/>
-  <rect width="108" height="108" fill="url(#glow)"/>
-  <rect width="108" height="108" fill="url(#shade)"/>
 
   <circle cx="54" cy="58" r="33" fill="url(#disc-shadow)"/>
   <circle cx="54" cy="54" r="27" fill="url(#disc)"/>
@@ -43,4 +23,3 @@
   <path d="M35.3 65.3H72.7M41.31 56.08A14 14 0 0 1 66.69 56.08M36.8 49.95A21 21 0 0 1 71.2 49.95"
         fill="none" stroke="#0D0D0D" stroke-width="2.6" stroke-linecap="round"/>
 </svg>
-

@@ -1,7 +1,7 @@
 {
-  "name": "Morning Brief",
-  "short_name": "Brief",
-  "description": "The day's news from seven sections, read aloud by one warm narrator every morning.",
+  "name": "Hark Daily",
+  "short_name": "Hark",
+  "description": "The day's news from seven sections, read aloud by your favorite narrator every morning.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f7f4ef",
