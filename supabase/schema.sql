@@ -141,6 +141,19 @@ create table if not exists public.app_status (
   updated_at  timestamptz not null default now()
 );
 
+-- ---------------------------------------------------------------- pack lease
+-- One row, held by the pack run that is using the GPU voice VM, so a scheduled run, a retry and the
+-- admin's rebuild button can't all hit the one GPU at once. It expires on its own (see
+-- Store.acquire_lease). Secret key only: RLS is on and no policy or grant exists for anyone else.
+create table if not exists public.pack_lease (
+  id          integer primary key default 1 check (id = 1),
+  holder      text not null,
+  updated_at  timestamptz not null default now()
+);
+alter table public.pack_lease enable row level security;
+revoke all on public.pack_lease from anon, authenticated;
+
+
 -- --------------------------------------------------------- content reports
 -- Readers flagging a summary from the app (Google Play requires a way to report AI-written text).
 -- Anyone may add one, signed in or not; nobody but the secret key can read them.

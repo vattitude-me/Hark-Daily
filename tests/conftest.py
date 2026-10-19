@@ -54,6 +54,7 @@ def cfg(tmp_path: Path) -> Config:
         Config(), data_dir=tmp_path, model_dir=tmp_path / "models", groq_api_key=None,
         supabase_url="https://proj.supabase.co", supabase_secret_key="sb_secret_test",
         allow_private_urls=True, admin_emails=("admin@example.com",), admin_notify="issues",
+        gce_manage_vm=False,
     )
     c.ensure_dirs()
     return c
@@ -219,6 +220,16 @@ class FakeStore:
     def remove_objects(self, paths):
         for p in paths:
             self.objects.pop(p, None)
+
+    def acquire_lease(self, holder, ttl):
+        if getattr(self, "lease", None):
+            return self.lease
+        self.lease = holder
+        return None
+
+    def release_lease(self, holder):
+        if getattr(self, "lease", None) == holder:
+            self.lease = None
 
 
 @pytest.fixture

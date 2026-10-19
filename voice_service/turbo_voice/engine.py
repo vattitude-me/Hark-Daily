@@ -140,8 +140,8 @@ class TurboVoice:
             top_p: float = 0.95, top_k: int = 1000, repetition_penalty: float = 1.2) -> np.ndarray:
         """One span of speech, with no leading or trailing silence of our own."""
         model = self._load()
-        self._condition(model, self.path_for(reference))
         with self._lock:  # the model keeps per-call state; one span at a time
+            self._condition(model, self.path_for(reference))
             wav = model.generate(
                 text,
                 temperature=temperature,

@@ -17,11 +17,15 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import logging
+import os
+import platform
 import shutil
 import subprocess
 import tempfile
+import time
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -30,6 +34,8 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from . import guardian
+from .errors import DeadlineReached, PackBusy, PackIncomplete, VoiceServiceDown
+from .store import StoreError
 
 log = logging.getLogger(__name__)
 
@@ -444,30 +450,35 @@ async def write_sample_bundle(cfg, store, directory: str = SAMPLE_BUNDLE_DIR, *,
 
 
 async def synthesise(client: httpx.AsyncClient, base: str, text: str, voice: str,
-                     attempts: int = 2) -> tuple[bytes, float]:
+                     attempts: int = 3) -> tuple[bytes, float]:
     """One MP3 from the voice service, plus its duration (from the response header).
 
-    Transport errors are retried once with back-off. If unreachable, fails fast so the
-    underlying GPU VM can be shut down immediately to prevent unnecessary compute costs.
+    Transport errors and gateway-style 5xx are retried with back-off. A service that stays
+    unreachable raises VoiceServiceDown, so the run stops at once and the GPU VM is shut down
+    instead of timing out clip after clip; any other refusal is about this clip alone.
     """
     delay = 5
     last: Exception | None = None
+    down = False
     for attempt in range(1, attempts + 1):
         try:
             resp = await client.post(f"{base}/synthesize", params={"format": "mp3"},
                                      json={"text": text, "voice": voice})
         except httpx.HTTPError as exc:
-            last = exc
-            if attempt == attempts:
-                break
-            log.warning("voice service unreachable (%s); retrying in %ds", exc.__class__.__name__, delay)
+            last, down = exc, True
+        else:
+            if resp.status_code < 400:
+                return resp.content, float(resp.headers.get("X-Duration") or 0.0)
+            last, down = RuntimeError(f"voice service {resp.status_code}: {resp.text[:200]}"), False
+            if resp.status_code not in (502, 503, 504):
+                raise last
+        if attempt < attempts:
+            log.warning("voice service not answering (%s); retrying in %ds", last.__class__.__name__, delay)
             await asyncio.sleep(delay)
             delay *= 3
-            continue
-        if resp.status_code >= 400:
-            raise RuntimeError(f"voice service {resp.status_code}: {resp.text[:200]}")
-        return resp.content, float(resp.headers.get("X-Duration") or 0.0)
-    raise RuntimeError(f"voice service unavailable after {attempts} attempts: {last}")
+    if down:
+        raise VoiceServiceDown(f"voice service unavailable after {attempts} attempts: {last}")
+    raise last
 
 
 async def build_notes(cfg, store, *, day: str | None = None, voice: str | None = None,
@@ -476,7 +487,8 @@ async def build_notes(cfg, store, *, day: str | None = None, voice: str | None =
     """Voice the greeting and the section intros once for the day.
 
     A note whose text hasn't changed is left alone, so re-running the pack — or adding a
-    second voice — doesn't pay for the same eight words again.
+    second voice — doesn't pay for the same eight words again. The text is fixed, so a new day
+    copies the previous day's recording rather than voicing it again.
     """
     day = day or datetime.now(ZoneInfo(cfg.timezone)).date().isoformat()
     voice = voice or cfg.story_voice
@@ -487,6 +499,16 @@ async def build_notes(cfg, store, *, day: str | None = None, voice: str | None =
     items = [(k, NOTES[k]) for k in NOTES if not keys or k in keys]
     done = {r["note_key"]: r for r in store.select(
         "voice_notes", {"date": f"eq.{day}", "voice": f"eq.{voice}"})}
+    earlier: dict[str, dict] = {}
+    if not force:
+        try:
+            for r in store.select("voice_notes", {"date": f"lt.{day}", "voice": f"eq.{voice}"}):
+                key = r.get("note_key")
+                if key in NOTES and r.get("audio_path") and (
+                        key not in earlier or str(r["date"]) > str(earlier[key]["date"])):
+                    earlier[key] = r
+        except Exception as exc:  # noqa: BLE001 — carrying notes over is an optimisation
+            log.debug("Could not look up earlier notes: %s", exc)
     rows: list[dict] = []
     async with httpx.AsyncClient(timeout=900) as client:
         for key, text in items:
@@ -497,8 +519,21 @@ async def build_notes(cfg, store, *, day: str | None = None, voice: str | None =
                 rows.append(have)
                 log.info("[note] %-20s %-34s reused (%.1fs)", key, text, have.get("duration") or 0)
                 continue
-            audio, duration = await synthesise(client, base, text, voice)
             path = f"notes/{day}/{key}-{voice}.mp3"
+            before = earlier.get(key)
+            if before and before.get("text") == text:
+                try:
+                    store.copy(before["audio_path"], path)
+                    row = {"date": day, "voice": voice, "note_key": key, "text": text,
+                           "duration": before.get("duration") or 0, "audio_path": path}
+                    store.insert("voice_notes", row, on_conflict="date,voice,note_key")
+                except Exception as exc:  # noqa: BLE001 — fall back to voicing it
+                    log.info("[note] %-20s could not carry over (%s); voicing it", key, exc)
+                else:
+                    rows.append(row)
+                    log.info("[note] %-20s %-34s carried over (%.1fs)", key, text, row["duration"])
+                    continue
+            audio, duration = await synthesise(client, base, text, voice)
             store.upload(path, audio, content_type="audio/mpeg", cache="max-age=86400")
             row = {"date": day, "voice": voice, "note_key": key, "text": text,
                    "duration": round(duration, 3), "audio_path": path}
@@ -512,7 +547,7 @@ async def build_notes(cfg, store, *, day: str | None = None, voice: str | None =
 async def build(cfg, store, *, day: str | None = None, per_section: int | None = None,
                 sections: list[str] | None = None, voice: str | None = None,
                 voice_url: str | None = None, notes: bool = True,
-                force: bool = False,
+                force: bool = False, deadline: float | None = None,
                 on_step: Callable[[str, float], None] | None = None) -> list[dict]:
     """Voice the day's stories once and publish them as shared clips.
 
@@ -527,6 +562,12 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
 
     ``on_step(text, fraction)`` is called as the work moves, which is how the admin page
     shows a long rebuild while it runs.
+
+    ``deadline`` is a ``time.monotonic()`` instant. Past it nothing new is started, so the job ends
+    on its own terms instead of being killed with the GPU still on. A narrator that fails does not
+    take the others down: once every narrator has been tried, ``PackIncomplete`` says who is
+    missing and why, and carries the clips that were published. A voice service that cannot be
+    reached raises ``VoiceServiceDown`` straight away.
     """
     day = day or datetime.now(ZoneInfo(cfg.timezone)).date().isoformat()
     base = (voice_url or cfg.voice_url or "").rstrip("/")
@@ -548,26 +589,40 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
             on_step(text, min(0.99, seen["n"] / units))
 
     rows: list[dict] = []
+    failed: dict[str, str] = {}
+    finished: list[str] = []
     for name in voices:
-        # A forced re-render is not a usable brief until it finishes, so the marker goes first: a
-        # listener hears the old recording or nothing, never half of each.
-        if force:
-            clear_ready(store, day=day, voice=name)
-        mine = await voice_scripts(
-            store, scripts, day=day, voice=name, base=base, force=force,
-            on_clip=lambda story, who=name: tick(f"{voice_name(who)}: {story['section']} #{story['rank']}"))
-        if notes:
-            await build_notes(cfg, store, day=day, voice=name, voice_url=base, force=force,
-                              on_note=lambda key, who=name: tick(f"{voice_name(who)}: {key}"))
-        # Only a day with its stories and its framing is playable, so the marker waits for both.
-        if notes and mine:
-            mark_ready(store, day=day, voice=name, clips=len(mine), notes=len(NOTES))
+        if deadline is not None and time.monotonic() >= deadline:
+            failed[voice_name(name)] = "ran out of time before it started"
+            continue
+        try:
+            # A forced re-render is not a usable brief until it finishes, so the marker goes first: a
+            # listener hears the old recording or nothing, never half of each.
+            if force:
+                clear_ready(store, day=day, voice=name)
+            mine = await voice_scripts(
+                store, scripts, day=day, voice=name, base=base, force=force, deadline=deadline,
+                on_clip=lambda story, who=name: tick(f"{voice_name(who)}: {story['section']} #{story['rank']}"))
+            if notes:
+                await build_notes(cfg, store, day=day, voice=name, voice_url=base, force=force,
+                                  on_note=lambda key, who=name: tick(f"{voice_name(who)}: {key}"))
+            # Only a day with its stories and its framing is playable, so the marker waits for both.
+            if notes and mine:
+                mark_ready(store, day=day, voice=name, clips=len(mine), notes=len(NOTES))
+        except VoiceServiceDown:
+            raise  # nothing else can be voiced either; let the caller stop the GPU
+        except Exception as exc:  # noqa: BLE001 — one narrator's failure must not discard the others
+            log.error("[%s] did not finish: %s", voice_name(name), exc)
+            failed[voice_name(name)] = (str(exc) if isinstance(exc, DeadlineReached)
+                                        else f"{exc.__class__.__name__}: {exc}")[:300]
+            continue
+        finished.append(name)
         rows += mine
 
     log.info("Published %d clips (%.1fs of audio)", len(rows), total_seconds(rows))
     # The landing page's sample rides along with the pack, so it can't quietly go stale.
     try:
-        for name in voices:
+        for name in finished:
             await publish_showcase(cfg, store, day=day, voice=name)
         tick("landing sample")
     except Exception as exc:  # noqa: BLE001 — a sample is worth having, a pack is not
@@ -580,14 +635,26 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
         gone = prune_older(store, keep=day)
         if gone:
             log.info("Pruned %d older day(s): %s", len(gone), ", ".join(gone))
+    if failed:
+        raise PackIncomplete(failed, rows)
     return rows
+
+
+def _publish_clip(store, path: str, audio: bytes, row: dict) -> None:
+    store.upload(path, audio, content_type="audio/mpeg", cache="max-age=86400")
+    store.insert("story_audio", row, on_conflict="date,section,rank,voice")
 
 
 async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
                         base: str, force: bool = False,
-                        on_clip: Callable[[dict], None] | None = None) -> list[dict]:
+                        on_clip: Callable[[dict], None] | None = None,
+                        deadline: float | None = None) -> list[dict]:
     """Voice one voice's worth of the day's stories. Extracted so a second voice costs
-    one more pass over the same scripts, with the same reuse rules."""
+    one more pass over the same scripts, with the same reuse rules.
+
+    A finished clip is uploaded on a worker thread while the GPU starts on the next one, so the
+    expensive part never waits on Storage. `deadline` is a ``time.monotonic()`` instant: past it,
+    nothing new is started."""
     # Stories already voiced for this day are reused, so a re-run only re-renders what
     # genuinely changed — a story that dropped out of the top five, or a new one — and
     # metadata such as the lead image can be refreshed without paying for audio again.
@@ -595,40 +662,88 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
         "story_audio", {"date": f"eq.{day}", "voice": f"eq.{voice}"})}
 
     rows: list[dict] = []
-    async with httpx.AsyncClient(timeout=900) as client:
-        for story in scripts:
-            if on_clip:
-                on_clip(story)
-            image = (story.get("image") or "")[:2000] or None
-            done = existing.get((story["section"], story["rank"]))
-            if not force and done and done.get("audio_path") and done.get("url") == story["url"]:
-                store.update("story_audio",
-                             {"date": f"eq.{day}", "section": f"eq.{story['section']}",
-                              "rank": f"eq.{story['rank']}", "voice": f"eq.{voice}"},
-                             {"image": image, "title": story["title"][:500],
-                              "source": (story["source"] or "")[:200], "script": story["script"]})
-                rows.append({**done, "image": image})
-                log.info("[%s %s #%s] %s — reused (%.1fs)", voice_name(voice), story["section"],
-                         story["rank"], story["title"][:60], done.get("duration") or 0)
-                continue
+    publishing: list[asyncio.Future] = []
 
-            audio, duration = await synthesise(client, base, story["script"], voice)
-            path = f"stories/{day}/{story['section']}-{story['rank']}-{voice}.mp3"
-            store.upload(path, audio, content_type="audio/mpeg", cache="max-age=86400")
-            row = {
-                "date": day, "section": story["section"], "rank": story["rank"], "voice": voice,
-                "title": story["title"][:500], "url": story["url"],
-                "source": (story["source"] or "")[:200], "image": image,
-                "script": story["script"],
-                "duration": round(duration, 3), "audio_path": path,
-            }
-            # Publish each story as it lands, so a failure part-way through still leaves
-            # a usable pack instead of throwing away every minute already rendered.
-            store.insert("story_audio", row, on_conflict="date,section,rank,voice")
-            rows.append(row)
-            log.info("[%s %s #%s] %s — %.1fs", voice_name(voice), story["section"], story["rank"],
-                     story["title"][:60], duration)
+    def raise_if_publishing_failed() -> None:
+        for task in publishing:
+            if task.done() and task.exception():
+                raise task.exception()
+
+    async with httpx.AsyncClient(timeout=900) as client:
+        try:
+            for story in scripts:
+                raise_if_publishing_failed()
+                if on_clip:
+                    on_clip(story)
+                image = (story.get("image") or "")[:2000] or None
+                done = existing.get((story["section"], story["rank"]))
+                if not force and done and done.get("audio_path") and done.get("url") == story["url"]:
+                    store.update("story_audio",
+                                 {"date": f"eq.{day}", "section": f"eq.{story['section']}",
+                                  "rank": f"eq.{story['rank']}", "voice": f"eq.{voice}"},
+                                 {"image": image, "title": story["title"][:500],
+                                  "source": (story["source"] or "")[:200], "script": story["script"]})
+                    rows.append({**done, "image": image})
+                    log.info("[%s %s #%s] %s — reused (%.1fs)", voice_name(voice), story["section"],
+                             story["rank"], story["title"][:60], done.get("duration") or 0)
+                    continue
+
+                if deadline is not None and time.monotonic() >= deadline:
+                    raise DeadlineReached(f"ran out of time at {story['section']} #{story['rank']}")
+                audio, duration = await synthesise(client, base, story["script"], voice)
+                path = f"stories/{day}/{story['section']}-{story['rank']}-{voice}.mp3"
+                row = {
+                    "date": day, "section": story["section"], "rank": story["rank"], "voice": voice,
+                    "title": story["title"][:500], "url": story["url"],
+                    "source": (story["source"] or "")[:200], "image": image,
+                    "script": story["script"],
+                    "duration": round(duration, 3), "audio_path": path,
+                }
+                # Publish each story as it lands, so a failure part-way through still leaves
+                # a usable pack instead of throwing away every minute already rendered.
+                publishing.append(asyncio.ensure_future(
+                    asyncio.to_thread(_publish_clip, store, path, audio, row)))
+                rows.append(row)
+                log.info("[%s %s #%s] %s — %.1fs", voice_name(voice), story["section"], story["rank"],
+                         story["title"][:60], duration)
+        except Exception:
+            await asyncio.gather(*publishing, return_exceptions=True)
+            raise
+        await asyncio.gather(*publishing)
     return rows
+
+
+def holder_name() -> str:
+    """Who is asking for the GPU, in words an admin can act on."""
+    return os.getenv("CLOUD_RUN_EXECUTION") or f"{platform.node()}:{os.getpid()}"
+
+
+@contextlib.contextmanager
+def pack_lease(store, holder: str | None = None, ttl_minutes: float = 75.0):
+    """Hold the GPU for one pack run. Raises PackBusy when another run already has it.
+
+    The scheduled job, its retry, the report job and the admin's rebuild button all end up at the
+    one GPU; together they only slow each other down and keep the VM billing longer. The lease
+    expires after `ttl_minutes`, so a run that was killed cannot lock out the next one.
+    """
+    holder = holder or holder_name()
+    try:
+        busy = store.acquire_lease(holder, ttl_minutes * 60)
+    except StoreError as exc:
+        if exc.status != 404:
+            raise
+        log.warning("No pack_lease table yet (run supabase/schema.sql): overlapping pack runs are not blocked")
+        yield
+        return
+    if busy:
+        raise PackBusy(f"another pack run is using the GPU ({busy})")
+    try:
+        yield
+    finally:
+        try:
+            store.release_lease(holder)
+        except Exception as exc:  # noqa: BLE001 — it expires on its own
+            log.warning("Could not release the pack lease: %s", exc)
 
 
 def main() -> int:
