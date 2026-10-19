@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.42] - 2026-10-19
+
+### Added
+- **⚡ Rapid Fire Mode (90-second speed run)**:
+  - Instant client-side edition switching between **Full Brief** (~10 min) and **Rapid Fire** (⚡ 90s) with zero server generation or GPU cost.
+  - Curates top-ranked story clips across the listener's first four active sections without intro delays.
+  - Tactile segmented edition switcher on the home screen hero player card with real-time lineup and duration updates.
+  - Preferred edition selector integrated into the first-run onboarding Welcome Sheet.
+- **Continuous Lock-Screen Audio (Android PWA & iOS Safari)**:
+  - Refactored audio playback engine to use a single persistent in-DOM `<audio>` element, preventing Android Chrome and iOS WebKit background audio focus revocation when advancing chapters.
+  - Headless background clip preloading into HTTP cache for seamless, gapless track transitions.
+  - Added `navigator.mediaSession.setPositionState` synchronization for accurate lock-screen scrubbers across multi-clip briefings.
+
+### Changed
+- **Default Appearance to Light Mode**:
+  - Application theme now defaults to clean, warm paper Light Mode across the web app, landing page, and legal pages.
+  - Service worker cache bumped to `hark-daily-v5`.
+
+---
+
 ## [0.1.41] - 2026-10-18
 
 ### Added

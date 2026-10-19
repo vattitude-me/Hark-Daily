@@ -93,13 +93,34 @@ export function greetingKey(hour = new Date().getHours()) {
  *
  * Returns `null` when the listener's lineup selects nothing (or the day has no pack).
  */
-export function buildBriefing(rows, settings, { date, voice, notes = [], hour } = {}) {
+export function buildBriefing(rows, settings, { date, voice, notes = [], hour, mode = 'full' } = {}) {
+  const isRapid = mode === 'rapid';
   const id = pickVoice(rows, voice);
   const userOrder = (settings && Array.isArray(settings.section_order) && settings.section_order.length)
     ? settings.section_order
     : SECTION_ORDER;
   const order = [...userOrder.filter((k) => SECTION_ORDER.includes(k)), ...SECTION_ORDER.filter((k) => !userOrder.includes(k))];
-  const chosen = clipsFor(rows, lineup(settings), id, order);
+
+  // In Rapid Fire mode, select the top story (rank 1) from the first 4 active sections (~90 seconds total)
+  let wanted = lineup(settings);
+  if (isRapid) {
+    const rapidWanted = {};
+    let pickedCount = 0;
+    for (const key of order) {
+      if ((wanted[key] || 0) > 0 && pickedCount < 4) {
+        rapidWanted[key] = 1;
+        pickedCount++;
+      } else {
+        rapidWanted[key] = 0;
+      }
+    }
+    if (!pickedCount) {
+      for (const key of ['top', 'tech', 'ai', 'politics']) rapidWanted[key] = 1;
+    }
+    wanted = rapidWanted;
+  }
+
+  const chosen = clipsFor(rows, wanted, id, order);
   if (!chosen.length) return null;
 
   const byKey = new Map(
@@ -139,7 +160,8 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour } 
 
   let currentSection = null;
   for (const row of chosen) {
-    if (row.section !== currentSection) {
+    // In rapid mode, skip section intros to deliver a swift, continuous headline flow
+    if (!isRapid && row.section !== currentSection) {
       sayNote(`intro_${row.section}`);
       currentSection = row.section;
     }
@@ -151,7 +173,7 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour } 
     stories.push({
       id, section: row.section, source: row.source || 'The Guardian',
       headline: row.title, summary: row.script || '', url: row.url || null,
-      image: row.image || null, start, end,
+      image: row.image || null, start, end, rapid: isRapid,
     });
     chapters.push({ id, kind: 'story', title: row.title, start, end, section: row.section });
     clips.push({
@@ -173,7 +195,8 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour } 
 
   return {
     date,
-    title: 'Your briefing',
+    title: isRapid ? 'Rapid Fire · 90s' : 'Your briefing',
+    mode: isRapid ? 'rapid' : 'full',
     duration: round(cursor),
     generated_at: new Date().toISOString(),
     voice: {

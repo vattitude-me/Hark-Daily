@@ -334,7 +334,7 @@ export class SettingsPage {
     let stored = null;
     try { stored = localStorage.getItem('mb-theme'); } catch { /* ignore */ }
     const seg = Segmented(['Light', 'Dark', 'System'],
-      stored === 'light' ? 0 : stored === 'dark' ? 1 : 2,
+      stored === 'dark' ? 1 : stored === 'system' ? 2 : 0,
       {
         glass: true,
         onSelect: (i) => {
