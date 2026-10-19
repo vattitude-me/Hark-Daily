@@ -164,6 +164,8 @@ class Worker:
         the nightly run never overlap.
         """
         from . import storypack
+        from .errors import PackBusy, PackIncomplete
+        from .gce import voice_vm_session
 
         if not self.lock.acquire():
             return "error", "A build is already running. Try again in a few minutes."
@@ -180,20 +182,21 @@ class Worker:
                 self.publish(step=text, progress=round(fraction, 3))
 
             self.publish(running=True, step="Reading the day's stories", progress=0, trigger="pack")
-            if notes_only:
-                clips: list[dict] = []
-                for name in chosen or list(self.cfg.story_voices or ()):
-                    clips += asyncio.run(storypack.build_notes(self.cfg, self.store, day=day,
-                                                              voice=name, force=force))
-                detail = f"{len(clips)} voice notes re-recorded for {day}"
-            else:
-                clips = []
-                for name in chosen or [None]:
-                    clips += asyncio.run(storypack.build(self.cfg, self.store, day=day, voice=name,
-                                                       force=force, on_step=progress))
-                minutes = storypack.total_seconds(clips) / 60
-                voices = ", ".join(storypack.voice_name(v) for v in (chosen or list(self.cfg.story_voices or ())))
-                detail = f"{len(clips)} clips for {day}, {minutes:.1f} min of audio ({voices})"
+            with storypack.pack_lease(self.store), voice_vm_session(self.cfg) as active_url:
+                if notes_only:
+                    clips: list[dict] = []
+                    for name in chosen or list(self.cfg.story_voices or ()):
+                        clips += asyncio.run(storypack.build_notes(self.cfg, self.store, day=day,
+                                                                  voice=name, voice_url=active_url, force=force))
+                    detail = f"{len(clips)} voice notes re-recorded for {day}"
+                else:
+                    clips = []
+                    for name in chosen or [None]:
+                        clips += asyncio.run(storypack.build(self.cfg, self.store, day=day, voice=name,
+                                                           voice_url=active_url, force=force, on_step=progress))
+                    minutes = storypack.total_seconds(clips) / 60
+                    voices = ", ".join(storypack.voice_name(v) for v in (chosen or list(self.cfg.story_voices or ())))
+                    detail = f"{len(clips)} clips for {day}, {minutes:.1f} min of audio ({voices})"
 
             self.publish(running=False, step=None, progress=1, last_pack={
                 "day": day, "voices": chosen or list(self.cfg.story_voices or ()), "notes_only": notes_only,
@@ -209,6 +212,13 @@ class Worker:
                                      for v in (chosen or list(self.cfg.story_voices or ()))])
             log.info("Pack rebuilt: %s", detail)
             return "done", detail
+        except PackBusy as exc:
+            log.warning("Pack rebuild delayed: %s", exc)
+            self.publish(running=False, step=None, progress=0, last_pack={
+                "error": str(exc), "at": now_iso(), "ok": False,
+                "by": (profile or {}).get("email"),
+            })
+            return "error", str(exc)
         except Exception as exc:  # noqa: BLE001 - the request row carries the reason
             log.exception("Pack rebuild failed")
             self.publish(running=False, step=None, progress=0, last_pack={

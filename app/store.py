@@ -7,11 +7,14 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 
 log = logging.getLogger(__name__)
+
+# Cloudflare's own 52x pages and the usual overload codes: gone in seconds, never the caller's fault.
+TRANSIENT = frozenset({429, 502, 503, 504, 520, 521, 522, 523, 524})
 
 
 class StoreError(Exception):
@@ -44,21 +47,26 @@ class Store:
 
     # ------------------------------------------------------------------ REST
     def _call(self, method: str, path: str, *, retry: bool | None = None, **kw) -> httpx.Response:
-        """One request, retried on dropped or corrupted connections when repeating it is harmless.
+        """One request, retried on dropped connections and transient 5xx/429 when repeating it is harmless.
 
         `retry` defaults to every method but POST; callers mark the POSTs that are safe to repeat."""
-        attempts = 3 if (method != "POST" if retry is None else retry) else 1
+        attempts = 4 if (method != "POST" if retry is None else retry) else 1
         for attempt in range(1, attempts + 1):
             try:
                 resp = self.http.request(method, f"{self.url}{path}", **kw)
-                break
             except httpx.TransportError as exc:
                 if attempt == attempts:
                     raise StoreError(f"Supabase unreachable: {exc.__class__.__name__}") from exc
                 log.warning("Supabase %s %s failed (%s); retrying", method, path.split("?")[0], exc)
                 time.sleep(2 * attempt)
+                continue
             except httpx.HTTPError as exc:
                 raise StoreError(f"Supabase unreachable: {exc.__class__.__name__}") from exc
+            if resp.status_code in TRANSIENT and attempt < attempts:
+                log.warning("Supabase %s %s → %d; retrying", method, path.split("?")[0], resp.status_code)
+                time.sleep(2 * attempt)
+                continue
+            break
         if resp.status_code >= 400:
             try:
                 body = resp.json()
@@ -168,6 +176,30 @@ class Store:
     def app_status(self) -> dict:
         rows = self.select("app_status", {"id": "eq.1"})
         return rows[0]["data"] if rows else {}
+
+    # ----------------------------------------------------------------- lease
+    def acquire_lease(self, holder: str, ttl: float) -> str | None:
+        """Take the one "a pack run is using the GPU" lease. None when taken, else who holds it.
+
+        The row is created, or an expired one is taken over, in a single conditional write, so two
+        runs starting together cannot both win. It expires on its own, so a killed run cannot lock
+        the next one out for more than `ttl` seconds.
+        """
+        row = {"id": 1, "holder": holder, "updated_at": now_iso()}
+        try:
+            self.insert("pack_lease", row)
+            return None
+        except StoreError as exc:
+            if exc.status != 409:
+                raise
+        stale = (datetime.now(timezone.utc) - timedelta(seconds=ttl)).isoformat(timespec="seconds")
+        if self.update("pack_lease", {"id": "eq.1", "updated_at": f"lt.{stale}"}, row):
+            return None
+        held = self.select("pack_lease", {"id": "eq.1"})
+        return held[0]["holder"] if held else "another run"
+
+    def release_lease(self, holder: str) -> None:
+        self.delete("pack_lease", {"id": "eq.1", "holder": f"eq.{holder}"})
 
     # --------------------------------------------------------------- storage
     def public_url(self, path: str) -> str:

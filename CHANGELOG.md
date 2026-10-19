@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.41] - 2026-10-18
+
+### Added
+- **GPU Cost Safeguards & Verified Shutdown**:
+  - Automatic verified VM shutdown on every exit path, even if the VM was already running before the session.
+  - Hypervisor-level 90-minute `max-run-duration` with `instance-termination-action=STOP` on GCP.
+  - Multi-attempt verified stopping with Compute Engine status polling.
+- **Pipeline Resilience & Narrator Isolation**:
+  - Per-narrator error isolation in `storypack.build`: completed narrators are preserved and published even if another narrator fails.
+  - Internal `--deadline` parameter stops scheduling new clips cleanly before container timeouts occur.
+  - Automatic retry for transient 429/502/503/504/520–524 HTTP errors in Supabase storage and database calls.
+  - Cross-process distributed lease locking (`public.pack_lease`) prevents conflicting runs from hitting the GPU simultaneously.
+- **Performance Optimizations**:
+  - Pipelined clip uploads: audio uploads to Supabase Storage asynchronously in background threads while the next clip synthesizes.
+  - Framing notes carry-over: reuses identical greetings and section intros from the previous day via Storage copy without re-voicing (saving 44 clips / ~8 min).
+- **Automation & Scheduling**:
+  - Cloud Run `morning-brief-pack` job configured with 60m timeout, 50m deadline, and 0 retries to prevent runaway billing.
+  - Added secondary safety-net job `morning-brief-report` at 06:15 AM to verify completeness, retry missing narrators, and alert admins.
+  - Persistent VAPID keys passed to Cloud Run containers, eliminating ephemeral key churn and 403 push notification errors.
+  - Thread-safe voice conditioning in Chatterbox-Turbo TTS engine.
+
+---
+
 ## [0.1.40] - 2026-10-18
 
 ### Changed

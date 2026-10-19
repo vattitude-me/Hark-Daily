@@ -174,7 +174,9 @@ def cmd_report(args) -> int:
     import asyncio
 
     from .config import load
-    from .storypack import build, notify_admins, notify_listeners, voice_name
+    from .errors import PackBusy
+    from .gce import voice_vm_session
+    from .storypack import build, notify_admins, notify_listeners, pack_lease, voice_name
 
     cfg = load()
     store = _store(cfg)
@@ -182,14 +184,25 @@ def cmd_report(args) -> int:
     here, missing = _split(cfg, store, day, args.voice)
     tried: list[str] = []
     if missing and getattr(args, "retry", False):
-        for name in missing:
-            try:
-                print(f"→ Re-rendering {day} for {voice_name(name)}")
-                asyncio.run(build(cfg, store, day=day, voice=name))
-                tried.append(f"{voice_name(name)}: re-rendered")
-            except Exception as exc:  # noqa: BLE001 — report it, do not crash the check
-                tried.append(f"{voice_name(name)}: {exc.__class__.__name__}: {exc}")
-                print(f"✗ {voice_name(name)}: {exc.__class__.__name__}: {exc}")
+        _exit_on_sigterm()
+        deadline = _deadline(args)
+        try:
+            # One session for every narrator: the GPU is started once and is stopped on every way out.
+            with pack_lease(store), voice_vm_session(cfg) as url:
+                for name in missing:
+                    try:
+                        print(f"→ Re-rendering {day} for {voice_name(name)}")
+                        asyncio.run(build(cfg, store, day=day, voice=name, voice_url=url, deadline=deadline))
+                        tried.append(f"{voice_name(name)}: re-rendered")
+                    except Exception as exc:  # noqa: BLE001 — report it, do not crash the check
+                        tried.append(f"{voice_name(name)}: {exc.__class__.__name__}: {exc}")
+                        print(f"✗ {voice_name(name)}: {exc.__class__.__name__}: {exc}")
+        except PackBusy as exc:
+            tried.append(str(exc))
+            print(f"• {exc}")
+        except Exception as exc:  # noqa: BLE001 — a GPU that will not start is a reason, not a crash
+            tried.append(f"{exc.__class__.__name__}: {exc}")
+            print(f"✗ {exc.__class__.__name__}: {exc}")
         here, missing = _split(cfg, store, day, args.voice)
     good = ", ".join(voice_name(n) for n in here) or "nobody"
     bad = ", ".join(voice_name(n) for n in missing)
@@ -212,14 +225,33 @@ def cmd_report(args) -> int:
     return 0
 
 
+def _exit_on_sigterm() -> None:
+    """Turn Cloud Run's SIGTERM into a normal exit, so ``finally`` blocks run and the GPU is stopped.
+
+    SIGKILL follows ten seconds later and cannot be caught, which is why the pack also has its own
+    ``--deadline`` and the VM has a hard run-time limit: this is the third line of defence.
+    """
+    import signal
+
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
+
+
+def _deadline(args) -> float | None:
+    """``--deadline MINUTES`` as a ``time.monotonic()`` instant, counted from now."""
+    minutes = getattr(args, "deadline", None)
+    return time.monotonic() + minutes * 60 if minutes else None
+
+
 def cmd_pack(args) -> int:
     """Voice the day's stories once and publish them as the shared daily clips."""
     import asyncio
 
     from .config import load
+    from .errors import PackBusy, PackIncomplete
     from .gce import voice_vm_session
     from .storypack import (NOTES, build, build_notes, mark_ready, notify_admins, notify_listeners,
-                           publish_showcase, ready, total_seconds, voice_name, write_sample_bundle)
+                           pack_lease, publish_showcase, ready, total_seconds, voice_name,
+                           write_sample_bundle)
 
     cfg = load()
     sections = args.sections.split(",") if args.sections else None
@@ -298,15 +330,26 @@ def cmd_pack(args) -> int:
             for note in notes:
                 print(f"  {note['note_key']:20} {note['text'][:52]!r} — {note['duration']:.1f}s")
             return 0 if notes else 1
+        _exit_on_sigterm()
         t0 = time.monotonic()
-        with voice_vm_session(cfg) as active_url:
-            rows = asyncio.run(build(cfg, _store(cfg), day=args.day, voice=args.voice,
-                                     sections=sections, per_section=args.per_section,
-                                     voice_url=active_url,
-                                     notes=not getattr(args, "no_notes", False),
-                                     force=getattr(args, "force", False)))
+        deadline = _deadline(args)
+        incomplete: PackIncomplete | None = None
+        # The lease comes first so a second run is turned away before it starts a GPU, and goes last.
+        with pack_lease(_store(cfg)), voice_vm_session(cfg) as active_url:
+            try:
+                rows = asyncio.run(build(cfg, _store(cfg), day=args.day, voice=args.voice,
+                                         sections=sections, per_section=args.per_section,
+                                         voice_url=active_url,
+                                         notes=not getattr(args, "no_notes", False),
+                                         force=getattr(args, "force", False), deadline=deadline))
+            except PackIncomplete as exc:
+                incomplete, rows = exc, exc.rows
         elapsed_sec = time.monotonic() - t0
         duration_fmt = f"{int(elapsed_sec // 60)}m {int(elapsed_sec % 60):02d}s" if elapsed_sec >= 60 else f"{elapsed_sec:.1f}s"
+    except PackBusy as exc:
+        # Not a failure: another run owns the GPU, and it will report for itself.
+        print(f"• {exc}")
+        return 1
     except Exception as exc:  # noqa: BLE001 — say why and fail the run
         text = f"{exc.__class__.__name__}: {exc}"
         print(f"✗ {text}")
@@ -327,11 +370,14 @@ def cmd_pack(args) -> int:
         voices = [_narrator(n, n in here) for n in here + missing]
         audio_mins = total_seconds(rows) / 60
         if missing:
+            why = "; ".join(f"{who}: {reason}" for who, reason in (incomplete.failed if incomplete else {}).items())
             notify_admins(cfg, store, day=day, status="incomplete", voices=voices,
                           title=f"✗ Morning Brief incomplete: {', '.join(voice_name(n) for n in missing)}",
                           body=f"{day} is ready for {', '.join(names) or 'nobody'}. "
-                               f"{len(rows)} clips were published; the rest failed.",
-                          detail=f"Took {duration_fmt} · {len(rows)} clips published ({audio_mins:.1f}m audio)")
+                               f"{len(rows)} clips were published; the rest failed."
+                               + (f" {why}" if why else ""),
+                          detail=f"Took {duration_fmt} · {len(rows)} clips published ({audio_mins:.1f}m audio)"
+                                 + (f" · {why}" if why else ""))
         else:
             per_voice = len(rows) // max(1, len(here))
             notify_admins(cfg, store, day=day, status="ok", voices=voices,
@@ -342,7 +388,7 @@ def cmd_pack(args) -> int:
             if rows:
                 notify_listeners(cfg, store, title="☀️ Your Morning Brief is ready",
                                  body=f"{rows[0]['title']}, and the rest of the day's stories.")
-    return 0 if rows else 1
+    return 0 if rows and not incomplete else 1
 
 
 def main() -> None:
@@ -382,6 +428,8 @@ def main() -> None:
                       help="only print whether the day is complete, exit 1 if it is not")
     pack.add_argument("--retry", action="store_true",
                       help="with --report: re-render the narrators that are still missing")
+    pack.add_argument("--deadline", type=float, metavar="MINUTES",
+                      help="start no new clip after this long, so the job ends before its platform timeout")
     pack.add_argument("--prune", action="store_true",
                       help="delete the audio of the days before --day (the nightly pack does this itself)")
     sub.add_parser("check", help="test the Supabase and Groq connections")

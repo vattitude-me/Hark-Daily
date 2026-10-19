@@ -1,7 +1,9 @@
 """Control the GCE GPU instance for Chatterbox-Turbo TTS on demand.
 
-Ensures the GPU VM runs ONLY while synthesizing audio (~12-14 minutes per day),
-costing ~$0.15/day (~$4.50/month) instead of $500/month 24/7 or $21/month with a 1-hour window.
+Ensures the GPU VM runs ONLY while synthesizing audio (typically ~25-35 minutes per day for
+4 voices across 35 stories and section notes), costing ~$0.30-$0.45/day (~$10-14/month)
+instead of $500/month 24/7. Verified automated shutdown on exit and GCP hypervisor max-run-duration
+backstops ensure the VM cannot remain running unnoticed.
 
 Features dynamic IP resolution directly via Google Compute Engine API so hardcoded IPs
 never break even if the VM is assigned a new IP or recreated.
@@ -14,6 +16,8 @@ import os
 import subprocess
 import time
 import httpx
+
+from .errors import VoiceServiceDown
 
 log = logging.getLogger(__name__)
 
@@ -101,11 +105,48 @@ def stop_vm(project: str, zone: str, instance: str, token: str) -> bool:
         return False
 
 
+def instance_status(project: str, zone: str, instance: str, token: str) -> str | None:
+    """RUNNING, STOPPING, TERMINATED... or None when the API can't say."""
+    url = f"https://compute.googleapis.com/compute/v1/projects/{project}/zones/{zone}/instances/{instance}"
+    try:
+        resp = httpx.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=10.0)
+        return resp.json().get("status") if resp.status_code == 200 else None
+    except Exception:
+        return None
+
+
+def stop_vm_verified(project: str, zone: str, instance: str, token: str, attempts: int = 3) -> bool:
+    """Stop the VM and confirm it is stopping, because a GPU left on is the expensive failure."""
+    for attempt in range(1, attempts + 1):
+        stop_vm(project, zone, instance, token)
+        status = instance_status(project, zone, instance, token)
+        if status in ("STOPPING", "TERMINATED", "STOPPED", "SUSPENDED"):
+            return True
+        log.warning("GCE VM %s is %s after stop attempt %d/%d", instance, status or "unknown", attempt, attempts)
+        time.sleep(3 * attempt)
+    log.error("COULD NOT STOP GCE VM %s. It is still billing; stop it by hand: "
+              "gcloud compute instances stop %s --zone=%s", instance, instance, zone)
+    return False
+
+
+def _stop_on_exit(cfg, token: str) -> None:
+    if getattr(cfg, "gce_keep_vm", False):
+        log.warning("GCE_KEEP_VM is set: leaving GCE GPU VM '%s' running. Stop it when you are done.",
+                    cfg.gce_instance)
+        return
+    log.info("Shutting down GCE GPU VM '%s' immediately to save costs...", cfg.gce_instance)
+    if stop_vm_verified(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, get_access_token() or token):
+        log.info("✓ VM stop confirmed.")
+
+
 @contextlib.contextmanager
 def voice_vm_session(cfg):
     """Context manager that starts the GCE GPU VM if needed, resolves its IP dynamically,
-    waits for Chatterbox-Turbo, and unconditionally stops the VM in the finally block.
-    
+    waits for Chatterbox-Turbo, and stops the VM on the way out, whoever started it.
+
+    A VM that was already running is stopped too: leaving it for "whoever started it" is how one
+    ended up billing for hours after a killed job. Set GCE_KEEP_VM=1 to keep it warm on purpose.
+
     Yields the active voice service URL (e.g. 'http://34.67.158.112:8090').
     """
     voice_url = (getattr(cfg, "voice_url", "") or "").rstrip("/")
@@ -132,7 +173,10 @@ def voice_vm_session(cfg):
         voice_url = f"http://{discovered_ip}:8090"
         if is_service_healthy(voice_url):
             log.info("Chatterbox-Turbo voice service is already running at %s", voice_url)
-            yield voice_url
+            try:
+                yield voice_url
+            finally:
+                _stop_on_exit(cfg, token)
             return
 
     log.info(
@@ -179,13 +223,11 @@ def voice_vm_session(cfg):
             "Chatterbox-Turbo voice service did not become healthy within %.0fs. Shutting down VM immediately...",
             timeout,
         )
-        stop_vm(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token)
-        raise RuntimeError(f"Chatterbox-Turbo service at {voice_url or cfg.gce_instance} did not respond within {timeout}s")
+        stop_vm_verified(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token)
+        raise VoiceServiceDown(
+            f"Chatterbox-Turbo service at {voice_url or cfg.gce_instance} did not respond within {timeout}s")
 
     try:
         yield voice_url
     finally:
-        log.info("Shutting down GCE GPU VM '%s' immediately to save costs...", cfg.gce_instance)
-        fresh_token = get_access_token() or token
-        stop_vm(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, fresh_token)
-        log.info("✓ VM stop signal sent successfully.")
+        _stop_on_exit(cfg, token)

@@ -47,6 +47,8 @@ else
     --project="$PROJECT_ID" \
     --machine-type=g2-standard-4 \
     --maintenance-policy=TERMINATE \
+    --max-run-duration=90m \
+    --instance-termination-action=STOP \
     --image-family=ubuntu-2204-lts \
     --image-project=ubuntu-os-cloud \
     --boot-disk-size=60GB \

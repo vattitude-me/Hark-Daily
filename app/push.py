@@ -21,6 +21,9 @@ def _b64(data: bytes) -> str:
 
 def load_keys(cfg: Config) -> dict:
     """VAPID key pair, generated once and kept in the data directory."""
+    if cfg.vapid_private_key and cfg.vapid_public_key:
+        return {"private_pem": cfg.vapid_private_key.replace("\\n", "\n"),
+                "public_key": cfg.vapid_public_key.strip()}
     path = cfg.data_dir / "vapid.json"
     if path.exists():
         return json.loads(path.read_text())

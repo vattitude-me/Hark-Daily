@@ -70,6 +70,8 @@ class Config:
     # "issues" pushes the admin only when a run had problems; "always" after every run.
     admin_notify: str = os.getenv("ADMIN_NOTIFY", "issues").strip().lower()
     vapid_subject: str = os.getenv("VAPID_SUBJECT", "https://hark.vattitude.ca")
+    vapid_private_key: str | None = os.getenv("VAPID_PRIVATE_KEY")
+    vapid_public_key: str | None = os.getenv("VAPID_PUBLIC_KEY")
     allow_private_urls: bool = _bool("ALLOW_PRIVATE_URLS")
     max_custom_sources: int = int(os.getenv("MAX_CUSTOM_SOURCES", "15"))
     # The Cloned narrator: the LAN/GPU voice service that voices the shared daily stories.
@@ -86,7 +88,9 @@ class Config:
     gce_zone: str = os.getenv("GCE_ZONE", "us-central1-c")
     gce_instance: str = os.getenv("GCE_INSTANCE", "morning-brief-voice")
     gce_manage_vm: bool = _bool("GCE_MANAGE_VM", True)
-    gce_health_timeout: float = float(os.getenv("GCE_HEALTH_TIMEOUT", "180.0"))
+    # Off by default: a session stops the VM on the way out. Set it to keep the GPU warm on purpose.
+    gce_keep_vm: bool = _bool("GCE_KEEP_VM")
+    gce_health_timeout: float = float(os.getenv("GCE_HEALTH_TIMEOUT", "300.0"))
 
     @property
     def cache_dir(self) -> Path:
