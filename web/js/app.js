@@ -15,6 +15,8 @@ const state = {
   status: null,
   archiveDates: [],
   reported: new Set(store.get('reported', [])),
+  mode: store.get('brief-mode', 'full'),
+  packContext: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -58,8 +60,7 @@ function setTheme(theme) {
 }
 
 function currentTheme() {
-  return document.documentElement.dataset.theme
-    || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  return document.documentElement.dataset.theme || 'light';
 }
 
 const WORDS = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
@@ -211,8 +212,51 @@ function renderNotice() {
 }
 
 /* -------------------------------------------------------------------- hero */
+function syncModePicker() {
+  const fullBtn = $('modeFullBtn');
+  const rapidBtn = $('modeRapidBtn');
+  const hero = $('hero');
+  const isRapid = state.mode === 'rapid';
+
+  if (fullBtn) {
+    fullBtn.classList.toggle('on', !isRapid);
+    fullBtn.setAttribute('aria-checked', String(!isRapid));
+  }
+  if (rapidBtn) {
+    rapidBtn.classList.toggle('on', isRapid);
+    rapidBtn.setAttribute('aria-checked', String(isRapid));
+  }
+  if (hero) {
+    hero.classList.toggle('is-rapid', isRapid);
+  }
+}
+
+function setBriefingMode(mode) {
+  if (state.mode === mode) return;
+  state.mode = mode;
+  store.set('brief-mode', mode);
+  syncModePicker();
+
+  if (state.packContext) {
+    const { rows, settings, date, notes, fresh } = state.packContext;
+    const briefing = buildPackBriefing(rows, settings, { date, voice: settings.voice, notes, mode });
+    if (briefing) {
+      briefing.fresh = fresh;
+      const wasPlaying = player.isPlaying;
+      state.briefing = briefing;
+      displayBriefing();
+      if (wasPlaying) {
+        player.audio.play().catch(() => {});
+      }
+      toast(mode === 'rapid' ? 'Rapid Fire active · 90-second headline speed run ⚡' : 'Full Edition active ☀️');
+    }
+  }
+}
+window.setBriefingMode = setBriefingMode;
+
 function renderHero() {
   $('hero').classList.toggle('hidden', !state.briefing);
+  syncModePicker();
 }
 
 function renderPersonas() {
@@ -636,12 +680,13 @@ async function loadStoryPack(day) {
     }
     if (!rows.length) return null;
     const notes = await api.voiceNotes(date);
-    const briefing = buildPackBriefing(rows, settings, { date, voice: settings.voice, notes });
+    const briefing = buildPackBriefing(rows, settings, { date, voice: settings.voice, notes, mode: state.mode });
     if (!briefing) return null;
     // A day is playable only once its narrator's clips and framing are all published. Without this
     // a pack that is mid-recording, or being re-recorded, plays two voices inside one brief.
     if (!notes.some((n) => n.note_key === READY_KEY && n.voice === briefing.voice.id)) return null;
     briefing.fresh = date === today;
+    state.packContext = { rows, settings, date, notes, fresh: briefing.fresh };
     return briefing;
   } catch {
     return null;  // no pack that day, or the story_audio table isn't there yet
@@ -784,6 +829,8 @@ function bindEvents() {
   });
 
   // Action buttons
+  $('modeFullBtn')?.addEventListener('click', () => setBriefingMode('full'));
+  $('modeRapidBtn')?.addEventListener('click', () => setBriefingMode('rapid'));
   $('reorderBtn')?.addEventListener('click', () => switchTab('sources'));
   $('playAllBtn')?.addEventListener('click', () => {
     player.seekTo(0);

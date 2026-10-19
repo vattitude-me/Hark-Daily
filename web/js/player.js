@@ -25,10 +25,11 @@ export function splitSentences(text) {
 export class Player extends EventTarget {
   constructor() {
     super();
-    // Two <audio> elements: the active one plays, the idle one pre-buffers the next clip.
-    this.buffers = [document.getElementById('audio'), new Audio()];
-    this.buffers[1].preload = 'auto';
-    this.audio = this.buffers[0];
+    // Single persistent in-DOM <audio> element ensures mobile lock-screen & background
+    // playback privileges are never revoked by Chrome or iOS WebKit.
+    this.audio = document.getElementById('audio');
+    this.preloader = new Audio();
+    this.preloader.preload = 'auto';
     this.clips = null;
     this.index = 0;
     this.hero = document.getElementById('hero');
@@ -91,18 +92,15 @@ export class Player extends EventTarget {
       e.preventDefault();
     });
 
-    // Both elements share the same handlers; the idle one is ignored.
-    for (const buf of this.buffers) {
-      buf.addEventListener('timeupdate', () => { if (buf === this.audio) this.tick(); });
-      buf.addEventListener('loadedmetadata', () => {
-        if (buf !== this.audio) return;
-        buf.playbackRate = this.speed;
-        this.tick();
-      });
-      buf.addEventListener('play', () => { if (buf === this.audio) this.setPlaying(true); });
-      buf.addEventListener('pause', () => { if (buf === this.audio) this.setPlaying(false); });
-      buf.addEventListener('ended', () => { if (buf === this.audio) this.onEnded(); });
-    }
+    // The single audio element handles all playback events.
+    this.audio.addEventListener('timeupdate', () => this.tick());
+    this.audio.addEventListener('loadedmetadata', () => {
+      this.audio.playbackRate = this.speed;
+      this.tick();
+    });
+    this.audio.addEventListener('play', () => this.setPlaying(true));
+    this.audio.addEventListener('pause', () => this.setPlaying(false));
+    this.audio.addEventListener('ended', () => this.onEnded());
     // A cover that fails to load hides itself instead of showing a broken icon.
     el.cover.addEventListener('error', () => el.cover.classList.add('hidden'));
     el.miniCover.addEventListener('error', () => { el.miniCover.classList.add('hidden'); el.miniEq.classList.remove('hidden'); });
@@ -173,26 +171,30 @@ export class Player extends EventTarget {
     this.preloadNext();
   }
 
-  /** Buffer the following clip into the idle element so the join is seamless. */
+  /** Buffer the following clip into the preloader so it is cached in memory. */
   preloadNext() {
     if (!this.clips) return;
     const next = this.clips[this.index + 1];
-    if (!next) return;
-    const idle = this.buffers.find((b) => b !== this.audio);
-    if (idle.dataset.clip !== String(this.index + 1)) {
-      idle.dataset.clip = String(this.index + 1);
-      idle.src = next.url;
-      idle.load();
+    if (!next || !next.url) return;
+    if (this.preloader.dataset.clip !== String(this.index + 1)) {
+      this.preloader.dataset.clip = String(this.index + 1);
+      this.preloader.src = next.url;
+      this.preloader.load();
     }
   }
 
-  /** A clip finished: swap to the pre-buffered element, or stop at the end of the day. */
+  /** A clip finished: transition seamlessly on the same active in-DOM audio element. */
   onEnded() {
     if (this.clips && this.index + 1 < this.clips.length) {
-      this.audio = this.buffers.find((b) => b !== this.audio);
       this.index += 1;
+      const clip = this.clips[this.index];
+      this.audio.dataset.clip = String(this.index);
+      this.audio.src = clip.url;
       this.audio.playbackRate = this.speed;
-      this.audio.play().catch(() => {});
+      const p = this.audio.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch((err) => console.warn('[player] clip transition error:', err));
+      }
       this.preloadNext();
       this.tick();
       return;
@@ -210,12 +212,13 @@ export class Player extends EventTarget {
     this.current = null;
     this.clips = briefing.clips && briefing.clips.length ? briefing.clips : null;
     this.index = 0;
-    for (const buf of this.buffers) {
-      buf.pause();
-      delete buf.dataset.clip;
-      buf.removeAttribute('src');
+    this.audio.pause();
+    delete this.audio.dataset.clip;
+    this.audio.removeAttribute('src');
+    if (this.preloader) {
+      delete this.preloader.dataset.clip;
+      this.preloader.removeAttribute('src');
     }
-    this.audio = this.buffers[0];
     if (this.clips) this.loadClip(0);
     else this.audio.src = briefing.audio_url;
     this.buildSegments();
@@ -328,9 +331,10 @@ export class Player extends EventTarget {
 
   setRate(rate) {
     this.speed = rate;
-    this.buffers.forEach((buf) => { buf.playbackRate = rate; });
+    this.audio.playbackRate = rate;
     store.set('rate', rate);
     this.syncSpeedPills();
+    this.syncPositionState();
   }
 
   setPlaying(on) {
@@ -349,7 +353,10 @@ export class Player extends EventTarget {
     if (!b) return;
     const dur = this.total || b.duration || 0;
     const t = this.position;
-    if (t > 0 && Math.round(t) % 5 === 0) store.set(`pos-${b.date}`, t);
+    if (t > 0 && Math.round(t) % 5 === 0) {
+      store.set(`pos-${b.date}`, t);
+      this.syncPositionState();
+    }
 
     // Segments + thumb.
     const segs = el.seg.querySelectorAll('.seg');
@@ -521,10 +528,24 @@ export class Player extends EventTarget {
     if (!('mediaSession' in navigator)) return;
     const art = story?.image ? [{ src: story.image, sizes: '512x512' }] : [];
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: ch.title,
+      title: ch?.title || story?.headline || this.briefing?.title || 'Hark Daily',
       artist: 'Hark Daily',
-      album: this.briefing.title,
+      album: this.briefing?.title || 'Daily Briefing',
       artwork: [...art, { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' }],
     });
+    this.syncPositionState();
+  }
+
+  syncPositionState() {
+    if (!('mediaSession' in navigator) || typeof navigator.mediaSession.setPositionState !== 'function') return;
+    try {
+      const dur = this.total || this.briefing?.duration || 1;
+      const pos = Math.min(dur, Math.max(0, this.position));
+      navigator.mediaSession.setPositionState({
+        duration: dur,
+        playbackRate: this.speed,
+        position: pos,
+      });
+    } catch { /* unsupported or rapid seek mismatch */ }
   }
 }

@@ -1,5 +1,5 @@
 // Install helpers, push notifications, welcome + delete-account sheets.
-import { SECTIONS, api, h, sectionLabel, toast } from './api.js';
+import { SECTIONS, api, h, sectionLabel, toast, store } from './api.js';
 
 export function wireSheet(dialog) {
   dialog.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => dialog.close()));
@@ -187,6 +187,20 @@ export class WelcomeSheet {
     document.getElementById('welcomeInstallBtn').addEventListener('click', async () => {
       if (await promptInstall()) toast('Installed. Next time, open Hark Daily from your home screen.');
     });
+    // Edition switcher (Full Brief vs 90s Rapid Fire)
+    this.preferredMode = store.get('brief-mode', 'full');
+    const fullBtn = document.getElementById('welcomeModeFull');
+    const rapidBtn = document.getElementById('welcomeModeRapid');
+    const setMode = (mode) => {
+      this.preferredMode = mode;
+      fullBtn?.classList.toggle('on', mode === 'full');
+      fullBtn?.setAttribute('aria-checked', String(mode === 'full'));
+      rapidBtn?.classList.toggle('on', mode === 'rapid');
+      rapidBtn?.setAttribute('aria-checked', String(mode === 'rapid'));
+    };
+    fullBtn?.addEventListener('click', () => setMode('full'));
+    rapidBtn?.addEventListener('click', () => setMode('rapid'));
+
     // Chrome may only offer the install prompt after the sheet is already open.
     onInstallChange(() => { if (this.dialog.open) this.paintInstall(); });
   }
@@ -204,6 +218,13 @@ export class WelcomeSheet {
     this.steps = askName ? ['name', 'morning'] : ['morning'];
     this.disabled = null;
     this.added = 0;
+    this.preferredMode = store.get('brief-mode', 'full');
+    const fullBtn = document.getElementById('welcomeModeFull');
+    const rapidBtn = document.getElementById('welcomeModeRapid');
+    fullBtn?.classList.toggle('on', this.preferredMode === 'full');
+    fullBtn?.setAttribute('aria-checked', String(this.preferredMode === 'full'));
+    rapidBtn?.classList.toggle('on', this.preferredMode === 'rapid');
+    rapidBtn?.setAttribute('aria-checked', String(this.preferredMode === 'rapid'));
     const canPush = pushSupported() && Notification.permission !== 'denied';
     this.offeredPush = canPush;
     document.getElementById('welcomePushRow').classList.toggle('hidden', !canPush);
@@ -335,6 +356,12 @@ export class WelcomeSheet {
         ...(save && name ? { name } : {}),
         ...(save && this.disabled ? { disabled_sources: [...this.disabled] } : {}),
       });
+      if (save && this.preferredMode) {
+        store.set('brief-mode', this.preferredMode);
+        if (typeof window.setBriefingMode === 'function') {
+          window.setBriefingMode(this.preferredMode);
+        }
+      }
       this.dialog.close();
       this.onDone?.();
     } catch (e) {
