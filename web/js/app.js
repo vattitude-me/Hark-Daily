@@ -434,7 +434,11 @@ function audioLen(story) {
 function storyRow(story) {
   const sec = SECTIONS[story.section] || SECTIONS.top;
   const secKey = story.section || 'top';
-  const row = h('article', { class: 'story-row', dataset: { id: story.id } });
+  const row = h('article', {
+    class: `story-row cat-${secKey}`,
+    style: `--cat: var(--c-${secKey}, var(--accent));`,
+    dataset: { id: story.id },
+  });
 
   const dot = h('button', { class: 'play-dot', type: 'button', 'aria-label': `Play from: ${story.headline}` },
     icon('play', 'i-play'),
@@ -482,7 +486,10 @@ function storyRow(story) {
     reportRow(story)
   );
 
-  main.addEventListener('click', () => detail.classList.toggle('hidden'));
+  main.addEventListener('click', () => {
+    const isExpanded = row.classList.toggle('expanded');
+    detail.classList.toggle('hidden', !isExpanded);
+  });
   row.append(main, detail);
   return row;
 }
