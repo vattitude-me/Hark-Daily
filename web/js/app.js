@@ -248,7 +248,7 @@ function setBriefingMode(mode) {
       if (wasPlaying) {
         player.audio.play().catch(() => {});
       }
-      toast(mode === 'rapid' ? 'Rapid Fire active · 90-second headline speed run ⚡' : 'Full Edition active ☀️');
+      toast(mode === 'rapid' ? 'Rapid Fire active · Top 5 stories @ 1.1x speed ⚡' : 'Full Edition active ☀️');
     }
   }
 }

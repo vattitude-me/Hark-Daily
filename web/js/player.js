@@ -200,7 +200,8 @@ export class Player extends EventTarget {
       return;
     }
     this.setPlaying(false);
-    store.set(`pos-${this.briefing?.date}`, 0);
+    const posKey = this.briefing?.mode === 'rapid' ? `pos-${this.briefing?.date}-rapid` : `pos-${this.briefing?.date}`;
+    store.set(posKey, 0);
     this.el.state.textContent = 'Finished';
     this.el.title.textContent = "That's today's briefing. Have a great day!";
   }
@@ -219,10 +220,21 @@ export class Player extends EventTarget {
       delete this.preloader.dataset.clip;
       this.preloader.removeAttribute('src');
     }
+    // In Rapid Fire mode, default to 1.1x speed; in Full mode, restore listener's standard speed.
+    if (briefing.mode === 'rapid') {
+      this.speed = 1.1;
+    } else {
+      this.speed = store.get('rate', 1.0);
+    }
+    this.audio.playbackRate = this.speed;
+    this.renderSpeedPills();
+    this.syncSpeedPills();
+
     if (this.clips) this.loadClip(0);
     else this.audio.src = briefing.audio_url;
     this.buildSegments();
-    const saved = store.get(`pos-${briefing.date}`, 0);
+    const posKey = briefing.mode === 'rapid' ? `pos-${briefing.date}-rapid` : `pos-${briefing.date}`;
+    const saved = store.get(posKey, 0);
     if (saved > 5 && (!briefing.duration || saved < briefing.duration - 5)) this.seekTo(saved);
     this.tick();
   }
@@ -311,7 +323,8 @@ export class Player extends EventTarget {
   renderSpeedPills() {
     const box = document.getElementById('speedPills');
     if (!box) return;
-    const speeds = [0.8, 1.0, 1.25, 1.5];
+    const isRapid = this.briefing?.mode === 'rapid';
+    const speeds = isRapid ? [1.0, 1.1, 1.25, 1.5] : [0.8, 1.0, 1.25, 1.5];
     box.replaceChildren(...speeds.map((s) => {
       const b = h('button', {
         type: 'button',
@@ -332,7 +345,9 @@ export class Player extends EventTarget {
   setRate(rate) {
     this.speed = rate;
     this.audio.playbackRate = rate;
-    store.set('rate', rate);
+    if (this.briefing?.mode !== 'rapid') {
+      store.set('rate', rate);
+    }
     this.syncSpeedPills();
     this.syncPositionState();
   }
@@ -354,7 +369,8 @@ export class Player extends EventTarget {
     const dur = this.total || b.duration || 0;
     const t = this.position;
     if (t > 0 && Math.round(t) % 5 === 0) {
-      store.set(`pos-${b.date}`, t);
+      const posKey = b.mode === 'rapid' ? `pos-${b.date}-rapid` : `pos-${b.date}`;
+      store.set(posKey, t);
       this.syncPositionState();
     }
 

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.43] - 2026-10-19
+
+### Changed
+- **⚡ Rapid Fire Rethink (Top 5 Stories @ 1.1x speed)**:
+  - Curates all 5 top stories of the day from the Top Stories section (rather than 1 clip per section).
+  - Automatically speeds up audio narration to **1.1x** in Rapid Fire mode for a punchy, brisk headline delivery.
+  - Dynamic transport speed pills automatically display and highlight the `1.1x` option when in Rapid Fire mode, while preserving standard speed settings for Full Edition.
+  - Mode-specific playback position memory prevents position collisions between Full Edition and Rapid Fire.
+  - Service worker cache bumped to `hark-daily-v6`.
+
+---
+
 ## [0.1.42] - 2026-10-19
 
 ### Added

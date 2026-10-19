@@ -101,21 +101,34 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
     : SECTION_ORDER;
   const order = [...userOrder.filter((k) => SECTION_ORDER.includes(k)), ...SECTION_ORDER.filter((k) => !userOrder.includes(k))];
 
-  // In Rapid Fire mode, select the top story (rank 1) from the first 4 active sections (~90 seconds total)
+  // In Rapid Fire mode, select the 5 top stories of the day
   let wanted = lineup(settings);
   if (isRapid) {
     const rapidWanted = {};
-    let pickedCount = 0;
-    for (const key of order) {
-      if ((wanted[key] || 0) > 0 && pickedCount < 4) {
-        rapidWanted[key] = 1;
-        pickedCount++;
-      } else {
-        rapidWanted[key] = 0;
+    for (const key of SECTION_ORDER) rapidWanted[key] = 0;
+
+    // Check available clips for voice in 'top'
+    const topClips = (rows || []).filter((r) => (!id || r.voice === id) && r.section === 'top');
+    const topCount = Math.min(5, topClips.length);
+    rapidWanted['top'] = topCount;
+
+    // If 'top' has fewer than 5 clips, backfill from subsequent sections in user order
+    let remaining = 5 - topCount;
+    if (remaining > 0) {
+      for (const key of order) {
+        if (key === 'top') continue;
+        const avail = (rows || []).filter((r) => (!id || r.voice === id) && r.section === key).length;
+        const take = Math.min(remaining, avail);
+        if (take > 0) {
+          rapidWanted[key] = take;
+          remaining -= take;
+        }
+        if (remaining <= 0) break;
       }
     }
-    if (!pickedCount) {
-      for (const key of ['top', 'tech', 'ai', 'politics']) rapidWanted[key] = 1;
+    // Safeguard: if rows check yielded 0, request 5 from top
+    if (!Object.values(rapidWanted).some((v) => v > 0)) {
+      rapidWanted['top'] = 5;
     }
     wanted = rapidWanted;
   }
@@ -195,7 +208,7 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
 
   return {
     date,
-    title: isRapid ? 'Rapid Fire · 90s' : 'Your briefing',
+    title: isRapid ? 'Rapid Fire · Top 5 Stories' : 'Your briefing',
     mode: isRapid ? 'rapid' : 'full',
     duration: round(cursor),
     generated_at: new Date().toISOString(),
