@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.44] - 2026-10-19
+
+### Changed
+- **UI Design Overhaul: Acoustic Studio Deck vs. Editorial Broadsheet**:
+  - **News Player (`.hero`)**: Redesigned as an elevated Hi-Fi Acoustic Studio Deck featuring an amber sunburst top horizon bar (`border-top: 3.5px solid var(--accent)`), ambient radial warmth, a tactile jewel sunburst play button, seamless recessed waveform deck, and a teleprompter-styled Read Along prompter.
+  - **Dark Mode Separation**: Solved dark mode sameness by styling the player as a deep obsidian console (`#131926` to `#0c1018`) with amber glow, while news articles elevate to crisp slate tiles (`#141c2c`) with `#f8fafc` typography.
+  - **Editorial News Cards (`.story-row`)**: Introduced vibrant 4px category accent spines (`border-left: 4px solid var(--cat)`), interactive hover elevation, and vivid amber edge-glow during playback.
+  - **Duplicate Text & Read-Along Polish**:
+    - Eliminated duplicate section text in the player kicker (no more `[PAUSED · TOP STORIES] · TOP STORIES`).
+    - Fixed duplicate snippet text when expanding story details (snippet cleanly yields to the full summary drawer).
+    - Replaced clunky orange focus boxes in Read-Along with word-level amber typography glow and crisp contrast tracking.
+  - Service worker cache bumped to `hark-daily-v7`.
+
+---
+
 ## [0.1.43] - 2026-10-19
 
 ### Changed

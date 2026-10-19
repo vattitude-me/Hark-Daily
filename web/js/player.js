@@ -396,7 +396,7 @@ export class Player extends EventTarget {
     const started = t >= 0.5;
     el.state.textContent = !started && !this.isPlaying
       ? `Ready · ${b.stories.length} ${b.stories.length === 1 ? 'story' : 'stories'}`
-      : [this.isPlaying ? 'Now playing' : 'Paused', section].filter(Boolean).join(' · ');
+      : (this.isPlaying ? 'Now playing' : 'Paused');
     el.title.textContent = story?.headline || ch?.title || b.title;
 
     // Hero section label & count
