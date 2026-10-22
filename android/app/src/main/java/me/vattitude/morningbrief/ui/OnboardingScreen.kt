@@ -40,6 +40,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.FlashOn
 import androidx.compose.material.icons.outlined.RecordVoiceOver
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHost
@@ -74,19 +75,17 @@ import me.vattitude.morningbrief.pipeline.MAX_PER_SECTION
 import me.vattitude.morningbrief.pipeline.SECTIONS
 import me.vattitude.morningbrief.pipeline.briefMinutes
 
-private enum class Step { Welcome, SignIn, Topics }
+private enum class Step { Welcome, Topics }
 
 /**
  * First run onboarding flow for Hark Daily.
- * Features brand iconography, preferred edition selector (Full Brief vs. Rapid Fire),
- * acoustic audio sample preview, sign in, and customized topic curation.
+ * Features brand iconography, C-3PO audio sample preview, and customized topic curation.
  */
 @Composable
 fun OnboardingScreen(vm: AppViewModel) {
     var index by rememberSaveable { mutableIntStateOf(0) }
     val step = Step.entries[index]
     val st by vm.settings.collectAsState()
-    val email by vm.signedInEmail.collectAsState()
     val message by vm.message.collectAsState()
     val context = LocalContext.current
     val t = Mb.t
@@ -111,13 +110,6 @@ fun OnboardingScreen(vm: AppViewModel) {
         message?.let {
             snackbar.showSnackbar(it)
             vm.message.value = null
-        }
-    }
-    LaunchedEffect(email) {
-        if (email == null) {
-            index = 0
-        } else if (step == Step.SignIn) {
-            index++
         }
     }
 
@@ -166,7 +158,6 @@ fun OnboardingScreen(vm: AppViewModel) {
                 ) {
                     when (s) {
                         Step.Welcome -> Welcome(vm)
-                        Step.SignIn -> SignInStep(vm)
                         Step.Topics -> TopicsStep(vm)
                     }
                 }
@@ -189,24 +180,12 @@ fun OnboardingScreen(vm: AppViewModel) {
                 Spacer(Modifier.weight(1f))
                 val totalStories = SECTIONS.keys.sumOf { st.stories[it] ?: 0 }
                 val topicsEmpty = step == Step.Topics && totalStories == 0
-                val signedIn = email != null
-
-                if (step == Step.SignIn && !signedIn) {
-                    TextButton(onClick = {
-                        vm.stopDemo()
-                        index++
-                    }) {
-                        Text("Skip for now", style = Type.value, color = t.muted)
-                    }
-                    Spacer(Modifier.width(8.dp))
-                }
 
                 val label = when (step) {
                     Step.Welcome -> "Get started"
-                    Step.SignIn -> if (signedIn) "Continue" else "Sign in to continue"
                     Step.Topics -> if (topicsEmpty) "Pick at least one topic" else "Start listening"
                 }
-                PillButton(label, enabled = !topicsEmpty && (step != Step.SignIn || signedIn)) {
+                PillButton(label, enabled = !topicsEmpty) {
                     vm.stopDemo()
                     when {
                         step == Step.Topics && !canNotify && !asked -> askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -270,8 +249,6 @@ private fun AppMark(size: Int = 80) {
 @Composable
 private fun Welcome(vm: AppViewModel) {
     val demo by vm.demo.collectAsState()
-    val briefingMode by vm.briefingMode.collectAsState()
-    val isRapid = briefingMode == "rapid"
     val t = Mb.t
 
     AppMark()
@@ -281,85 +258,6 @@ private fun Welcome(vm: AppViewModel) {
         "The news you hear, not just read.",
         "Five minutes of the stories you care about, recorded before you wake. No ads, no scrolling, pure audio."
     )
-
-    // Preferred edition selector: Full Brief vs. ⚡ Rapid Fire
-    Column(Modifier.padding(bottom = 18.dp)) {
-        Overline("Choose your edition", color = t.muted)
-        Spacer(Modifier.height(8.dp))
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(CircleShape)
-                .background(if (t.dark) Color(0x66000000) else Color(0x0C0F172A))
-                .border(1.dp, if (t.dark) Color(0x1AFFFFFF) else Color(0x140F172A), CircleShape)
-                .padding(3.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            val fullOn = !isRapid
-            Row(
-                Modifier
-                    .weight(1f)
-                    .height(36.dp)
-                    .clip(CircleShape)
-                    .background(if (fullOn) t.accent else Color.Transparent)
-                    .clickable { vm.setBriefingMode("full") }
-                    .padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    Icons.Outlined.WbSunny,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = if (fullOn) t.accentInk else t.muted
-                )
-                Spacer(Modifier.width(5.dp))
-                Text(
-                    "Full Brief",
-                    style = Type.value.copy(fontSize = 12.sp, fontWeight = if (fullOn) FontWeight.Bold else FontWeight.Medium),
-                    color = if (fullOn) t.accentInk else t.muted
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    "~10m",
-                    style = Type.tiny,
-                    color = if (fullOn) t.accentInk.copy(alpha = 0.8f) else t.muted.copy(alpha = 0.7f)
-                )
-            }
-
-            val rapidOn = isRapid
-            Row(
-                Modifier
-                    .weight(1f)
-                    .height(36.dp)
-                    .clip(CircleShape)
-                    .background(if (rapidOn) t.accent else Color.Transparent)
-                    .clickable { vm.setBriefingMode("rapid") }
-                    .padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    Icons.Outlined.FlashOn,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = if (rapidOn) t.accentInk else Color(0xFFF59E0B)
-                )
-                Spacer(Modifier.width(5.dp))
-                Text(
-                    "Rapid Fire",
-                    style = Type.value.copy(fontSize = 12.sp, fontWeight = if (rapidOn) FontWeight.Bold else FontWeight.Medium),
-                    color = if (rapidOn) t.accentInk else t.ink
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    "⚡ 1.1x",
-                    style = Type.tiny.copy(fontWeight = FontWeight.Bold),
-                    color = if (rapidOn) t.accentInk.copy(alpha = 0.9f) else Color(0xFFB45309)
-                )
-            }
-        }
-    }
 
     // Audio preview deck
     Glass(Modifier.fillMaxWidth()) {
@@ -374,7 +272,7 @@ private fun Welcome(vm: AppViewModel) {
             Column(Modifier.weight(1f)) {
                 Text("Hear how it sounds", style = Type.title.copy(fontWeight = FontWeight.Bold), color = t.ink)
                 Text(
-                    "The start of a real brief, read by Alice",
+                    "Today's brief, narrated by C-3PO",
                     Modifier.padding(top = 2.dp),
                     style = Type.meta,
                     color = t.muted
@@ -399,7 +297,7 @@ private fun Welcome(vm: AppViewModel) {
     }
 
     Column(Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Feature(Icons.Outlined.RecordVoiceOver, "Read by Alice or Mike", "The same narrator every morning, recorded before you wake")
+        Feature(Icons.Outlined.SmartToy, "Voiced by C-3PO & more", "Your daily news delivered with protocol precision, or choose Alice, Mike, and Jerry")
         Feature(Icons.Outlined.Schedule, "Ready before your alarm", "A new brief appears each morning. Nothing to build or wait for")
         Feature(Icons.Outlined.AutoAwesome, "Only your topics", "Pick your sections, and how many stories each gets")
     }
@@ -487,43 +385,5 @@ private fun TopicsStep(vm: AppViewModel) {
             Modifier.padding(top = 12.dp, start = 4.dp),
             color = t.error
         )
-    }
-}
-
-@Composable
-private fun SignInStep(vm: AppViewModel) {
-    val email by vm.signedInEmail.collectAsState()
-    val t = Mb.t
-    Title(
-        "Your account",
-        "Sign in to hear the brief",
-        "The day's news is recorded once each morning and published to your account, so the same brief reaches every device you sign in to."
-    )
-
-    Glass(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(18.dp)) {
-            val who = email
-            if (who != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CheckDot(true)
-                    Spacer(Modifier.width(12.dp))
-                    Text(who, style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = t.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                Text(
-                    "Your topics and settings follow you between the phone and the web app.",
-                    Modifier.padding(top = 10.dp),
-                    style = Type.meta,
-                    color = t.muted
-                )
-            } else {
-                Text("One tap with Google. There is no password to remember.", style = Type.meta, color = t.muted)
-                GoogleSignInButton(vm, Modifier.padding(top = 16.dp))
-            }
-        }
-    }
-
-    Column(Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Feature(Icons.Outlined.RecordVoiceOver, "The same brief everywhere", "Sign in on the web app and your topics are already there")
-        Feature(Icons.Outlined.Schedule, "Ready before your alarm", "It appears on its own each morning, with nothing to build")
     }
 }
