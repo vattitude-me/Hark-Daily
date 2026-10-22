@@ -47,6 +47,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -120,6 +121,10 @@ fun OnboardingScreen(vm: AppViewModel) {
         }
     }
 
+    DisposableEffect(Unit) {
+        onDispose { vm.stopDemo() }
+    }
+
     Box(Modifier.fillMaxSize()) {
         Column(
             Modifier
@@ -174,7 +179,10 @@ fun OnboardingScreen(vm: AppViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (index > 0) {
-                    TextButton(onClick = { index-- }) {
+                    TextButton(onClick = {
+                        vm.stopDemo()
+                        index--
+                    }) {
                         Text("Back", style = Type.value, color = t.muted)
                     }
                 }
@@ -184,7 +192,10 @@ fun OnboardingScreen(vm: AppViewModel) {
                 val signedIn = email != null
 
                 if (step == Step.SignIn && !signedIn) {
-                    TextButton(onClick = { index++ }) {
+                    TextButton(onClick = {
+                        vm.stopDemo()
+                        index++
+                    }) {
                         Text("Skip for now", style = Type.value, color = t.muted)
                     }
                     Spacer(Modifier.width(8.dp))
@@ -196,6 +207,7 @@ fun OnboardingScreen(vm: AppViewModel) {
                     Step.Topics -> if (topicsEmpty) "Pick at least one topic" else "Start listening"
                 }
                 PillButton(label, enabled = !topicsEmpty && (step != Step.SignIn || signedIn)) {
+                    vm.stopDemo()
                     when {
                         step == Step.Topics && !canNotify && !asked -> askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
                         step == Step.Topics -> vm.finishOnboarding()

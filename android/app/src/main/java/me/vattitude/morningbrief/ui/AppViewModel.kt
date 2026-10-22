@@ -209,6 +209,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val mp = MediaPlayer.create(getApplication(), R.raw.sample_brief, speech, 0) ?: return
         demoPlayer = mp
         mp.setOnCompletionListener { stopDemo() }
+        val targetSpeed = if (briefingMode.value == "rapid") 1.1f else 1.0f
+        runCatching { mp.playbackParams = mp.playbackParams.setSpeed(targetSpeed) }
         mp.start()
         demo.value = 0f
         demoJob = viewModelScope.launch {
@@ -293,8 +295,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // A briefing recorded again replaces its audio: drop the old recording from the player.
         controller?.let { c ->
             val loaded = c.currentMediaItem?.mediaId ?: return@let
-            val date = loaded.substringBefore('@')
-            val now = packs[date]?.briefing?.mediaId
+            val beforeAt = loaded.substringBefore('@')
+            val date = beforeAt.removeSuffix("-full").removeSuffix("-rapid")
+            val now = packs["$date-${briefingMode.value}"]?.briefing?.mediaId
+                ?: packs[date]?.briefing?.mediaId
                 ?: repo.briefings.load(date)?.let { Briefing.from(it).mediaId }
             if (now != null && now != loaded) {
                 c.stop()
@@ -425,7 +429,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun tick() {
         val c = controller ?: return
         val id = c.currentMediaItem?.mediaId
-        val date = id?.substringBefore('@')?.substringBefore('-')
+        val beforeAt = id?.substringBefore('@')
+        val date = beforeAt?.removeSuffix("-full")?.removeSuffix("-rapid")
         val m = if (id?.contains("-rapid") == true) "rapid" else "full"
         if (nowPlaying.value?.mediaId != id && nowPlayingTried != id) {
             nowPlayingTried = id
@@ -441,6 +446,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setBriefingMode(newMode: String) {
         if (briefingMode.value == newMode) return
         briefingMode.value = newMode
+        demoPlayer?.let { mp ->
+            val targetSpeed = if (newMode == "rapid") 1.1f else 1.0f
+            runCatching { mp.playbackParams = mp.playbackParams.setSpeed(targetSpeed) }
+        }
         val d = selected.value ?: return
         val pack = packs["$d-$newMode"] ?: packs[d]
         if (pack != null) {
