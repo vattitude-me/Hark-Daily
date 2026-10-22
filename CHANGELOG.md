@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.45] - 2026-10-22
+
+### Changed
+- **Android App UI & Feature Parity with Hark Daily PWA Overhaul**:
+  - **Acoustic Studio Deck Hero**:
+    - Replaced the legacy player card with an elevated Hi-Fi Acoustic Studio Deck featuring an amber sunburst top horizon bar (3.5dp), ambient warm glow during playback, tactile jewel amber play button, and recessed console deck (`#0B0F17` in dark mode).
+    - Integrated Read-Along Teleprompter Visor directly beneath the console deck with live narrator text tracking and full text expand/collapse.
+    - Updated app header branding to "Hark Daily" with tagline "The news you hear, not just read."
+  - **⚡ Rapid Fire Mode on Android**:
+    - Added instant switcher between **Full Brief** (~10 min) and **⚡ Rapid Fire** (Top 5 stories @ 1.1x speed).
+    - Rapid Fire curates the top 5 stories of the day, sets playback speed automatically to 1.1x, and updates transport speed pills with `1.1x` option.
+  - **Editorial Broadsheet Story Cards**:
+    - Distinct story cards with 4dp category colored left spine (`t.categoryColor(card.section)`).
+    - Amber accent border and ambient shadow when story is playing.
+    - Upgraded progress bar and scrubbers with warm amber track fill and jewel thumb.
+    - Bottom MiniPlayer and TabBar updated with Hark Daily amber accent highlights and tactile jewel play button.
+
+---
+
 ## [0.1.44] - 2026-10-19
 
 ### Changed

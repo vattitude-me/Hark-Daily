@@ -183,7 +183,7 @@ private fun MiniPlayer(b: Briefing, player: PlayerState, colorPhotos: Boolean = 
                     modifier = Modifier.size(46.dp).clip(CircleShape).background(t.track))
             } else {
                 Box(Modifier.size(46.dp).clip(CircleShape).background(t.track), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.GraphicEq, null, Modifier.size(20.dp), tint = t.ink)
+                    Icon(Icons.Outlined.GraphicEq, null, Modifier.size(20.dp), tint = t.accent)
                 }
             }
             Spacer(Modifier.width(12.dp))
@@ -194,11 +194,15 @@ private fun MiniPlayer(b: Briefing, player: PlayerState, colorPhotos: Boolean = 
                     Modifier.padding(top = 2.dp), style = Type.tiny, color = t.muted, maxLines = 1)
                 // How far through.
                 Box(Modifier.padding(top = 6.dp, end = 8.dp).fillMaxWidth().height(2.dp).clip(CircleShape).background(t.track)) {
-                    Box(Modifier.fillMaxWidth((pos / total).toFloat().coerceIn(0f, 1f)).fillMaxHeight().background(t.ink))
+                    Box(Modifier.fillMaxWidth((pos / total).toFloat().coerceIn(0f, 1f)).fillMaxHeight().background(t.accent))
                 }
             }
-            InkCircle(if (player.playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                if (player.playing) "Pause" else "Play", size = 42.dp, onClick = onToggle)
+            JewelPlayButton(
+                icon = if (player.playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                label = if (player.playing) "Pause" else "Play",
+                size = 42.dp,
+                onClick = onToggle
+            )
             Icon(Icons.Filled.SkipNext, "Next story", Modifier.padding(start = 4.dp).size(42.dp).clip(CircleShape)
                 .clickable(onClick = onNext).padding(9.dp), tint = t.ink)
         }
@@ -220,14 +224,14 @@ private fun TabBar(tab: Tab, onSelect: (Tab) -> Unit) {
             val on = item == tab
             Row(
                 Modifier.weight(1f).fillMaxHeight().clip(CircleShape)
-                    .background(if (on) t.ink else Color.Transparent).clickable { onSelect(item) },
+                    .background(if (on) t.accent else Color.Transparent).clickable { onSelect(item) },
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(icon, null, Modifier.size(19.dp), tint = if (on) t.onInk else t.muted)
+                Icon(icon, null, Modifier.size(19.dp), tint = if (on) t.accentInk else t.muted)
                 Spacer(Modifier.width(8.dp))
-                Text(item.name, style = Type.value.copy(fontWeight = if (on) FontWeight.Medium else FontWeight.Normal),
-                    color = if (on) t.onInk else t.muted)
+                Text(item.name, style = Type.value.copy(fontWeight = if (on) FontWeight.Bold else FontWeight.Normal),
+                    color = if (on) t.accentInk else t.muted)
             }
         }
     }

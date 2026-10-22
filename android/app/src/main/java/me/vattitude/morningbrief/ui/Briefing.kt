@@ -23,9 +23,11 @@ data class Briefing(
     /** The voice it was recorded in ("kokoro:bf_emma", or the phone voice's name), and when it was recorded. */
     val voiceId: String = "", val voiceName: String = "", val version: String = "",
     val wx: Weather? = null,
+    val mode: String = "full",
 ) {
     /** Changes whenever the audio is recorded again, so the player knows to reload it. */
-    val mediaId: String get() = "$date@$version"
+    val mediaId: String get() = "$date-$mode@$version"
+    val isRapid: Boolean get() = mode == "rapid"
 
     companion object {
         private fun JSONArray?.objects(): List<JSONObject> = if (this == null) emptyList() else (0 until length()).map { getJSONObject(it) }
@@ -64,6 +66,7 @@ data class Briefing(
                 wx = j.optJSONObject("weather")?.let {
                     Weather(it.optString("city"), it.optInt("now"), it.optInt("high"), it.optString("conditions"), it.optInt("code", -1))
                 },
+                mode = j.optString("mode", "full"),
             )
         }
     }

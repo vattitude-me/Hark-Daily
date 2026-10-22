@@ -67,7 +67,7 @@ object StoryPack {
      * Null means there is genuinely nothing recorded yet.
      */
     suspend fun fetch(supabase: Supabase, date: String, stories: Map<String, Int>,
-                      voice: String? = null, sectionOrder: List<String> = emptyList()): Pack? {
+                      voice: String? = null, sectionOrder: List<String> = emptyList(), mode: String = "full"): Pack? {
         var day = date
         var rows = supabase.storyAudio(day)
         if (rows.length() == 0) {
@@ -87,7 +87,36 @@ object StoryPack {
         // Playable only once the narrator's clips and framing are all published.
         val noteRows = notes.objects()
         if (noteRows.none { it.optString("note_key") == PACK_READY && it.optString("voice") == spokenBy }) return null
-        val wanted = lineup(stories)
+
+        val isRapid = mode == "rapid"
+        val order = effectiveSectionOrder(sectionOrder)
+        val wanted = if (isRapid) {
+            val rapidWanted = LinkedHashMap<String, Int>()
+            for (key in SECTIONS.keys) rapidWanted[key] = 0
+            val topClips = all.filter { it.optString("section") == "top" }
+            val topCount = minOf(5, topClips.size)
+            rapidWanted["top"] = topCount
+            var remaining = 5 - topCount
+            if (remaining > 0) {
+                for (key in order) {
+                    if (key == "top") continue
+                    val avail = all.filter { it.optString("section") == key }.size
+                    val take = minOf(remaining, avail)
+                    if (take > 0) {
+                        rapidWanted[key] = take
+                        remaining -= take
+                    }
+                    if (remaining <= 0) break
+                }
+            }
+            if (rapidWanted.values.none { it > 0 }) {
+                rapidWanted["top"] = 5
+            }
+            rapidWanted
+        } else {
+            lineup(stories)
+        }
+
         val noteByKey = noteRows.filter { it.optString("voice") == spokenBy }
             .associateBy { it.optString("note_key") }
 
@@ -117,13 +146,14 @@ object StoryPack {
 
         sayNote(greetingKey())
 
-        val order = effectiveSectionOrder(sectionOrder)
         for (key in order) {
             val count = wanted[key] ?: 0
             if (count <= 0) continue
             val chosen = all.filter { it.optString("section") == key }.sortedBy { it.optInt("rank") }.take(count)
             if (chosen.isEmpty()) continue
-            sayNote("intro_$key")
+            if (!isRapid) {
+                sayNote("intro_$key")
+            }
             for (row in chosen) {
                 breath()
                 val duration = row.optDouble("duration", 0.0)
@@ -150,7 +180,7 @@ object StoryPack {
         val version = all.map { it.optString("created_at") }.maxOrNull().orEmpty()
         val briefing = Briefing(
             date = day,
-            title = "Your briefing",
+            title = if (isRapid) "Rapid Fire · Top 5 Stories" else "Your briefing",
             duration = cursor,
             intro = "",
             weather = null,
@@ -166,6 +196,7 @@ object StoryPack {
             // voiceId stays empty: there is nothing on this device to re-record.
             voiceName = packVoice(spokenBy).name,
             version = version,
+            mode = if (isRapid) "rapid" else "full",
         )
         return Pack(briefing, clips, version)
     }

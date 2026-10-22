@@ -60,7 +60,7 @@ import java.time.LocalDate
 
 enum class Tab { Today, Sources, Settings }
 
-data class PlayerState(val date: String? = null, val playing: Boolean = false, val position: Double = 0.0, val ready: Boolean = false)
+data class PlayerState(val date: String? = null, val playing: Boolean = false, val position: Double = 0.0, val ready: Boolean = false, val speed: Float = 1.0f)
 
 data class Deleting(val busy: Boolean = false, val error: String? = null)
 data class SignIn(val busy: Boolean = false, val error: String? = null)
@@ -90,6 +90,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val dates = MutableStateFlow<List<String>>(emptyList())
     val selected = MutableStateFlow<String?>(null)
     val briefing = MutableStateFlow<Briefing?>(null)
+    val briefingMode = MutableStateFlow("full")
     val packLoadingDate = MutableStateFlow<String?>(null)
     val build: StateFlow<BuildState.Progress> = BuildState.progress
 
@@ -320,7 +321,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun select(date: String?) {
         selected.value = date
-        val direct = date?.let { packs[it] }?.briefing
+        val m = briefingMode.value
+        val direct = date?.let { packs["$it-$m"] ?: packs[it] }?.briefing
             ?: date?.let { repo.briefings.load(it) }?.let { Briefing.from(it) }
         // Fall back to any existing data already on the phone rather than leaving it empty
         val fallback = direct ?: repo.briefings.dates().firstOrNull()?.let { repo.briefings.load(it) }?.let { Briefing.from(it) }
@@ -335,19 +337,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * pack yet, [StoryPack.fetch] returns the most recent published day instead.
      */
     private fun fetchPack(date: String) {
-        if (!repo.signedIn || packs.containsKey(date)) return
+        if (!repo.signedIn || (packs.containsKey("$date-full") && packs.containsKey("$date-rapid"))) return
         if (selected.value == date && briefing.value == null) packLoadingDate.value = date
         viewModelScope.launch {
             try {
-                val pack = runCatching {
-                    StoryPack.fetch(repo.supabase, date, _settings.value.stories, _settings.value.voice, _settings.value.sectionOrder)
+                val fullPack = runCatching {
+                    StoryPack.fetch(repo.supabase, date, _settings.value.stories, _settings.value.voice, _settings.value.sectionOrder, mode = "full")
                 }.getOrNull()
-                packs[date] = pack
-                if (pack != null && selected.value == date) {
+                val rapidPack = runCatching {
+                    StoryPack.fetch(repo.supabase, date, _settings.value.stories, _settings.value.voice, _settings.value.sectionOrder, mode = "rapid")
+                }.getOrNull()
+                if (fullPack != null) {
+                    packs["$date-full"] = fullPack
+                    packs[date] = fullPack
+                }
+                if (rapidPack != null) {
+                    packs["$date-rapid"] = rapidPack
+                }
+                val activePack = if (briefingMode.value == "rapid") rapidPack ?: fullPack else fullPack ?: rapidPack
+                if (activePack != null && selected.value == date) {
                     nowPlayingTried = null
-                    briefing.value = pack.briefing
+                    briefing.value = activePack.briefing
                     BuildState.clearError()
-                    val c = load(date)
+                    val c = load(date, briefingMode.value)
                     tick()
                     // A narrator switch keeps the listener where they were.
                     resumeAt?.let { at ->
@@ -370,6 +382,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshPack() {
         val today = LocalDate.now().toString()
         packs.remove(today)
+        packs.remove("$today-full")
+        packs.remove("$today-rapid")
         // Keep whatever is on screen while the check runs, so a miss does not blank the news.
         if (selected.value == today && briefing.value != null) fetchPack(today) else select(today)
     }
@@ -411,15 +425,47 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun tick() {
         val c = controller ?: return
         val id = c.currentMediaItem?.mediaId
-        val date = id?.substringBefore('@')
+        val date = id?.substringBefore('@')?.substringBefore('-')
+        val m = if (id?.contains("-rapid") == true) "rapid" else "full"
         if (nowPlaying.value?.mediaId != id && nowPlayingTried != id) {
             nowPlayingTried = id
             nowPlaying.value = date?.let { d ->
-                packs[d]?.briefing ?: briefing.value?.takeIf { it.date == d }
+                packs["$d-$m"]?.briefing ?: packs[d]?.briefing ?: briefing.value?.takeIf { it.date == d }
                     ?: repo.briefings.load(d)?.let { Briefing.from(it) }
             }
         }
-        player.value = PlayerState(date = date, playing = c.isPlaying, position = globalPosition(c), ready = true)
+        val curSpeed = c.playbackParameters.speed
+        player.value = PlayerState(date = date, playing = c.isPlaying, position = globalPosition(c), ready = true, speed = curSpeed)
+    }
+
+    fun setBriefingMode(newMode: String) {
+        if (briefingMode.value == newMode) return
+        briefingMode.value = newMode
+        val d = selected.value ?: return
+        val pack = packs["$d-$newMode"] ?: packs[d]
+        if (pack != null) {
+            briefing.value = pack.briefing
+            val c = controller
+            if (c != null) {
+                val targetSpeed = if (newMode == "rapid") 1.1f else _settings.value.speed.coerceIn(0.8f, 1.3f)
+                c.setPlaybackSpeed(targetSpeed)
+                if (nowPlaying.value?.date == d) {
+                    val wasPlaying = c.isPlaying
+                    load(d, newMode)
+                    if (wasPlaying) c.play()
+                }
+            }
+            tick()
+        }
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        val c = controller ?: return
+        c.setPlaybackSpeed(speed)
+        if (briefingMode.value != "rapid") {
+            updateAndSave { it.copy(speed = speed) }
+        }
+        tick()
     }
 
     /**
@@ -482,12 +528,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Loads [date] into the player if it isn't already there. Uses the shared pack when there is one. */
-    private fun load(date: String): MediaController? {
+    private fun load(date: String, m: String = briefingMode.value): MediaController? {
         val c = controller ?: return null
-        val pack = packs[date]
+        val pack = packs["$date-$m"] ?: packs[date]
         val b = pack?.briefing ?: briefing.value?.takeIf { it.date == date }
             ?: repo.briefings.load(date)?.let { Briefing.from(it) }
-        val id = b?.mediaId ?: date
+        val id = b?.mediaId ?: "$date-$m"
         if (c.currentMediaItem?.mediaId != id) {
             if (pack != null && pack.clips.isNotEmpty()) {
                 // One MediaItem per clip: Media3 queues them, so a section's intro flows
@@ -500,7 +546,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     MediaItem.Builder()
                         .setMediaId(id)
                         .setUri(if (clip.gap) silence else Uri.parse(clip.url))
-                        .setMediaMetadata(MediaMetadata.Builder().setTitle(clip.title).setArtist("Morning Brief").build())
+                        .setMediaMetadata(MediaMetadata.Builder().setTitle(clip.title).setArtist("Hark Daily").build())
                         .build()
                 })
             } else {
@@ -508,26 +554,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val item = MediaItem.Builder()
                     .setMediaId(id)
                     .setUri(Uri.fromFile(repo.briefings.audio(date)))
-                    .setMediaMetadata(MediaMetadata.Builder().setTitle(b?.title ?: date).setArtist("Morning Brief").build())
+                    .setMediaMetadata(MediaMetadata.Builder().setTitle(b?.title ?: date).setArtist("Hark Daily").build())
                     .build()
                 c.setMediaItem(item)
             }
             c.prepare()
-            c.setPlaybackSpeed(_settings.value.speed.coerceIn(0.8f, 1.3f))
+            val speed = if (m == "rapid") 1.1f else _settings.value.speed.coerceIn(0.8f, 1.3f)
+            c.setPlaybackSpeed(speed)
         }
         return c
     }
 
     fun togglePlay() {
         val date = selected.value ?: return
-        val c = load(date) ?: return
+        val c = load(date, briefingMode.value) ?: return
         if (c.isPlaying) c.pause() else c.play()
         tick()
     }
 
     fun seekTo(seconds: Double, play: Boolean = true) {
         val date = selected.value ?: return
-        val c = load(date) ?: return
+        val c = load(date, briefingMode.value) ?: return
         seekGlobal(c, seconds, play)
         tick()
     }
