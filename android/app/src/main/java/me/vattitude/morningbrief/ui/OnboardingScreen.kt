@@ -12,6 +12,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,7 +26,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -36,8 +37,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.FlashOn
 import androidx.compose.material.icons.outlined.RecordVoiceOver
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -55,11 +58,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import me.vattitude.morningbrief.R
 import me.vattitude.morningbrief.pipeline.MAX_PER_SECTION
@@ -69,9 +76,9 @@ import me.vattitude.morningbrief.pipeline.briefMinutes
 private enum class Step { Welcome, SignIn, Topics }
 
 /**
- * First run, kept short on purpose: hear what a briefing sounds like, sign in, then pick topics.
- * Signing in is what lets the morning brief find you: the day's audio is recorded once for
- * everyone and published to the account, so there is nothing to build on the phone.
+ * First run onboarding flow for Hark Daily.
+ * Features brand iconography, preferred edition selector (Full Brief vs. Rapid Fire),
+ * acoustic audio sample preview, sign in, and customized topic curation.
  */
 @Composable
 fun OnboardingScreen(vm: AppViewModel) {
@@ -85,14 +92,15 @@ fun OnboardingScreen(vm: AppViewModel) {
     val snackbar = remember { SnackbarHostState() }
 
     var canNotify by remember {
-        mutableStateOf(Build.VERSION.SDK_INT < 33 ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
+        mutableStateOf(
+            Build.VERSION.SDK_INT < 33 ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        )
     }
     var asked by rememberSaveable { mutableStateOf(false) }
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         canNotify = granted
         asked = true
-        // Asked from the last step's button: carry on to the brief either way.
         if (step == Step.Topics) vm.finishOnboarding()
     }
 
@@ -104,7 +112,6 @@ fun OnboardingScreen(vm: AppViewModel) {
             vm.message.value = null
         }
     }
-    // Sign-in finishes in the browser tab, so move the flow on when the account appears.
     LaunchedEffect(email) {
         if (email == null) {
             index = 0
@@ -114,91 +121,272 @@ fun OnboardingScreen(vm: AppViewModel) {
     }
 
     Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().backdrop(t).statusBarsPadding().navigationBarsPadding().imePadding()) {
-        // Progress: one dash per step.
-        Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (i in Step.entries.indices) {
-                Box(Modifier.weight(1f).height(3.dp).clip(CircleShape).background(if (i <= index) t.ink else t.track))
+        Column(
+            Modifier
+                .fillMaxSize()
+                .backdrop(t)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .imePadding()
+        ) {
+            // Progress dashes with amber active state
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 24.dp, end = 24.dp, top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                for (i in Step.entries.indices) {
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(4.dp)
+                            .clip(CircleShape)
+                            .background(if (i <= index) t.accent else t.track)
+                    )
+                }
             }
-        }
-        AnimatedContent(step, Modifier.weight(1f), transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "step") { s ->
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 28.dp)) {
-                when (s) {
-                    Step.Welcome -> Welcome(vm)
-                    Step.SignIn -> SignInStep(vm)
-                    Step.Topics -> TopicsStep(vm)
+
+            AnimatedContent(
+                step,
+                Modifier.weight(1f),
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                label = "step"
+            ) { s ->
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 24.dp, vertical = 24.dp)
+                ) {
+                    when (s) {
+                        Step.Welcome -> Welcome(vm)
+                        Step.SignIn -> SignInStep(vm)
+                        Step.Topics -> TopicsStep(vm)
+                    }
+                }
+            }
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 24.dp, bottom = 16.dp, top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (index > 0) {
+                    TextButton(onClick = { index-- }) {
+                        Text("Back", style = Type.value, color = t.muted)
+                    }
+                }
+                Spacer(Modifier.weight(1f))
+                val totalStories = SECTIONS.keys.sumOf { st.stories[it] ?: 0 }
+                val topicsEmpty = step == Step.Topics && totalStories == 0
+                val signedIn = email != null
+
+                if (step == Step.SignIn && !signedIn) {
+                    TextButton(onClick = { index++ }) {
+                        Text("Skip for now", style = Type.value, color = t.muted)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                }
+
+                val label = when (step) {
+                    Step.Welcome -> "Get started"
+                    Step.SignIn -> if (signedIn) "Continue" else "Sign in to continue"
+                    Step.Topics -> if (topicsEmpty) "Pick at least one topic" else "Start listening"
+                }
+                PillButton(label, enabled = !topicsEmpty && (step != Step.SignIn || signedIn)) {
+                    when {
+                        step == Step.Topics && !canNotify && !asked -> askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        step == Step.Topics -> vm.finishOnboarding()
+                        else -> index++
+                    }
                 }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 24.dp, bottom = 16.dp, top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            if (index > 0) TextButton(onClick = { index-- }) { Text("Back", style = Type.value, color = t.muted) }
-            Spacer(Modifier.weight(1f))
-            val totalStories = SECTIONS.keys.sumOf { st.stories[it] ?: 0 }
-            val topicsEmpty = step == Step.Topics && totalStories == 0
-            val signedIn = email != null
-            val label = when (step) {
-                Step.Welcome -> "Get started"
-                Step.SignIn -> if (signedIn) "Continue" else "Sign in to continue"
-                Step.Topics -> if (topicsEmpty) "Pick at least one topic" else "Start listening"
-                else -> "Continue"
-            }
-            PillButton(label, enabled = !topicsEmpty && (step != Step.SignIn || signedIn)) {
-                when {
-                    // Ask for the ready alert at the moment of commitment, then carry on either way.
-                    step == Step.Topics && !canNotify && !asked -> askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    step == Step.Topics -> vm.finishOnboarding()
-                    else -> index++
-                }
-            }
-        }
-        }
-        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 72.dp))
+        SnackbarHost(
+            snackbar,
+            Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 72.dp)
+        )
     }
 }
 
 @Composable
 private fun Title(overline: String, title: String, lead: String) {
-    Overline(overline)
-    Text(title, Modifier.padding(top = 10.dp), style = Type.display, color = Mb.t.ink)
-    Text(lead, Modifier.padding(top = 10.dp, bottom = 22.dp), style = Type.lead, color = Mb.t.muted)
+    Overline(overline, color = Mb.t.accentText)
+    Text(
+        title,
+        Modifier.padding(top = 8.dp),
+        style = Type.display.copy(fontSize = 28.sp, lineHeight = 33.sp, fontWeight = FontWeight.Bold),
+        color = Mb.t.ink
+    )
+    Text(
+        lead,
+        Modifier.padding(top = 8.dp, bottom = 20.dp),
+        style = Type.lead.copy(fontSize = 14.5.sp, lineHeight = 21.sp),
+        color = Mb.t.muted
+    )
 }
 
-/** The app icon, from its two adaptive layers. */
+/** The official Hark Daily icon with amber ambient warmth. */
 @Composable
-private fun AppMark(size: Int = 84) {
-    Box(Modifier.size(size.dp).clip(RoundedCornerShape((size * .28f).dp)), contentAlignment = Alignment.Center) {
-        // The layers are 108dp with the visible icon in the middle 72dp.
-        val full = (size * 108 / 72).dp
-        Image(painterResource(R.drawable.ic_launcher_background), null, Modifier.requiredSize(full))
-        Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.requiredSize(full))
+private fun AppMark(size: Int = 80) {
+    Box(
+        Modifier
+            .size(size.dp)
+            .shadow(
+                elevation = 16.dp,
+                shape = RoundedCornerShape((size * .24f).dp),
+                ambientColor = Color(0xFFF59E0B).copy(alpha = 0.35f),
+                spotColor = Color(0xFFF59E0B).copy(alpha = 0.5f)
+            )
+            .clip(RoundedCornerShape((size * .24f).dp))
+            .background(Color(0xFF0B1019)),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_hark_logo),
+            contentDescription = "Hark Daily",
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 
 @Composable
 private fun Welcome(vm: AppViewModel) {
     val demo by vm.demo.collectAsState()
+    val briefingMode by vm.briefingMode.collectAsState()
+    val isRapid = briefingMode == "rapid"
     val t = Mb.t
+
     AppMark()
-    Spacer(Modifier.height(26.dp))
-    Title("Morning Brief", "Your news, read aloud every morning.",
-        "Five minutes of the stories you care about, ready when you wake. No ads, and nothing to build.")
+    Spacer(Modifier.height(20.dp))
+    Title(
+        "Hark Daily",
+        "The news you hear, not just read.",
+        "Five minutes of the stories you care about, recorded before you wake. No ads, no scrolling, pure audio."
+    )
+
+    // Preferred edition selector: Full Brief vs. ⚡ Rapid Fire
+    Column(Modifier.padding(bottom = 18.dp)) {
+        Overline("Choose your edition", color = t.muted)
+        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(CircleShape)
+                .background(if (t.dark) Color(0x66000000) else Color(0x0C0F172A))
+                .border(1.dp, if (t.dark) Color(0x1AFFFFFF) else Color(0x140F172A), CircleShape)
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            val fullOn = !isRapid
+            Row(
+                Modifier
+                    .weight(1f)
+                    .height(36.dp)
+                    .clip(CircleShape)
+                    .background(if (fullOn) t.accent else Color.Transparent)
+                    .clickable { vm.setBriefingMode("full") }
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    Icons.Outlined.WbSunny,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = if (fullOn) t.accentInk else t.muted
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    "Full Brief",
+                    style = Type.value.copy(fontSize = 12.sp, fontWeight = if (fullOn) FontWeight.Bold else FontWeight.Medium),
+                    color = if (fullOn) t.accentInk else t.muted
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "~10m",
+                    style = Type.tiny,
+                    color = if (fullOn) t.accentInk.copy(alpha = 0.8f) else t.muted.copy(alpha = 0.7f)
+                )
+            }
+
+            val rapidOn = isRapid
+            Row(
+                Modifier
+                    .weight(1f)
+                    .height(36.dp)
+                    .clip(CircleShape)
+                    .background(if (rapidOn) t.accent else Color.Transparent)
+                    .clickable { vm.setBriefingMode("rapid") }
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    Icons.Outlined.FlashOn,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = if (rapidOn) t.accentInk else Color(0xFFF59E0B)
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    "Rapid Fire",
+                    style = Type.value.copy(fontSize = 12.sp, fontWeight = if (rapidOn) FontWeight.Bold else FontWeight.Medium),
+                    color = if (rapidOn) t.accentInk else t.ink
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "⚡ 1.1x",
+                    style = Type.tiny.copy(fontWeight = FontWeight.Bold),
+                    color = if (rapidOn) t.accentInk.copy(alpha = 0.9f) else Color(0xFFB45309)
+                )
+            }
+        }
+    }
+
+    // Audio preview deck
     Glass(Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            InkCircle(if (demo != null) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                if (demo != null) "Pause the sample" else "Play a sample brief", size = 52.dp) { vm.toggleDemo() }
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            JewelPlayButton(
+                icon = if (demo != null) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                label = if (demo != null) "Pause sample" else "Play sample",
+                size = 46.dp
+            ) { vm.toggleDemo() }
+
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text("Hear how it sounds", style = Type.title, color = t.ink)
-                Text("The start of a real brief, read by Alice", Modifier.padding(top = 2.dp),
-                    style = Type.meta, color = t.muted)
-                Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(3.dp).clip(CircleShape).background(t.track)) {
-                    Box(Modifier.fillMaxWidth(demo ?: 0f).fillMaxHeight().background(t.ink))
+                Text("Hear how it sounds", style = Type.title.copy(fontWeight = FontWeight.Bold), color = t.ink)
+                Text(
+                    "The start of a real brief, read by Alice",
+                    Modifier.padding(top = 2.dp),
+                    style = Type.meta,
+                    color = t.muted
+                )
+                Box(
+                    Modifier
+                        .padding(top = 8.dp)
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .clip(CircleShape)
+                        .background(t.track)
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(demo ?: 0f)
+                            .fillMaxHeight()
+                            .background(t.accent)
+                    )
                 }
             }
         }
     }
-    Column(Modifier.padding(top = 22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+
+    Column(Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Feature(Icons.Outlined.RecordVoiceOver, "Read by Alice or Mike", "The same narrator every morning, recorded before you wake")
         Feature(Icons.Outlined.Schedule, "Ready before your alarm", "A new brief appears each morning. Nothing to build or wait for")
         Feature(Icons.Outlined.AutoAwesome, "Only your topics", "Pick your sections, and how many stories each gets")
@@ -209,12 +397,19 @@ private fun Welcome(vm: AppViewModel) {
 private fun Feature(icon: ImageVector, title: String, detail: String) {
     val t = Mb.t
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(38.dp).clip(CircleShape).background(t.glass), contentAlignment = Alignment.Center) {
-            Icon(icon, null, Modifier.size(19.dp), tint = t.ink)
+        Box(
+            Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(t.accentSoft)
+                .border(1.dp, t.accentLine, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, Modifier.size(19.dp), tint = t.accentText)
         }
         Spacer(Modifier.width(14.dp))
         Column {
-            Text(title, style = Type.title, color = t.ink)
+            Text(title, style = Type.title.copy(fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold), color = t.ink)
             Text(detail, style = Type.meta, color = t.muted)
         }
     }
@@ -225,42 +420,74 @@ private fun TopicsStep(vm: AppViewModel) {
     val st by vm.settings.collectAsState()
     val t = Mb.t
     val total = SECTIONS.keys.sumOf { st.stories[it] ?: 0 }
-    Title("Your topics", "What goes in your brief?",
-        "Up to $MAX_PER_SECTION stories from each topic, however you like it. Nothing is picked for you.")
+
+    Title(
+        "Your topics",
+        "What goes in your brief?",
+        "Up to $MAX_PER_SECTION stories from each topic, however you like it. Nothing is picked for you."
+    )
+
     Glass(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(18.dp)) {
+        Column(Modifier.padding(16.dp)) {
             Text(
                 if (total == 0) "Nothing picked yet" else "$total stories, about ${briefMinutes(total)} min",
-                style = Type.title, color = t.ink,
+                style = Type.title.copy(fontWeight = FontWeight.Bold),
+                color = t.ink,
             )
-            PillButton(if (total == 0) "Start with a balanced mix" else "Fill a balanced mix", filled = false,
-                modifier = Modifier.padding(top = 14.dp), onClick = { vm.applyQuickMix() })
+            PillButton(
+                if (total == 0) "Start with a balanced mix" else "Fill a balanced mix",
+                filled = false,
+                modifier = Modifier.padding(top = 12.dp),
+                onClick = { vm.applyQuickMix() }
+            )
         }
     }
+
     GlassGroup(Modifier.padding(top = 12.dp)) {
         SECTIONS.values.filter { it.isCategory || it.key == "local" }.forEachIndexed { i, s ->
             if (i > 0) Hairline()
             val n = st.stories[s.key] ?: 0
-            Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(t.categoryColor(s.key))
+                )
+                Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(s.title, style = Type.body, color = t.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(s.title, style = Type.body.copy(fontWeight = FontWeight.Medium), color = t.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("Up to $MAX_PER_SECTION stories", Modifier.padding(top = 2.dp), style = Type.tiny, color = t.muted)
                 }
                 StoryStepper(n, canRaise = true, max = MAX_PER_SECTION) { vm.setStories(s.key, it) }
             }
         }
     }
-    if (total == 0) Hint("Pick at least one topic, or start with the balanced mix above.",
-        Modifier.padding(top = 12.dp, start = 4.dp), color = t.error)
+
+    if (total == 0) {
+        Hint(
+            "Pick at least one topic, or start with the balanced mix above.",
+            Modifier.padding(top = 12.dp, start = 4.dp),
+            color = t.error
+        )
+    }
 }
 
 @Composable
 private fun SignInStep(vm: AppViewModel) {
     val email by vm.signedInEmail.collectAsState()
     val t = Mb.t
-    Title("Your account", "Sign in to hear the brief",
-        "The day's news is recorded once each morning and published to your account, so the same brief " +
-            "reaches every device you sign in to.")
+    Title(
+        "Your account",
+        "Sign in to hear the brief",
+        "The day's news is recorded once each morning and published to your account, so the same brief reaches every device you sign in to."
+    )
+
     Glass(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp)) {
             val who = email
@@ -268,20 +495,23 @@ private fun SignInStep(vm: AppViewModel) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CheckDot(true)
                     Spacer(Modifier.width(12.dp))
-                    Text(who, style = Type.body, color = t.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(who, style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = t.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text("Your topics and settings follow you between the phone and the web app.",
-                    Modifier.padding(top = 10.dp), style = Type.meta, color = t.muted)
+                Text(
+                    "Your topics and settings follow you between the phone and the web app.",
+                    Modifier.padding(top = 10.dp),
+                    style = Type.meta,
+                    color = t.muted
+                )
             } else {
                 Text("One tap with Google. There is no password to remember.", style = Type.meta, color = t.muted)
                 GoogleSignInButton(vm, Modifier.padding(top = 16.dp))
             }
         }
     }
+
     Column(Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Feature(Icons.Outlined.RecordVoiceOver, "The same brief everywhere",
-            "Sign in on the web app and your topics are already there")
-        Feature(Icons.Outlined.Schedule, "Ready before your alarm",
-            "It appears on its own each morning, with nothing to build")
+        Feature(Icons.Outlined.RecordVoiceOver, "The same brief everywhere", "Sign in on the web app and your topics are already there")
+        Feature(Icons.Outlined.Schedule, "Ready before your alarm", "It appears on its own each morning, with nothing to build")
     }
 }

@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.46] - 2026-10-22
+
+### Changed
+- **Android App Store Readiness & Design Overhaul**:
+  - **App Identity & High-Res Icons**:
+    - Renamed application to **Hark Daily** across all Android system resources.
+    - Generated complete adaptive and mipmap icon suites across all densities (`mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`) matching the web PWA's obsidian and dawn horizon artwork (`ic_launcher.png`, `ic_launcher_round.png`).
+  - **Onboarding Experience Overhaul**:
+    - Branded with 80dp glowing Hark Daily app mark and updated tagline: *"The news you hear, not just read."*
+    - Added **Preferred Edition Selector** directly into onboarding (Full Brief ~10m vs. ⚡ Rapid Fire @ 1.1x).
+    - Upgraded sample brief player with jewel amber play button and progress track.
+    - Added category-colored accent dots to topic selection rows and introduced "Skip for now" to support guest listening without blocking setup.
+  - **Screen Layout & Viewport Optimization**:
+    - Replaced the oversized notice banner with a compact 36dp pill (`Showing latest brief` with inline actions).
+    - Reduced hero deck height by >150dp: streamlined 32dp edition selector that prevents line wrapping, 48dp audio art tile, and a collapsible Read-Along visor.
+    - Story cards now sit comfortably above the fold on all standard mobile screens without getting buried.
+  - **Story Card Refinement**:
+    - Added a 2-line summary preview when cards are collapsed, mirroring the PWA `.story-snippet` for quick skimming.
+    - Added category-tinted play tiles (38dp) with category color accent and play/soundwave indicator.
+    - Eliminated duplicate section title labels within card headers.
+    - Full drawer expansion reveals complete summary, source attributions, external article link, and report button.
+  - **Public Briefing Access**:
+    - Fixed public briefing queries (`storyAudio`, `latestStoryDate`, `voiceNotes`) to allow unauthenticated/guest listeners to stream public daily packs without authentication errors.
+
+---
+
 ## [0.1.45] - 2026-10-22
 
 ### Changed

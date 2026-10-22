@@ -48,6 +48,7 @@ import androidx.compose.material.icons.outlined.AcUnit
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.FlashOn
 import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Umbrella
 import androidx.compose.material.icons.outlined.WbCloudy
 import androidx.compose.material.icons.outlined.WbSunny
@@ -261,12 +262,47 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
         if (b.date != today && !latestNoticeDismissed) entry {
             val day = runCatching { LocalDate.parse(b.date) }.getOrNull()
                 ?.format(DateTimeFormatter.ofPattern("EEE · d MMM", Locale.ENGLISH)) ?: b.date
-            Notice(Modifier.padding(top = 22.dp), onDismiss = { latestNoticeDismissed = true }) {
-                Text("Showing the latest brief, from $day", style = Type.title, color = t.ink)
-                Text("Today's recording isn't out yet. This is the most recent one, in your usual topics. " +
-                    "It'll switch over on its own.",
-                    Modifier.padding(top = 4.dp), style = Type.body, color = t.muted)
-                PillButton("Check again", Modifier.padding(top = 14.dp), filled = false) { vm.refreshPack() }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(t.accentSoft)
+                    .border(1.dp, t.accentLine, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 7.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Outlined.Schedule, null, Modifier.size(15.dp), tint = t.accentText)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Showing latest brief ($day)",
+                        style = Type.tiny.copy(fontWeight = FontWeight.SemiBold),
+                        color = t.ink,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        "Check again",
+                        style = Type.tiny.copy(fontWeight = FontWeight.Bold),
+                        color = t.accentText,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .clickable { vm.refreshPack() }
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        Icons.Outlined.Close,
+                        contentDescription = "Dismiss",
+                        tint = t.muted,
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clip(CircleShape)
+                            .clickable { latestNoticeDismissed = true }
+                    )
+                }
             }
         }
 
@@ -274,11 +310,6 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
             val cover = (current ?: b.cards.lastOrNull { mine && position >= it.start })?.image
                 ?: b.cards.firstOrNull { it.image != null }?.image
             val section = (current?.section ?: chapter?.section)?.let { k -> b.sections.firstOrNull { it.key == k }?.title }
-            val state = when {
-                !mine || (position < 0.5 && !playing) -> "Ready · ${b.cards.size} stories"
-                playing -> listOfNotNull("Now playing", section).joinToString(" · ")
-                else -> listOfNotNull("Paused", section).joinToString(" · ")
-            }
             val title = current?.headline ?: chapter?.title?.takeIf { mine && it.isNotBlank() } ?: b.title
             val isRapid = b.isRapid
             val currentIdx = b.cards.indexOfFirst { current != null && it.id == current.id }.takeIf { it >= 0 }
@@ -295,19 +326,19 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .padding(top = 22.dp)
+                    .padding(top = 14.dp)
                     .shadow(
-                        elevation = if (playing) 16.dp else 4.dp,
-                        shape = RoundedCornerShape(26.dp),
-                        ambientColor = if (playing) t.accent.copy(alpha = 0.35f) else Color.Black.copy(alpha = 0.15f),
-                        spotColor = if (playing) t.accent.copy(alpha = 0.45f) else Color.Black.copy(alpha = 0.2f),
+                        elevation = if (playing) 14.dp else 3.dp,
+                        shape = RoundedCornerShape(22.dp),
+                        ambientColor = if (playing) t.accent.copy(alpha = 0.35f) else Color.Black.copy(alpha = 0.12f),
+                        spotColor = if (playing) t.accent.copy(alpha = 0.45f) else Color.Black.copy(alpha = 0.16f),
                     )
-                    .clip(RoundedCornerShape(26.dp))
+                    .clip(RoundedCornerShape(22.dp))
                     .then(deckBgModifier)
                     .border(
                         1.dp,
                         if (playing) t.accent.copy(alpha = 0.55f) else if (t.dark) Color(0x22FFFFFF) else Color(0x140F172A),
-                        RoundedCornerShape(26.dp)
+                        RoundedCornerShape(22.dp)
                     )
                     .drawBehind {
                         val stroke = 3.5.dp.toPx()
@@ -319,45 +350,45 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                         )
                     }
             ) {
-                Column(Modifier.padding(16.dp)) {
-                    // Briefing Edition Switcher: Full Brief vs ⚡ Rapid Fire
+                Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+                    // Briefing Edition Switcher: Full Brief vs ⚡ Rapid Fire (Clean single-line pills)
                     Row(
                         Modifier
                             .fillMaxWidth()
                             .clip(CircleShape)
                             .background(if (t.dark) Color(0x66000000) else Color(0x0C0F172A))
                             .border(1.dp, if (t.dark) Color(0x1AFFFFFF) else Color(0x140F172A), CircleShape)
-                            .padding(3.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            .padding(2.5.dp),
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
                         val fullOn = !isRapid
                         Row(
                             Modifier
                                 .weight(1f)
-                                .height(34.dp)
+                                .height(32.dp)
                                 .clip(CircleShape)
                                 .background(if (fullOn) t.accent else Color.Transparent)
                                 .clickable { vm.setBriefingMode("full") }
-                                .padding(horizontal = 10.dp),
+                                .padding(horizontal = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Icon(
                                 Icons.Outlined.WbSunny,
                                 contentDescription = null,
-                                modifier = Modifier.size(14.dp),
+                                modifier = Modifier.size(13.dp),
                                 tint = if (fullOn) t.accentInk else t.muted
                             )
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(5.dp))
                             Text(
                                 "Full Brief",
-                                style = Type.value.copy(fontSize = 12.sp, fontWeight = if (fullOn) FontWeight.Bold else FontWeight.Medium),
+                                style = Type.value.copy(fontSize = 11.5.sp, fontWeight = if (fullOn) FontWeight.Bold else FontWeight.Medium),
                                 color = if (fullOn) t.accentInk else t.muted
                             )
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(4.dp))
                             Text(
-                                "~10 min",
-                                style = Type.tiny,
+                                "~10m",
+                                style = Type.tiny.copy(fontSize = 10.sp),
                                 color = if (fullOn) t.accentInk.copy(alpha = 0.8f) else t.muted.copy(alpha = 0.7f)
                             )
                         }
@@ -366,36 +397,36 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                         Row(
                             Modifier
                                 .weight(1f)
-                                .height(34.dp)
+                                .height(32.dp)
                                 .clip(CircleShape)
                                 .background(if (rapidOn) t.accent else Color.Transparent)
                                 .clickable { vm.setBriefingMode("rapid") }
-                                .padding(horizontal = 10.dp),
+                                .padding(horizontal = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Icon(
                                 Icons.Outlined.FlashOn,
                                 contentDescription = null,
-                                modifier = Modifier.size(14.dp),
+                                modifier = Modifier.size(13.dp),
                                 tint = if (rapidOn) t.accentInk else Color(0xFFF59E0B)
                             )
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(5.dp))
                             Text(
                                 "Rapid Fire",
-                                style = Type.value.copy(fontSize = 12.sp, fontWeight = if (rapidOn) FontWeight.Bold else FontWeight.Medium),
+                                style = Type.value.copy(fontSize = 11.5.sp, fontWeight = if (rapidOn) FontWeight.Bold else FontWeight.Medium),
                                 color = if (rapidOn) t.accentInk else t.ink
                             )
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(4.dp))
                             Text(
-                                "⚡ Top 5 · 1.1x",
-                                style = Type.tiny.copy(fontWeight = FontWeight.Bold),
+                                "⚡ 1.1x",
+                                style = Type.tiny.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
                                 color = if (rapidOn) t.accentInk.copy(alpha = 0.9f) else Color(0xFFB45309)
                             )
                         }
                     }
 
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(10.dp))
 
                     // Hero Top: Art + Heading + Actions
                     Row(
@@ -404,10 +435,10 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     ) {
                         Box(
                             Modifier
-                                .size(58.dp)
-                                .clip(RoundedCornerShape(14.dp))
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(12.dp))
                                 .background(t.track)
-                                .border(1.dp, t.line, RoundedCornerShape(14.dp)),
+                                .border(1.dp, t.line, RoundedCornerShape(12.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             if (cover != null) {
@@ -419,11 +450,11 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
-                                Icon(Icons.Outlined.GraphicEq, null, Modifier.size(24.dp), tint = t.accent)
+                                Icon(Icons.Outlined.GraphicEq, null, Modifier.size(20.dp), tint = t.accent)
                             }
                         }
 
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(10.dp))
 
                         Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -431,11 +462,11 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                                     Modifier
                                         .clip(CircleShape)
                                         .background(if (playing) t.accentSoft else t.track)
-                                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
                                         if (playing) "NOW PLAYING" else if (!mine || position < 0.5) "READY" else "PAUSED",
-                                        style = Type.tiny.copy(fontWeight = FontWeight.Bold),
+                                        style = Type.tiny.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
                                         color = if (playing) t.accentText else t.muted
                                     )
                                 }
@@ -443,7 +474,7 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                                     Spacer(Modifier.width(6.dp))
                                     Text(
                                         section.uppercase(),
-                                        style = Type.tiny.copy(fontWeight = FontWeight.SemiBold),
+                                        style = Type.tiny.copy(fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold),
                                         color = t.muted,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -452,8 +483,8 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                             }
                             Text(
                                 title,
-                                modifier = Modifier.padding(top = 4.dp),
-                                style = Type.title.copy(fontWeight = FontWeight.Bold),
+                                modifier = Modifier.padding(top = 2.dp),
+                                style = Type.title.copy(fontSize = 14.5.sp, fontWeight = FontWeight.Bold, lineHeight = 18.sp),
                                 color = t.ink,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
@@ -467,12 +498,12 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                                         .clip(CircleShape)
                                         .background(t.glass)
                                         .border(1.dp, t.glassLine, CircleShape)
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                        .padding(horizontal = 7.dp, vertical = 3.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Outlined.RecordVoiceOver, null, Modifier.size(12.dp), tint = t.accent)
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(b.voiceName, style = Type.tiny.copy(fontWeight = FontWeight.Medium), color = t.ink)
+                                    Icon(Icons.Outlined.RecordVoiceOver, null, Modifier.size(11.dp), tint = t.accent)
+                                    Spacer(Modifier.width(3.dp))
+                                    Text(b.voiceName, style = Type.tiny.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium), color = t.ink)
                                 }
                             }
                             current?.url?.takeIf { it.isNotBlank() }?.let { url ->
@@ -482,27 +513,27 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                                         .background(t.accentSoft)
                                         .border(1.dp, t.accentLine, CircleShape)
                                         .clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                        .padding(horizontal = 7.dp, vertical = 3.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("Article", style = Type.tiny.copy(fontWeight = FontWeight.SemiBold), color = t.accentText)
+                                    Text("Article", style = Type.tiny.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold), color = t.accentText)
                                     Spacer(Modifier.width(3.dp))
-                                    Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, Modifier.size(10.dp), tint = t.accentText)
+                                    Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, Modifier.size(9.dp), tint = t.accentText)
                                 }
                             }
                         }
                     }
 
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(10.dp))
 
                     // Recessed Acoustic Console Deck
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(18.dp))
+                            .clip(RoundedCornerShape(16.dp))
                             .background(t.consoleDeckBg)
-                            .border(1.dp, if (t.dark) Color(0x14FFFFFF) else Color(0x0F0F172A), RoundedCornerShape(18.dp))
-                            .padding(14.dp)
+                            .border(1.dp, if (t.dark) Color(0x14FFFFFF) else Color(0x0F0F172A), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
                     ) {
                         Column {
                             Row(
@@ -511,17 +542,17 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(clock(position), style = Type.value.copy(fontWeight = FontWeight.Bold), color = t.accentText)
-                                    Text(" / ", style = Type.meta, color = t.muted)
-                                    Text("-" + clock((b.duration - position).coerceAtLeast(0.0)), style = Type.meta, color = t.muted)
+                                    Text(clock(position), style = Type.value.copy(fontSize = 12.sp, fontWeight = FontWeight.Bold), color = t.accentText)
+                                    Text(" / ", style = Type.meta.copy(fontSize = 11.sp), color = t.muted)
+                                    Text("-" + clock((b.duration - position).coerceAtLeast(0.0)), style = Type.meta.copy(fontSize = 11.sp), color = t.muted)
                                 }
                                 val countText = if (currentIdx != null) "Story ${currentIdx + 1} of ${b.cards.size}" else "${b.cards.size} stories"
                                 Overline(countText, color = t.muted)
                             }
 
-                            Progress(b, position, Modifier.padding(top = 10.dp)) { vm.seekTo(it, play = playing || !mine) }
+                            Progress(b, position, Modifier.padding(top = 6.dp)) { vm.seekTo(it, play = playing || !mine) }
 
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(6.dp))
 
                             Row(
                                 Modifier.fillMaxWidth(),
@@ -530,7 +561,7 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                             ) {
                                 Box(
                                     Modifier
-                                        .size(38.dp)
+                                        .size(34.dp)
                                         .clip(CircleShape)
                                         .clickable { vm.skip(-15) },
                                     contentAlignment = Alignment.Center
@@ -543,7 +574,7 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                                 JewelPlayButton(
                                     icon = if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                                     label = if (playing) "Pause" else "Play",
-                                    size = 56.dp,
+                                    size = 48.dp,
                                     enabled = player.ready
                                 ) { vm.togglePlay() }
 
@@ -553,7 +584,7 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
 
                                 Box(
                                     Modifier
-                                        .size(38.dp)
+                                        .size(34.dp)
                                         .clip(CircleShape)
                                         .clickable { vm.skip(30) },
                                     contentAlignment = Alignment.Center
@@ -562,7 +593,7 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                                 }
                             }
 
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(6.dp))
 
                             val speeds = if (isRapid) listOf(1.0f, 1.1f, 1.25f, 1.5f) else listOf(0.8f, 1.0f, 1.25f, 1.5f)
                             Row(
@@ -576,23 +607,23 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                                         .background(t.track)
                                         .border(1.dp, t.line, CircleShape)
                                         .padding(2.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
                                     for (s in speeds) {
                                         val active = Math.abs(player.speed - s) < 0.05f
                                         val label = "${s}x"
                                         Box(
                                             Modifier
-                                                .height(26.dp)
+                                                .height(24.dp)
                                                 .clip(CircleShape)
                                                 .background(if (active) t.accent else Color.Transparent)
                                                 .clickable { vm.setPlaybackSpeed(s) }
-                                                .padding(horizontal = 9.dp),
+                                                .padding(horizontal = 8.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
                                                 label,
-                                                style = Type.tiny.copy(fontWeight = if (active) FontWeight.Bold else FontWeight.Medium),
+                                                style = Type.tiny.copy(fontSize = 10.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium),
                                                 color = if (active) t.accentInk else t.muted
                                             )
                                         }
@@ -602,20 +633,20 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                         }
                     }
 
-                    // Integrated Read Along Teleprompter Visor
+                    // Integrated Read Along Teleprompter Visor (Sleek collapsible)
                     var transcriptExpanded by remember { mutableStateOf(false) }
                     val readText = current?.summary?.ifBlank { null } ?: current?.headline ?: "Tap play to listen and read along."
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(8.dp))
 
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(RoundedCornerShape(14.dp))
                             .background(t.teleprompterBg)
-                            .border(1.dp, if (t.dark) Color(0x18FFFFFF) else Color(0x0F0F172A), RoundedCornerShape(16.dp))
+                            .border(1.dp, if (t.dark) Color(0x18FFFFFF) else Color(0x0F0F172A), RoundedCornerShape(14.dp))
                             .clickable { transcriptExpanded = !transcriptExpanded }
-                            .padding(14.dp)
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
                     ) {
                         Column {
                             Row(
@@ -623,36 +654,50 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    Modifier.weight(1f, fill = false),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Box(
                                         Modifier
-                                            .size(7.dp)
+                                            .size(6.dp)
                                             .clip(CircleShape)
                                             .background(t.accent)
                                     )
                                     Spacer(Modifier.width(6.dp))
                                     Text(
                                         "READ ALONG",
-                                        style = Type.tiny.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp),
+                                        style = Type.tiny.copy(fontSize = 9.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp),
                                         color = t.accentText
                                     )
                                     Spacer(Modifier.width(6.dp))
-                                    Text("Follows narrator", style = Type.tiny, color = t.muted)
+                                    if (!transcriptExpanded) {
+                                        Text(
+                                            readText,
+                                            style = Type.tiny.copy(fontSize = 11.sp),
+                                            color = t.muted,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                                 Text(
-                                    if (transcriptExpanded) "Collapse" else "Full text",
-                                    style = Type.tiny.copy(fontWeight = FontWeight.SemiBold),
-                                    color = t.accentText
+                                    if (transcriptExpanded) "Collapse" else "Expand",
+                                    style = Type.tiny.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
+                                    color = t.accentText,
+                                    modifier = Modifier.padding(start = 6.dp)
                                 )
                             }
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                readText,
-                                style = Type.body.copy(fontSize = 13.5.sp, lineHeight = 19.sp),
-                                color = t.ink,
-                                maxLines = if (transcriptExpanded) 20 else 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            if (transcriptExpanded) {
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    readText,
+                                    style = Type.body.copy(fontSize = 13.sp, lineHeight = 18.5.sp),
+                                    color = t.ink,
+                                    maxLines = 20,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
@@ -880,41 +925,55 @@ private fun StoryRow(
                 .padding(start = 16.dp, end = 14.dp, top = 14.dp, bottom = 14.dp)
         ) {
             Row(verticalAlignment = Alignment.Top) {
-                // Play Button
-                Column(Modifier.width(38.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                // Play Button / Category Tile
+                Column(Modifier.width(42.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
                         Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(if (current) t.accent else t.track)
-                            .border(1.dp, if (current) t.accentStrong else t.line, CircleShape)
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (current && playing) t.accent else spineColor.copy(alpha = if (t.dark) 0.22f else 0.12f))
+                            .border(
+                                1.dp,
+                                if (current) t.accentStrong else spineColor.copy(alpha = if (t.dark) 0.35f else 0.25f),
+                                RoundedCornerShape(10.dp)
+                            )
                             .clickable(onClickLabel = "Play from this story", onClick = onPlay),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             if (current && playing) Icons.Outlined.GraphicEq else Icons.Filled.PlayArrow,
                             contentDescription = if (current && playing) "Playing" else "Play from here",
-                            modifier = Modifier.size(16.dp),
-                            tint = if (current) t.accentInk else t.ink
+                            modifier = Modifier.size(18.dp),
+                            tint = if (current && playing) t.accentInk else if (current) t.accent else spineColor
                         )
                     }
                     Text(
                         clock(card.start),
                         Modifier.padding(top = 4.dp),
-                        style = Type.tiny.copy(fontWeight = if (current) FontWeight.Bold else FontWeight.Normal),
+                        style = Type.tiny.copy(fontSize = 10.sp, fontWeight = if (current) FontWeight.Bold else FontWeight.Medium),
                         color = if (current) t.accentText else t.muted
                     )
                 }
 
                 Spacer(Modifier.width(12.dp))
 
-                // Middle Text: Category & status overline + Headline + Metadata
+                // Middle Text: Metadata + Headline + 2-line snippet preview
                 Column(Modifier.weight(1f)) {
+                    val secs = (card.end - card.start).roundToInt()
+                    val durText = if (secs < 60) "${secs}s" else clock(secs.toDouble())
+                    val meta = listOfNotNull(
+                        durText,
+                        card.source.ifBlank { null },
+                        card.also.size.takeIf { it > 0 }?.let { "+$it source${if (it == 1) "" else "s"}" },
+                    )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            card.section.uppercase(),
-                            style = Type.tiny.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp),
-                            color = spineColor
+                            meta.joinToString(" · "),
+                            style = Type.meta.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                            color = if (current) t.accentText else t.muted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                         if (current) {
                             Spacer(Modifier.width(6.dp))
@@ -935,25 +994,21 @@ private fun StoryRow(
 
                     Text(
                         card.headline,
-                        modifier = Modifier.padding(top = 2.dp),
-                        style = Type.title.copy(fontSize = 15.sp, fontWeight = if (current) FontWeight.Bold else FontWeight.SemiBold),
+                        modifier = Modifier.padding(top = 3.dp),
+                        style = Type.title.copy(fontSize = 15.sp, fontWeight = if (current) FontWeight.Bold else FontWeight.SemiBold, lineHeight = 20.sp),
                         color = t.ink
                     )
 
-                    val secs = (card.end - card.start).roundToInt()
-                    val meta = listOfNotNull(
-                        card.source.ifBlank { null },
-                        (if (secs < 60) "${secs}s" else clock(secs.toDouble())) + " audio",
-                        card.also.size.takeIf { it > 0 }?.let { "+$it source${if (it == 1) "" else "s"}" },
-                    )
-                    Text(
-                        meta.joinToString(" · "),
-                        Modifier.padding(top = 4.dp),
-                        style = Type.meta,
-                        color = t.muted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    if (!open && card.summary.isNotBlank()) {
+                        Text(
+                            card.summary,
+                            modifier = Modifier.padding(top = 4.dp),
+                            style = Type.body.copy(fontSize = 12.5.sp, lineHeight = 17.5.sp),
+                            color = t.muted,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
                 if (card.image != null) {
@@ -973,7 +1028,7 @@ private fun StoryRow(
             }
 
             if (open) {
-                Column(Modifier.padding(start = 50.dp, top = 10.dp)) {
+                Column(Modifier.padding(start = 54.dp, top = 10.dp)) {
                     Text(
                         card.summary,
                         style = Type.body.copy(fontSize = 13.5.sp, lineHeight = 19.sp),
