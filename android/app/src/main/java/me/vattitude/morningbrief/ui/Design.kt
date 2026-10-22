@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -217,21 +218,65 @@ fun InkCircle(
     }
 }
 
+/** The tactile jewel amber play button with ambient warm glow, matching the PWA studio deck. */
+@Composable
+fun JewelPlayButton(
+    icon: ImageVector,
+    label: String,
+    size: Dp = 56.dp,
+    enabled: Boolean = true,
+    busy: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val t = Mb.t
+    Box(
+        Modifier
+            .size(size)
+            .shadow(
+                elevation = if (enabled) 12.dp else 0.dp,
+                shape = CircleShape,
+                ambientColor = t.accent.copy(alpha = 0.5f),
+                spotColor = t.accent.copy(alpha = 0.7f),
+            )
+            .clip(CircleShape)
+            .background(if (enabled) t.accent else t.accent.copy(alpha = .4f))
+            .clickable(enabled = enabled && !busy, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (busy) {
+            CircularProgressIndicator(Modifier.size(size * .4f), color = t.accentInk, strokeWidth = 2.dp)
+        } else {
+            Icon(icon, label, Modifier.size(size * .46f), tint = t.accentInk)
+        }
+    }
+}
+
 /** A pill button: ink-filled for the main action, glass for the rest. */
 @Composable
 fun PillButton(
     text: String,
     modifier: Modifier = Modifier,
     filled: Boolean = true,
+    accent: Boolean = false,
     enabled: Boolean = true,
     busy: Boolean = false,
     icon: ImageVector? = null,
     onClick: () -> Unit,
 ) {
     val t = Mb.t
-    val bg = if (filled) Modifier.background(if (enabled) t.ink else t.ink.copy(alpha = .35f))
-    else Modifier.background(t.glass).border(1.dp, t.glassLine, CircleShape)
-    val fg = if (filled) t.onInk else if (enabled) t.ink else t.muted
+    val bg = when {
+        accent && filled -> Modifier.background(if (enabled) t.accent else t.accent.copy(alpha = .35f))
+        filled -> Modifier.background(if (enabled) t.ink else t.ink.copy(alpha = .35f))
+        accent -> Modifier.background(t.accentSoft).border(1.dp, t.accentLine, CircleShape)
+        else -> Modifier.background(t.glass).border(1.dp, t.glassLine, CircleShape)
+    }
+    val fg = when {
+        accent && filled -> t.accentInk
+        filled -> t.onInk
+        accent -> t.accentText
+        enabled -> t.ink
+        else -> t.muted
+    }
     Row(
         modifier.height(44.dp).clip(CircleShape).then(bg).clickable(enabled = enabled && !busy, onClick = onClick)
             .padding(horizontal = 20.dp),
@@ -248,6 +293,7 @@ fun PillButton(
         Text(text, style = Type.value.copy(fontWeight = FontWeight.Medium), color = fg, maxLines = 1)
     }
 }
+
 
 /** A small glass pill to tap, such as a suggestion. */
 @Composable

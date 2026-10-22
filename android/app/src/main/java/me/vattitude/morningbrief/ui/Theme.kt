@@ -38,19 +38,79 @@ data class Tokens(
     /** The backdrop's soft blobs, top left, right and bottom left. */
     val blobs: List<Color>,
     val dark: Boolean,
+    val accent: Color = Color(0xFFF59E0B),
+    val accentStrong: Color = Color(0xFFD97706),
+    val accentInk: Color = Color(0xFF1F1300),
+    val accentText: Color = Color(0xFFB45309),
+    val accentSoft: Color = Color(0x21F59E0B),
+    val accentLine: Color = Color(0x52D97706),
+    val cardBg: Color = Color(0xFFFFFFFF),
+    val playerBg: Color = Color(0xFFFFFFFF),
+    val consoleDeckBg: Color = Color(0x080F172A),
+    val teleprompterBg: Color = Color(0xFFFBFBFA),
 )
 
 val LightTokens = Tokens(
-    bg = Color(0xFFE9E9E5), ink = Color(0xFF0D0D0D), onInk = Color(0xFFF4F4F1), muted = Color(0xFF6C6C68),
-    line = Color(0x14000000), glass = Color(0x73FFFFFF), glassLine = Color(0xD9FFFFFF), track = Color(0x0D000000),
-    error = Color(0xFFB3261E), blobs = listOf(Color(0xFFBDBDB8), Color(0xFFC9C9C4), Color(0xFFB3B3AE)), dark = false,
+    bg = Color(0xFFF3F2EE),
+    ink = Color(0xFF101828),
+    onInk = Color(0xFFF4F4F1),
+    muted = Color(0xFF667085),
+    line = Color(0x140F172A),
+    glass = Color(0x94FFFFFF),
+    glassLine = Color(0xD9FFFFFF),
+    track = Color(0x0F0F172A),
+    error = Color(0xFFC0362C),
+    blobs = listOf(Color(0x1FF59E0B), Color(0x146366F1), Color(0x143898D2)),
+    dark = false,
+    accent = Color(0xFFF59E0B),
+    accentStrong = Color(0xFFD97706),
+    accentInk = Color(0xFF1F1300),
+    accentText = Color(0xFFB45309),
+    accentSoft = Color(0x21F59E0B),
+    accentLine = Color(0x52D97706),
+    cardBg = Color(0xFFFFFFFF),
+    playerBg = Color(0xFFFFFFFF),
+    consoleDeckBg = Color(0x080F172A),
+    teleprompterBg = Color(0xFFFBFBFA),
 )
 
 val DarkTokens = Tokens(
-    bg = Color(0xFF121211), ink = Color(0xFFEDEDE9), onInk = Color(0xFF121211), muted = Color(0xFF93938E),
-    line = Color(0x17FFFFFF), glass = Color(0x0FFFFFFF), glassLine = Color(0x1CFFFFFF), track = Color(0x14FFFFFF),
-    error = Color(0xFFF2B8B5), blobs = listOf(Color(0xFF2B2B28), Color(0xFF242422), Color(0xFF30302D)), dark = true,
+    bg = Color(0xFF0B0F17),
+    ink = Color(0xFFF8FAFC),
+    onInk = Color(0xFF101828),
+    muted = Color(0xFF94A3B8),
+    line = Color(0x14FFFFFF),
+    glass = Color(0x99111827),
+    glassLine = Color(0x1CFFFFFF),
+    track = Color(0x1EFFFFFF),
+    error = Color(0xFFF87171),
+    blobs = listOf(Color(0x24F59E0B), Color(0x1F4F46E5), Color(0x1238BDF8)),
+    dark = true,
+    accent = Color(0xFFF59E0B),
+    accentStrong = Color(0xFFFBBF24),
+    accentInk = Color(0xFF1F1300),
+    accentText = Color(0xFFFBBF24),
+    accentSoft = Color(0x38F59E0B),
+    accentLine = Color(0x66F59E0B),
+    cardBg = Color(0xFF141C2C),
+    playerBg = Color(0xFF131926),
+    consoleDeckBg = Color(0x6B000000),
+    teleprompterBg = Color(0xFF090D15),
 )
+
+fun categoryColor(section: String?): Color = when (section?.lowercase()) {
+    "top" -> Color(0xFFB45309)
+    "ai" -> Color(0xFF6355C7)
+    "tech", "technology" -> Color(0xFF2F6F9F)
+    "politics" -> Color(0xFFA8473F)
+    "culture", "entertainment", "film" -> Color(0xFF9B4688)
+    "science" -> Color(0xFF0F766E)
+    "sport", "sports" -> Color(0xFF3E7B38)
+    "custom" -> Color(0xFF5B5FC7)
+    else -> Color(0xFF667085)
+}
+
+fun Tokens.categoryColor(section: String?): Color = me.vattitude.morningbrief.ui.categoryColor(section)
 
 val LocalTokens = staticCompositionLocalOf { LightTokens }
 
@@ -58,6 +118,7 @@ object Mb {
     val t: Tokens
         @Composable @ReadOnlyComposable get() = LocalTokens.current
 }
+
 
 val Inter = FontFamily(
     Font(R.font.inter_regular, FontWeight.Normal),

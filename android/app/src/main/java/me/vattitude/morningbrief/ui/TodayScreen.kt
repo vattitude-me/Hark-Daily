@@ -63,6 +63,13 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.RecordVoiceOver
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.border
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.ColumnScope
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.collectAsState
@@ -99,6 +106,7 @@ fun clock(seconds: Double): String {
 @Composable
 fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val briefing by vm.briefing.collectAsState()
+    val briefingMode by vm.briefingMode.collectAsState()
     val packLoadingDate by vm.packLoadingDate.collectAsState()
     val dates by vm.dates.collectAsState()
     val selected by vm.selected.collectAsState()
@@ -185,10 +193,11 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                         }
                     }
                 },
-                title = "Morning Brief",
-                subtitle = if (b == null) "Your news, read aloud each morning." else summaryLine(b),
+                title = "Hark Daily",
+                subtitle = if (b == null) "The news you hear, not just read." else summaryLine(b),
             )
         }
+
 
         if (build.running) entry {
             Notice(Modifier.padding(top = 22.dp)) {
@@ -271,47 +280,379 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 else -> listOfNotNull("Paused", section).joinToString(" · ")
             }
             val title = current?.headline ?: chapter?.title?.takeIf { mine && it.isNotBlank() } ?: b.title
-            Glass(Modifier.fillMaxWidth().padding(top = 22.dp), RoundedCornerShape(26.dp)) {
-                Column(Modifier.padding(12.dp)) {
-                    if (cover != null) {
-                        AsyncImage(
-                            model = cover, contentDescription = null, contentScale = ContentScale.Crop,
-                            colorFilter = if (saved.colorPhotos) null else Grayscale,
-                            modifier = Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(16.dp)).background(t.track),
+            val isRapid = b.isRapid
+            val currentIdx = b.cards.indexOfFirst { current != null && it.id == current.id }.takeIf { it >= 0 }
+
+            val horizonColor = if (isRapid) Color(0xFFFBBF24) else t.accent
+            val deckBgModifier = if (t.dark) {
+                Modifier.background(
+                    Brush.verticalGradient(listOf(Color(0xFF131926), Color(0xFF0C1018)))
+                )
+            } else {
+                Modifier.background(Color.White)
+            }
+
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 22.dp)
+                    .shadow(
+                        elevation = if (playing) 16.dp else 4.dp,
+                        shape = RoundedCornerShape(26.dp),
+                        ambientColor = if (playing) t.accent.copy(alpha = 0.35f) else Color.Black.copy(alpha = 0.15f),
+                        spotColor = if (playing) t.accent.copy(alpha = 0.45f) else Color.Black.copy(alpha = 0.2f),
+                    )
+                    .clip(RoundedCornerShape(26.dp))
+                    .then(deckBgModifier)
+                    .border(
+                        1.dp,
+                        if (playing) t.accent.copy(alpha = 0.55f) else if (t.dark) Color(0x22FFFFFF) else Color(0x140F172A),
+                        RoundedCornerShape(26.dp)
+                    )
+                    .drawBehind {
+                        val stroke = 3.5.dp.toPx()
+                        drawLine(
+                            color = horizonColor,
+                            start = Offset(0f, stroke / 2),
+                            end = Offset(size.width, stroke / 2),
+                            strokeWidth = stroke
                         )
                     }
-                    Column(Modifier.padding(start = 6.dp, end = 6.dp, top = if (cover != null) 16.dp else 6.dp, bottom = 4.dp)) {
-                        Overline(state, color = if (playing) t.ink else t.muted)
-                        Text(title, Modifier.padding(top = 6.dp), style = Type.title, color = t.ink, maxLines = 2,
-                            overflow = TextOverflow.Ellipsis)
-                        Progress(b, position, Modifier.padding(top = 12.dp)) { vm.seekTo(it, play = playing || !mine) }
-                        Row(Modifier.fillMaxWidth()) {
-                            Text(clock(position), Modifier.weight(1f), style = Type.meta, color = t.muted)
-                            Text("-" + clock(b.duration - position), style = Type.meta, color = t.muted)
-                        }
-                        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Skip(Icons.Filled.SkipPrevious, "Previous story", enabled = mine) { vm.jump(forward = false) }
-                            Spacer(Modifier.width(24.dp))
-                            InkCircle(if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (playing) "Pause" else "Play",
-                                size = 58.dp, enabled = player.ready) { vm.togglePlay() }
-                            Spacer(Modifier.width(24.dp))
-                            Skip(Icons.Filled.SkipNext, "Next story", enabled = player.ready) {
-                                if (mine) vm.jump(forward = true) else b.cards.firstOrNull()?.let { vm.seekTo(it.start) }
-                            }
-                        }
-                        if (b.voiceName.isNotBlank()) {
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    // Briefing Edition Switcher: Full Brief vs ⚡ Rapid Fire
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(CircleShape)
+                            .background(if (t.dark) Color(0x66000000) else Color(0x0C0F172A))
+                            .border(1.dp, if (t.dark) Color(0x1AFFFFFF) else Color(0x140F172A), CircleShape)
+                            .padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val fullOn = !isRapid
+                        Row(
+                            Modifier
+                                .weight(1f)
+                                .height(34.dp)
+                                .clip(CircleShape)
+                                .background(if (fullOn) t.accent else Color.Transparent)
+                                .clickable { vm.setBriefingMode("full") }
+                                .padding(horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                Icons.Outlined.WbSunny,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = if (fullOn) t.accentInk else t.muted
+                            )
+                            Spacer(Modifier.width(6.dp))
                             Text(
-                                "The Guardian · read by ${b.voiceName}",
-                                Modifier.fillMaxWidth().padding(top = 8.dp),
+                                "Full Brief",
+                                style = Type.value.copy(fontSize = 12.sp, fontWeight = if (fullOn) FontWeight.Bold else FontWeight.Medium),
+                                color = if (fullOn) t.accentInk else t.muted
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "~10 min",
                                 style = Type.tiny,
-                                color = t.muted,
-                                textAlign = TextAlign.Center,
+                                color = if (fullOn) t.accentInk.copy(alpha = 0.8f) else t.muted.copy(alpha = 0.7f)
                             )
                         }
-                        if (!mine) {
-                            Hint("Drag along the bar, or tap \u25B6 beside any story, to start there.",
-                                Modifier.fillMaxWidth().padding(top = 10.dp), textAlign = TextAlign.Center)
+
+                        val rapidOn = isRapid
+                        Row(
+                            Modifier
+                                .weight(1f)
+                                .height(34.dp)
+                                .clip(CircleShape)
+                                .background(if (rapidOn) t.accent else Color.Transparent)
+                                .clickable { vm.setBriefingMode("rapid") }
+                                .padding(horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                Icons.Outlined.FlashOn,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = if (rapidOn) t.accentInk else Color(0xFFF59E0B)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "Rapid Fire",
+                                style = Type.value.copy(fontSize = 12.sp, fontWeight = if (rapidOn) FontWeight.Bold else FontWeight.Medium),
+                                color = if (rapidOn) t.accentInk else t.ink
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "⚡ Top 5 · 1.1x",
+                                style = Type.tiny.copy(fontWeight = FontWeight.Bold),
+                                color = if (rapidOn) t.accentInk.copy(alpha = 0.9f) else Color(0xFFB45309)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+
+                    // Hero Top: Art + Heading + Actions
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            Modifier
+                                .size(58.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(t.track)
+                                .border(1.dp, t.line, RoundedCornerShape(14.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (cover != null) {
+                                AsyncImage(
+                                    model = cover,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    colorFilter = if (saved.colorPhotos) null else Grayscale,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Icon(Icons.Outlined.GraphicEq, null, Modifier.size(24.dp), tint = t.accent)
+                            }
+                        }
+
+                        Spacer(Modifier.width(12.dp))
+
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    Modifier
+                                        .clip(CircleShape)
+                                        .background(if (playing) t.accentSoft else t.track)
+                                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        if (playing) "NOW PLAYING" else if (!mine || position < 0.5) "READY" else "PAUSED",
+                                        style = Type.tiny.copy(fontWeight = FontWeight.Bold),
+                                        color = if (playing) t.accentText else t.muted
+                                    )
+                                }
+                                if (section != null) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        section.uppercase(),
+                                        style = Type.tiny.copy(fontWeight = FontWeight.SemiBold),
+                                        color = t.muted,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            Text(
+                                title,
+                                modifier = Modifier.padding(top = 4.dp),
+                                style = Type.title.copy(fontWeight = FontWeight.Bold),
+                                color = t.ink,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (b.voiceName.isNotBlank()) {
+                                Row(
+                                    Modifier
+                                        .clip(CircleShape)
+                                        .background(t.glass)
+                                        .border(1.dp, t.glassLine, CircleShape)
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Outlined.RecordVoiceOver, null, Modifier.size(12.dp), tint = t.accent)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(b.voiceName, style = Type.tiny.copy(fontWeight = FontWeight.Medium), color = t.ink)
+                                }
+                            }
+                            current?.url?.takeIf { it.isNotBlank() }?.let { url ->
+                                Row(
+                                    Modifier
+                                        .clip(CircleShape)
+                                        .background(t.accentSoft)
+                                        .border(1.dp, t.accentLine, CircleShape)
+                                        .clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Article", style = Type.tiny.copy(fontWeight = FontWeight.SemiBold), color = t.accentText)
+                                    Spacer(Modifier.width(3.dp))
+                                    Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, Modifier.size(10.dp), tint = t.accentText)
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+
+                    // Recessed Acoustic Console Deck
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(t.consoleDeckBg)
+                            .border(1.dp, if (t.dark) Color(0x14FFFFFF) else Color(0x0F0F172A), RoundedCornerShape(18.dp))
+                            .padding(14.dp)
+                    ) {
+                        Column {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(clock(position), style = Type.value.copy(fontWeight = FontWeight.Bold), color = t.accentText)
+                                    Text(" / ", style = Type.meta, color = t.muted)
+                                    Text("-" + clock((b.duration - position).coerceAtLeast(0.0)), style = Type.meta, color = t.muted)
+                                }
+                                val countText = if (currentIdx != null) "Story ${currentIdx + 1} of ${b.cards.size}" else "${b.cards.size} stories"
+                                Overline(countText, color = t.muted)
+                            }
+
+                            Progress(b, position, Modifier.padding(top = 10.dp)) { vm.seekTo(it, play = playing || !mine) }
+
+                            Spacer(Modifier.height(10.dp))
+
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .clickable { vm.skip(-15) },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("-15", style = Type.tiny.copy(fontWeight = FontWeight.Bold), color = t.ink)
+                                }
+
+                                Skip(Icons.Filled.SkipPrevious, "Previous story", enabled = mine) { vm.jump(forward = false) }
+
+                                JewelPlayButton(
+                                    icon = if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                    label = if (playing) "Pause" else "Play",
+                                    size = 56.dp,
+                                    enabled = player.ready
+                                ) { vm.togglePlay() }
+
+                                Skip(Icons.Filled.SkipNext, "Next story", enabled = player.ready) {
+                                    if (mine) vm.jump(forward = true) else b.cards.firstOrNull()?.let { vm.seekTo(it.start) }
+                                }
+
+                                Box(
+                                    Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .clickable { vm.skip(30) },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("+30", style = Type.tiny.copy(fontWeight = FontWeight.Bold), color = t.ink)
+                                }
+                            }
+
+                            Spacer(Modifier.height(10.dp))
+
+                            val speeds = if (isRapid) listOf(1.0f, 1.1f, 1.25f, 1.5f) else listOf(0.8f, 1.0f, 1.25f, 1.5f)
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    Modifier
+                                        .clip(CircleShape)
+                                        .background(t.track)
+                                        .border(1.dp, t.line, CircleShape)
+                                        .padding(2.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    for (s in speeds) {
+                                        val active = Math.abs(player.speed - s) < 0.05f
+                                        val label = "${s}x"
+                                        Box(
+                                            Modifier
+                                                .height(26.dp)
+                                                .clip(CircleShape)
+                                                .background(if (active) t.accent else Color.Transparent)
+                                                .clickable { vm.setPlaybackSpeed(s) }
+                                                .padding(horizontal = 9.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                label,
+                                                style = Type.tiny.copy(fontWeight = if (active) FontWeight.Bold else FontWeight.Medium),
+                                                color = if (active) t.accentInk else t.muted
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Integrated Read Along Teleprompter Visor
+                    var transcriptExpanded by remember { mutableStateOf(false) }
+                    val readText = current?.summary?.ifBlank { null } ?: current?.headline ?: "Tap play to listen and read along."
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(t.teleprompterBg)
+                            .border(1.dp, if (t.dark) Color(0x18FFFFFF) else Color(0x0F0F172A), RoundedCornerShape(16.dp))
+                            .clickable { transcriptExpanded = !transcriptExpanded }
+                            .padding(14.dp)
+                    ) {
+                        Column {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(t.accent)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        "READ ALONG",
+                                        style = Type.tiny.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp),
+                                        color = t.accentText
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Follows narrator", style = Type.tiny, color = t.muted)
+                                }
+                                Text(
+                                    if (transcriptExpanded) "Collapse" else "Full text",
+                                    style = Type.tiny.copy(fontWeight = FontWeight.SemiBold),
+                                    color = t.accentText
+                                )
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                readText,
+                                style = Type.body.copy(fontSize = 13.5.sp, lineHeight = 19.sp),
+                                color = t.ink,
+                                maxLines = if (transcriptExpanded) 20 else 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
@@ -340,16 +681,15 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     ) {
                         Overline(section.title, Modifier.weight(1f), color = t.ink)
                         if (here) {
-                            Box(Modifier.size(6.dp).clip(CircleShape).background(t.ink))
+                            Box(Modifier.size(6.dp).clip(CircleShape).background(t.accent))
                             Spacer(Modifier.width(6.dp))
-                            Overline(if (playing) "Playing" else "Paused", color = t.ink)
+                            Overline(if (playing) "Playing" else "Paused", color = t.accentText)
                         } else {
                             Overline(if (cards.size == 1) "1 story" else "${cards.size} stories")
                         }
                     }
-                    GlassGroup(Modifier.padding(top = 10.dp)) {
-                        cards.forEachIndexed { i, card ->
-                            if (i > 0) Hairline()
+                    Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        cards.forEach { card ->
                             StoryRow(
                                 card, current = card.id == current?.id, playing = playing,
                                 colorPhotos = saved.colorPhotos,
@@ -468,21 +808,22 @@ private fun Progress(b: Briefing, position: Double, modifier: Modifier = Modifie
             drawRoundRect(t.ink.copy(alpha = if (t.dark) .18f else .12f), Offset(x, top), Size(w, h), r)
             val done = ((shown - marks[i]) / (marks[i + 1] - marks[i])).coerceIn(0.0, 1.0).toFloat()
             if (done > 0f) {
-                drawRoundRect(t.ink, Offset(x, top), Size(w * done, h), r)
+                drawRoundRect(t.accent, Offset(x, top), Size(w * done, h), r)
                 thumb = x + w * done
             }
             x += w + gap
         }
         val radius = (if (dragging != null) 10.dp else 7.dp).toPx()
         val cx = thumb.coerceIn(radius, size.width - radius)
-        drawCircle(t.ink, radius, Offset(cx, size.height / 2))
-        drawCircle(t.onInk, radius * .38f, Offset(cx, size.height / 2))
+        drawCircle(t.accent, radius, Offset(cx, size.height / 2))
+        drawCircle(t.accentInk, radius * .38f, Offset(cx, size.height / 2))
     }
 }
 
 /**
- * One story. The round button plays from it; tapping the row opens its summary. The story being read is tinted
- * and opens by itself.
+ * One story card styled in Hark Daily's Editorial Broadsheet layout.
+ * Features a 4dp category colored spine, amber accent highlight when playing,
+ * expandable summary transcript, and quick play/article actions.
  */
 @Composable
 private fun StoryRow(
@@ -498,68 +839,166 @@ private fun StoryRow(
 ) {
     val t = Mb.t
     var open by remember(current) { mutableStateOf(current) }
-    val tint = t.ink.copy(alpha = if (t.dark) .10f else .06f)
-    Column(
-        modifier.fillMaxWidth()
+    val spineColor = t.categoryColor(card.section)
+    val cardBg = if (current) {
+        if (t.dark) Color(0xFF161F2E) else Color(0xFFFFFBEB)
+    } else {
+        t.cardBg
+    }
+    val borderColor = if (current) {
+        if (playing) t.accent else t.accent.copy(alpha = 0.6f)
+    } else {
+        t.line
+    }
+
+    Box(
+        modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = if (current && playing) 8.dp else if (current) 3.dp else 1.dp,
+                shape = RoundedCornerShape(16.dp),
+                ambientColor = if (current) t.accent.copy(alpha = 0.25f) else Color.Black.copy(alpha = 0.05f),
+                spotColor = if (current) t.accent.copy(alpha = 0.35f) else Color.Black.copy(alpha = 0.08f)
+            )
+            .clip(RoundedCornerShape(16.dp))
+            .background(cardBg)
+            .border(if (current) 1.5.dp else 1.dp, borderColor, RoundedCornerShape(16.dp))
             .drawBehind {
-                if (current) drawRoundRect(tint, Offset(-8.dp.toPx(), 5.dp.toPx()),
-                    Size(size.width + 16.dp.toPx(), size.height - 10.dp.toPx()), CornerRadius(16.dp.toPx()))
-            }
-            .clickable { open = !open }.padding(vertical = 14.dp).animateContentSize(),
-    ) {
-        Row(verticalAlignment = Alignment.Top) {
-            Column(Modifier.width(40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    Modifier.size(32.dp).clip(CircleShape)
-                        .background(if (current) t.ink else t.track)
-                        .clickable(onClickLabel = "Play from this story", onClick = onPlay),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(if (current && playing) Icons.Outlined.GraphicEq else Icons.Filled.PlayArrow,
-                        if (current && playing) "Playing" else "Play from here", Modifier.size(16.dp),
-                        tint = if (current) t.onInk else t.ink)
-                }
-                Text(clock(card.start), Modifier.padding(top = 4.dp), style = Type.tiny, color = if (current) t.ink else t.muted)
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(card.headline, style = Type.title, color = t.ink)
-                val secs = (card.end - card.start).roundToInt()
-                val meta = listOfNotNull(
-                    card.source.ifBlank { null },
-                    (if (secs < 60) "${secs}s" else clock(secs.toDouble())) + " of audio",
-                    card.also.size.takeIf { it > 0 }?.let { "+$it source${if (it == 1) "" else "s"}" },
+                val spineWidth = 4.dp.toPx()
+                drawRect(
+                    color = spineColor,
+                    topLeft = Offset(0f, 0f),
+                    size = Size(spineWidth, size.height)
                 )
-                Text(meta.joinToString(" · "), Modifier.padding(top = 5.dp), style = Type.meta, color = t.muted,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            if (card.image != null) {
+            .clickable { open = !open }
+            .animateContentSize()
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 14.dp, top = 14.dp, bottom = 14.dp)
+        ) {
+            Row(verticalAlignment = Alignment.Top) {
+                // Play Button
+                Column(Modifier.width(38.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(if (current) t.accent else t.track)
+                            .border(1.dp, if (current) t.accentStrong else t.line, CircleShape)
+                            .clickable(onClickLabel = "Play from this story", onClick = onPlay),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            if (current && playing) Icons.Outlined.GraphicEq else Icons.Filled.PlayArrow,
+                            contentDescription = if (current && playing) "Playing" else "Play from here",
+                            modifier = Modifier.size(16.dp),
+                            tint = if (current) t.accentInk else t.ink
+                        )
+                    }
+                    Text(
+                        clock(card.start),
+                        Modifier.padding(top = 4.dp),
+                        style = Type.tiny.copy(fontWeight = if (current) FontWeight.Bold else FontWeight.Normal),
+                        color = if (current) t.accentText else t.muted
+                    )
+                }
+
                 Spacer(Modifier.width(12.dp))
-                AsyncImage(model = card.image, contentDescription = null, contentScale = ContentScale.Crop,
-                    colorFilter = if (colorPhotos) null else Grayscale,
-                    modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(t.track))
+
+                // Middle Text: Category & status overline + Headline + Metadata
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            card.section.uppercase(),
+                            style = Type.tiny.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp),
+                            color = spineColor
+                        )
+                        if (current) {
+                            Spacer(Modifier.width(6.dp))
+                            Box(
+                                Modifier
+                                    .clip(CircleShape)
+                                    .background(t.accentSoft)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    if (playing) "PLAYING" else "PAUSED",
+                                    style = Type.tiny.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                                    color = t.accentText
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        card.headline,
+                        modifier = Modifier.padding(top = 2.dp),
+                        style = Type.title.copy(fontSize = 15.sp, fontWeight = if (current) FontWeight.Bold else FontWeight.SemiBold),
+                        color = t.ink
+                    )
+
+                    val secs = (card.end - card.start).roundToInt()
+                    val meta = listOfNotNull(
+                        card.source.ifBlank { null },
+                        (if (secs < 60) "${secs}s" else clock(secs.toDouble())) + " audio",
+                        card.also.size.takeIf { it > 0 }?.let { "+$it source${if (it == 1) "" else "s"}" },
+                    )
+                    Text(
+                        meta.joinToString(" · "),
+                        Modifier.padding(top = 4.dp),
+                        style = Type.meta,
+                        color = t.muted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                if (card.image != null) {
+                    Spacer(Modifier.width(12.dp))
+                    AsyncImage(
+                        model = card.image,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        colorFilter = if (colorPhotos) null else Grayscale,
+                        modifier = Modifier
+                            .size(54.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(t.track)
+                            .border(1.dp, t.line, RoundedCornerShape(12.dp))
+                    )
+                }
             }
-        }
-        if (open) {
-            Column(Modifier.padding(start = 52.dp, top = 10.dp)) {
-                Text(card.summary, style = Type.body, color = t.ink)
-                if (card.also.isNotEmpty()) {
-                    Hint("Also covered by ${card.also.joinToString(", ")}", Modifier.padding(top = 6.dp))
-                }
-                Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (!current) PillButton("Play from here", icon = Icons.Filled.PlayArrow, onClick = onPlay)
-                    PillButton("Article", filled = false, icon = Icons.AutoMirrored.Outlined.OpenInNew, onClick = onOpen)
-                }
-                // Summaries are written by AI, so anyone can flag one that's wrong or harmful without leaving the app.
-                Row(
-                    Modifier.padding(top = 10.dp).clip(CircleShape)
-                        .clickable(enabled = !reported, onClickLabel = "Report this summary", onClick = onReport)
-                        .padding(vertical = 6.dp, horizontal = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Outlined.Flag, null, Modifier.size(14.dp), tint = t.muted)
-                    Spacer(Modifier.width(6.dp))
-                    Text(if (reported) "Reported. Thanks" else "Report this summary", style = Type.meta, color = t.muted)
+
+            if (open) {
+                Column(Modifier.padding(start = 50.dp, top = 10.dp)) {
+                    Text(
+                        card.summary,
+                        style = Type.body.copy(fontSize = 13.5.sp, lineHeight = 19.sp),
+                        color = t.ink
+                    )
+                    if (card.also.isNotEmpty()) {
+                        Hint("Also covered by ${card.also.joinToString(", ")}", Modifier.padding(top = 6.dp))
+                    }
+                    Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (!current) PillButton("Play from here", icon = Icons.Filled.PlayArrow, onClick = onPlay)
+                        PillButton("Article", filled = false, icon = Icons.AutoMirrored.Outlined.OpenInNew, onClick = onOpen)
+                    }
+                    // Report summary link
+                    Row(
+                        Modifier
+                            .padding(top = 10.dp)
+                            .clip(CircleShape)
+                            .clickable(enabled = !reported, onClickLabel = "Report this summary", onClick = onReport)
+                            .padding(vertical = 4.dp, horizontal = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Outlined.Flag, null, Modifier.size(13.dp), tint = t.muted)
+                        Spacer(Modifier.width(5.dp))
+                        Text(if (reported) "Reported. Thanks" else "Report this summary", style = Type.meta, color = t.muted)
+                    }
                 }
             }
         }
