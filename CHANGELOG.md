@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.49] - 2026-10-22
+
+### Changed
+- **Instant Briefing Loading, Screen-Awake Playback & Resilient Cloud Sync**:
+  - **Screen Awake During Active Playback & Builds**:
+    - Added `FLAG_KEEP_SCREEN_ON` in `MainActivity` whenever the main audio player, onboarding demo, voice preview, or briefing build worker is active, preventing device sleep interruptions.
+  - **Single-Fetch Full & Rapid Editions (`StoryPack.fetchBoth`)**:
+    - Refactored `StoryPack` to fetch the day's shared `story_audio` and `voice_notes` rows once and assemble both Full and Rapid Fire editions in a single round-trip, with automatic fallback to the latest available briefing date if today's pack is still generating.
+    - Persisted `briefingMode` (`full` vs `rapid`) in `Prefs` across app restarts and fixed `TodayScreen` empty-state flicker during initial load.
+  - **Public / Guest Access & Resilient Supabase Fallbacks**:
+    - Granted `anon` read access to `story_audio` and `voice_notes` in `supabase/schema.sql` and published full guest pack manifests (`showcase/pack.json`) in `app/storypack.py`.
+    - Hardened `Supabase.storyAudio()` and `Supabase.voiceNotes()` to seamlessly fall back to public anon queries and showcase storage manifests when an auth token expires or a user is browsing as a guest.
+    - Added unit tests in `StoryPackTest.kt` verifying Full and Rapid pack assembly, section ordering, and showcase fallback parsing.
+
+---
+
 ## [0.1.48] - 2026-10-22
 
 ### Changed

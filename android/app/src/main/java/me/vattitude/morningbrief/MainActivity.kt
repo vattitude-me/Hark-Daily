@@ -3,6 +3,7 @@ package me.vattitude.morningbrief
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -33,6 +34,21 @@ class MainActivity : ComponentActivity() {
                 else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
                 enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
                 onDispose {}
+            }
+            val player by vm.player.collectAsState()
+            val demo by vm.demo.collectAsState()
+            val previewing by vm.previewing.collectAsState()
+            val build by vm.build.collectAsState()
+            val keepScreenOn = player.playing || demo != null || previewing != null || build.running
+            DisposableEffect(keepScreenOn) {
+                if (keepScreenOn) {
+                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                } else {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
+                onDispose {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
             }
             val onboarded by vm.onboarded.collectAsState()
             MorningBriefTheme(appearance) {
