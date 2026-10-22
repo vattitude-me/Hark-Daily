@@ -53,12 +53,10 @@ class BuildWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             // never on-device Kokoro/scraping builds.
             val today = LocalDate.now().toString()
             return try {
-                if (repo.signedIn) {
-                    val pack = StoryPack.fetch(repo.supabase, today, repo.settings.stories, repo.settings.voice)
-                    if (pack != null && pack.briefing.date == today) {
-                        notifyDone("Your morning brief is ready", readySummary(pack.briefing))
-                        return Result.success()
-                    }
+                val pack = StoryPack.fetch(repo.supabase, today, repo.settings.stories, repo.settings.voice, repo.settings.sectionOrder)
+                if (pack != null && pack.briefing.date == today) {
+                    notifyDone("Your morning brief is ready", readySummary(pack.briefing))
+                    return Result.success()
                 }
                 if (scheduled && runAttemptCount < 3) Result.retry() else Result.success()
             } catch (e: Exception) {

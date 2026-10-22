@@ -333,25 +333,30 @@ def showcase_payload(rows: list[dict], notes: list[dict], url_for, *, day: str,
         add(float(outro.get("duration") or 0), OUTRO_KEY, "note",
             outro.get("text") or "", outro["audio_path"])
 
-    return {"briefing": {
+    return {
         "date": day,
-        "title": "Your briefing",
-        "voice": {"id": voice or DEFAULT_VOICE, "name": voice_name(voice),
-                  "gender": (VOICES.get(voice or "") or {}).get("gender", "")},
-        "duration": round(cursor, 2),
-        "audio_url": "",  # the sample is the clips below, played back to back
-        "clips": clips,
-        "chapters": chapters,
-        "stories": stories,
-        "sections": [{"key": k, "title": guardian.SECTIONS[k]["title"], "count": n}
-                     for k, n in counts.items()],
-    }}
+        "rows": rows,
+        "notes": notes,
+        "briefing": {
+            "date": day,
+            "title": "Your briefing",
+            "voice": {"id": voice or DEFAULT_VOICE, "name": voice_name(voice),
+                      "gender": (VOICES.get(voice or "") or {}).get("gender", "")},
+            "duration": round(cursor, 2),
+            "audio_url": "",  # the sample is the clips below, played back to back
+            "clips": clips,
+            "chapters": chapters,
+            "stories": stories,
+            "sections": [{"key": k, "title": guardian.SECTIONS[k]["title"], "count": n}
+                         for k, n in counts.items()],
+        },
+    }
 
 
 async def publish_showcase(cfg, store, *, day: str | None = None, voice: str | None = None,
                            sections: tuple[str, ...] = SHOWCASE_SECTIONS,
                            per_section: int = SHOWCASE_PER_SECTION) -> dict:
-    """Publish the public sample of the day's pack, for the signed-out landing page."""
+    """Publish the public sample of the day's pack, for the signed-out landing page and guest apps."""
     day = day or datetime.now(ZoneInfo(cfg.timezone)).date().isoformat()
     voice = voice or cfg.story_voice
     rows = store.select("story_audio", {"date": f"eq.{day}", "voice": f"eq.{voice}"})
@@ -363,6 +368,18 @@ async def publish_showcase(cfg, store, *, day: str | None = None, voice: str | N
     if voice == (cfg.story_voices or (DEFAULT_VOICE,))[0]:
         # The default narrator's sample is also the one older clients fetch.
         store.upload(SHOWCASE_KEY, body, content_type="application/json", cache="max-age=300")
+    try:
+        all_rows = store.select("story_audio", {"date": f"eq.{day}"})
+        all_notes = store.select("voice_notes", {"date": f"eq.{day}"})
+        if all_rows:
+            pack_body = json.dumps(
+                {"date": day, "story_audio": all_rows, "voice_notes": all_notes},
+                ensure_ascii=False, separators=(",", ":"),
+            ).encode()
+            store.upload("showcase/pack.json", pack_body, content_type="application/json", cache="max-age=300")
+            store.upload(f"showcase/pack-{day}.json", pack_body, content_type="application/json", cache="max-age=300")
+    except Exception as exc:  # noqa: BLE001
+        log.debug("Could not publish full guest pack manifest: %s", exc)
     log.info("Published the landing sample: %d clips, %.1fs",
              len(payload["briefing"]["clips"]), payload["briefing"]["duration"])
     return payload

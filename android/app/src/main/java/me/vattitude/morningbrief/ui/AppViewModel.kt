@@ -90,7 +90,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val dates = MutableStateFlow<List<String>>(emptyList())
     val selected = MutableStateFlow<String?>(null)
     val briefing = MutableStateFlow<Briefing?>(null)
-    val briefingMode = MutableStateFlow("full")
+    val briefingMode = MutableStateFlow(repo.prefs.briefingMode)
     val packLoadingDate = MutableStateFlow<String?>(null)
     val build: StateFlow<BuildState.Progress> = BuildState.progress
 
@@ -164,13 +164,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val today = LocalDate.now().toString()
         when (val shown = selected.value) {
             null -> select(today)
-            today -> if (packs[today] == null) { packs.remove(today); fetchPack(today) }  // retry a miss
+            today -> if (packs[today] == null) { invalidatePacks(today); fetchPack(today) }  // retry a miss
             else -> select(today)                                                       // a new day came around
         }
         viewModelScope.launch {
+            val before = repo.settings
             repo.pullSettings()
             isAdmin.value = repo.isAdmin
             refreshSaved()
+            val after = repo.settings
+            if (before.voice != after.voice || before.stories != after.stories || before.sectionOrder != after.sectionOrder) {
+                invalidatePacks()
+                fetchPack(selected.value ?: today)
+            }
+        }
+    }
+
+    private fun invalidatePacks(date: String? = null) {
+        repo.supabase.clearPublicPackCache()
+        if (date == null) {
+            packs.clear()
+        } else {
+            packs.remove(date)
+            packs.remove("$date-full")
+            packs.remove("$date-rapid")
         }
     }
 
@@ -345,27 +362,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (selected.value == date && briefing.value == null) packLoadingDate.value = date
         viewModelScope.launch {
             try {
-                var fullPack = runCatching {
-                    StoryPack.fetch(repo.supabase, date, _settings.value.stories, _settings.value.voice, _settings.value.sectionOrder, mode = "full")
-                }.getOrNull()
-                var rapidPack = runCatching {
-                    StoryPack.fetch(repo.supabase, date, _settings.value.stories, _settings.value.voice, _settings.value.sectionOrder, mode = "rapid")
-                }.getOrNull()
+                val st = _settings.value
+                val (fetchedFull, fetchedRapid) = runCatching {
+                    StoryPack.fetchBoth(repo.supabase, date, st.stories, st.voice, st.sectionOrder)
+                }.getOrDefault(null to null)
+                var fullPack = fetchedFull
+                var rapidPack = fetchedRapid
                 if (fullPack == null && rapidPack == null) {
-                    val showcase = StoryPack.fetchShowcase(_settings.value.voice)
-                    if (showcase != null) {
-                        fullPack = showcase
-                        rapidPack = showcase
-                    }
+                    fullPack = StoryPack.fetchShowcase(st.voice, st.stories, st.sectionOrder, mode = "full")
+                    rapidPack = StoryPack.fetchShowcase(st.voice, st.stories, st.sectionOrder, mode = "rapid")
                 }
                 val activePack = if (briefingMode.value == "rapid") rapidPack ?: fullPack else fullPack ?: rapidPack
                 val packDate = activePack?.briefing?.date ?: date
                 if (fullPack != null) {
                     packs["$packDate-full"] = fullPack
                     packs[packDate] = fullPack
+                    packs["$date-full"] = fullPack
+                    packs[date] = fullPack
                 }
                 if (rapidPack != null) {
                     packs["$packDate-rapid"] = rapidPack
+                    packs["$date-rapid"] = rapidPack
                 }
                 if (activePack != null && (selected.value == date || selected.value == packDate || selected.value == null)) {
                     selected.value = packDate
@@ -394,9 +411,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Look again for today's brief: the overnight job may have published it since we last checked. */
     fun refreshPack() {
         val today = LocalDate.now().toString()
-        packs.remove(today)
-        packs.remove("$today-full")
-        packs.remove("$today-rapid")
+        invalidatePacks()
         // Keep whatever is on screen while the check runs, so a miss does not blank the news.
         if (selected.value == today && briefing.value != null) fetchPack(today) else select(today)
     }
@@ -425,6 +440,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             c.addListener(object : Player.Listener {
                 override fun onEvents(player: Player, events: Player.Events) = tick()
             })
+            if (c.currentMediaItem == null) {
+                (briefing.value?.date ?: selected.value)?.let { load(it, briefingMode.value) }
+            } else {
+                val id = c.currentMediaItem?.mediaId
+                val beforeAt = id?.substringBefore('@')
+                val d = beforeAt?.removeSuffix("-full")?.removeSuffix("-rapid")
+                val m = if (id?.contains("-rapid") == true) "rapid" else "full"
+                if (d != null && currentPack == null) {
+                    currentPack = packs["$d-$m"] ?: packs[d]
+                }
+            }
             tick()
             ticker = viewModelScope.launch {
                 while (isActive) {
@@ -453,27 +479,34 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setBriefingMode(newMode: String) {
-        if (briefingMode.value == newMode) return
+        if (briefingMode.value == newMode && briefing.value?.mode == newMode) return
         briefingMode.value = newMode
+        repo.prefs.briefingMode = newMode
         demoPlayer?.let { mp ->
             val targetSpeed = if (newMode == "rapid") 1.1f else 1.0f
             runCatching { mp.playbackParams = mp.playbackParams.setSpeed(targetSpeed) }
         }
-        val d = selected.value ?: return
-        val pack = packs["$d-$newMode"] ?: packs[d]
+        val d = selected.value ?: briefing.value?.date ?: LocalDate.now().toString()
+        val pack = packs["$d-$newMode"] ?: briefing.value?.date?.let { packs["$it-$newMode"] }
         if (pack != null) {
+            nowPlayingTried = null
             briefing.value = pack.briefing
             val c = controller
             if (c != null) {
                 val targetSpeed = if (newMode == "rapid") 1.1f else _settings.value.speed.coerceIn(0.8f, 1.3f)
+                val wasPlaying = c.isPlaying
+                load(pack.briefing.date, newMode)
                 c.setPlaybackSpeed(targetSpeed)
-                if (nowPlaying.value?.date == d) {
-                    val wasPlaying = c.isPlaying
-                    load(d, newMode)
-                    if (wasPlaying) c.play()
-                }
+                if (wasPlaying) c.play()
             }
             tick()
+        } else {
+            briefing.value = briefing.value?.copy(
+                mode = newMode,
+                title = if (newMode == "rapid") "Rapid Fire · Top 5 Stories" else "Your briefing",
+            )
+            invalidatePacks(d)
+            fetchPack(d)
         }
     }
 
@@ -541,7 +574,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun togglePlaying() {
         val c = controller ?: return
         if (c.currentMediaItem == null) return
-        if (c.isPlaying) c.pause() else c.play()
+        if (c.isPlaying) {
+            c.pause()
+        } else {
+            if (c.playbackState == Player.STATE_ENDED) c.seekTo(0, 0L)
+            c.play()
+        }
         tick()
     }
 
@@ -586,7 +624,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun togglePlay() {
         val date = selected.value ?: return
         val c = load(date, briefingMode.value) ?: return
-        if (c.isPlaying) c.pause() else c.play()
+        if (c.isPlaying) {
+            c.pause()
+        } else {
+            if (c.playbackState == Player.STATE_ENDED) c.seekTo(0, 0L)
+            c.play()
+        }
         tick()
     }
 
@@ -598,9 +641,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun skip(seconds: Int) {
-        val c = controller ?: return
-        if (c.currentMediaItem == null) return
-        seekGlobal(c, globalPosition(c) + seconds)
+        val date = nowPlaying.value?.date ?: selected.value ?: return
+        val c = controller?.takeIf { it.currentMediaItem != null } ?: load(date, briefingMode.value) ?: return
+        val maxDur = (nowPlaying.value ?: briefing.value)?.duration ?: Double.MAX_VALUE
+        seekGlobal(c, (globalPosition(c) + seconds).coerceIn(0.0, maxDur.coerceAtLeast(0.0)))
         tick()
     }
 
@@ -745,10 +789,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 switchNarrator()
             } else if (old.sectionOrder != new.sectionOrder || old.stories != new.stories) {
                 val date = selected.value ?: LocalDate.now().toString()
-                packs.remove(date)
+                invalidatePacks()
                 fetchPack(date)
             }
-            controller?.setPlaybackSpeed(new.speed.coerceIn(0.8f, 1.3f))
+            if (briefingMode.value != "rapid") {
+                controller?.setPlaybackSpeed(new.speed.coerceIn(0.8f, 1.3f))
+            }
             message.value = problem ?: switchProblem ?: when {
                 old.voice != new.voice -> "Saved. Now read by ${packVoice(new.voice).name}."
                 else -> "Saved. Your next brief uses these."
@@ -766,7 +812,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         resumeAt = c?.let { globalPosition(it) } ?: 0.0
         resumePlaying = c?.isPlaying == true
         c?.pause()
-        packs.remove(date)
+        invalidatePacks()
         fetchPack(date)
     }
 
@@ -941,6 +987,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         repo.pullSettings()
         refreshSaved()
         loadSources()
+        invalidatePacks()
         if (repo.prefs.onboarded) select(LocalDate.now().toString())
         message.value = "Signed in. Your sources and settings now match the web app."
     }
@@ -992,7 +1039,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         dates.value = emptyList()
         selected.value = null
         briefing.value = null
-        packs.clear()
+        briefingMode.value = "full"
+        invalidatePacks()
         currentPack = null
         packLoadingDate.value = null
 

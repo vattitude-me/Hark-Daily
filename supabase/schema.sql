@@ -285,11 +285,11 @@ alter table public.story_audio add column if not exists image text;
 
 alter table public.story_audio enable row level security;
 drop policy if exists "read story audio" on public.story_audio;
-create policy "read story audio" on public.story_audio for select to authenticated using (true);
+create policy "read story audio" on public.story_audio for select to anon, authenticated using (true);
 
 -- Everyone reads the shared clips; only the worker (secret key) writes them.
 revoke all on public.story_audio from anon, authenticated;
-grant select on public.story_audio to authenticated;
+grant select on public.story_audio to anon, authenticated;
 
 -- ----------------------------------------------------------- spoken framing
 -- The greeting and the per-section intros are voiced once per day, exactly like the
@@ -315,10 +315,10 @@ create index if not exists voice_notes_date_idx on public.voice_notes (date);
 
 alter table public.voice_notes enable row level security;
 drop policy if exists "read voice notes" on public.voice_notes;
-create policy "read voice notes" on public.voice_notes for select to authenticated using (true);
+create policy "read voice notes" on public.voice_notes for select to anon, authenticated using (true);
 
 revoke all on public.voice_notes from anon, authenticated;
-grant select on public.voice_notes to authenticated;
+grant select on public.voice_notes to anon, authenticated;
 -- ------------------------------------------------------------- the run log
 -- Every morning the pack writes what happened: the day, whether it is whole, one line per
 -- narrator, and the reason for anything that failed. The same text is pushed to the admins'

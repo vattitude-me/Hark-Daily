@@ -311,7 +311,7 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 ?: b.cards.firstOrNull { it.image != null }?.image
             val section = (current?.section ?: chapter?.section)?.let { k -> b.sections.firstOrNull { it.key == k }?.title }
             val title = current?.headline ?: chapter?.title?.takeIf { mine && it.isNotBlank() } ?: b.title
-            val isRapid = b.isRapid
+            val isRapid = briefingMode == "rapid" || b.isRapid
             val currentIdx = b.cards.indexOfFirst { current != null && it.id == current.id }.takeIf { it >= 0 }
 
             val horizonColor = if (isRapid) Color(0xFFFBBF24) else t.accent
@@ -635,7 +635,7 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
 
                     // Integrated Read Along Teleprompter Visor (Sleek collapsible)
                     var transcriptExpanded by remember { mutableStateOf(false) }
-                    val readText = current?.summary?.ifBlank { null } ?: current?.headline ?: "Tap play to listen and read along."
+                    val readText = current?.summary?.ifBlank { null } ?: current?.headline ?: chapter?.title?.ifBlank { null } ?: "Tap play to listen and read along."
 
                     Spacer(Modifier.height(8.dp))
 

@@ -36,6 +36,11 @@ class Prefs(context: Context) {
         get() = sp.getString("appearance", null) ?: "system"
         set(value) = sp.edit().putString("appearance", value).apply()
 
+    /** "full" or "rapid" briefing edition mode. */
+    var briefingMode: String
+        get() = sp.getString("briefing_mode", null) ?: "full"
+        set(value) = sp.edit().putString("briefing_mode", value).apply()
+
     /** Whether the first-run "while you wait" upsells were shown or dismissed. */
     var upsellsSeen: Boolean
         get() = sp.getBoolean("upsells_seen", false)

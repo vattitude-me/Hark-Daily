@@ -2,6 +2,7 @@ package me.vattitude.morningbrief.data
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import me.vattitude.morningbrief.pipeline.DEFAULT_STORIES
 import me.vattitude.morningbrief.pipeline.MAX_PER_SECTION
 import me.vattitude.morningbrief.pipeline.SECTIONS
 import me.vattitude.morningbrief.pipeline.packVoice
@@ -49,8 +50,10 @@ fun greetingKey(hour: Int = LocalTime.now().hour): String = when {
 }
 
 /** The per-section counts a listener asked for (0 = off), clamped to 0..[MAX_PER_SECTION]. */
-fun lineup(stories: Map<String, Int>): Map<String, Int> =
-    SECTIONS.keys.associateWith { (stories[it] ?: 0).coerceIn(0, MAX_PER_SECTION) }
+fun lineup(stories: Map<String, Int>): Map<String, Int> {
+    val mapped = SECTIONS.keys.associateWith { (stories[it] ?: 0).coerceIn(0, MAX_PER_SECTION) }
+    return if (mapped.values.any { it > 0 }) mapped else DEFAULT_STORIES
+}
 
 private fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }
 
@@ -65,6 +68,34 @@ internal fun clipUrl(path: String) = "$SUPABASE_URL/storage/v1/object/public/bri
  * for everyone, so cost never grows with the number of listeners.
  */
 object StoryPack {
+    /**
+     * Fetches the day's shared rows and notes once and assembles both Full and Rapid Fire packs.
+     */
+    suspend fun fetchBoth(
+        supabase: Supabase,
+        date: String,
+        stories: Map<String, Int>,
+        voice: String? = null,
+        sectionOrder: List<String> = emptyList(),
+    ): Pair<Pack?, Pack?> {
+        var day = date
+        var rows = supabase.storyAudio(day)
+        if (rows.length() == 0) {
+            val latest = runCatching { supabase.latestStoryDate() }.getOrNull()
+            if (latest != null && latest != day) {
+                day = latest
+                rows = supabase.storyAudio(day)
+            }
+        }
+        if (rows.length() == 0) return null to null
+        val every = rows.objects()
+        val notes = runCatching { supabase.voiceNotes(day) }.getOrDefault(JSONArray())
+        val noteRows = notes.objects()
+        val full = assemble(day, every, noteRows, stories, voice, sectionOrder, mode = "full")
+        val rapid = assemble(day, every, noteRows, stories, voice, sectionOrder, mode = "rapid")
+        return full to rapid
+    }
+
     /**
      * [date] is the day the listener asked for. When that day has no pack — the nightly job hasn't
      * published yet, or it wasn't a news day — the most recent published day is used instead, and
@@ -83,15 +114,29 @@ object StoryPack {
             }
         }
         if (rows.length() == 0) return null
+        val every = rows.objects()
+        val notes = runCatching { supabase.voiceNotes(day) }.getOrDefault(JSONArray())
+        val noteRows = notes.objects()
+        return assemble(day, every, noteRows, stories, voice, sectionOrder, mode)
+    }
+
+    internal fun assemble(
+        day: String,
+        every: List<JSONObject>,
+        noteRows: List<JSONObject>,
+        stories: Map<String, Int>,
+        voice: String? = null,
+        sectionOrder: List<String> = emptyList(),
+        mode: String = "full",
+    ): Pack? {
+        if (every.isEmpty()) return null
         // Every narrator is published each morning, so the day's rows hold all of them:
         // play the one this listener picked.
-        val every = rows.objects()
         val spokenBy = pickPackVoice(every.map { it.optString("voice") }, voice)
         val all = if (spokenBy == null) every else every.filter { it.optString("voice") == spokenBy }
-        val notes = runCatching { supabase.voiceNotes(day) }.getOrDefault(JSONArray())
         // Playable only once the narrator's clips and framing are all published.
-        val noteRows = notes.objects()
-        if (noteRows.none { it.optString("note_key") == PACK_READY && it.optString("voice") == spokenBy }) return null
+        val hasReadyMarkers = noteRows.any { it.optString("note_key") == PACK_READY }
+        if (hasReadyMarkers && noteRows.none { it.optString("note_key") == PACK_READY && it.optString("voice") == spokenBy }) return null
 
         val isRapid = mode == "rapid"
         val order = effectiveSectionOrder(sectionOrder)
@@ -122,7 +167,7 @@ object StoryPack {
             lineup(stories)
         }
 
-        val noteByKey = noteRows.filter { it.optString("voice") == spokenBy }
+        val noteByKey = noteRows.filter { spokenBy == null || it.optString("voice") == spokenBy }
             .associateBy { it.optString("note_key") }
 
         val clips = mutableListOf<Clip>()
@@ -211,9 +256,15 @@ object StoryPack {
      * `story_audio` table to authenticated sessions, but publishes a daily showcase sample
      * for each narrator into public storage every morning.
      */
-    suspend fun fetchShowcase(voice: String? = null): Pack? = withContext(Dispatchers.IO) {
+    suspend fun fetchShowcase(
+        voice: String? = null,
+        stories: Map<String, Int> = DEFAULT_STORIES,
+        sectionOrder: List<String> = emptyList(),
+        mode: String = "full",
+    ): Pack? = withContext(Dispatchers.IO) {
         val target = voice ?: "c3po_reference"
         val candidates = listOf(
+            "$SUPABASE_URL/storage/v1/object/public/briefings/showcase/pack.json",
             "$SUPABASE_URL/storage/v1/object/public/briefings/showcase/sample-$target.json",
             "$SUPABASE_URL/storage/v1/object/public/briefings/showcase/sample-c3po_reference.json",
             "$SUPABASE_URL/storage/v1/object/public/briefings/showcase/sample.json"
@@ -226,8 +277,21 @@ object StoryPack {
                     if (!res.isSuccessful) null else res.body?.string()
                 } ?: return@runCatching null
                 val root = JSONObject(jsonStr)
+                val rowsArr = root.optJSONArray("story_audio") ?: root.optJSONArray("rows")
+                val notesArr = root.optJSONArray("voice_notes") ?: root.optJSONArray("notes")
+                val day = root.optString("date").ifEmpty { root.optJSONObject("briefing")?.optString("date").orEmpty() }
+                if (rowsArr != null && rowsArr.length() > 0 && day.isNotEmpty()) {
+                    val assembled = assemble(day, rowsArr.objects(), notesArr?.objects() ?: emptyList(), stories, voice, sectionOrder, mode)
+                    if (assembled != null) return@runCatching assembled
+                }
                 val bJson = root.optJSONObject("briefing") ?: return@runCatching null
-                val briefing = Briefing.from(bJson)
+                val baseBriefing = Briefing.from(bJson)
+                val isRapid = mode == "rapid"
+                val briefing = baseBriefing.copy(
+                    mode = if (isRapid) "rapid" else "full",
+                    title = if (isRapid) "Rapid Fire · Top 5 Stories" else baseBriefing.title,
+                    cards = if (isRapid) baseBriefing.cards.take(5) else baseBriefing.cards,
+                )
                 val clipsArr = bJson.optJSONArray("clips")
                 val clips = (0 until (clipsArr?.length() ?: 0)).map { i ->
                     val c = clipsArr!!.getJSONObject(i)
