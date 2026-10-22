@@ -345,25 +345,34 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (selected.value == date && briefing.value == null) packLoadingDate.value = date
         viewModelScope.launch {
             try {
-                val fullPack = runCatching {
+                var fullPack = runCatching {
                     StoryPack.fetch(repo.supabase, date, _settings.value.stories, _settings.value.voice, _settings.value.sectionOrder, mode = "full")
                 }.getOrNull()
-                val rapidPack = runCatching {
+                var rapidPack = runCatching {
                     StoryPack.fetch(repo.supabase, date, _settings.value.stories, _settings.value.voice, _settings.value.sectionOrder, mode = "rapid")
                 }.getOrNull()
-                if (fullPack != null) {
-                    packs["$date-full"] = fullPack
-                    packs[date] = fullPack
-                }
-                if (rapidPack != null) {
-                    packs["$date-rapid"] = rapidPack
+                if (fullPack == null && rapidPack == null) {
+                    val showcase = StoryPack.fetchShowcase(_settings.value.voice)
+                    if (showcase != null) {
+                        fullPack = showcase
+                        rapidPack = showcase
+                    }
                 }
                 val activePack = if (briefingMode.value == "rapid") rapidPack ?: fullPack else fullPack ?: rapidPack
-                if (activePack != null && selected.value == date) {
+                val packDate = activePack?.briefing?.date ?: date
+                if (fullPack != null) {
+                    packs["$packDate-full"] = fullPack
+                    packs[packDate] = fullPack
+                }
+                if (rapidPack != null) {
+                    packs["$packDate-rapid"] = rapidPack
+                }
+                if (activePack != null && (selected.value == date || selected.value == packDate || selected.value == null)) {
+                    selected.value = packDate
                     nowPlayingTried = null
                     briefing.value = activePack.briefing
                     BuildState.clearError()
-                    val c = load(date, briefingMode.value)
+                    val c = load(packDate, briefingMode.value)
                     tick()
                     // A narrator switch keeps the listener where they were.
                     resumeAt?.let { at ->

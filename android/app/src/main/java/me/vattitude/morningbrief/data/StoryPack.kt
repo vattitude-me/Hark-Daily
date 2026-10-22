@@ -1,5 +1,7 @@
 package me.vattitude.morningbrief.data
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import me.vattitude.morningbrief.pipeline.MAX_PER_SECTION
 import me.vattitude.morningbrief.pipeline.SECTIONS
 import me.vattitude.morningbrief.pipeline.packVoice
@@ -8,9 +10,12 @@ import me.vattitude.morningbrief.ui.Briefing
 import me.vattitude.morningbrief.ui.Card
 import me.vattitude.morningbrief.ui.Chapter
 import me.vattitude.morningbrief.ui.SectionInfo
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalTime
+import java.util.concurrent.TimeUnit
 
 /** One clip on the briefing's timeline: a story, one of the spoken notes, or a breath between two. */
 data class Clip(
@@ -199,5 +204,48 @@ object StoryPack {
             mode = if (isRapid) "rapid" else "full",
         )
         return Pack(briefing, clips, version)
+    }
+
+    /**
+     * Fallback for visitors and guest listeners without an active session. Supabase restricts the
+     * `story_audio` table to authenticated sessions, but publishes a daily showcase sample
+     * for each narrator into public storage every morning.
+     */
+    suspend fun fetchShowcase(voice: String? = null): Pack? = withContext(Dispatchers.IO) {
+        val target = voice ?: "c3po_reference"
+        val candidates = listOf(
+            "$SUPABASE_URL/storage/v1/object/public/briefings/showcase/sample-$target.json",
+            "$SUPABASE_URL/storage/v1/object/public/briefings/showcase/sample-c3po_reference.json",
+            "$SUPABASE_URL/storage/v1/object/public/briefings/showcase/sample.json"
+        )
+        val client = OkHttpClient.Builder().callTimeout(10, TimeUnit.SECONDS).build()
+        for (urlStr in candidates) {
+            val pack = runCatching {
+                val req = Request.Builder().url(urlStr).build()
+                val jsonStr = client.newCall(req).execute().use { res ->
+                    if (!res.isSuccessful) null else res.body?.string()
+                } ?: return@runCatching null
+                val root = JSONObject(jsonStr)
+                val bJson = root.optJSONObject("briefing") ?: return@runCatching null
+                val briefing = Briefing.from(bJson)
+                val clipsArr = bJson.optJSONArray("clips")
+                val clips = (0 until (clipsArr?.length() ?: 0)).map { i ->
+                    val c = clipsArr!!.getJSONObject(i)
+                    Clip(
+                        id = "clip_$i",
+                        title = c.optString("title", briefing.title),
+                        url = c.optString("url"),
+                        duration = c.optDouble("duration", 0.0),
+                        start = c.optDouble("start", 0.0),
+                        end = c.optDouble("end", 0.0),
+                        note = c.optBoolean("note", false),
+                        gap = c.optBoolean("gap", false)
+                    )
+                }
+                Pack(briefing = briefing, clips = clips, version = bJson.optString("generated_at", "v1"))
+            }.getOrNull()
+            if (pack != null) return@withContext pack
+        }
+        null
     }
 }

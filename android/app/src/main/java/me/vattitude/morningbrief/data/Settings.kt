@@ -33,8 +33,8 @@ data class Settings(
     // Phone-only settings.
     val daily: Boolean = true,
     val readyBy: String = "07:00",
-    /** Which narrator reads the news: an id from [PACK_VOICES] ("her_reference" = Alice), or null for the default. */
-    val voice: String? = "her_reference",
+    /** Which narrator reads the news: an id from [PACK_VOICES] ("c3po_reference" = C-3PO), or null for the default. */
+    val voice: String? = "c3po_reference",
     val speed: Float = 1.0f,
     val groqKey: String = "",
     /** Who writes the summaries: an [AI_PROVIDERS] id. Groq uses [groqKey]; each other service keeps its own key in [aiKeys]. */

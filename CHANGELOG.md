@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.48] - 2026-10-22
+
+### Changed
+- **C-3PO Flagship Voice, Streamlined Onboarding & Instant Guest Playback**:
+  - **C-3PO Front & Center**:
+    - Featured C-3PO as the flagship narrator on the Onboarding Welcome screen (*"Today's brief, narrated by C-3PO"* and *"Voiced by C-3PO & more — Your daily news delivered with protocol precision"*).
+    - Bundled authentic, high-fidelity C-3PO audio sample directly into the app (`sample_brief.mp3`), letting new users hear C-3PO narrate today's news before signing up.
+    - Updated default app narrator voice to `c3po_reference` (C-3PO).
+  - **Frictionless 2-Step Onboarding**:
+    - Removed mandatory/suggested Google Sign-in step from the onboarding flow entirely. Onboarding now cleanly flows: Welcome (sample C-3PO brief) → Topics selection → Today's live news.
+    - Google Account sign-in remains easily accessible within the Settings tab for cloud synchronization and cross-device preferences.
+    - Removed premature Edition selector (Full Brief vs. Rapid Fire) from the welcome screen, eliminating cognitive friction for first-time listeners.
+  - **Guest Listener Cold-Start & Instant News Loading**:
+    - Resolved the *"Today's brief isn't ready yet"* issue encountered by guest users who skipped sign-in. Root cause: Supabase `story_audio` table RLS requires authenticated sessions, returning HTTP 401 for unauthenticated clients.
+    - Added `StoryPack.fetchShowcase(voice)` to fetch publicly hosted daily briefing packs (`showcase/sample-${voice}.json`) from Supabase Storage without requiring authentication.
+    - `AppViewModel.fetchPack()` now automatically falls back to showcase briefings whenever unauthenticated or when live packs are unavailable, ensuring new and guest users immediately receive and hear today's live news without delays.
+
+---
+
 ## [0.1.47] - 2026-10-22
 
 ### Changed
