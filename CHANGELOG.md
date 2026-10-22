@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.47] - 2026-10-22
+
+### Changed
+- **Audio Follow-Along, MiniPlayer & Editorial Polish**:
+  - **Auto-Expand & Smooth Story Follow-Along**:
+    - Active playing story now automatically expands to display complete summary, external article link, source citations, and report action, collapsing previously read stories.
+    - Added smooth animated follow-along scroll that brings the current story into focus without interrupting recent user scroll gestures.
+  - **MiniPlayer Bottom Toolbar Integration**:
+    - Fixed date string parsing in briefing media IDs (`substringBefore('@').removeSuffix("-full").removeSuffix("-rapid")`) ensuring `nowPlaying` and player state remain in sync across all playback modes.
+    - Floating MiniPlayer now reliably appears above the bottom tab bar whenever the hero player is scrolled out of view on the Today tab or when browsing Sources and Settings tabs.
+    - Integrated play/pause transport button and next story button (`|>`) directly into the MiniPlayer with smooth return-to-hero interaction on card tap.
+  - **Sources Screen Broadsheet Redesign**:
+    - Added **Daily Edition Profile** glass card highlighting total selected stories and calculated audio duration (`~X min audio`).
+    - Added category avatar tiles (38dp rounded) with topic-specific iconography (Globe, SmartToy, Computer, AccountBalance, Theaters, Science, SportsSoccer, LocationCity) and category color tints.
+    - Replaced disconnected chevron arrows with a unified solid pill capsule for reordering topics and adjusting story counts.
+  - **Settings Screen Broadsheet Overhaul**:
+    - Added dedicated **Edition Selector** card (Standard Edition vs ⚡ Rapid Fire Edition with 1.1x speed indicator).
+    - Redesigned **Narrator Voice Selector** with custom gradient avatar badges (Alice in warm amber, Mike in royal blue, Jerry in emerald green, C-3PO in golden droid brass), active selection glow, checkmarks, and animated audio equalizer previews.
+    - Added broadsheet Hark Daily footer with version indicator and legal links.
+  - **Onboarding Audio Robustness**:
+    - Integrated `DisposableEffect` and navigation hooks to immediately halt demo audio playback when advancing steps, navigating back, skipping, or completing onboarding.
+    - Dynamic demo playback speed respects Rapid Fire mode (1.1x speed).
+    - Bundled crisp, low-latency sample brief audio asset.
+
+---
+
 ## [0.1.46] - 2026-10-22
 
 ### Changed

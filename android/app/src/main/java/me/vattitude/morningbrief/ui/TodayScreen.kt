@@ -153,13 +153,13 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     LaunchedEffect(list) {
         list.interactionSource.interactions.collect { if (it is DragInteraction.Start) touchedAt = SystemClock.uptimeMillis() }
     }
-    // Follow along: bring the story being read into view, unless the reader scrolled in the last few seconds.
-    LaunchedEffect(current?.id) {
+    // Follow along: bring the story being read into view, unless the reader scrolled recently.
+    LaunchedEffect(current?.id, playing) {
         val card = current ?: return@LaunchedEffect
-        if (!stillPlaying || SystemClock.uptimeMillis() - touchedAt < 8_000) return@LaunchedEffect
-        val i = index["s:${card.section}"] ?: return@LaunchedEffect
-        val margin = with(density) { 120.dp.roundToPx() }
-        list.animateScrollToItem(i, ((rowTops[card.id] ?: 0) - margin).coerceAtLeast(0))
+        if (!playing || SystemClock.uptimeMillis() - touchedAt < 4_000) return@LaunchedEffect
+        val i = index["story:${card.id}"] ?: return@LaunchedEffect
+        val offset = with(density) { (-40).dp.roundToPx() }
+        list.animateScrollToItem(i, offset)
     }
     // The floating player shows once the player card's controls scroll out of sight.
     LaunchedEffect(list) {
@@ -713,41 +713,38 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
         for (section in b.sections) {
             val cards = b.cards.filter { it.section == section.key }
             if (cards.isEmpty()) continue
-            entry("s:${section.key}") {
+            entry("sec:${section.key}") {
                 val lead = b.chapters.firstOrNull { it.id == "section:${section.key}" }
                 val here = current?.section == section.key
-                val holder = remember { arrayOfNulls<LayoutCoordinates>(1) }
-                Column(Modifier.onGloballyPositioned { holder[0] = it }) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(top = 22.dp).clip(RoundedCornerShape(8.dp))
-                            .clickable(enabled = lead != null) { lead?.let { vm.seekTo(it.start) } }
-                            .padding(horizontal = 4.dp, vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Overline(section.title, Modifier.weight(1f), color = t.ink)
-                        if (here) {
-                            Box(Modifier.size(6.dp).clip(CircleShape).background(t.accent))
-                            Spacer(Modifier.width(6.dp))
-                            Overline(if (playing) "Playing" else "Paused", color = t.accentText)
-                        } else {
-                            Overline(if (cards.size == 1) "1 story" else "${cards.size} stories")
-                        }
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 10.dp).clip(RoundedCornerShape(8.dp))
+                        .clickable(enabled = lead != null) { lead?.let { vm.seekTo(it.start) } }
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Overline(section.title, Modifier.weight(1f), color = t.ink)
+                    if (here) {
+                        Box(Modifier.size(6.dp).clip(CircleShape).background(t.accent))
+                        Spacer(Modifier.width(6.dp))
+                        Overline(if (playing) "Playing" else "Paused", color = t.accentText)
+                    } else {
+                        Overline(if (cards.size == 1) "1 story" else "${cards.size} stories")
                     }
-                    Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        cards.forEach { card ->
-                            StoryRow(
-                                card, current = card.id == current?.id, playing = playing,
-                                colorPhotos = saved.colorPhotos,
-                                modifier = Modifier.onGloballyPositioned { c ->
-                                    holder[0]?.takeIf { it.isAttached && c.isAttached }
-                                        ?.let { rowTops[card.id] = it.localPositionOf(c, Offset.Zero).y.roundToInt() }
-                                },
-                                onPlay = { vm.seekTo(card.start) },
-                                onOpen = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(card.url))) },
-                                reported = card.id in reported,
-                                onReport = { reporting = card to b.date },
-                            )
-                        }
+                }
+            }
+            cards.forEach { card ->
+                entry("story:${card.id}") {
+                    Box(Modifier.padding(bottom = 8.dp)) {
+                        StoryRow(
+                            card,
+                            current = card.id == current?.id,
+                            playing = playing,
+                            colorPhotos = saved.colorPhotos,
+                            onPlay = { vm.seekTo(card.start) },
+                            onOpen = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(card.url))) },
+                            reported = card.id in reported,
+                            onReport = { reporting = card to b.date },
+                        )
                     }
                 }
             }
@@ -883,7 +880,8 @@ private fun StoryRow(
     onReport: () -> Unit = {},
 ) {
     val t = Mb.t
-    var open by remember(current) { mutableStateOf(current) }
+    var userOverride by remember(card.id, current) { mutableStateOf<Boolean?>(null) }
+    val isExpanded = userOverride ?: current
     val spineColor = t.categoryColor(card.section)
     val cardBg = if (current) {
         if (t.dark) Color(0xFF161F2E) else Color(0xFFFFFBEB)
@@ -916,7 +914,7 @@ private fun StoryRow(
                     size = Size(spineWidth, size.height)
                 )
             }
-            .clickable { open = !open }
+            .clickable { userOverride = !isExpanded }
             .animateContentSize()
     ) {
         Column(
@@ -999,7 +997,7 @@ private fun StoryRow(
                         color = t.ink
                     )
 
-                    if (!open && card.summary.isNotBlank()) {
+                    if (!isExpanded && card.summary.isNotBlank()) {
                         Text(
                             card.summary,
                             modifier = Modifier.padding(top = 4.dp),
@@ -1027,7 +1025,7 @@ private fun StoryRow(
                 }
             }
 
-            if (open) {
+            if (isExpanded) {
                 Column(Modifier.padding(start = 54.dp, top = 10.dp)) {
                     Text(
                         card.summary,

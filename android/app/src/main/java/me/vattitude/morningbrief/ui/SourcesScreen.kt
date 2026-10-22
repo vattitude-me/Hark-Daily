@@ -19,17 +19,29 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Computer
+import androidx.compose.material.icons.outlined.Equalizer
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.LocationCity
+import androidx.compose.material.icons.outlined.Newspaper
+import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.SmartToy
+import androidx.compose.material.icons.outlined.SportsSoccer
+import androidx.compose.material.icons.outlined.Theaters
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -47,11 +59,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import me.vattitude.morningbrief.data.effectiveSectionOrder
@@ -61,6 +76,7 @@ import me.vattitude.morningbrief.pipeline.PICKS
 import me.vattitude.morningbrief.pipeline.SECTIONS
 import me.vattitude.morningbrief.pipeline.Section
 import me.vattitude.morningbrief.pipeline.Source
+import me.vattitude.morningbrief.pipeline.briefMinutes
 import me.vattitude.morningbrief.pipeline.picksCount
 import java.net.URI
 
@@ -78,6 +94,18 @@ private val LINKISH = Regex("^([\\w-]+\\.)+[a-z]{2,}(:\\d+)?(/\\S*)?$", RegexOpt
 
 internal fun looksLikeLink(input: String): Boolean =
     input.trim().let { it.startsWith("http://", true) || it.startsWith("https://", true) || LINKISH.matches(it) }
+
+private fun categoryIcon(key: String): ImageVector = when (key) {
+    "top" -> Icons.Outlined.Public
+    "ai" -> Icons.Outlined.SmartToy
+    "tech" -> Icons.Outlined.Computer
+    "politics" -> Icons.Outlined.AccountBalance
+    "entertainment" -> Icons.Outlined.Theaters
+    "science" -> Icons.Outlined.Science
+    "sports" -> Icons.Outlined.SportsSoccer
+    "local" -> Icons.Outlined.LocationCity
+    else -> Icons.Outlined.Newspaper
+}
 
 @Composable
 fun SourcesScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
@@ -122,9 +150,54 @@ fun SourcesScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
             Picks(vm, picksCount(st.stories), canRaise = true, sources.filter { it.section in PICKS }, ::on) { removing = it }
         }
 
+        val orderedKeys = effectiveSectionOrder(st.sectionOrder)
+        val topicSections = orderedKeys.mapNotNull { SECTIONS[it] }
+        val totalStories = orderedKeys.sumOf { st.stories[it] ?: 0 }
+        val estMins = briefMinutes(totalStories)
+
+        item(key = "overview") {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 14.dp, bottom = 4.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(t.glass)
+                    .border(1.dp, t.glassLine, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(t.accentSoft)
+                            .border(1.dp, t.accentLine, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.Equalizer, null, Modifier.size(22.dp), tint = t.accentText)
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "DAILY EDITION PROFILE",
+                            style = Type.tiny.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp, fontSize = 10.sp),
+                            color = t.accentText
+                        )
+                        Text(
+                            if (totalStories == 0) "All topics are turned off" else "$totalStories stories · ~$estMins min audio",
+                            Modifier.padding(top = 2.dp),
+                            style = Type.title.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold),
+                            color = t.ink
+                        )
+                    }
+                }
+            }
+        }
+
         item(key = "topics") {
-            val orderedKeys = effectiveSectionOrder(st.sectionOrder)
-            val topicSections = orderedKeys.mapNotNull { SECTIONS[it] }
             GlassGroup {
                 topicSections.forEachIndexed { i, s ->
                     if (i > 0) Hairline()
@@ -186,14 +259,34 @@ private fun Topic(
 ) {
     val t = Mb.t
     val openable = sources.isNotEmpty()
+    val catColor = t.categoryColor(section.key)
     Column {
         Row(
             Modifier.fillMaxWidth().clickable(enabled = openable, onClick = onExpand)
-                .padding(horizontal = 4.dp, vertical = 10.dp),
+                .padding(horizontal = 4.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            Box(
+                Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (n > 0) catColor.copy(alpha = if (t.dark) 0.22f else 0.12f) else t.track.copy(alpha = 0.5f))
+                    .border(1.dp, if (n > 0) catColor.copy(alpha = if (t.dark) 0.35f else 0.25f) else Color.Transparent, RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    categoryIcon(section.key),
+                    contentDescription = null,
+                    modifier = Modifier.size(19.dp),
+                    tint = if (n > 0) catColor else t.muted
+                )
+            }
+
+            Spacer(Modifier.width(12.dp))
+
             Column(Modifier.weight(1f).padding(end = 6.dp)) {
-                Text(label, style = Type.title, color = t.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(label, style = Type.title.copy(fontSize = 15.sp, fontWeight = if (n > 0) FontWeight.SemiBold else FontWeight.Normal),
+                    color = if (n > 0) t.ink else t.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val sourceCount = when (sources.size) {
                     1 -> "1 source"
                     0 -> ""
@@ -201,18 +294,24 @@ private fun Topic(
                 }
                 val storyCount = if (n == 0) "Off" else "$n ${if (n == 1) "story" else "stories"}"
                 val summary = if (sourceCount.isEmpty()) storyCount else "$sourceCount · $storyCount"
-                Text(summary, Modifier.padding(top = 3.dp), style = Type.meta, color = t.muted,
+                Text(summary, Modifier.padding(top = 2.dp), style = Type.meta.copy(fontSize = 11.5.sp),
+                    color = if (n == 0) t.muted.copy(alpha = 0.7f) else t.muted,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+
             if (onMoveUp != null || onMoveDown != null) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(end = 6.dp),
+                Row(
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .clip(CircleShape)
+                        .background(if (t.dark) Color(0x33FFFFFF) else Color(0x0A0F172A))
+                        .border(1.dp, if (t.dark) Color(0x1AFFFFFF) else Color(0x100F172A), CircleShape)
+                        .padding(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(22.dp)
+                            .size(24.dp)
                             .clip(CircleShape)
                             .clickable(enabled = onMoveUp != null) { onMoveUp?.invoke() },
                         contentAlignment = Alignment.Center,
@@ -220,13 +319,13 @@ private fun Topic(
                         Icon(
                             Icons.Outlined.KeyboardArrowUp,
                             contentDescription = "Move ${section.title} up",
-                            modifier = Modifier.size(16.dp),
-                            tint = if (onMoveUp != null) t.muted else t.track,
+                            modifier = Modifier.size(15.dp),
+                            tint = if (onMoveUp != null) t.ink else t.muted.copy(alpha = 0.25f),
                         )
                     }
                     Box(
                         modifier = Modifier
-                            .size(22.dp)
+                            .size(24.dp)
                             .clip(CircleShape)
                             .clickable(enabled = onMoveDown != null) { onMoveDown?.invoke() },
                         contentAlignment = Alignment.Center,
@@ -234,15 +333,17 @@ private fun Topic(
                         Icon(
                             Icons.Outlined.KeyboardArrowDown,
                             contentDescription = "Move ${section.title} down",
-                            modifier = Modifier.size(16.dp),
-                            tint = if (onMoveDown != null) t.muted else t.track,
+                            modifier = Modifier.size(15.dp),
+                            tint = if (onMoveDown != null) t.ink else t.muted.copy(alpha = 0.25f),
                         )
                     }
                 }
             }
+
             StoryStepper(n, canRaise, MAX_PER_SECTION, onChange)
+
             if (openable) {
-                Spacer(Modifier.width(2.dp))
+                Spacer(Modifier.width(6.dp))
                 Icon(if (open) Icons.Outlined.KeyboardArrowDown else Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                     if (open) "Hide ${section.title}" else "Show ${section.title}",
                     Modifier.size(20.dp), tint = t.muted)

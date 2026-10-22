@@ -9,6 +9,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,14 +29,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.DeleteForever
+import androidx.compose.material.icons.outlined.FlashOn
+import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.WarningAmber
+import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -60,6 +65,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import kotlinx.coroutines.delay
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -70,6 +76,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -176,6 +183,55 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 ListRow("Topics and story counts", caret = true, onClick = { vm.tab.value = Tab.Sources })
             }
 
+            SectionLabel("Edition")
+            val briefingMode by vm.briefingMode.collectAsState()
+            val isRapid = briefingMode == "rapid"
+            GlassGroup {
+                Row(
+                    Modifier.fillMaxWidth().clickable { vm.setBriefingMode("full") }.padding(vertical = 12.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier.size(38.dp).clip(CircleShape).background(if (!isRapid) t.accent else t.track),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.WbSunny, null, Modifier.size(20.dp), tint = if (!isRapid) t.accentInk else t.muted)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Standard Edition", style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = t.ink)
+                        Text("Full comprehensive morning brief (~10–15 min)", style = Type.tiny, color = t.muted)
+                    }
+                    CheckDot(!isRapid)
+                }
+                Hairline()
+                Row(
+                    Modifier.fillMaxWidth().clickable { vm.setBriefingMode("rapid") }.padding(vertical = 12.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier.size(38.dp).clip(CircleShape).background(if (isRapid) t.accent else t.track),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.FlashOn, null, Modifier.size(20.dp), tint = if (isRapid) t.accentInk else t.muted)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Rapid Fire Edition", style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = t.ink)
+                            Spacer(Modifier.width(6.dp))
+                            Box(
+                                Modifier.clip(CircleShape).background(Color(0xFFFEF3C7)).padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text("⚡ 1.1× SPEED", style = Type.tiny.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold), color = Color(0xFFB45309))
+                            }
+                        }
+                        Text("Fast-paced morning headline recap (~5 min)", style = Type.tiny, color = t.muted)
+                    }
+                    CheckDot(isRapid)
+                }
+            }
+
             SectionLabel("Voice")
             NarratorGroup(vm)
 
@@ -194,13 +250,45 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
             SectionLabel("Account")
             AccountGroup(vm)
 
-            Row(Modifier.padding(top = 22.dp, start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Hint("Morning Brief ${BuildConfig.VERSION_NAME}", Modifier.weight(1f))
-                TextButton(onClick = { openPage(context, PRIVACY_URL) }) { Text("Privacy", style = Type.meta, color = t.ink) }
-                TextButton(onClick = { openPage(context, TERMS_URL) }) { Text("Terms", style = Type.meta, color = t.ink) }
+            Spacer(Modifier.height(28.dp))
+            Column(
+                Modifier.fillMaxWidth().padding(bottom = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Box(
+                        Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF0B1019)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_hark_logo),
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text("Hark Daily", style = Type.title.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold), color = t.ink)
+                    Text(" · v0.1.47", style = Type.meta, color = t.muted)
+                }
+                Text("The news you hear, not just read.", Modifier.padding(top = 4.dp), style = Type.tiny, color = t.muted)
+                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    TextButton(onClick = { openPage(context, PRIVACY_URL) }) { Text("Privacy Policy", style = Type.meta, color = t.ink) }
+                    TextButton(onClick = { openPage(context, TERMS_URL) }) { Text("Terms of Service", style = Type.meta, color = t.ink) }
+                }
             }
         }
     }
+}
+
+private fun voiceAvatarBrush(id: String): Brush = when (id) {
+    "her_reference" -> Brush.linearGradient(listOf(Color(0xFFF59E0B), Color(0xFFD97706))) // Alice - warm amber
+    "him_reference" -> Brush.linearGradient(listOf(Color(0xFF3B82F6), Color(0xFF1D4ED8))) // Mike - royal blue
+    "jerry_reference" -> Brush.linearGradient(listOf(Color(0xFF10B981), Color(0xFF047857))) // Jerry - emerald
+    "c3po_reference" -> Brush.linearGradient(listOf(Color(0xFFEAB308), Color(0xFFB45309))) // C-3PO - brass gold
+    else -> Brush.linearGradient(listOf(Color(0xFF6366F1), Color(0xFF4338CA)))
 }
 
 /**
@@ -218,24 +306,64 @@ private fun NarratorGroup(vm: AppViewModel) {
         PACK_VOICES.forEachIndexed { i, who ->
             if (i > 0) Hairline()
             val on = who.id == current
+            val isPlaying = previewing == who.id
             Row(
-                Modifier.fillMaxWidth().padding(vertical = 12.dp)
-                    .clickable { vm.update { s -> s.copy(voice = who.id) } },
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (on) t.accentSoft.copy(alpha = if (t.dark) 0.15f else 0.5f) else Color.Transparent)
+                    .clickable { vm.update { s -> s.copy(voice = who.id) } }
+                    .padding(horizontal = 6.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.size(38.dp).clip(CircleShape).background(if (on) t.ink else t.glass), contentAlignment = Alignment.Center) {
-                    Text(who.name.take(1), style = Type.title, color = if (on) t.onInk else t.ink)
+                // Editorial Voice Badge
+                Box(
+                    Modifier
+                        .size(42.dp)
+                        .shadow(if (on) 4.dp else 1.dp, CircleShape,
+                            ambientColor = if (on) t.accent.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.1f),
+                            spotColor = if (on) t.accent.copy(alpha = 0.4f) else Color.Black.copy(alpha = 0.15f))
+                        .clip(CircleShape)
+                        .background(voiceAvatarBrush(who.id))
+                        .border(1.5.dp, if (on) t.accent else Color(0x33FFFFFF), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(who.name.take(1), style = Type.title.copy(fontWeight = FontWeight.Bold, color = Color.White))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(who.name, style = Type.body, color = t.ink)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(who.name, style = Type.title.copy(fontSize = 15.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold), color = t.ink)
+                        if (who.id == "c3po_reference") {
+                            Spacer(Modifier.width(6.dp))
+                            Box(
+                                Modifier.clip(CircleShape).background(Color(0xFFFEF3C7)).padding(horizontal = 5.dp, vertical = 1.dp)
+                            ) {
+                                Text("DROID", style = Type.tiny.copy(fontSize = 8.5.sp, fontWeight = FontWeight.Bold), color = Color(0xFFB45309))
+                            }
+                        }
+                    }
                     Text(
-                        who.description.ifEmpty { if (who.gender == "female") "A woman reads the news" else "A man reads the news" },
-                        Modifier.padding(top = 2.dp), style = Type.tiny, color = t.muted,
+                        who.description.ifEmpty { if (who.gender == "female") "Warm British newsreader" else "Calm American newsreader" },
+                        Modifier.padding(top = 2.dp),
+                        style = Type.meta.copy(fontSize = 12.sp),
+                        color = if (on) t.ink.copy(alpha = 0.8f) else t.muted,
                     )
                 }
-                InkCircle(Icons.Filled.PlayArrow, "Hear ${who.name}", size = 40.dp, busy = previewing == who.id) {
-                    vm.previewNarrator(who.id)
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(if (isPlaying) t.accent else t.glass)
+                        .border(1.dp, if (isPlaying) t.accentStrong else t.glassLine, CircleShape)
+                        .clickable(onClickLabel = "Hear ${who.name}") { vm.previewNarrator(who.id) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isPlaying) {
+                        Icon(Icons.Outlined.GraphicEq, contentDescription = "Playing sample", modifier = Modifier.size(20.dp), tint = t.accentInk)
+                    } else {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = "Hear ${who.name}", modifier = Modifier.size(20.dp), tint = t.ink)
+                    }
                 }
                 Spacer(Modifier.width(10.dp))
                 CheckDot(on)
@@ -244,7 +372,7 @@ private fun NarratorGroup(vm: AppViewModel) {
         Hairline()
         Hint(
             "All four voices are recorded each morning from the same stories, so switching only changes who you hear. It starts with your next brief.",
-            Modifier.padding(top = 12.dp, bottom = 4.dp),
+            Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
         )
         Hairline()
         ListRow("Playback speed") {
