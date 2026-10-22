@@ -337,7 +337,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * pack yet, [StoryPack.fetch] returns the most recent published day instead.
      */
     private fun fetchPack(date: String) {
-        if (!repo.signedIn || (packs.containsKey("$date-full") && packs.containsKey("$date-rapid"))) return
+        if (packs.containsKey("$date-full") && packs.containsKey("$date-rapid")) return
         if (selected.value == date && briefing.value == null) packLoadingDate.value = date
         viewModelScope.launch {
             try {

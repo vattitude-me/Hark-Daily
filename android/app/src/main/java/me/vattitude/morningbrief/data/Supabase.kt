@@ -158,25 +158,23 @@ class Supabase(private val prefs: Prefs) {
      * everyone listens to the same rows, so this is identical for every listener. Read-only.
      */
     suspend fun storyAudio(date: String): JSONArray {
-        fresh()
         val base = "section,rank,voice,title,url,source"
         val rest = "script,duration,audio_path,created_at"
         val query = { cols: String -> "/rest/v1/story_audio?select=$cols&date=eq.$date&order=section.asc,rank.asc" }
         return try {
-            call("GET", query("$base,image,$rest")) as JSONArray
+            call("GET", query("$base,image,$rest"), auth = false) as JSONArray
         } catch (e: SupabaseError) {
             // An older database without the image column: a brief without thumbnails still works.
             if (Regex("column .* does not exist", RegexOption.IGNORE_CASE).containsMatchIn(e.message.orEmpty())) {
-                call("GET", query("$base,$rest")) as JSONArray
+                call("GET", query("$base,$rest"), auth = false) as JSONArray
             } else throw e
         }
     }
 
     /** The most recent day that has a published pack, or null when there isn't one yet. */
     suspend fun latestStoryDate(): String? {
-        fresh()
         return try {
-            val rows = call("GET", "/rest/v1/story_audio?select=date&order=date.desc&limit=1") as JSONArray
+            val rows = call("GET", "/rest/v1/story_audio?select=date&order=date.desc&limit=1", auth = false) as JSONArray
             rows.optJSONObject(0)?.optString("date")?.takeIf { it.isNotBlank() }
         } catch (e: SupabaseError) {
             null
@@ -185,9 +183,8 @@ class Supabase(private val prefs: Prefs) {
 
     /** The day's greeting and section intros. A database without the table simply has no framing. */
     suspend fun voiceNotes(date: String): JSONArray {
-        fresh()
         return try {
-            call("GET", "/rest/v1/voice_notes?select=voice,note_key,text,duration,audio_path&date=eq.$date") as JSONArray
+            call("GET", "/rest/v1/voice_notes?select=voice,note_key,text,duration,audio_path&date=eq.$date", auth = false) as JSONArray
         } catch (e: SupabaseError) {
             if (Regex("Could not find the table|does not exist", RegexOption.IGNORE_CASE).containsMatchIn(e.message.orEmpty())) {
                 JSONArray()
