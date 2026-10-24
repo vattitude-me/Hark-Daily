@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Subsequent runs reuse existing static notes instantly with 0 GPU synthesis time and zero storage audio duplication.
   - Hardened `prune_older()` to protect `STATIC_DATE` rows and guarantee audio files under `notes/static/` are permanent and never deleted.
   - Backfilled and verified all 44 static notes across C-3PO, Alice, Mike, and Jerry in Supabase storage and database.
+- **Documentation & Legal Updates**:
+  - Completely updated `README.md` to showcase the new multi-provider architecture (CBC News, TechCrunch, BetaKit), flagship voice lineup (C-3PO & Alice), Android pull-down-to-refresh, and dual listening modes (Full & Rapid).
+  - Refreshed high-resolution desktop and mobile UI screenshots in `docs/screenshots/`.
+  - Updated `web/privacy.html` and `web/terms.html` to reflect modern multi-provider news sourcing, shared cloud audio privacy guarantees, and publisher attribution.
 
 ---
 
