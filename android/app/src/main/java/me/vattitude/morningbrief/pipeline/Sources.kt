@@ -34,8 +34,9 @@ private val CATALOG: JSONObject by lazy {
 
 /**
  * The seven pack sections, in reading order — exactly the keys the worker publishes
- * (app/guardian.py) and the web app uses. A section is now one feed (The Guardian),
- * not a bag of outlets, so these are fixed rather than read from the bundled catalog.
+ * (app/guardian.py) and the web app uses. A section is now one feed from one provider
+ * (CBC News for most, TechCrunch for AI, BetaKit for Tech), not a bag of outlets,
+ * so these are fixed rather than read from the bundled catalog.
  */
 val SECTIONS: LinkedHashMap<String, Section> = linkedMapOf(
     "top" to Section("top", "Top stories", "📰", "the top stories"),

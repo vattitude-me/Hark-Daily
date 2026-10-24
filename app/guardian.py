@@ -1,22 +1,25 @@
-"""One famous news site, and no AI anywhere in the path.
+"""A story pack where each section has its own source, and no AI in the path.
 
-This is the single-source collector for the new approach: seven sections, the top
-five stories each, taken from The Guardian's own RSS feeds. Fetching uses
-``feedparser`` and article text uses ``trafilatura`` — the same open-source tooling
-the worker already relies on — and the summary is the built-in extractive
-summarizer in ``app/summarizer.py``. No LLM is involved at any step.
+This is the collector for the no-AI approach: seven sections, the top five
+stories each, every section taken from its own provider's RSS feed. Fetching
+uses ``feedparser`` and article text uses ``trafilatura`` — the same
+open-source tooling the worker already relies on — and the summary is the
+built-in extractive summarizer in ``app/summarizer.py``. No LLM is involved
+at any step.
 
-Why The Guardian as the first source:
+Why the sources are split the way they are (see :data:`SECTIONS`):
 
-* it publishes a clean per-section RSS, including a dedicated **Artificial
-  intelligence** feed, which the seven categories need;
-* the feed order is the *editor's* ranking, so "top 5" is just the first five —
-  no ranking model required;
-* it is explicitly free to syndicate (RSS + the Open Platform API), so scraping a
-  page's private JSON is never necessary.
-
-Swap :data:`SECTIONS` to move to another single source (BBC, NYT, …); nothing else
-changes.
+* CBC News carries most sections: it is Canada's public broadcaster, its
+  per-section RSS is clean and free to syndicate, and the feed order is the
+  editor's ranking, so "top 5" is just the first five — no ranking model
+  required.
+* CBC has no AI feed, so AI comes from TechCrunch's dedicated AI feed.
+* CBC has no general tech feed either — its technology feed is where its
+  science, health and environment stories live — so Science uses that feed
+  and Tech is BetaKit, the Canadian tech publication.
+* This module used to read a single source (The Guardian, hence the name);
+  the per-section map replaced that. To move a section, change its entry in
+  :data:`SECTIONS`; nothing else changes.
 """
 from __future__ import annotations
 
@@ -24,7 +27,6 @@ import argparse
 import asyncio
 import json
 import logging
-import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -33,24 +35,26 @@ from .summarizer import drop_boilerplate, summarize
 
 log = logging.getLogger(__name__)
 
-PROVIDER = "The Guardian"
-
-# key -> the Guardian feed for that category. Order is the reading order.
+# key -> that section's own source: its provider and the provider's feed for
+# the category. Order is the reading order. A section moves house by editing
+# its entry here; the collector only needs a feed whose order is the editor's
+# ranking.
 SECTIONS: dict[str, dict] = {
-    "top":           {"title": "Top stories",   "feed": "https://www.theguardian.com/international/rss"},
-    "ai":            {"title": "AI",            "feed": "https://www.theguardian.com/technology/artificialintelligenceai/rss"},
-    "tech":          {"title": "Tech",          "feed": "https://www.theguardian.com/uk/technology/rss"},
-    "politics":      {"title": "Politics",      "feed": "https://www.theguardian.com/politics/rss"},
-    "entertainment": {"title": "Entertainment", "feed": "https://www.theguardian.com/culture/rss"},
-    "science":       {"title": "Science",       "feed": "https://www.theguardian.com/science/rss"},
-    "sports":        {"title": "Sports",        "feed": "https://www.theguardian.com/uk/sport/rss"},
+    "top":           {"title": "Top stories",   "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-topstories"},
+    "ai":            {"title": "AI",            "provider": "TechCrunch", "feed": "https://techcrunch.com/category/artificial-intelligence/feed/"},
+    "tech":          {"title": "Tech",          "provider": "BetaKit",    "feed": "https://betakit.com/feed/"},
+    "politics":      {"title": "Politics",      "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-politics"},
+    "entertainment": {"title": "Entertainment", "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-arts"},
+    "science":       {"title": "Science",       "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-technology"},
+    "sports":        {"title": "Sports",        "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-sports"},
 }
+
+# The pack has no single provider anymore; this label only fills pack-level
+# fields that predate per-section sources.
+PROVIDER = "Mixed sources"
 
 MAX_AGE = timedelta(hours=48)
 DEFAULT_PER_SECTION = 5
-# Extra candidates a section keeps in hand, so losing a story to an earlier section does not leave
-# it short of its count.
-DEDUP_MARGIN = 5
 
 
 def feed_url(key: str) -> str:
@@ -61,7 +65,7 @@ def source_for(key: str) -> dict:
     """The worker's own source dict shape, so the existing fetcher reads the feed unchanged."""
     return {
         "id": 0,
-        "name": f"{PROVIDER} · {SECTIONS[key]['title']}",
+        "name": f"{SECTIONS[key]['provider']} · {SECTIONS[key]['title']}",
         "url": SECTIONS[key]["feed"],
         "section": key,
         "weight": 1.0,
@@ -88,45 +92,6 @@ def top_n(items: list[Item], n: int = DEFAULT_PER_SECTION, max_age: timedelta = 
     return (fresh or items)[:n]
 
 
-def bare_url(url: str | None) -> str:
-    """A link stripped of the parts that differ between two pointers to the same article."""
-    return (url or "").split("#")[0].split("?")[0].rstrip("/").lower()
-
-
-def plain_title(title: str | None) -> str:
-    """A headline reduced to its words, for comparing the same story carried by two feeds."""
-    return " ".join(re.findall(r"[a-z0-9]+", (title or "").lower()))
-
-
-def pick_unique(picked: dict[str, list[Item]],
-                per_section: int = DEFAULT_PER_SECTION) -> dict[str, list[Item]]:
-    """Each story is told once, in the first section that carries it.
-
-    The Guardian runs the same article in more than one feed, so without this the day's brief can
-    read its top story twice: once under Top stories and again under Tech or Sport. Sections keep
-    their reading order, so the earlier one wins and the later one moves down its list. Two entries
-    count as the same story when their links agree once query strings are dropped, or when their
-    headlines do.
-    """
-    urls: set[str] = set()
-    titles: set[str] = set()
-    out: dict[str, list[Item]] = {}
-    for key, items in picked.items():
-        chosen: list[Item] = []
-        for item in items:
-            url, title = bare_url(item.url), plain_title(item.title)
-            if url in urls or (title and title in titles):
-                continue
-            urls.add(url)
-            if title:
-                titles.add(title)
-            chosen.append(item)
-            if len(chosen) == per_section:
-                break
-        out[key] = chosen
-    return out
-
-
 def script_for(item: Item, max_words: int = 60, title: str = "") -> str:
     """The spoken script: the built-in extractive summary, never an LLM."""
     body = drop_boilerplate(item.text) or item.summary or item.title
@@ -147,29 +112,40 @@ async def collect(limit: int = DEFAULT_PER_SECTION, sections: list[str] | None =
     out: dict[str, list[Item]] = {}
     for key, res in zip(keys, results):
         if isinstance(res, Exception):  # noqa: BLE001 — report, keep going
-            log.warning("%s · %s failed: %s", PROVIDER, key, res)
+            log.warning("%s · %s failed: %s", SECTIONS[key]["provider"], key, res)
             out[key] = []
         else:
             out[key] = res
     return out
 
 
+def dedupe_sections(picked: dict[str, list[Item]]) -> dict[str, list[Item]]:
+    """One telling per link across the whole pack.
+
+    The section feeds overlap the top feed, so the same story can be a
+    section's top item and also appear in Top stories. Sections are walked
+    in reading order (top first) and the first telling wins."""
+    seen: set[str] = set()
+    out: dict[str, list[Item]] = {}
+    for key, items in picked.items():
+        kept = []
+        for item in items:
+            if item.url in seen:
+                continue
+            seen.add(item.url)
+            kept.append(item)
+        out[key] = kept
+    return out
+
+
 async def build_pack(per_section: int = DEFAULT_PER_SECTION, sections: list[str] | None = None,
                      max_words: int = 60) -> list[dict]:
-    """The day's story pack: every section's top stories as ready-to-voice scripts.
-
-    A story carried by two feeds is told once, under the earlier section, and that section's next
-    candidate takes its place.
-    """
-    keys = [k for k in (sections or list(SECTIONS)) if k in SECTIONS]
-    # Ask each feed for more than we need, since a section can lose its head to an earlier section.
-    collected = await collect(per_section + DEDUP_MARGIN, sections)
-    picked = pick_unique({k: collected.get(k, []) for k in keys}, per_section)
-    # Only the stories that made it are read, which also saves the article fetches for the rest.
+    """The day's story pack: every section's top stories as ready-to-voice scripts."""
+    picked = dedupe_sections(await collect(per_section, sections))
     await enrich_items([item for items in picked.values() for item in items])
     pack: list[dict] = []
-    for key in keys:
-        for rank, item in enumerate(picked.get(key, []), 1):
+    for key, items in picked.items():
+        for rank, item in enumerate(items, 1):
             pack.append({
                 "id": item.id,
                 "section": key,
@@ -199,7 +175,7 @@ async def _amain(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=f"{PROVIDER}: top stories per section, no AI.")
+    ap = argparse.ArgumentParser(description="Top stories per section, each from its own source, no AI.")
     ap.add_argument("--per-section", type=int, default=DEFAULT_PER_SECTION)
     ap.add_argument("--sections", help="Comma-separated subset (default: all seven)")
     ap.add_argument("--max-words", type=int, default=60, help="Script length per story")
