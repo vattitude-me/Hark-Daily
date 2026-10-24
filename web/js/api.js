@@ -6,80 +6,30 @@ export const sb = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 
-/** Briefing sections in reading order — the seven Guardian categories (app/guardian.py). */
+/** Briefing sections in reading order — the seven pack categories (app/guardian.py). */
 export const SECTIONS = {
-  top: { title: 'Top stories', emoji: '📰', icon: 'globe' },
-  ai: { title: 'AI', emoji: '🤖', icon: 'bot' },
-  tech: { title: 'Tech', emoji: '💻', icon: 'chip' },
-  politics: { title: 'Politics', emoji: '🏛️', icon: 'landmark' },
-  entertainment: { title: 'Entertainment', emoji: '🎬', icon: 'film' },
-  science: { title: 'Science', emoji: '🔬', icon: 'flask' },
-  sports: { title: 'Sports', emoji: '🏅', icon: 'ball' },
+  top: { title: 'Top stories', emoji: '📰' },
+  ai: { title: 'AI', emoji: '🤖' },
+  tech: { title: 'Tech', emoji: '💻' },
+  politics: { title: 'Politics', emoji: '🏛️' },
+  entertainment: { title: 'Entertainment', emoji: '🎬' },
+  science: { title: 'Science', emoji: '🔬' },
+  sports: { title: 'Sports', emoji: '🏅' },
   // Not part of the narrated pack: the Sources tab's user-pasted links keep their own bucket.
-  custom: { title: 'My Sources', emoji: '⭐', icon: 'spark' },
+  custom: { title: 'My Sources', emoji: '⭐' },
 };
 
 export const sectionLabel = (key) => { const s = SECTIONS[key] || SECTIONS.top; return `${s.emoji} ${s.title}`; };
-
-export const store = {
-  get(key, fallback) {
-    try { const v = localStorage.getItem(`mb-${key}`); return v == null ? fallback : JSON.parse(v); } catch { return fallback; }
-  },
-  set(key, value) {
-    try { localStorage.setItem(`mb-${key}`, JSON.stringify(value)); } catch { /* storage unavailable */ }
-  },
-};
 
 /**
  * The narrators the pack records every morning (app/storypack.py). A listener picks one and
  * hears that recording; the clips are shared, so this is a choice of who reads, not a
  * per-listener recording.
  */
-export const BUILTIN_VOICES = [
-  { id: 'her_reference', name: 'Alice', gender: 'female', desc: 'Warm British newsreader', style: 'Warm Broadcast', icon: 'mic', builtin: true },
-  { id: 'him_reference', name: 'Mike', gender: 'male', desc: 'Calm American newsreader', style: 'Crisp Morning News', icon: 'radio', builtin: true },
-  { id: 'jerry_reference', name: 'Jerry', gender: 'male', desc: 'Observational comedy style', style: 'Observational Wit', icon: 'smile', builtin: true },
-  { id: 'c3po_reference', name: 'C-3PO', gender: 'male', desc: 'Polite protocol droid', style: 'Polite & Precise', icon: 'bot', builtin: true },
+export const VOICES = [
+  { id: 'her_reference', name: 'Alice', gender: 'female' },
+  { id: 'him_reference', name: 'Mike', gender: 'male' },
 ];
-
-/** The narrator a new visitor hears first: the most distinctive of the four. */
-export const DEFAULT_VOICE_ID = 'c3po_reference';
-
-export function getCustomVoices() {
-  return store.get('custom_voices', []);
-}
-
-export function getAllVoices() {
-  const custom = getCustomVoices();
-  const map = new Map(BUILTIN_VOICES.map((v) => [v.id, v]));
-  for (const c of custom) {
-    map.set(c.id, { ...c, builtin: false });
-  }
-  return Array.from(map.values());
-}
-
-export const VOICES = getAllVoices();
-
-export function refreshVoices() {
-  VOICES.length = 0;
-  VOICES.push(...getAllVoices());
-  return VOICES;
-}
-
-export function saveCustomVoice(voice) {
-  const custom = getCustomVoices().filter((v) => v.id !== voice.id);
-  custom.push({ ...voice, builtin: false, updated_at: new Date().toISOString() });
-  store.set('custom_voices', custom);
-  refreshVoices();
-  return VOICES;
-}
-
-export function deleteCustomVoice(id) {
-  const custom = getCustomVoices().filter((v) => v.id !== id);
-  store.set('custom_voices', custom);
-  refreshVoices();
-  return VOICES;
-}
 
 /** The voice a listener picked, falling back to the first for anything older or unknown. */
 export const voiceFor = (id) => VOICES.find((v) => v.id === id) || VOICES[0];
@@ -95,7 +45,7 @@ export const isAdmin = (profile) =>
 
 export const DEFAULT_SETTINGS = {
   name: '',
-  voice: DEFAULT_VOICE_ID,
+  voice: 'her_reference',
   speed: 1.0,
   daily: true,
   // Every section starts on, at three stories, so a first brief covers all seven.
@@ -104,52 +54,19 @@ export const DEFAULT_SETTINGS = {
   disabled_sources: [],
 };
 
-export function recordError(err, context = '') {
-  const rawMsg = typeof err === 'string' ? err : err?.message || String(err || 'Unknown error');
-  const entry = {
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    timestamp: new Date().toISOString(),
-    context: context || (typeof window !== 'undefined' ? window.location.pathname : 'app'),
-    message: rawMsg,
-    stack: err?.stack || null,
-  };
-  try {
-    const logs = store.get('diagnostics-log', []);
-    logs.unshift(entry);
-    if (logs.length > 50) logs.pop();
-    store.set('diagnostics-log', logs);
-  } catch {}
-  return entry;
-}
-
 const FRIENDLY = [
   [/row-level security.*sources/i, 'You can have up to 25 links. Remove one to add another.'],
   [/duplicate key.*sources/i, "You've already added that link."],
-  [/check constraint.*url/i, "That doesn't look like a web link (it should start with https://)."],
-  [/row-level security.*build_requests/i, 'Only admins can trigger on-demand rebuilds.'],
-  [/Failed to fetch|NetworkError|Load failed|timeout|ERR_CONNECTION/i, "Couldn't connect right now. Showing saved content."],
-  [/jwt expired|invalid claim|invalid token|refresh_token_not_found/i, 'Your sign-in session expired. Please sign in again.'],
-  [/column .* does not exist|relation .* does not exist|violates check constraint/i, 'System synchronization in progress. Please retry.'],
+  [/check constraint.*url/i, 'That doesn\'t look like a web link (it should start with https://).'],
+  [/row-level security.*build_requests/i, 'Only admins can rebuild on demand for now.'],
+  [/Failed to fetch|NetworkError|Load failed/i, "You're offline or the service can't be reached."],
 ];
-
-export function sanitizeError(err, fallback = "Couldn't reach the service right now. Please try again.") {
-  if (!err) return fallback;
-  const raw = typeof err === 'string' ? err : err.message || String(err);
-  recordError(err, 'sanitized');
-  const hit = FRIENDLY.find(([re]) => re.test(raw));
-  if (hit) return hit[1];
-  if (raw.length < 80 && !raw.includes('Error:') && !raw.includes('violates') && !raw.includes('HTTP ') && !raw.includes('Postgres') && !raw.includes('column') && !raw.includes('relation') && !raw.includes('syntax')) {
-    return raw;
-  }
-  return fallback;
-}
 
 function check({ data, error }) {
   if (error) {
     const raw = error.message || String(error);
-    recordError(error, 'supabase');
     const hit = FRIENDLY.find(([re]) => re.test(raw));
-    throw new Error(hit ? hit[1] : (raw.includes('violates') || raw.includes('does not exist') ? 'System synchronization in progress. Please retry.' : raw));
+    throw new Error(hit ? hit[1] : raw);
   }
   return data;
 }
@@ -249,14 +166,6 @@ export const api = {
       .select('id,kind,status,message,created_at,finished_at').order('id', { ascending: false }).limit(limit));
     return rows || [];
   },
-  /** What every run of the last few days reported, so a missed push is not a missed morning. */
-  async runLog(days = 3, limit = 60) {
-    const since = new Date(Date.now() - days * 86400000).toLocaleDateString('en-CA');
-    const rows = check(await sb.from('run_log')
-      .select('id,run_date,status,title,body,detail,voices,created_at')
-      .gte('run_date', since).order('created_at', { ascending: false }).limit(limit));
-    return rows || [];
-  },
   /** Asks the worker to re-voice the pack. The options mirror `python -m app pack`. */
   async queuePack({ day = null, voices = [], notesOnly = false, force = false } = {}) {
     const payload = { day, voices, notes_only: notesOnly, force };
@@ -265,20 +174,6 @@ export const api = {
       return row.id;
     } catch (err) {
       throw new Error(`${err.message} The database needs the admin section of supabase/schema.sql first.`);
-    }
-  },
-
-  /** Upload formatted reference WAV to Supabase storage. */
-  async uploadVoiceFile(voiceId, wavBlob) {
-    const path = `voices/${voiceId}.wav`;
-    try {
-      const res = await sb.storage.from('briefings').upload(path, wavBlob, {
-        upsert: true,
-        contentType: 'audio/wav',
-      });
-      return { ok: !res.error, path, error: res.error?.message };
-    } catch (err) {
-      return { ok: false, error: err.message };
     }
   },
 
@@ -298,37 +193,21 @@ export const api = {
     return { status: 'error', message: "The server hasn't picked this up. It may be asleep; try again after 7 AM." };
   },
   generate: () => api.request('build'),
-  // Deletes the account via RPC, direct RLS cleanup, or background worker.
-  async deleteAccount({ timeoutMs = 10 * 1000 } = {}) {
-    const uid = await userId();
-    if (!uid) return;
-
-    // 1. Try instant Supabase RPC deletion (deletes auth.users and cascades everything)
-    try {
-      const { error } = await sb.rpc('delete_user_account');
-      if (!error) return;
-    } catch { /* proceed with direct table cleanup */ }
-
-    // 2. Direct cleanup of user tables via RLS
-    await Promise.allSettled([
-      sb.from('push_subscriptions').delete().eq('user_id', uid),
-      sb.from('sources').delete().eq('user_id', uid),
-      sb.from('profiles').delete().eq('id', uid),
-    ]);
-
-    // 3. Queue delete_account request in case background worker is listening
+  // The worker deletes the account; its request row goes with it, so "row gone" means done.
+  async deleteAccount({ timeoutMs = 3 * 60 * 1000 } = {}) {
     let id;
-    try { id = await api.request('delete_account'); } catch { return; }
-    if (!id) return;
-
+    try { id = await api.request('delete_account'); } catch {
+      throw new Error("Account deletion isn't switched on for this server yet. Please contact the admin.");
+    }
     const end = Date.now() + timeoutMs;
     while (Date.now() < end) {
-      await wait(1500);
+      await wait(3000);
       const { data, error } = await sb.from('build_requests').select('status,message').eq('id', id).maybeSingle();
-      if (error || !data) return; // Row deleted with account
+      if (error) continue;
+      if (!data) return;
       if (data.status === 'error') throw new Error(data.message || "Your account couldn't be deleted.");
-      if (data.status === 'done') return;
     }
+    throw new Error("The server hasn't picked this up yet. Your account is queued for deletion; check back in a few minutes.");
   },
 
   // --------------------------------------------------------------- sources
@@ -386,10 +265,6 @@ export const api = {
     const id = await api.request('push_test');
     return api.waitForRequest(id, { timeoutMs: 3 * 60 * 1000 });
   },
-
-  // ----------------------------------------------------------- diagnostics
-  diagnostics: () => store.get('diagnostics-log', []),
-  clearDiagnostics: () => { store.set('diagnostics-log', []); },
 };
 
 // Tiny DOM helper: h('div', {class: 'x', onclick}, child, 'text')
@@ -441,31 +316,20 @@ export function clockLabel(hhmm) {
   return new Date(2000, 0, 1, hr, min).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' });
 }
 
+export const store = {
+  get(key, fallback) {
+    try { const v = localStorage.getItem(`mb-${key}`); return v == null ? fallback : JSON.parse(v); } catch { return fallback; }
+  },
+  set(key, value) {
+    try { localStorage.setItem(`mb-${key}`, JSON.stringify(value)); } catch { /* storage unavailable */ }
+  },
+};
+
 let toastTimer;
-export function toast(message, { error = false, type = null, ms = 3800 } = {}) {
+export function toast(message, { error = false, ms = 3500 } = {}) {
   const el = document.getElementById('toast');
-  if (!el) return;
-  const isErr = !!error || type === 'error';
-
-  let cleanMsg = message;
-  if (isErr && typeof message === 'string') {
-    cleanMsg = sanitizeError(message, "Unable to complete request. Please try again.");
-  }
-
-  el.className = 'toast';
-  if (isErr) el.classList.add('toast-error');
-  else if (type === 'success') el.classList.add('toast-success');
-  else el.classList.add('toast-info');
-
-  el.replaceChildren();
-  const dot = document.createElement('span');
-  dot.className = 'toast-dot';
-  dot.setAttribute('aria-hidden', 'true');
-  const text = document.createElement('span');
-  text.className = 'toast-text';
-  text.textContent = cleanMsg;
-  el.append(dot, text);
-
+  el.textContent = message;
+  el.classList.toggle('error', error);
   el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), ms);
