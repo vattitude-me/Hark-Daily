@@ -34,7 +34,7 @@ private val CATALOG: JSONObject by lazy {
 
 /**
  * The seven pack sections, in reading order — exactly the keys the worker publishes
- * (app/cbc.py) and the web app uses. A section is now one feed from one provider
+ * (app/topics.py) and the web app uses. A section is now one feed from one provider
  * (CBC News for most, TechCrunch for AI, BetaKit for Tech), not a bag of outlets,
  * so these are fixed rather than read from the bundled catalog.
  */

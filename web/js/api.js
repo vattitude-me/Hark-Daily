@@ -6,7 +6,7 @@ export const sb = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 
-/** Briefing sections in reading order — the seven pack categories (app/cbc.py). */
+/** Briefing sections in reading order — the seven pack categories (app/topics.py). */
 export const SECTIONS = {
   top: { title: 'Top stories', emoji: '📰', icon: 'globe' },
   ai: { title: 'AI', emoji: '🤖', icon: 'bot' },

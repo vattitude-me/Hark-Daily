@@ -49,7 +49,7 @@ flowchart TD
 ## 1. News Ingestion & Article Extraction
 
 ### The Guardian Single-Source Architecture
-The system ingests stories across 7 fixed categories defined in [`app/cbc.py`](file:///Users/vattitude/Coding/Morning_Brief/app/cbc.py):
+The system ingests stories across 7 fixed categories defined in [`app/topics.py`](file:///Users/vattitude/Coding/Morning_Brief/app/topics.py):
 - `top` — Top stories (`international/rss`)
 - `ai` — Artificial Intelligence (`technology/artificialintelligenceai/rss`)
 - `tech` — Technology (`uk/technology/rss`)

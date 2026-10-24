@@ -5,7 +5,7 @@ import time
 import httpx
 import pytest
 
-from app import cbc, gce, push, storypack
+from app import gce, push, storypack, topics
 from app.errors import DeadlineReached, PackBusy, PackIncomplete, VoiceServiceDown
 
 
@@ -58,7 +58,7 @@ def test_build_narrator_isolation(cfg, store, monkeypatch):
             raise RuntimeError("Corrupt audio file")
         return b"mp3_data", 5.0
 
-    monkeypatch.setattr(cbc, "build_pack", fake_pack)
+    monkeypatch.setattr(topics, "build_pack", fake_pack)
     monkeypatch.setattr(storypack, "synthesise", fake_synthesise)
 
     cfg2 = dataclasses.replace(cfg, story_voices=("her_reference", "him_reference"), voice_url="http://test.voice")
@@ -87,7 +87,7 @@ def test_build_reraises_voice_service_down_immediately(cfg, store, monkeypatch):
         calls.append(voice)
         raise VoiceServiceDown("TTS service died")
 
-    monkeypatch.setattr(cbc, "build_pack", fake_pack)
+    monkeypatch.setattr(topics, "build_pack", fake_pack)
     monkeypatch.setattr(storypack, "synthesise", fake_synthesise)
 
     cfg2 = dataclasses.replace(cfg, story_voices=("her_reference", "him_reference"), voice_url="http://test.voice")
@@ -106,7 +106,7 @@ def test_deadline_stops_synthesis(cfg, store, monkeypatch):
     async def fake_pack(per_section=5, sections=None, max_words=60):
         return [script]
 
-    monkeypatch.setattr(cbc, "build_pack", fake_pack)
+    monkeypatch.setattr(topics, "build_pack", fake_pack)
     # Deadline already in the past
     deadline = time.monotonic() - 10.0
 

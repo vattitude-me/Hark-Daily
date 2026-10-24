@@ -1,25 +1,14 @@
-"""A story pack where each section has its own source, and no AI in the path.
+"""Multi-provider story topics and section collector.
 
-This is the collector for the no-AI approach: seven sections, the top five
-stories each, every section taken from its own provider's RSS feed. Fetching
-uses ``feedparser`` and article text uses ``trafilatura`` — the same
-open-source tooling the worker already relies on — and the summary is the
-built-in extractive summarizer in ``app/summarizer.py``. No LLM is involved
-at any step.
+Collects top stories across configured briefing topics/sections (see :data:`SECTIONS`).
+Each section is mapped to its provider and RSS feed. Fetching uses ``feedparser``
+and article extraction uses ``trafilatura``, summarized with ``app/summarizer.py``.
 
-Why the sources are split the way they are (see :data:`SECTIONS`):
-
-* CBC News carries most sections: it is Canada's public broadcaster, its
-  per-section RSS is clean and free to syndicate, and the feed order is the
-  editor's ranking, so "top 5" is just the first five — no ranking model
-  required.
-* CBC has no AI feed, so AI comes from TechCrunch's dedicated AI feed.
-* CBC has no general tech feed either — its technology feed is where its
-  science, health and environment stories live — so Science uses that feed
-  and Tech is BetaKit, the Canadian tech publication.
-* This module used to read a single source (The Guardian, hence the name);
-  the per-section map replaced that. To move a section, change its entry in
-  :data:`SECTIONS`; nothing else changes.
+Why the topics are configured this way (see :data:`SECTIONS`):
+* CBC News provides clean, editorially curated RSS feeds for broad public interest topics:
+  Top stories, Politics, Entertainment, Science, and Sports.
+* TechCrunch provides specialized industry reporting for AI and Tech.
+* To change or re-route any topic, simply update its entry in :data:`SECTIONS`.
 """
 from __future__ import annotations
 
@@ -43,7 +32,7 @@ log = logging.getLogger(__name__)
 SECTIONS: dict[str, dict] = {
     "top":           {"title": "Top stories",   "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-topstories"},
     "ai":            {"title": "AI",            "provider": "TechCrunch", "feed": "https://techcrunch.com/category/artificial-intelligence/feed/"},
-    "tech":          {"title": "Tech",          "provider": "BetaKit",    "feed": "https://betakit.com/feed/"},
+    "tech":          {"title": "Tech",          "provider": "TechCrunch", "feed": "https://techcrunch.com/feed/"},
     "politics":      {"title": "Politics",      "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-politics"},
     "entertainment": {"title": "Entertainment", "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-arts"},
     "science":       {"title": "Science",       "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-technology"},
