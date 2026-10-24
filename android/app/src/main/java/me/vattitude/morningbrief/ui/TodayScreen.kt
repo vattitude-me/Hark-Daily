@@ -53,6 +53,10 @@ import androidx.compose.material.icons.outlined.Umbrella
 import androidx.compose.material.icons.outlined.WbCloudy
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
@@ -104,11 +108,13 @@ fun clock(seconds: Double): String {
     return "%d:%02d".format(s / 60, s % 60)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val briefing by vm.briefing.collectAsState()
     val briefingMode by vm.briefingMode.collectAsState()
     val packLoadingDate by vm.packLoadingDate.collectAsState()
+    val isRefreshing by vm.isRefreshing.collectAsState()
     val dates by vm.dates.collectAsState()
     val selected by vm.selected.collectAsState()
     val build by vm.build.collectAsState()
@@ -174,7 +180,23 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val showHero by vm.showHero.collectAsState()
     LaunchedEffect(showHero) { if (showHero > 0) list.animateScrollToItem(0) }
 
-    LazyColumn(modifier.fillMaxSize(), state = list, contentPadding = screenPadding()) {
+    val pullState = rememberPullToRefreshState()
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = { vm.refreshPack() },
+        state = pullState,
+        modifier = modifier.fillMaxSize(),
+        indicator = {
+            PullToRefreshDefaults.Indicator(
+                state = pullState,
+                isRefreshing = isRefreshing,
+                modifier = Modifier.align(Alignment.TopCenter),
+                containerColor = t.cardBg,
+                color = t.ink,
+            )
+        }
+    ) {
+        LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = screenPadding()) {
         var count = 0
         fun entry(key: String? = null, content: @Composable LazyItemScope.() -> Unit) {
             key?.let { index[it] = count }
@@ -756,6 +778,7 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
             }
         }
     }
+}
 }
 
 /** Previous or next story, beside the play button. */

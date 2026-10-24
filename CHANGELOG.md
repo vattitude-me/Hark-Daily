@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.56] - 2026-10-24
+
+### Added
+- **Android Pull-Down-to-Refresh Gesture**:
+  - Implemented pull-down-to-refresh on `TodayScreen` using Compose Material3's `PullToRefreshBox` with customized brand indicator styling (`t.cardBg`, `t.ink`).
+  - Added `isRefreshing` state flow and updated `refreshPack()` in `AppViewModel` to trigger background story and audio re-fetch while retaining current briefing state.
+  - Bumped Android app version to `0.1.56` (`156`).
+
+---
+
 ## [0.1.55] - 2026-10-24
 
 ### Changed
