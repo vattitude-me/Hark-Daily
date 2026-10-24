@@ -51,7 +51,7 @@ else
     --instance-termination-action=STOP \
     --image-family=ubuntu-2204-lts \
     --image-project=ubuntu-os-cloud \
-    --boot-disk-size=60GB \
+    --boot-disk-size=40GB \
     --tags=voice-service,http-server \
     --scopes=cloud-platform \
     --metadata=install-nvidia-driver=True,startup-script="#!/bin/bash

@@ -107,12 +107,13 @@ Rather than using generative LLMs that risk hallucination and impose per-call AP
 Neural audio synthesis requires an NVIDIA GPU (running Chatterbox-Turbo / PyTorch). To prevent the high cost of a 24/7 GPU VM (~$500/month), [`app/gce.py`](file:///Users/vattitude/Coding/Morning_Brief/app/gce.py) manages the instance lifecycle dynamically via Compute Engine REST APIs:
 
 ```text
-Run cost breakdown (4 voices: Alice, Mike, Jerry, C-3PO):
+Run cost breakdown (Active voices: C-3PO [main], Alice):
 - 24/7 GCE L4 GPU:               ~$600.00 / month
 - 1-hour static daily cron:       ~$26.00 / month
-- Dynamic on-demand lifecycle:      ~$16.80 / month (~$0.56 / day total)
-    • GPU Compute (26 min/day @ $0.84/hr):  ~$0.36 / day
-    • 60 GB Boot Disk (pd-balanced):         ~$0.20 / day ($6.00 / mo)
+- Dynamic on-demand lifecycle:      ~$10.30 / month (~$0.34 / day total)
+    • GPU Compute (13 min/day @ $0.84/hr):  ~$0.18 / day (~$5.50 / mo)
+    • 40 GB Boot Disk (pd-balanced):         ~$0.13 / day ($4.00 / mo)
+    • Artifact Registry image storage:       ~$0.03 / day ($0.80 / mo)
     • Static External IP:                    $0.00 (ephemeral IP released on stop)
 ```
 

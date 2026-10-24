@@ -76,11 +76,11 @@ class Config:
     max_custom_sources: int = int(os.getenv("MAX_CUSTOM_SOURCES", "15"))
     # The Cloned narrator: the LAN/GPU voice service that voices the shared daily stories.
     voice_url: str = os.getenv("VOICE_SERVICE_URL", "").rstrip("/")
-    story_voice: str = os.getenv("STORY_VOICE", "her_reference")
+    story_voice: str = os.getenv("STORY_VOICE", "c3po_reference")
     # Every voice the pack renders each day. A listener hears the one they picked, and the
     # clips are shared, so the cost is stories × voices rather than × listeners.
     story_voices: tuple[str, ...] = tuple(
-        v.strip() for v in os.getenv("STORY_VOICES", "her_reference,him_reference,jerry_reference,c3po_reference").split(",") if v.strip()
+        v.strip() for v in os.getenv("STORY_VOICES", "c3po_reference,her_reference").split(",") if v.strip()
     )
     stories_per_section: int = int(os.getenv("STORIES_PER_SECTION", "5"))
     # GCE VM automated lifecycle (Chatterbox-Turbo on-demand GPU VM)

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.52] - 2026-10-24
+
+### Changed
+- **GCP Cost Optimization & Streamlined Voice Pair (C-3PO Main, Alice Alternate)**:
+  - Focused active voice synthesis on C-3PO (`c3po_reference`) as default/main and Alice (`her_reference`) as alternate, halving daily L4 GPU synthesis time from ~26m to ~13m.
+  - Updated Cloud Run jobs (`morning-brief-pack`, `morning-brief-report`) live in GCP with `STORY_VOICES=c3po_reference,her_reference` and `STORY_VOICE=c3po_reference`.
+  - Pruned 6 dangling untagged container builds from Artifact Registry to reclaim storage space.
+  - Adjusted GCE deployment script boot disk size from 60 GB to 40 GB.
+
+---
+
 ## [0.1.51] - 2026-10-24
 
 ### Changed
