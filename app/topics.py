@@ -7,7 +7,8 @@ and article extraction uses ``trafilatura``, summarized with ``app/summarizer.py
 Why the topics are configured this way (see :data:`SECTIONS`):
 * CBC News provides clean, editorially curated RSS feeds for broad public interest topics:
   Top stories, Politics, Entertainment, Science, and Sports.
-* TechCrunch provides specialized industry reporting for AI and Tech.
+* TechCrunch provides specialized industry reporting for AI.
+* BetaKit provides Canadian tech ecosystem reporting for Tech.
 * To change or re-route any topic, simply update its entry in :data:`SECTIONS`.
 """
 from __future__ import annotations
@@ -32,7 +33,7 @@ log = logging.getLogger(__name__)
 SECTIONS: dict[str, dict] = {
     "top":           {"title": "Top stories",   "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-topstories"},
     "ai":            {"title": "AI",            "provider": "TechCrunch", "feed": "https://techcrunch.com/category/artificial-intelligence/feed/"},
-    "tech":          {"title": "Tech",          "provider": "TechCrunch", "feed": "https://techcrunch.com/feed/"},
+    "tech":          {"title": "Tech",          "provider": "BetaKit",    "feed": "https://betakit.com/feed/"},
     "politics":      {"title": "Politics",      "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-politics"},
     "entertainment": {"title": "Entertainment", "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-arts"},
     "science":       {"title": "Science",       "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-technology"},
