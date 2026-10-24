@@ -6,7 +6,7 @@
 import { SECTIONS, voiceName } from './api.js';
 import { SUPABASE_URL } from '../config.js';
 
-/** Reading order — the same seven categories the worker publishes (app/guardian.py). */
+/** Reading order — the same seven categories the worker publishes (app/cbc.py). */
 export const SECTION_ORDER = ['top', 'ai', 'tech', 'politics', 'entertainment', 'science', 'sports'];
 export const MAX_PER_SECTION = 5;
 
@@ -219,7 +219,7 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
       isFallback: Boolean(voice && id !== voice),
     },
     availableVoices,
-    writer: 'guardian',
+    writer: 'cbc',
     weather: null,
     sections, chapters, stories, clips,
     notes: [],

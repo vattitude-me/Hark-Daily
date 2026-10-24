@@ -4,7 +4,7 @@ import dataclasses
 
 import pytest
 
-from app import guardian, storypack
+from app import cbc, storypack
 from app.fetcher import Item
 from app.storypack import (GREETINGS, INTROS, NOTES, clips_for, default_lineup, greeting_key,
                            lineup, total_seconds)
@@ -18,7 +18,7 @@ def _rows(section: str, ranks=(1, 2, 3, 4, 5), voice: str = VOICE) -> list[dict]
 
 
 def test_lineup_defaults_to_five_per_section():
-    assert lineup(None) == {key: 5 for key in guardian.SECTIONS}
+    assert lineup(None) == {key: 5 for key in cbc.SECTIONS}
     assert default_lineup() == lineup({})
 
 
@@ -34,7 +34,7 @@ def test_lineup_clamps_and_ignores_rubbish():
 
 def test_clips_follow_section_order_then_rank_and_skip_zero_counts():
     rows = _rows("top") + _rows("sports") + _rows("ai")
-    wanted = {key: 0 for key in guardian.SECTIONS}
+    wanted = {key: 0 for key in cbc.SECTIONS}
     wanted.update({"ai": 2, "top": 1, "sports": 3})
     clips = clips_for(rows, wanted)
     assert [(c["section"], c["rank"]) for c in clips] == [
@@ -50,12 +50,12 @@ def test_clips_ignore_other_voices():
 
 
 def test_no_sections_means_no_audio():
-    assert clips_for(_rows("top"), {key: 0 for key in guardian.SECTIONS}) == []
+    assert clips_for(_rows("top"), {key: 0 for key in cbc.SECTIONS}) == []
 
 
 def test_the_framing_is_a_greeting_intros_and_a_sign_off():
     """A new section must not silently lose its spoken framing, and a brief needs an ending."""
-    assert set(INTROS) == {f"intro_{key}" for key in guardian.SECTIONS}
+    assert set(INTROS) == {f"intro_{key}" for key in cbc.SECTIONS}
     assert set(NOTES) == set(GREETINGS) | set(INTROS) | {storypack.OUTRO_KEY}
 
 
@@ -106,7 +106,7 @@ def test_build_forces_the_notes_along_with_the_stories(cfg, store, monkeypatch):
         seen.update(kwargs)
         return []
 
-    monkeypatch.setattr(guardian, "build_pack", fake_pack)
+    monkeypatch.setattr(cbc, "build_pack", fake_pack)
     monkeypatch.setattr(storypack, "build_notes", fake_notes)
 
     asyncio.run(storypack.build(cfg, store, day=DAY, voice="him_reference", force=True))
@@ -126,7 +126,7 @@ def _one_story(monkeypatch, seconds: float = 3.0):
     async def fake_synthesise(client, base, text, voice, *args, **kwargs):
         return b"mp3\x00", seconds
 
-    monkeypatch.setattr(guardian, "build_pack", fake_pack)
+    monkeypatch.setattr(cbc, "build_pack", fake_pack)
     monkeypatch.setattr(storypack, "synthesise", fake_synthesise)
 
 
@@ -156,7 +156,7 @@ def test_a_forced_re_render_takes_the_day_off_the_air_first(cfg, store, monkeypa
     async def broken(client, base, text, voice, *args, **kwargs):
         raise RuntimeError("voice service is down")
 
-    monkeypatch.setattr(guardian, "build_pack", fake_pack)
+    monkeypatch.setattr(cbc, "build_pack", fake_pack)
     monkeypatch.setattr(storypack, "synthesise", broken)
 
     with pytest.raises(RuntimeError):
@@ -169,7 +169,7 @@ def test_a_forced_re_render_takes_the_day_off_the_air_first(cfg, store, monkeypa
 # The Guardian runs the same article in more than one feed, so without this the day's brief can
 # read its top story twice: once under Top stories and again under Sport.
 
-GU = "https://www.theguardian.com"
+GU = "https://www.thecbc.com"
 
 
 def _item(title: str, url: str, section: str = "top") -> Item:
@@ -182,7 +182,7 @@ def test_a_story_two_feeds_carry_is_read_once_under_the_earlier_section():
     sports = [_item("Bank of Canada holds its key rate", f"{GU}/business/2026/oct/08/rate#top"),
               _item("Final goes to penalties", f"{GU}/football/2026/oct/08/final")]
 
-    picked = guardian.pick_unique({"top": top, "sports": sports}, per_section=5)
+    picked = cbc.pick_unique({"top": top, "sports": sports}, per_section=5)
 
     assert [i.title for i in picked["top"]] == [
         "Bank of Canada holds its key rate", "Storm warning for the west coast"]
@@ -191,7 +191,7 @@ def test_a_story_two_feeds_carry_is_read_once_under_the_earlier_section():
 
 def test_the_same_headline_from_two_links_is_one_story():
     """Syndicated copies keep the headline and change the link, which the URL check alone misses."""
-    picked = guardian.pick_unique({
+    picked = cbc.pick_unique({
         "top": [_item("Trudeau resigns", f"{GU}/world/2026/oct/08/trudeau")],
         "politics": [_item("Trudeau resigns", f"{GU}/politics/live/2026/oct/08/live-blog"),
                      _item("Budget vote tonight", f"{GU}/politics/2026/oct/08/budget")],
@@ -205,7 +205,7 @@ def test_a_section_losing_its_head_takes_the_next_candidate():
     sports = [_item("Fire in the port", f"{GU}/a/1"), _item("Final goes to penalties", f"{GU}/sport/2"),
               _item("Injury doubt for the derby", f"{GU}/sport/3")]
 
-    picked = guardian.pick_unique({"top": top, "sports": sports}, per_section=2)
+    picked = cbc.pick_unique({"top": top, "sports": sports}, per_section=2)
 
     assert [i.title for i in picked["sports"]] == ["Final goes to penalties", "Injury doubt for the derby"]
 
@@ -214,7 +214,7 @@ def test_a_section_that_only_has_repeats_stays_short():
     """Better a four-story section than the same headline twice in one brief."""
     top = [_item("One big story", f"{GU}/a/1")]
     tech = [_item("One big story", f"{GU}/a/1")]
-    assert guardian.pick_unique({"top": top, "tech": tech}, per_section=5)["tech"] == []
+    assert cbc.pick_unique({"top": top, "tech": tech}, per_section=5)["tech"] == []
 
 
 # --- one day of audio -------------------------------------------------------------------------
@@ -271,7 +271,7 @@ def test_a_failed_morning_keeps_yesterday(cfg, store, monkeypatch):
     async def broken(client, base, text, voice, *args, **kwargs):
         raise RuntimeError("voice service is down")
 
-    monkeypatch.setattr(guardian, "build_pack", fake_pack)
+    monkeypatch.setattr(cbc, "build_pack", fake_pack)
     monkeypatch.setattr(storypack, "synthesise", broken)
 
     with pytest.raises(RuntimeError):
