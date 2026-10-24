@@ -1,6 +1,17 @@
 from __future__ import annotations
 
-from app.guardian import PROVIDER, SECTIONS, feed_url, source_for
+from app.fetcher import Item
+from app.guardian import PROVIDER, SECTIONS, feed_url, source_for, top_n
+
+
+def test_top_n_skips_media_player_stubs():
+    items = [
+        Item(title="Watch live stream", url="https://www.cbc.ca/player/play/123", source_id=1, source_name="CBC", section="sports"),
+        Item(title="Real sports story", url="https://www.cbc.ca/sports/story-456", source_id=1, source_name="CBC", section="sports"),
+    ]
+    picked = top_n(items, n=1)
+    assert len(picked) == 1
+    assert picked[0].title == "Real sports story"
 
 
 def test_every_section_names_its_own_provider_and_feed():

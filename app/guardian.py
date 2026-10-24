@@ -87,7 +87,7 @@ def top_n(items: list[Item], n: int = DEFAULT_PER_SECTION, max_age: timedelta = 
     seen: set[str] = set()
     fresh: list[Item] = []
     for item in items:
-        if not item.title or not item.url or item.url in seen:
+        if not item.title or not item.url or item.url in seen or "/player/play/" in item.url:
             continue
         seen.add(item.url)
         if item.published and (now - item.published) > max_age:

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.50] - 2026-10-24
+
+### Changed
+- **Multi-Provider Story Pack & Media Player Filtering**:
+  - Transitioned story pack sections to specialized sources: CBC News for Top stories, Politics, Entertainment, Science, and Sports; TechCrunch for AI; and BetaKit for Canadian Tech.
+  - Hardened feed parsing in `app/guardian.py` to automatically skip video/audio player stubs (`/player/play/`) in favor of full reporting articles.
+  - Added unit test coverage for section provider mappings and media player stub exclusion.
+
+---
+
 ## [0.1.49] - 2026-10-22
 
 ### Changed
