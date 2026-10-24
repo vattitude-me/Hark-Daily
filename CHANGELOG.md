@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.51] - 2026-10-24
+
+### Changed
+- **Renamed Story Pack Module to Reflect CBC & Multi-Provider Architecture**:
+  - Renamed `app/guardian.py` to `app/cbc.py` and `tests/test_guardian_sections.py` to `tests/test_cbc_sections.py`.
+  - Maintained backward compatibility stub in `app/guardian.py` forwarding all symbols to `app.cbc`.
+  - Updated all internal imports, pipeline references, and documentation across Android, Web (`sw.js` cache bumped to `hark-daily-v8`), and tests.
+
+---
+
 ## [0.1.50] - 2026-10-24
 
 ### Changed

@@ -56,7 +56,7 @@ create table if not exists public.sources (
 create index if not exists sources_user_idx on public.sources (user_id);
 
 -- ------------------------------------------------- single-source transition
--- The brief is now a shared daily pack of The Guardian's stories (app/guardian.py),
+-- The brief is now a shared daily pack of stories (app/cbc.py),
 -- so a topic is no longer a bag of outlets. The old per-outlet built-ins are dropped
 -- and only the seven pack sections plus 'custom' (links people add themselves)
 -- remain. Safe to re-run: the deletes are idempotent and the update only moves rows

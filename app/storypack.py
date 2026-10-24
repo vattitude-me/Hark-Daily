@@ -1,8 +1,8 @@
-"""Build the day's shared story pack: Guardian scripts → cloned voice → Supabase.
+"""Build the day's shared story pack: stories → cloned voice → Supabase.
 
 Thin glue around three pieces that already exist:
 
-* :mod:`app.guardian` — the day's stories, no AI in the path;
+* :mod:`app.cbc` — the day's stories, no AI in the path;
 * the voice service — one MP3 per story (``voice_service/scripts/batch.py`` does the
   same thing offline, for testing without Supabase);
 * Supabase Storage + the ``story_audio`` table.
@@ -33,7 +33,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-from . import guardian
+from . import cbc
 from .errors import DeadlineReached, PackBusy, PackIncomplete, VoiceServiceDown
 from .store import StoreError
 
@@ -224,7 +224,7 @@ def greeting_key(hour: int) -> str:
 
 def default_lineup() -> dict[str, int]:
     """Every section on, at the maximum, until the user says otherwise."""
-    return {key: MAX_PER_SECTION for key in guardian.SECTIONS}
+    return {key: MAX_PER_SECTION for key in cbc.SECTIONS}
 
 
 def lineup(settings: dict | None, default: dict[str, int] | None = None) -> dict[str, int]:
@@ -236,7 +236,7 @@ def lineup(settings: dict | None, default: dict[str, int] | None = None) -> dict
     chosen = (settings or {}).get("stories") or {}
     base = default or default_lineup()
     out: dict[str, int] = {}
-    for key in guardian.SECTIONS:
+    for key in cbc.SECTIONS:
         try:
             count = int(chosen.get(key, base.get(key, 0)))
         except (TypeError, ValueError):
@@ -258,7 +258,7 @@ def clips_for(rows: list[dict], wanted: dict[str, int], voice: str | None = None
         by_section.setdefault(row["section"], []).append(row)
 
     ordered: list[dict] = []
-    for key in guardian.SECTIONS:
+    for key in cbc.SECTIONS:
         count = wanted.get(key, 0)
         if count <= 0:
             continue
@@ -347,7 +347,7 @@ def showcase_payload(rows: list[dict], notes: list[dict], url_for, *, day: str,
             "clips": clips,
             "chapters": chapters,
             "stories": stories,
-            "sections": [{"key": k, "title": guardian.SECTIONS[k]["title"], "count": n}
+            "sections": [{"key": k, "title": cbc.SECTIONS[k]["title"], "count": n}
                          for k, n in counts.items()],
         },
     }
@@ -593,7 +593,7 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
     per_section = per_section or cfg.stories_per_section
     voices = [voice] if voice else list(cfg.story_voices or (DEFAULT_VOICE,))
 
-    scripts = await guardian.build_pack(per_section=per_section, sections=sections)
+    scripts = await cbc.build_pack(per_section=per_section, sections=sections)
     log.info("Voicing %d stories for %s as %s", len(scripts), day, ", ".join(voices))
 
     # Every clip is one unit of work, so the fraction means something to a waiting admin.
