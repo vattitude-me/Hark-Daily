@@ -71,7 +71,8 @@ env_map = {
     'GCE_INSTANCE': 'morning-brief-voice',
     'GCE_MANAGE_VM': 'true',
     'GCE_HEALTH_TIMEOUT': '300.0',
-    'STORY_VOICES': 'her_reference,him_reference,jerry_reference,c3po_reference',
+    'STORY_VOICE': 'c3po_reference',
+    'STORY_VOICES': 'c3po_reference,her_reference',
     'VAPID_PUBLIC_KEY': vapid_pub,
     'VAPID_PRIVATE_KEY': vapid_priv,
 }
