@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.54] - 2026-10-24
+
+### Changed
+- **Provider-Agnostic Topics Architecture (`app/topics.py`)**:
+  - Removed vendor-specific file naming: renamed `app/cbc.py` to generic `app/topics.py` and completely deleted deprecated `app/guardian.py`.
+  - Configured multi-provider briefing topics:
+    - CBC News: Top Stories, Politics, Entertainment, Science, Sports.
+    - TechCrunch: AI category (`techcrunch.com/category/artificial-intelligence/feed/`) and Tech (`techcrunch.com/feed/`).
+  - Updated all imports, test harnesses (`tests/test_topics.py`), Android/Web references, and documentation.
+  - Bumped PWA service worker cache to `hark-daily-v10` and Android version to `0.1.54` (`154`).
+
+---
+
 ## [0.1.53] - 2026-10-24
 
 ### Changed

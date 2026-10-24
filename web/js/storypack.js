@@ -6,7 +6,7 @@
 import { SECTIONS, voiceName } from './api.js';
 import { SUPABASE_URL } from '../config.js';
 
-/** Reading order — the same seven categories the worker publishes (app/cbc.py). */
+/** Reading order — the same seven categories the worker publishes (app/topics.py). */
 export const SECTION_ORDER = ['top', 'ai', 'tech', 'politics', 'entertainment', 'science', 'sports'];
 export const MAX_PER_SECTION = 5;
 

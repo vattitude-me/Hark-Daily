@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 
-from app import cbc, storypack
+from app import storypack, topics
 from app.worker import Worker
 
 
@@ -56,7 +56,7 @@ def test_admin_rebuilds_the_pack_from_the_admin_page(cfg, store, monkeypatch):
     async def fake_synthesise(client, base, text, voice, *args, **kwargs):
         return b"mp3\\x00", 4.0
 
-    monkeypatch.setattr(cbc, "build_pack", fake_pack)
+    monkeypatch.setattr(topics, "build_pack", fake_pack)
     monkeypatch.setattr(storypack, "synthesise", fake_synthesise)
 
     published = []
@@ -95,7 +95,7 @@ def test_a_failed_rebuild_is_recorded_and_reported(cfg, store, monkeypatch):
     async def broken(client, base, text, voice, *args, **kwargs):
         raise RuntimeError("voice service is down")
 
-    monkeypatch.setattr(cbc, "build_pack", fake_pack)
+    monkeypatch.setattr(topics, "build_pack", fake_pack)
     monkeypatch.setattr(storypack, "synthesise", broken)
 
     Worker(dataclasses.replace(cfg, voice_url="http://voice.test"), store).poll_requests()

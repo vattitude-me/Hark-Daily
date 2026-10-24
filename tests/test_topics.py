@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.fetcher import Item
-from app.cbc import PROVIDER, SECTIONS, feed_url, source_for, top_n
+from app.topics import PROVIDER, SECTIONS, feed_url, source_for, top_n
 
 
 def test_top_n_skips_media_player_stubs():
