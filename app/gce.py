@@ -53,24 +53,32 @@ def get_access_token() -> str | None:
     return None
 
 
+def get_instance_info(project: str, zone: str, instance: str, token: str) -> tuple[int, dict | None]:
+    """Query instance metadata directly from the Google Compute Engine API.
+    Returns (http_status_code, response_dict_or_None).
+    """
+    url = f"https://compute.googleapis.com/compute/v1/projects/{project}/zones/{zone}/instances/{instance}"
+    try:
+        resp = httpx.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=10.0)
+        return resp.status_code, (resp.json() if resp.status_code == 200 else None)
+    except Exception as exc:
+        log.warning("GCE API query failed for instance %s: %s", instance, exc)
+        return 0, None
+
+
 def get_instance_ip(project: str, zone: str, instance: str, token: str) -> str | None:
     """Read the active external IP of the GCE VM directly from the Compute Engine API.
     
     This eliminates brittle hardcoded IP addresses — if the VM IP ever changes,
     the system dynamically discovers the new address at runtime.
     """
-    url = f"https://compute.googleapis.com/compute/v1/projects/{project}/zones/{zone}/instances/{instance}"
-    try:
-        resp = httpx.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=10.0)
-        if resp.status_code == 200:
-            data = resp.json()
-            net_interfaces = data.get("networkInterfaces", [])
-            if net_interfaces:
-                access_configs = net_interfaces[0].get("accessConfigs", [])
-                if access_configs:
-                    return access_configs[0].get("natIP")
-    except Exception as exc:
-        log.warning("Could not dynamically resolve IP for instance %s: %s", instance, exc)
+    code, data = get_instance_info(project, zone, instance, token)
+    if code == 200 and data:
+        net_interfaces = data.get("networkInterfaces", [])
+        if net_interfaces:
+            access_configs = net_interfaces[0].get("accessConfigs", [])
+            if access_configs:
+                return access_configs[0].get("natIP")
     return None
 
 
@@ -84,11 +92,29 @@ def is_service_healthy(url: str, timeout: float = 3.0) -> bool:
 
 
 def start_vm(project: str, zone: str, instance: str, token: str) -> bool:
-    """Send an asynchronous start request to Google Compute Engine API."""
+    """Send an asynchronous start request to Google Compute Engine API.
+    Fails fast if the VM was deleted/removed (404) or access is denied (403).
+    """
     url = f"https://compute.googleapis.com/compute/v1/projects/{project}/zones/{zone}/instances/{instance}/start"
     try:
         resp = httpx.post(url, headers={"Authorization": f"Bearer {token}"}, timeout=30.0)
-        return resp.status_code in (200, 204)
+        if resp.status_code in (200, 204):
+            return True
+        if resp.status_code == 404:
+            raise VoiceServiceDown(
+                f"GCE instance '{instance}' was not found (HTTP 404) in project '{project}', zone '{zone}'. "
+                "If this VM was removed or decommissioned to save costs, set GCE_MANAGE_VM=false and configure an "
+                "alternative VOICE_SERVICE_URL, or recreate the instance using scripts/deploy-gce.sh."
+            )
+        if resp.status_code == 403:
+            raise VoiceServiceDown(
+                f"Access denied (HTTP 403) when starting GCE instance '{instance}' in project '{project}'. "
+                "Ensure the Compute Engine API is enabled and caller has roles/compute.instanceAdmin."
+            )
+        log.warning("GCE start API returned status %d: %s", resp.status_code, resp.text[:200])
+        return False
+    except VoiceServiceDown:
+        raise
     except Exception as exc:
         log.warning("Failed to call GCE start API: %s", exc)
         return False
@@ -99,30 +125,44 @@ def stop_vm(project: str, zone: str, instance: str, token: str) -> bool:
     url = f"https://compute.googleapis.com/compute/v1/projects/{project}/zones/{zone}/instances/{instance}/stop"
     try:
         resp = httpx.post(url, headers={"Authorization": f"Bearer {token}"}, timeout=30.0)
-        return resp.status_code in (200, 204)
+        # If already deleted (404), stop request is effectively satisfied
+        if resp.status_code in (200, 204, 404):
+            return True
+        log.warning("GCE stop API returned status %d: %s", resp.status_code, resp.text[:200])
+        return False
     except Exception as exc:
         log.warning("Failed to call GCE stop API: %s", exc)
         return False
 
 
 def instance_status(project: str, zone: str, instance: str, token: str) -> str | None:
-    """RUNNING, STOPPING, TERMINATED... or None when the API can't say."""
-    url = f"https://compute.googleapis.com/compute/v1/projects/{project}/zones/{zone}/instances/{instance}"
-    try:
-        resp = httpx.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=10.0)
-        return resp.json().get("status") if resp.status_code == 200 else None
-    except Exception:
-        return None
+    """RUNNING, STOPPING, TERMINATED, NOT_FOUND... or None when the API can't say."""
+    code, data = get_instance_info(project, zone, instance, token)
+    if code == 200 and data:
+        return data.get("status")
+    if code == 404:
+        return "NOT_FOUND"
+    if code == 403:
+        return "FORBIDDEN"
+    return None
 
 
 def stop_vm_verified(project: str, zone: str, instance: str, token: str, attempts: int = 3) -> bool:
-    """Stop the VM and confirm it is stopping, because a GPU left on is the expensive failure."""
+    """Stop the VM and confirm it is stopping, because a GPU left on is the expensive failure.
+    If the VM does not exist (404), confirms shutdown immediately without retrying or false alarms.
+    """
     for attempt in range(1, attempts + 1):
-        stop_vm(project, zone, instance, token)
         status = instance_status(project, zone, instance, token)
+        if status == "NOT_FOUND":
+            log.info("GCE VM '%s' does not exist (404); no shutdown needed.", instance)
+            return True
         if status in ("STOPPING", "TERMINATED", "STOPPED", "SUSPENDED"):
             return True
-        log.warning("GCE VM %s is %s after stop attempt %d/%d", instance, status or "unknown", attempt, attempts)
+        stop_vm(project, zone, instance, token)
+        status_after = instance_status(project, zone, instance, token)
+        if status_after in ("STOPPING", "TERMINATED", "STOPPED", "SUSPENDED", "NOT_FOUND"):
+            return True
+        log.warning("GCE VM %s is %s after stop attempt %d/%d", instance, status_after or "unknown", attempt, attempts)
         time.sleep(3 * attempt)
     log.error("COULD NOT STOP GCE VM %s. It is still billing; stop it by hand: "
               "gcloud compute instances stop %s --zone=%s", instance, instance, zone)
@@ -166,6 +206,20 @@ def voice_vm_session(cfg):
         )
         yield voice_url
         return
+
+    # Fail fast if the VM was deleted or access was revoked
+    status = instance_status(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token)
+    if status == "NOT_FOUND":
+        raise VoiceServiceDown(
+            f"GCE instance '{cfg.gce_instance}' was not found (HTTP 404) in project '{cfg.gcp_project}', zone '{cfg.gce_zone}'. "
+            "If the VM was removed or decommissioned to save costs, set GCE_MANAGE_VM=false and configure an "
+            "alternative VOICE_SERVICE_URL, or recreate the instance with scripts/deploy-gce.sh."
+        )
+    if status == "FORBIDDEN":
+        raise VoiceServiceDown(
+            f"Access denied (HTTP 403) accessing GCE instance '{cfg.gce_instance}' in project '{cfg.gcp_project}'. "
+            "Ensure Compute Engine API is enabled and caller has roles/compute.instanceAdmin."
+        )
 
     # Check if VM is already running and voice service is already healthy
     discovered_ip = get_instance_ip(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token)

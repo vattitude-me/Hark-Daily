@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.53] - 2026-10-24
+
+### Changed
+- **Web & Android UI Voice Synchronization (C-3PO Default, Alice Alternate)**:
+  - Updated Web PWA voice selectors in `web/js/api.js` (`BUILTIN_VOICES`) to offer active voices: C-3PO (`c3po_reference`) as flagship default and Alice (`her_reference`) as alternate. Bumped PWA service worker cache to `hark-daily-v9`.
+  - Updated Android app (`PACK_VOICES` in `Voices.kt`) to align with C-3PO first and Alice second. `SettingsScreen` and `packVoice()` automatically default to C-3PO and gracefully discard obsolete narrator selections.
+  - Updated Android unit test suite (`SettingsTest.kt`) to assert active 2-voice configuration and fallback behaviors.
+- **Robust Error Handling for Removed / Absent GCP Components**:
+  - Enhanced `app/gce.py` with immediate fail-fast error detection for removed or decommissioned GCP VM resources (`HTTP 404` or `403`), eliminating previous 180s timeout polling loops.
+  - Hardened `stop_vm_verified()` to confirm VM shutdown immediately when the instance does not exist (404), avoiding spurious retry loops or false billing alerts for deleted VMs.
+  - Converted unhandled `RuntimeError` on missing `VOICE_SERVICE_URL` to structured `VoiceServiceDown` with actionable configuration guidance.
+  - Added `scripts/teardown-gce.sh` for one-command teardown of GCE GPU VMs and persistent disks to completely eliminate recurring GCP costs when desired.
+  - Added unit test suite in `tests/test_safety_guards.py` covering GCE 404/403 fail-fast handling, immediate deletion verification, and missing voice URL guards.
+
+---
+
 ## [0.1.52] - 2026-10-24
 
 ### Changed

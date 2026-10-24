@@ -11,15 +11,19 @@ import org.junit.Test
 
 class SettingsTest {
     @Test
-    fun allFourNarratorVoicesAreAvailable() {
-        assertEquals(4, PACK_VOICES.size)
+    fun activeNarratorVoicesAreAvailable() {
+        assertEquals(2, PACK_VOICES.size)
         val ids = PACK_VOICES.map { it.id }
-        assertTrue(ids.containsAll(listOf("her_reference", "him_reference", "jerry_reference", "c3po_reference")))
+        assertEquals(listOf("c3po_reference", "her_reference"), ids)
 
-        assertEquals("Alice", packVoice("her_reference").name)
-        assertEquals("Mike", packVoice("him_reference").name)
-        assertEquals("Jerry", packVoice("jerry_reference").name)
-        assertEquals("C-3PO", packVoice("c3po_reference").name)
+        assertEquals("C-3PO", PACK_VOICES[0].name)
+        assertEquals("c3po_reference", PACK_VOICES[0].id)
+        assertEquals("Alice", PACK_VOICES[1].name)
+        assertEquals("her_reference", PACK_VOICES[1].id)
+
+        // Fallback narrator is C-3PO (first voice)
+        assertEquals("c3po_reference", packVoice(null).id)
+        assertEquals("c3po_reference", packVoice("unknown_voice").id)
     }
 
     @Test
@@ -55,16 +59,21 @@ class SettingsTest {
     @Test
     fun withSharedReadsRemoteVoiceAndSectionOrder() {
         val remote = JSONObject()
-            .put("voice", "jerry_reference")
+            .put("voice", "her_reference")
             .put("section_order", JSONArray(listOf("ai", "tech", "sports")))
             .put("speed", 1.2)
             .put("color_photos", false)
 
         val s = Settings().withShared(remote)
-        assertEquals("jerry_reference", s.voice)
+        assertEquals("her_reference", s.voice)
         assertEquals(listOf("ai", "tech", "sports"), s.sectionOrder)
         assertEquals(listOf("ai", "tech", "sports", "top", "politics", "entertainment", "science"), s.orderedSections)
         assertEquals(1.2f, s.speed, 0.01f)
         assertEquals(false, s.colorPhotos)
+
+        // Obsolete voices (e.g. decommissioned narrators) fall back to default
+        val obsolete = JSONObject().put("voice", "jerry_reference")
+        val sObsolete = Settings().withShared(obsolete)
+        assertEquals("c3po_reference", sObsolete.voice)
     }
 }

@@ -511,7 +511,7 @@ async def build_notes(cfg, store, *, day: str | None = None, voice: str | None =
     voice = voice or cfg.story_voice
     base = (voice_url or cfg.voice_url or "").rstrip("/")
     if not base:
-        raise RuntimeError("VOICE_SERVICE_URL is not set")
+        raise VoiceServiceDown("VOICE_SERVICE_URL is not set. A running voice service is required to synthesize audio.")
 
     items = [(k, NOTES[k]) for k in NOTES if not keys or k in keys]
     done = {r["note_key"]: r for r in store.select(
@@ -589,7 +589,7 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
     day = day or datetime.now(ZoneInfo(cfg.timezone)).date().isoformat()
     base = (voice_url or cfg.voice_url or "").rstrip("/")
     if not base:
-        raise RuntimeError("VOICE_SERVICE_URL is not set")
+        raise VoiceServiceDown("VOICE_SERVICE_URL is not set. A running voice service is required to synthesize audio.")
     per_section = per_section or cfg.stories_per_section
     voices = [voice] if voice else list(cfg.story_voices or (DEFAULT_VOICE,))
 

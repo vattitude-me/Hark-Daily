@@ -15,10 +15,8 @@ data class PackVoice(
 )
 
 val PACK_VOICES = listOf(
-    PackVoice("her_reference", "Alice", "female", "Warm Broadcast", "Warm British newsreader"),
-    PackVoice("him_reference", "Mike", "male", "Crisp Morning News", "Calm American newsreader"),
-    PackVoice("jerry_reference", "Jerry", "male", "Observational Wit", "Observational comedy style"),
     PackVoice("c3po_reference", "C-3PO", "male", "Polite & Precise", "Polite protocol droid"),
+    PackVoice("her_reference", "Alice", "female", "Warm Broadcast", "Warm British newsreader"),
 )
 
 /** The voice a listener picked, falling back to the first for anything older or unknown. */
