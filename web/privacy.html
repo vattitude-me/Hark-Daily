@@ -43,37 +43,30 @@
   <main class="legal">
     <a class="legal-top" href="/"><img src="/icons/icon.svg" alt="" width="32" height="32"> Hark Daily</a>
     <h1>Privacy</h1>
-    <p class="updated">Last updated October 18, 2026</p>
-    <p>Hark Daily turns the news you choose into a short spoken briefing. It collects as little as it can to do that.
-      There are no ads, no analytics and no tracking, and nothing is sold or shared for marketing.</p>
+    <p class="updated">Last updated October 24, 2026</p>
+    <p>Hark Daily turns curated and custom news into a short, focused spoken briefing. It collects as little as it can to do that.
+      There are zero ads, zero tracking scripts, and zero analytics trackers. Nothing is ever sold, leased, or shared with marketers.</p>
 
     <h2>What's stored with your account</h2>
-    <p>You don't need an account to use the Android app. If you sign in (on the web, or in the app to sync), we store:</p>
+    <p>You don't need an account to use the Android app or listen to the daily showcase on the web. If you sign in (on the web, or in the app to sync), we store:</p>
     <ul>
-      <li><b>Your sign-in:</b> your email address, and your name and profile picture if you use Google.</li>
-      <li><b>Your settings:</b> the name you're greeted by, your weather city and its coordinates, voice, speed and how
-        many stories you want.</li>
-      <li><b>Your news links:</b> the sites, feeds and articles you add.</li>
-      <li><b>On the web only:</b> your briefings (the text and audio), and a notification address for each browser where
-        you turn on morning notifications.</li>
+      <li><b>Your sign-in:</b> your email address, and your name and profile picture if you use Google Sign-In.</li>
+      <li><b>Your settings:</b> the name you're greeted by, your weather city and its coordinates, your chosen narrator (e.g. C-3PO, Alice), briefing mode (Full or Rapid), and how many stories you want per topic.</li>
+      <li><b>Your news links:</b> any custom feeds, sections, or source priorities you configure.</li>
+      <li><b>On the web:</b> your daily briefing cache and web push notification subscriptions if you opt into morning alerts.</li>
     </ul>
-    <p>This is kept in <a href="https://supabase.com/privacy">Supabase</a>, and each account can only read its own data.</p>
+    <p>This is kept securely in <a href="https://supabase.com/privacy">Supabase</a>, and each account can only read and modify its own data.</p>
 
     <h2>What stays on your phone</h2>
-    <p>The Android app builds your briefing on the phone. Its briefings, audio, downloaded voices and any AI key you add
-      are kept on the device and never uploaded to us. Uninstalling the app removes them.</p>
+    <p>The Android app stores your preferences, downloaded offline briefings, on-device voice models, and any optional personal AI API keys directly on your device. They are never uploaded to our servers. Uninstalling the app completely removes them.</p>
 
     <h2>Who else sees what</h2>
     <ul>
-      <li><b>News sites</b> receive ordinary requests when your briefing fetches their headlines and articles.</li>
-      <li><b>Open-Meteo</b> receives your city's coordinates for the forecast and the place names you search for.</li>
-      <li><b>Groq</b> receives the news articles to summarize on the web. In the app, articles go to the AI service you
-        pick (Groq, Google Gemini, OpenRouter, OpenAI or your own) only if you add your own key. None of them receive your
-        account details.</li>
-      <li><b>Microsoft</b> receives the briefing text when a web briefing uses one of the Microsoft voices (Clara, Liam,
-        Ava, Andrew, Sonia). The Chatterbox-Turbo voices run privately on our own cloud voice service.</li>
-      <li><b>Google</b> handles the sign-in when you choose "Continue with Google".</li>
-      <li><b>GitHub</b> serves the app's natural-voice download.</li>
+      <li><b>News sources (CBC News, TechCrunch, BetaKit, and custom feeds)</b> receive ordinary HTTP GET requests when our pipeline reads public headlines and summary articles.</li>
+      <li><b>Open-Meteo</b> receives city coordinates to return temperature and forecast conditions. No personal identifiers are sent.</li>
+      <li><b>Summarization & Voice AI:</b> Daily news scripts are summarized via Groq or Google Gemini API. Spoken briefings are synthesized once globally on our private cloud voice server running Chatterbox-Turbo / Kokoro. Audio clips are saved to static storage and shared across all listeners. Individual listeners never have their identity or playback activity sent to voice models.</li>
+      <li><b>Google</b> handles authentication when you explicitly click "Continue with Google".</li>
+      <li><b>GitHub</b> hosts public release APKs and source code repositories.</li>
     </ul>
 
     <h2>Reporting a summary</h2>
