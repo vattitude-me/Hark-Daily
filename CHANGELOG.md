@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.55] - 2026-10-24
+
+### Changed
+- **Configured Canadian Tech via BetaKit**:
+  - Set `tech` section source to BetaKit (`https://betakit.com/feed/`) in `app/topics.py`.
+  - Bumped PWA service worker cache to `hark-daily-v11` and Android version to `0.1.55` (`155`).
+
+---
+
 ## [0.1.54] - 2026-10-24
 
 ### Changed
