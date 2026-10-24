@@ -130,3 +130,71 @@ def test_voice_vm_session_stops_vm_on_exit_even_if_already_running(cfg, monkeypa
         assert url == "http://10.0.0.1:8090"
 
     assert stopped == [cfg_gce.gce_instance]
+
+
+def test_voice_vm_session_fails_fast_when_instance_not_found(cfg, monkeypatch):
+    monkeypatch.setattr(gce, "get_access_token", lambda: "mock_tok")
+    monkeypatch.setattr(gce, "instance_status", lambda proj, zone, inst, tok: "NOT_FOUND")
+
+    cfg_gce = dataclasses.replace(cfg, gce_manage_vm=True, voice_url="auto")
+    with pytest.raises(VoiceServiceDown) as exc:
+        with gce.voice_vm_session(cfg_gce):
+            pass
+
+    assert "HTTP 404" in str(exc.value)
+    assert cfg_gce.gce_instance in str(exc.value)
+
+
+def test_voice_vm_session_fails_fast_when_permission_denied(cfg, monkeypatch):
+    monkeypatch.setattr(gce, "get_access_token", lambda: "mock_tok")
+    monkeypatch.setattr(gce, "instance_status", lambda proj, zone, inst, tok: "FORBIDDEN")
+
+    cfg_gce = dataclasses.replace(cfg, gce_manage_vm=True, voice_url="auto")
+    with pytest.raises(VoiceServiceDown) as exc:
+        with gce.voice_vm_session(cfg_gce):
+            pass
+
+    assert "HTTP 403" in str(exc.value)
+
+
+def test_start_vm_raises_voice_service_down_on_404(monkeypatch):
+    class FakeResponse:
+        status_code = 404
+        text = "Not Found"
+
+    monkeypatch.setattr("httpx.post", lambda *args, **kwargs: FakeResponse())
+    with pytest.raises(VoiceServiceDown) as exc:
+        gce.start_vm("proj", "zone", "vm-voice", "tok")
+
+    assert "HTTP 404" in str(exc.value)
+
+
+def test_start_vm_raises_voice_service_down_on_403(monkeypatch):
+    class FakeResponse:
+        status_code = 403
+        text = "Forbidden"
+
+    monkeypatch.setattr("httpx.post", lambda *args, **kwargs: FakeResponse())
+    with pytest.raises(VoiceServiceDown) as exc:
+        gce.start_vm("proj", "zone", "vm-voice", "tok")
+
+    assert "HTTP 403" in str(exc.value)
+
+
+def test_stop_vm_verified_handles_deleted_vm_immediately(monkeypatch):
+    calls = []
+    monkeypatch.setattr(gce, "instance_status", lambda proj, zone, inst, tok: calls.append("check") or "NOT_FOUND")
+    monkeypatch.setattr(gce, "stop_vm", lambda proj, zone, inst, tok: calls.append("stop") or True)
+
+    ok = gce.stop_vm_verified("proj", "zone", "vm-voice", "tok")
+    assert ok is True
+    assert calls == ["check"]  # Stop was not even called because instance is already gone
+
+
+def test_storypack_build_raises_voice_service_down_when_url_missing(cfg, store):
+    cfg2 = dataclasses.replace(cfg, voice_url="")
+    with pytest.raises(VoiceServiceDown) as exc:
+        import asyncio
+        asyncio.run(storypack.build(cfg2, store, day="2026-10-24"))
+    assert "VOICE_SERVICE_URL is not set" in str(exc.value)
+

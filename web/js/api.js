@@ -36,13 +36,11 @@ export const store = {
  * per-listener recording.
  */
 export const BUILTIN_VOICES = [
-  { id: 'her_reference', name: 'Alice', gender: 'female', desc: 'Warm British newsreader', style: 'Warm Broadcast', icon: 'mic', builtin: true },
-  { id: 'him_reference', name: 'Mike', gender: 'male', desc: 'Calm American newsreader', style: 'Crisp Morning News', icon: 'radio', builtin: true },
-  { id: 'jerry_reference', name: 'Jerry', gender: 'male', desc: 'Observational comedy style', style: 'Observational Wit', icon: 'smile', builtin: true },
   { id: 'c3po_reference', name: 'C-3PO', gender: 'male', desc: 'Polite protocol droid', style: 'Polite & Precise', icon: 'bot', builtin: true },
+  { id: 'her_reference', name: 'Alice', gender: 'female', desc: 'Warm British newsreader', style: 'Warm Broadcast', icon: 'mic', builtin: true },
 ];
 
-/** The narrator a new visitor hears first: the most distinctive of the four. */
+/** The narrator a new visitor hears first: C-3PO is the flagship default narrator. */
 export const DEFAULT_VOICE_ID = 'c3po_reference';
 
 export function getCustomVoices() {
