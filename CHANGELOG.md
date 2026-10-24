@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.57] - 2026-10-24
+
+### Added
+- **Permanent Static Voice Notes Library & VM Pre-Closure Guard**:
+  - Voice transitions and greetings (11 notes per voice: 3 greetings, 7 section intros, 1 outro) are now permanently stored under `notes/static/{note_key}-{voice}.mp3` and indexed under sentinel date `2000-01-01`.
+  - Added `ensure_static_notes()` pre-closure verification: when daily generation runs or a new voice is added, any missing static notes are automatically synthesized using the active GPU VM session before VM shutdown.
+  - Subsequent runs reuse existing static notes instantly with 0 GPU synthesis time and zero storage audio duplication.
+  - Hardened `prune_older()` to protect `STATIC_DATE` rows and guarantee audio files under `notes/static/` are permanent and never deleted.
+  - Backfilled and verified all 44 static notes across C-3PO, Alice, Mike, and Jerry in Supabase storage and database.
+
+---
+
 ## [0.1.56] - 2026-10-24
 
 ### Added

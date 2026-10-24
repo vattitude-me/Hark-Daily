@@ -94,6 +94,88 @@ def test_notes_are_reused_unless_forced(cfg, store, monkeypatch):
     assert spoken == [NOTES[key] for key in NOTES]   # a replaced reference clip re-reads them all
 
 
+def test_ensure_static_notes_synthesizes_missing_and_reuses_existing(cfg, store, monkeypatch):
+    """A new voice added to the briefing must have all static transition notes generated
+    and saved to permanent storage before the VM shuts down, with subsequent runs reusing them."""
+    cfg = dataclasses.replace(cfg, voice_url="http://voice.test")
+    spoken: list[tuple[str, str]] = []
+
+    async def fake_synthesise(client, base, text, voice, *args, **kwargs):
+        spoken.append((voice, text))
+        return b"fake_mp3_data", 1.5
+
+    monkeypatch.setattr(storypack, "synthesise", fake_synthesise)
+
+    # First run for new voice: all NOTES must be synthesized
+    res = asyncio.run(storypack.ensure_static_notes(cfg, store, voices=["new_voice"], voice_url="http://voice.test"))
+    assert len(res["new_voice"]) == len(NOTES)
+    assert len(spoken) == len(NOTES)
+    assert all(voice == "new_voice" for voice, _ in spoken)
+
+    # Verify they were saved to STATIC_DATE with static paths
+    static_rows = store.select("voice_notes", {"date": f"eq.{storypack.STATIC_DATE}", "voice": "eq.new_voice"})
+    assert len(static_rows) == len(NOTES)
+    for row in static_rows:
+        assert row["audio_path"] == f"notes/static/{row['note_key']}-new_voice.mp3"
+        assert row["duration"] == 1.5
+
+    # Second run: all static notes exist, 0 should be synthesized
+    spoken.clear()
+    res2 = asyncio.run(storypack.ensure_static_notes(cfg, store, voices=["new_voice"], voice_url="http://voice.test"))
+    assert len(res2["new_voice"]) == len(NOTES)
+    assert spoken == []
+
+
+def test_prune_older_protects_static_notes_and_files(store):
+    """Old day audio is purged when keep is reached, but permanent static notes and files are never touched."""
+    # 1. Permanent static note
+    static_path = "notes/static/intro_top-c3po_reference.mp3"
+    store.upload(static_path, b"permanent_audio")
+    store.insert("voice_notes", {
+        "date": storypack.STATIC_DATE,
+        "voice": "c3po_reference",
+        "note_key": "intro_top",
+        "text": "Here are the top stories.",
+        "duration": 1.5,
+        "audio_path": static_path,
+    })
+
+    # 2. Old daily audio (to be pruned)
+    old_note_path = "notes/2026-10-01/intro_top-c3po_reference.mp3"
+    old_story_path = "stories/2026-10-01/top-1-c3po_reference.mp3"
+    store.upload(old_note_path, b"old_note_audio")
+    store.upload(old_story_path, b"old_story_audio")
+    store.insert("voice_notes", {
+        "date": "2026-10-01",
+        "voice": "c3po_reference",
+        "note_key": "intro_top",
+        "text": "Here are the top stories.",
+        "duration": 1.5,
+        "audio_path": old_note_path,
+    })
+    store.insert("story_audio", {
+        "date": "2026-10-01",
+        "voice": "c3po_reference",
+        "section": "top",
+        "rank": 1,
+        "duration": 10.0,
+        "audio_path": old_story_path,
+    })
+
+    # Run prune for day 2026-10-07
+    storypack.prune_older(store, keep="2026-10-07")
+
+    # Static note and file MUST still exist
+    assert static_path in store.objects
+    assert len(store.select("voice_notes", {"date": f"eq.{storypack.STATIC_DATE}"})) == 1
+
+    # Old daily files and rows MUST be gone
+    assert old_note_path not in store.objects
+    assert old_story_path not in store.objects
+    assert len(store.select("voice_notes", {"date": "eq.2026-10-01"})) == 0
+    assert len(store.select("story_audio", {"date": "eq.2026-10-01"})) == 0
+
+
 def test_build_forces_the_notes_along_with_the_stories(cfg, store, monkeypatch):
     """--force has to mean the whole briefing: framing in the old voice sounds broken."""
     cfg = dataclasses.replace(cfg, voice_url="http://voice.test")

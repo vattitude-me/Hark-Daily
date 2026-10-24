@@ -103,6 +103,15 @@ OUTRO = "That's the morning brief. Have a good day."
 
 NOTES: dict[str, str] = {**GREETINGS, **INTROS, OUTRO_KEY: OUTRO}
 
+# Permanent sentinel date and storage path for static transition notes (greetings, intros, outro)
+STATIC_DATE = "2000-01-01"
+
+
+def static_note_path(key: str, voice: str) -> str:
+    """The canonical permanent storage path for a static voice note."""
+    return f"notes/static/{key}-{voice}.mp3"
+
+
 # A marker row in voice_notes meaning "this narrator's day is complete": the greeting, the intros
 # and every story are published. Clients refuse to play a day without it, so a pack that is still
 # being recorded, or being re-recorded, never plays two voices in one brief. Never spoken: the
@@ -137,16 +146,23 @@ def prune_older(store, *, keep: str) -> list[str]:
     Only ever called once [keep] is complete for every narrator. A morning that failed must still
     have yesterday's brief for listeners to fall back on, so the old days stay until the new one is
     whole. The run log outlives the audio by a fortnight, since it is the record of what happened.
+    Static notes at STATIC_DATE and audio in notes/static/ are permanent and never deleted.
     """
     days: list[str] = []
     for table in ("story_audio", "voice_notes"):
         rows = store.select(table, {"date": f"lt.{keep}"})
+        if table == "voice_notes":
+            rows = [r for r in rows if str(r.get("date")) > STATIC_DATE]
         if not rows:
             continue
-        paths = [r["audio_path"] for r in rows if r.get("audio_path")]
+        paths = [r["audio_path"] for r in rows if r.get("audio_path") and not r["audio_path"].startswith("notes/static/")]
         if paths:
             store.remove_objects(paths)
-        store.delete(table, {"date": f"lt.{keep}"})
+        if table == "voice_notes":
+            for r in rows:
+                store.delete("voice_notes", {"date": f"eq.{r['date']}", "voice": f"eq.{r['voice']}", "note_key": f"eq.{r['note_key']}"})
+        else:
+            store.delete(table, {"date": f"lt.{keep}"})
         days += [str(r["date"]) for r in rows]
         log.info("[prune] %s: %d rows, %d files removed", table, len(rows), len(paths))
     cutoff = (datetime.fromisoformat(keep) - timedelta(days=14)).isoformat()
@@ -498,14 +514,94 @@ async def synthesise(client: httpx.AsyncClient, base: str, text: str, voice: str
     raise last
 
 
+async def ensure_static_notes(cfg, store, *, voices: list[str],
+                              voice_url: str | None = None,
+                              force: bool = False,
+                              on_note: Callable[[str, str], None] | None = None) -> dict[str, list[dict]]:
+    """Ensure static transition notes (greetings, intros, outro) are voiced once and stored permanently.
+
+    Checks the permanent static notes catalog (date=STATIC_DATE) in Supabase.
+    If any note is missing or text has changed, synthesises it using the active VM session
+    and stores it permanently at notes/static/{key}-{voice}.mp3 before VM closure.
+    """
+    base = (voice_url or cfg.voice_url or "").rstrip("/")
+    if not base:
+        raise VoiceServiceDown("VOICE_SERVICE_URL is not set. A running voice service is required to synthesize audio.")
+
+    results: dict[str, list[dict]] = {}
+    async with httpx.AsyncClient(timeout=900) as client:
+        for voice in voices:
+            static_rows = {
+                r["note_key"]: r
+                for r in store.select("voice_notes", {"date": f"eq.{STATIC_DATE}", "voice": f"eq.{voice}"})
+            }
+            missing = [k for k in NOTES if force or k not in static_rows or static_rows[k].get("text") != NOTES[k]]
+
+            # Adopt any matching notes from existing historical dates if possible
+            if missing and not force:
+                try:
+                    candidates = store.select("voice_notes", {"voice": f"eq.{voice}"})
+                    for r in candidates:
+                        k = r.get("note_key")
+                        if k in missing and r.get("text") == NOTES[k] and r.get("audio_path"):
+                            target_path = static_note_path(k, voice)
+                            if r["audio_path"] != target_path:
+                                try:
+                                    store.copy(r["audio_path"], target_path)
+                                except Exception:
+                                    pass
+                            adopted = {
+                                "date": STATIC_DATE,
+                                "voice": voice,
+                                "note_key": k,
+                                "text": NOTES[k],
+                                "duration": r.get("duration") or 0,
+                                "audio_path": target_path,
+                            }
+                            store.insert("voice_notes", adopted, on_conflict="date,voice,note_key")
+                            static_rows[k] = adopted
+                            missing.remove(k)
+                            log.info("[static-note] %-20s adopted from %s for %s", k, r.get("date"), voice_name(voice))
+                except Exception as exc:  # noqa: BLE001
+                    log.debug("Could not adopt existing notes for %s: %s", voice, exc)
+
+            # Synthesize any remaining missing notes using active voice VM
+            if missing:
+                log.info("→ Synthesizing %d missing static notes for %s before VM shutdown...",
+                         len(missing), voice_name(voice))
+                for key in missing:
+                    text = NOTES[key]
+                    if on_note:
+                        on_note(key, voice)
+                    path = static_note_path(key, voice)
+                    audio, duration = await synthesise(client, base, text, voice)
+                    store.upload(path, audio, content_type="audio/mpeg", cache="max-age=31536000")
+                    row = {
+                        "date": STATIC_DATE,
+                        "voice": voice,
+                        "note_key": key,
+                        "text": text,
+                        "duration": round(duration, 3),
+                        "audio_path": path,
+                    }
+                    store.insert("voice_notes", row, on_conflict="date,voice,note_key")
+                    static_rows[key] = row
+                    log.info("[static-note] %-20s %-34s voiced & saved (%.1fs)", key, text, duration)
+            else:
+                log.info("[static-note] All %d static notes verified for %s (0 synthesized)",
+                         len(NOTES), voice_name(voice))
+
+            results[voice] = [static_rows[k] for k in NOTES if k in static_rows]
+    return results
+
+
 async def build_notes(cfg, store, *, day: str | None = None, voice: str | None = None,
                       voice_url: str | None = None, keys: list[str] | None = None,
                       force: bool = False, on_note: Callable[[str], None] | None = None) -> list[dict]:
-    """Voice the greeting and the section intros once for the day.
+    """Ensure static transition notes are voiced once and link them to the day's briefing.
 
-    A note whose text hasn't changed is left alone, so re-running the pack — or adding a
-    second voice — doesn't pay for the same eight words again. The text is fixed, so a new day
-    copies the previous day's recording rather than voicing it again.
+    A note whose text hasn't changed is never re-synthesized. Static notes are persisted
+    permanently under `notes/static/{key}-{voice}.mp3` and linked to `date=day` in Supabase.
     """
     day = day or datetime.now(ZoneInfo(cfg.timezone)).date().isoformat()
     voice = voice or cfg.story_voice
@@ -513,51 +609,42 @@ async def build_notes(cfg, store, *, day: str | None = None, voice: str | None =
     if not base:
         raise VoiceServiceDown("VOICE_SERVICE_URL is not set. A running voice service is required to synthesize audio.")
 
+    # 1. Ensure static notes exist in the permanent static library (synthesizing any missing ones via VM)
+    static_map = await ensure_static_notes(
+        cfg, store, voices=[voice], voice_url=base, force=force,
+        on_note=lambda k, _: on_note(k) if on_note else None
+    )
+    static_list = static_map.get(voice, [])
+    static_by_key = {r["note_key"]: r for r in static_list}
+
+    # 2. Link them to the day's date in voice_notes
     items = [(k, NOTES[k]) for k in NOTES if not keys or k in keys]
     done = {r["note_key"]: r for r in store.select(
         "voice_notes", {"date": f"eq.{day}", "voice": f"eq.{voice}"})}
-    earlier: dict[str, dict] = {}
-    if not force:
-        try:
-            for r in store.select("voice_notes", {"date": f"lt.{day}", "voice": f"eq.{voice}"}):
-                key = r.get("note_key")
-                if key in NOTES and r.get("audio_path") and (
-                        key not in earlier or str(r["date"]) > str(earlier[key]["date"])):
-                    earlier[key] = r
-        except Exception as exc:  # noqa: BLE001 — carrying notes over is an optimisation
-            log.debug("Could not look up earlier notes: %s", exc)
+
     rows: list[dict] = []
-    async with httpx.AsyncClient(timeout=900) as client:
-        for key, text in items:
-            if on_note:
-                on_note(key)
-            have = done.get(key)
-            if not force and have and have.get("text") == text and have.get("audio_path"):
-                rows.append(have)
-                log.info("[note] %-20s %-34s reused (%.1fs)", key, text, have.get("duration") or 0)
-                continue
-            path = f"notes/{day}/{key}-{voice}.mp3"
-            before = earlier.get(key)
-            if before and before.get("text") == text:
-                try:
-                    store.copy(before["audio_path"], path)
-                    row = {"date": day, "voice": voice, "note_key": key, "text": text,
-                           "duration": before.get("duration") or 0, "audio_path": path}
-                    store.insert("voice_notes", row, on_conflict="date,voice,note_key")
-                except Exception as exc:  # noqa: BLE001 — fall back to voicing it
-                    log.info("[note] %-20s could not carry over (%s); voicing it", key, exc)
-                else:
-                    rows.append(row)
-                    log.info("[note] %-20s %-34s carried over (%.1fs)", key, text, row["duration"])
-                    continue
-            audio, duration = await synthesise(client, base, text, voice)
-            store.upload(path, audio, content_type="audio/mpeg", cache="max-age=86400")
-            row = {"date": day, "voice": voice, "note_key": key, "text": text,
-                   "duration": round(duration, 3), "audio_path": path}
+    for key, text in items:
+        if on_note:
+            on_note(key)
+        have = done.get(key)
+        if not force and have and have.get("text") == text and have.get("audio_path"):
+            rows.append(have)
+            continue
+        static_ref = static_by_key.get(key)
+        if static_ref:
+            row = {
+                "date": day,
+                "voice": voice,
+                "note_key": key,
+                "text": text,
+                "duration": static_ref.get("duration") or 0,
+                "audio_path": static_ref.get("audio_path") or static_note_path(key, voice),
+            }
             store.insert("voice_notes", row, on_conflict="date,voice,note_key")
             rows.append(row)
-            log.info("[note] %-20s %-34s %.1fs", key, text, duration)
-    log.info("Published %d voice notes for %s", len(rows), voice_name(voice))
+            log.info("[note] %-20s %-34s linked to static (%.1fs)", key, text, row["duration"])
+
+    log.info("Published %d voice notes for %s on %s", len(rows), voice_name(voice), day)
     return rows
 
 
