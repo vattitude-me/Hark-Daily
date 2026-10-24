@@ -131,6 +131,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var sampleJob: Job? = null
 
     val signIn = MutableStateFlow(SignIn())
+    val isRefreshing = MutableStateFlow(false)
 
     init {
         if (repo.prefs.onboarded) refreshBriefings()
@@ -357,51 +358,55 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * and kept, so moving between days is instant the second time. When the requested day has no
      * pack yet, [StoryPack.fetch] returns the most recent published day instead.
      */
+    private suspend fun doFetchPack(date: String) {
+        val st = _settings.value
+        val (fetchedFull, fetchedRapid) = runCatching {
+            StoryPack.fetchBoth(repo.supabase, date, st.stories, st.voice, st.sectionOrder)
+        }.getOrDefault(null to null)
+        var fullPack = fetchedFull
+        var rapidPack = fetchedRapid
+        if (fullPack == null && rapidPack == null) {
+            fullPack = StoryPack.fetchShowcase(st.voice, st.stories, st.sectionOrder, mode = "full")
+            rapidPack = StoryPack.fetchShowcase(st.voice, st.stories, st.sectionOrder, mode = "rapid")
+        }
+        val activePack = if (briefingMode.value == "rapid") rapidPack ?: fullPack else fullPack ?: rapidPack
+        val packDate = activePack?.briefing?.date ?: date
+        if (fullPack != null) {
+            packs["$packDate-full"] = fullPack
+            packs[packDate] = fullPack
+            packs["$date-full"] = fullPack
+            packs[date] = fullPack
+        }
+        if (rapidPack != null) {
+            packs["$packDate-rapid"] = rapidPack
+            packs["$date-rapid"] = rapidPack
+        }
+        if (activePack != null && (selected.value == date || selected.value == packDate || selected.value == null)) {
+            selected.value = packDate
+            nowPlayingTried = null
+            briefing.value = activePack.briefing
+            BuildState.clearError()
+            val c = load(packDate, briefingMode.value)
+            tick()
+            // A narrator switch keeps the listener where they were.
+            resumeAt?.let { at ->
+                if (c != null) seekGlobal(c, at, play = resumePlaying)
+                resumeAt = null
+            }
+        } else if (briefing.value == null) {
+            repo.briefings.dates().firstOrNull()?.let { repo.briefings.load(it) }?.let {
+                briefing.value = Briefing.from(it)
+                BuildState.clearError()
+            }
+        }
+    }
+
     private fun fetchPack(date: String) {
         if (packs.containsKey("$date-full") && packs.containsKey("$date-rapid")) return
         if (selected.value == date && briefing.value == null) packLoadingDate.value = date
         viewModelScope.launch {
             try {
-                val st = _settings.value
-                val (fetchedFull, fetchedRapid) = runCatching {
-                    StoryPack.fetchBoth(repo.supabase, date, st.stories, st.voice, st.sectionOrder)
-                }.getOrDefault(null to null)
-                var fullPack = fetchedFull
-                var rapidPack = fetchedRapid
-                if (fullPack == null && rapidPack == null) {
-                    fullPack = StoryPack.fetchShowcase(st.voice, st.stories, st.sectionOrder, mode = "full")
-                    rapidPack = StoryPack.fetchShowcase(st.voice, st.stories, st.sectionOrder, mode = "rapid")
-                }
-                val activePack = if (briefingMode.value == "rapid") rapidPack ?: fullPack else fullPack ?: rapidPack
-                val packDate = activePack?.briefing?.date ?: date
-                if (fullPack != null) {
-                    packs["$packDate-full"] = fullPack
-                    packs[packDate] = fullPack
-                    packs["$date-full"] = fullPack
-                    packs[date] = fullPack
-                }
-                if (rapidPack != null) {
-                    packs["$packDate-rapid"] = rapidPack
-                    packs["$date-rapid"] = rapidPack
-                }
-                if (activePack != null && (selected.value == date || selected.value == packDate || selected.value == null)) {
-                    selected.value = packDate
-                    nowPlayingTried = null
-                    briefing.value = activePack.briefing
-                    BuildState.clearError()
-                    val c = load(packDate, briefingMode.value)
-                    tick()
-                    // A narrator switch keeps the listener where they were.
-                    resumeAt?.let { at ->
-                        if (c != null) seekGlobal(c, at, play = resumePlaying)
-                        resumeAt = null
-                    }
-                } else if (briefing.value == null) {
-                    repo.briefings.dates().firstOrNull()?.let { repo.briefings.load(it) }?.let {
-                        briefing.value = Briefing.from(it)
-                        BuildState.clearError()
-                    }
-                }
+                doFetchPack(date)
             } finally {
                 if (packLoadingDate.value == date) packLoadingDate.value = null
             }
@@ -412,8 +417,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshPack() {
         val today = LocalDate.now().toString()
         invalidatePacks()
-        // Keep whatever is on screen while the check runs, so a miss does not blank the news.
-        if (selected.value == today && briefing.value != null) fetchPack(today) else select(today)
+        viewModelScope.launch {
+            isRefreshing.value = true
+            try {
+                val target = selected.value ?: today
+                doFetchPack(target)
+            } finally {
+                delay(350)
+                isRefreshing.value = false
+            }
+        }
     }
 
     fun buildNow() {
