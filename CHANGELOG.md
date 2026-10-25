@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.60] - 2026-10-25
+
+### Fixed
+- **Dynamic Version Display in Settings**:
+  - Replaced hardcoded version string (`v0.1.47`) in `SettingsScreen.kt` with dynamic `BuildConfig.VERSION_NAME`, ensuring the settings footer always reflects the true build version.
+  - Added memory rule in `.agents/rules/commit-and-version.md` to guarantee UI components always bind dynamically to `BuildConfig.VERSION_NAME`.
+
+---
+
 ## [0.1.59] - 2026-10-25
 
 ### Fixed
