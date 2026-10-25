@@ -9,7 +9,7 @@ A concise daily audio briefing from **CBC News**, **TechCrunch**, and **BetaKit*
 No ads. No tracking. Zero doom-scrolling.
 
 [![Web PWA](https://img.shields.io/badge/Web-PWA_Ready-2f6fed?style=flat-square&logo=googlechrome&logoColor=white)](web/)
-[![Android App](https://img.shields.io/badge/Android-APK_v0.1.56-1a9b5b?style=flat-square&logo=android&logoColor=white)](https://github.com/vattitude-me/morning-brief-voice/releases/tag/android-v0.1.56)
+[![Android App](https://img.shields.io/badge/Android-APK_v0.1.56-1a9b5b?style=flat-square&logo=android&logoColor=white)](https://github.com/vattitude-me/Hark-Daily/releases/tag/android-v0.1.56)
 [![Neural Voice](https://img.shields.io/badge/Voice-Chatterbox--Turbo-6a4cf5?style=flat-square)](voice_service/)
 [![Changelog](https://img.shields.io/badge/Changelog-v0.1.57-orange?style=flat-square)](CHANGELOG.md)
 [![Privacy First](https://img.shields.io/badge/Privacy-No_Ads_%7C_No_Tracking-0D0D0D?style=flat-square)](web/privacy.html)
@@ -91,7 +91,7 @@ Native Android application built with Jetpack Compose, Compose Material3 tokens,
 3. Sign in with Google or magic link if you wish to sync custom topic preferences across devices.
 
 ### Android
-1. Download the latest signed APK from [GitHub Releases](https://github.com/vattitude-me/morning-brief-voice/releases).
+1. Download the latest signed APK from [GitHub Releases](https://github.com/vattitude-me/Hark-Daily/releases).
 2. Install on any device running Android 10+ (API 29+).
 3. Select your preferred voice narrator (**C-3PO** or **Alice**) and start listening.
 
