@@ -36,6 +36,7 @@ import httpx
 from . import topics
 from .errors import DeadlineReached, PackBusy, PackIncomplete, VoiceServiceDown
 from .store import StoreError
+from .summarizer import strip_headline_and_filler
 
 log = logging.getLogger(__name__)
 
@@ -338,7 +339,8 @@ def showcase_payload(rows: list[dict], notes: list[dict], url_for, *, day: str,
                              row.get("title") or "", row["audio_path"])
             stories.append({
                 "id": cid, "section": key, "headline": row.get("title") or "",
-                "summary": row.get("script") or "", "source": row.get("source") or "",
+                "summary": row.get("summary") or strip_headline_and_filler(row.get("title") or "", row.get("script") or ""),
+                "source": row.get("source") or "",
                 "url": row.get("url") or "", "image": row.get("image") or "",
                 "start": round(start, 3), "end": round(end, 3),
             })

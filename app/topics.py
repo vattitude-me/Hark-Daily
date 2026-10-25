@@ -125,8 +125,8 @@ def pick_unique(picked: dict[str, list[Item]],
     return out
 
 
-def script_for(item: Item, max_words: int = 60, title: str = "", rank: int = 1) -> str:
-    """The spoken broadcast script: [Headline] + [Podcast Banter Filler] + [Body Summary]."""
+def body_summary_for(item: Item, max_words: int = 60, title: str = "", rank: int = 1) -> str:
+    """The clean body summary for the visual card (no headline, no podcast connector)."""
     headline = (item.title or title or "").strip()
     connector = get_connector(rank)
     head_words = len(headline.split())
@@ -134,7 +134,14 @@ def script_for(item: Item, max_words: int = 60, title: str = "", rank: int = 1) 
     body_budget = max(25, max_words - head_words - conn_words)
 
     body = drop_boilerplate(item.text) or item.summary or item.title
-    summary = summarize(body, fallback=item.summary or item.title, max_words=body_budget, title=headline)
+    return summarize(body, fallback=item.summary or item.title, max_words=body_budget, title=headline)
+
+
+def script_for(item: Item, max_words: int = 60, title: str = "", rank: int = 1) -> str:
+    """The spoken broadcast script: [Headline] + [Podcast Banter Filler] + [Body Summary]."""
+    headline = (item.title or title or "").strip()
+    connector = get_connector(rank)
+    summary = body_summary_for(item, max_words=max_words, title=headline, rank=rank)
     return format_script(headline, summary, rank=rank, connector=connector)
 
 
@@ -175,6 +182,7 @@ async def build_pack(per_section: int = DEFAULT_PER_SECTION, sections: list[str]
     pack: list[dict] = []
     for key in keys:
         for rank, item in enumerate(picked.get(key, []), 1):
+            summary = body_summary_for(item, max_words=max_words, title=item.title, rank=rank)
             pack.append({
                 "id": item.id,
                 "section": key,
@@ -184,7 +192,8 @@ async def build_pack(per_section: int = DEFAULT_PER_SECTION, sections: list[str]
                 "url": item.url,
                 "published": item.published.isoformat() if item.published else None,
                 "image": item.image,
-                "script": script_for(item, max_words=max_words, title=item.title, rank=rank),
+                "summary": summary,
+                "script": format_script(item.title, summary, rank=rank),
             })
     return pack
 

@@ -26,6 +26,34 @@ export function clipUrl(path) {
   return `${SUPABASE_URL}/storage/v1/object/public/briefings/${path}`;
 }
 
+const CONNECTORS = [
+  'Here are the details:', "Here's what you need to know:", 'Taking a closer look:',
+  "Here's what's happening:", 'According to the reporting:', 'In the details:', 'Behind the headline:',
+];
+
+const LABEL_PREFIX = /^(?:the news|why it matters|what to know|what happened|the big picture|from the source|between the lines|catch up quick|by the numbers|what they(?:'re| are) saying|what's next|the backstory|yes, but|details|context|zoom in|zoom out|what to watch|state of play):\s*/i;
+
+/**
+ * Extract clean body summary from broadcast script by stripping repeated headline,
+ * podcast banter connectors, and editorial section prefixes (e.g. "The news:").
+ */
+export function stripHeadlineAndFiller(headline, scriptOrSummary) {
+  let text = (scriptOrSummary || '').trim();
+  if (!text) return '';
+  const cleanTitle = (headline || '').trim().replace(/[.!?:]+$/, '');
+  if (cleanTitle) {
+    const esc = cleanTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    text = text.replace(new RegExp('^' + esc + '[.!?]?\\s*', 'i'), '').trim();
+  }
+  const connPattern = new RegExp('^(?:' + CONNECTORS.map((c) => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\s*', 'i');
+  text = text.replace(connPattern, '').trim();
+  text = text.replace(LABEL_PREFIX, '').trim();
+  if (text && text[0] === text[0].toLowerCase()) {
+    text = text[0].toUpperCase() + text.slice(1);
+  }
+  return text || scriptOrSummary;
+}
+
 /**
  * Which voice's clips to play: the one this listener picked, or — when that recording isn't
  * published (a render that failed, or a voice they used to have) — whichever one is there.
@@ -185,7 +213,9 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
     const id = `${row.section}-${row.rank}`;
     stories.push({
       id, section: row.section, source: row.source || 'The Guardian',
-      headline: row.title, summary: row.script || '', url: row.url || null,
+      headline: row.title,
+      summary: row.summary || stripHeadlineAndFiller(row.title, row.script || ''),
+      url: row.url || null,
       image: row.image || null, start, end, rapid: isRapid,
     });
     chapters.push({ id, kind: 'story', title: row.title, start, end, section: row.section });
