@@ -1,5 +1,6 @@
 package me.vattitude.morningbrief.ui
 
+import me.vattitude.morningbrief.data.stripHeadlineAndFiller
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -53,7 +54,8 @@ data class Briefing(
                     val also = c.optJSONArray("also")
                     Card(
                         id = c.optString("id"), section = c.optString("section"), headline = c.optString("headline"),
-                        summary = c.optString("summary"), url = c.optString("url"), source = c.optString("source"),
+                        summary = stripHeadlineAndFiller(c.optString("headline"), c.optString("summary")),
+                        url = c.optString("url"), source = c.optString("source"),
                         also = if (also == null) emptyList() else (0 until also.length()).map { also.getString(it) },
                         image = c.optString("image").takeIf { it.startsWith("http") },
                         start = c.optDouble("start"), end = c.optDouble("end"), writer = c.optString("writer"),

@@ -67,6 +67,38 @@ def format_script(title: str, summary: str, rank: int = 1, connector: str | None
 
 
 
+LABEL_PREFIX = re.compile(
+    r"^(?:the news|why it matters|what to know|what happened|the big picture|from the source|"
+    r"between the lines|catch up quick|by the numbers|what they(?:'re| are) saying|what's next|"
+    r"the backstory|yes, but|details|context|zoom in|zoom out|what to watch|state of play):\s*",
+    re.I,
+)
+
+
+def clean_sentence(sent: str) -> str:
+    """Clean a sentence by stripping editorial section tags (e.g. 'The news:', 'Why it matters:')."""
+    s = LABEL_PREFIX.sub("", (sent or "").strip()).strip()
+    if s and s[0].islower():
+        s = s[0].upper() + s[1:]
+    return s
+
+
+def strip_headline_and_filler(title: str, script: str) -> str:
+    """Extract clean body summary from broadcast script by stripping repeated headline and podcast fillers."""
+    text = (script or "").strip()
+    if not text:
+        return ""
+    clean_title = (title or "").strip().rstrip(".!?:")
+    if clean_title:
+        pattern = r"^" + re.escape(clean_title) + r"[.!?]?\s*"
+        text = re.sub(pattern, "", text, flags=re.I).strip()
+
+    conn_pattern = r"^(?:" + "|".join(re.escape(c) for c in CONNECTORS) + r")\s*"
+    text = re.sub(conn_pattern, "", text, flags=re.I).strip()
+    text = clean_sentence(text)
+    return text.strip() or script.strip()
+
+
 def drop_boilerplate(text: str) -> str:
     """Drops lines of site furniture from article text, so neither the summary nor the voice reads them."""
     return "\n".join(
@@ -76,7 +108,7 @@ def drop_boilerplate(text: str) -> str:
 
 
 def split_sentences(text: str, title: str = "") -> list[str]:
-    """Split article text into sentences, skipping headings, captions and a repeated title."""
+    """Split article text into sentences, skipping headings, captions, repeated titles, and editorial tags."""
     out = []
     title_key = re.sub(r"\W+", "", title.lower())
     for para in (text or "").splitlines():
@@ -87,7 +119,10 @@ def split_sentences(text: str, title: str = "") -> list[str]:
             continue
         if not re.search(r"[.!?][\"”’']?$", para) and len(para.split()) < 20:
             continue  # heading, byline or caption fragment
-        out.extend(s.strip() for s in SENTENCE_SPLIT.split(para) if s.strip())
+        for s in SENTENCE_SPLIT.split(para):
+            s = clean_sentence(s)
+            if s:
+                out.append(s)
     return out
 
 

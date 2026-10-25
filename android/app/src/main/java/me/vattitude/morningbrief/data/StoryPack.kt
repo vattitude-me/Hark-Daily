@@ -60,6 +60,28 @@ private fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { get
 internal fun clipUrl(path: String) = "$SUPABASE_URL/storage/v1/object/public/briefings/$path"
 
 /**
+ * Extract clean body summary from broadcast script by stripping repeated headline,
+ * podcast banter connectors, and editorial section prefixes (e.g. "The news:").
+ */
+fun stripHeadlineAndFiller(headline: String, scriptOrSummary: String): String {
+    var text = scriptOrSummary.trim()
+    if (text.isEmpty()) return ""
+    val cleanTitle = headline.trim().trimEnd('.', '!', '?', ':')
+    if (cleanTitle.isNotEmpty()) {
+        val pattern = Regex("^" + Regex.escape(cleanTitle) + "[.!?]?\\s*", RegexOption.IGNORE_CASE)
+        text = pattern.replace(text, "").trim()
+    }
+    val connPattern = Regex("^(?:Here are the details:|Here's what you need to know:|Taking a closer look:|Here's what's happening:|According to the reporting:|In the details:|Behind the headline:)\\s*", RegexOption.IGNORE_CASE)
+    text = connPattern.replace(text, "").trim()
+    val labelPattern = Regex("^(?:The news|Why it matters|What to know|What happened|The big picture|From the source|Between the lines|Catch up quick|By the numbers|What they're saying|What they are saying|What's next|The backstory|Yes, but|Details|Context|Zoom in|Zoom out|What to watch|State of play):\\s*", RegexOption.IGNORE_CASE)
+    text = labelPattern.replace(text, "").trim()
+    if (text.isNotEmpty() && text[0].isLowerCase()) {
+        text = text.replaceFirstChar { it.uppercase() }
+    }
+    return text.ifEmpty { scriptOrSummary.trim() }
+}
+
+/**
  * Turns the day's shared clips into one listener's briefing: the greeting, then each
  * section's spoken intro before its first story. Mirrors web/js/storypack.js, so the phone
  * and the browser assemble exactly the same thing from the same rows.
@@ -212,8 +234,9 @@ object StoryPack {
                 val start = cursor
                 val end = cursor + duration
                 clips += Clip(id, title, clipUrl(row.optString("audio_path")), duration, start, end, note = false)
+                val cleanSummary = row.optString("summary").ifEmpty { stripHeadlineAndFiller(title, row.optString("script")) }
                 cards += Card(
-                    id = id, section = key, headline = title, summary = row.optString("script"),
+                    id = id, section = key, headline = title, summary = cleanSummary,
                     url = row.optString("url"), source = row.optString("source").ifEmpty { "The Guardian" },
                     also = emptyList(), image = row.optString("image").takeIf { it.startsWith("http") },
                     start = start, end = end,

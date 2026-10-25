@@ -89,3 +89,28 @@ def test_script_for_includes_headline_and_rotating_connector():
     assert script2.startswith("Tech stocks surge following breakthrough chip earnings.")
     assert CONNECTORS[1] in script2
 
+
+def test_clean_sentence_strips_editorial_label_prefixes():
+    from app.summarizer import clean_sentence, split_sentences, strip_headline_and_filler
+
+    raw_para = "The news: On Thursday, the CSCA announced that Tara June Misra had stepped into the executive director role."
+    cleaned = clean_sentence(raw_para)
+    assert cleaned.startswith("On Thursday, the CSCA announced")
+    assert "The news:" not in cleaned
+
+    sents = split_sentences(raw_para)
+    assert sents[0].startswith("On Thursday, the CSCA announced")
+
+    title = "Canadian Startup Capital Association names new interim executive director"
+    script = (
+        "Canadian Startup Capital Association names new interim executive director. "
+        "Taking a closer look: The news: On Thursday, the CSCA announced that Tara June Misra "
+        "had stepped into the executive director role."
+    )
+    clean = strip_headline_and_filler(title, script)
+    assert clean.startswith("On Thursday, the CSCA announced")
+    assert "Canadian Startup Capital" not in clean
+    assert "Taking a closer look:" not in clean
+    assert "The news:" not in clean
+
+

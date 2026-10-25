@@ -119,4 +119,16 @@ class StoryPackTest {
         assertTrue(result.isNotEmpty())
         assertTrue((result["top"] ?: 0) > 0)
     }
+
+    @Test
+    fun stripHeadlineAndFillerCleansRepeatedTitleAndConnectorAndLabel() {
+        val headline = "Canadian Startup Capital Association names new interim executive director"
+        val script = "Canadian Startup Capital Association names new interim executive director. Taking a closer look: The news: On Thursday, the CSCA announced that Tara June (TJ) Misra had stepped into the executive director role."
+        val cleaned = stripHeadlineAndFiller(headline, script)
+
+        assertTrue(cleaned.startsWith("On Thursday, the CSCA announced"))
+        assertFalse(cleaned.contains("Canadian Startup Capital"))
+        assertFalse(cleaned.contains("Taking a closer look:"))
+        assertFalse(cleaned.contains("The news:"))
+    }
 }

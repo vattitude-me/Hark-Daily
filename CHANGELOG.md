@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.59] - 2026-10-25
+
+### Fixed
+- **Clean Card Summary Display (No Duplicate Headline or Banter on Screen)**:
+  - Fixed story cards in Android and Web displaying the repeated headline and conversational filler in the card body text. The headline and filler remain exclusively in the voiced audio narration, while visual cards now display the clean, readable article summary.
+  - Added `stripHeadlineAndFiller` across Android (`StoryPack.kt`, `Briefing.kt`) and Web (`storypack.js`), ensuring even existing briefings instantly render clean body text without app-level duplication.
+- **Stripped Editorial Lead-in Prefixes (BetaKit "The news:")**:
+  - Filtered out publication section labels (`"The news:"`, `"From the source:"`, `"Why it matters:"`, `"The big picture:"`, etc.) in `app/summarizer.py` so they are never voiced or shown in card summaries.
+  - Bumped PWA service worker cache to `hark-daily-v13`.
+
+---
+
 ## [0.1.58] - 2026-10-25
 
 ### Added
