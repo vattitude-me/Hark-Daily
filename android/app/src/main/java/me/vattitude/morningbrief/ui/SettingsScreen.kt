@@ -271,7 +271,7 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     }
                     Spacer(Modifier.width(8.dp))
                     Text("Hark Daily", style = Type.title.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold), color = t.ink)
-                    Text(" · v0.1.47", style = Type.meta, color = t.muted)
+                    Text(" · v${BuildConfig.VERSION_NAME}", style = Type.meta, color = t.muted)
                 }
                 Text("The news you hear, not just read.", Modifier.padding(top = 4.dp), style = Type.tiny, color = t.muted)
                 Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
