@@ -1,11 +1,11 @@
 <div align="center">
 
-<img src="docs/play-store/feature-graphic.png" alt="Morning Brief" width="100%" style="border-radius: 16px; margin-bottom: 20px;" />
+<img src="docs/play-store/feature-graphic.png" alt="Hark Daily" width="100%" style="border-radius: 16px; margin-bottom: 20px;" />
 
-# ☀️ Morning Brief
+# 🎙️ Hark Daily
 
-**Your daily news, read aloud anytime.**  
-A concise audio briefing from **CBC News**, **TechCrunch**, and **BetaKit**, voiced by neural personas led by **C-3PO** and **Alice**.  
+**The news you hear, not just read.**  
+A concise daily audio briefing from **CBC News**, **TechCrunch**, and **BetaKit**, voiced by neural personas led by **C-3PO** and **Alice**.  
 No ads. No tracking. Zero doom-scrolling.
 
 [![Web PWA](https://img.shields.io/badge/Web-PWA_Ready-2f6fed?style=flat-square&logo=googlechrome&logoColor=white)](web/)
@@ -50,12 +50,12 @@ Works in any modern browser on desktop, tablet, and mobile with automatic light 
 <div align="center">
 
 ### Desktop View (Light & Dark)
-<img src="docs/screenshots/web-desktop-light.png" alt="Morning Brief Web Desktop Light Mode" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-bottom: 16px;" />
+<img src="docs/screenshots/web-desktop-light.png" alt="Hark Daily Web Desktop Light Mode" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-bottom: 16px;" />
 
-<img src="docs/screenshots/web-desktop-dark.png" alt="Morning Brief Web Desktop Dark Mode" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);" />
+<img src="docs/screenshots/web-desktop-dark.png" alt="Hark Daily Web Desktop Dark Mode" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);" />
 
 ### Mobile Web PWA
-<img src="docs/screenshots/web-mobile-light.png" alt="Morning Brief Web Mobile View" width="360" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-top: 12px;" />
+<img src="docs/screenshots/web-mobile-light.png" alt="Hark Daily Web Mobile View" width="360" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-top: 12px;" />
 
 </div>
 
@@ -86,7 +86,7 @@ Native Android application built with Jetpack Compose, Compose Material3 tokens,
 ## 🚀 Getting Started
 
 ### Web
-1. Open the [Morning Brief Web App](web/).
+1. Open the [Hark Daily Web App](web/).
 2. Click **Play** on today’s edition—no account or sign-up required.
 3. Sign in with Google or magic link if you wish to sync custom topic preferences across devices.
 

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hark Daily Feature Graphic</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 1024px;
+      height: 500px;
+      overflow: hidden;
+      background: #f4f2ee;
+      font-family: 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    /* Ambient backdrop glow */
+    .glow-1 {
+      position: absolute;
+      top: -100px;
+      right: 150px;
+      width: 450px;
+      height: 450px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(245, 158, 11, 0.16) 0%, rgba(245, 158, 11, 0) 70%);
+      pointer-events: none;
+    }
+    .glow-2 {
+      position: absolute;
+      bottom: -120px;
+      left: 100px;
+      width: 500px;
+      height: 500px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(75, 138, 184, 0.12) 0%, rgba(75, 138, 184, 0) 70%);
+      pointer-events: none;
+    }
+    .container {
+      display: flex;
+      align-items: center;
+      gap: 52px;
+      z-index: 2;
+    }
+    .badge {
+      width: 190px;
+      height: 190px;
+      background: #ffffff;
+      border-radius: 46px;
+      box-shadow: 0 20px 50px -10px rgba(16, 24, 40, 0.14), 0 2px 8px rgba(16, 24, 40, 0.04);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      position: relative;
+    }
+    .badge img {
+      width: 154px;
+      height: 154px;
+      object-fit: contain;
+    }
+    .content {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    h1 {
+      font-size: 74px;
+      font-weight: 700;
+      color: #101828;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      margin-bottom: 12px;
+    }
+    .subtitle {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 500;
+      color: #556070;
+      letter-spacing: -0.01em;
+      margin-bottom: 22px;
+    }
+    .chips {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .chip {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: #344054;
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(15, 23, 42, 0.09);
+      padding: 6px 14px;
+      border-radius: 999px;
+      box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+    }
+    .chip.highlight {
+      background: rgba(245, 158, 11, 0.12);
+      color: #b45309;
+      border-color: rgba(217, 119, 6, 0.28);
+    }
+  </style>
+</head>
+<body>
+  <div class="glow-1"></div>
+  <div class="glow-2"></div>
+  <div class="container">
+    <div class="badge">
+      <img src="hark-daily-logo-transparent.png" alt="Hark Daily">
+    </div>
+    <div class="content">
+      <h1>Hark Daily</h1>
+      <p class="subtitle">The news you hear, not just read.</p>
+      <div class="chips">
+        <span class="chip">CBC News</span>
+        <span class="chip">TechCrunch</span>
+        <span class="chip">BetaKit</span>
+        <span class="chip highlight">🎙️ C-3PO &amp; Alice</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
