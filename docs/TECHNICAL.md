@@ -1,67 +1,72 @@
-# Morning Brief — Technical & Architecture Guide
+# Hark Daily — Technical & Architecture Guide
 
-Morning Brief is an automated news briefing system that compiles, summarizes, and voices daily news into a 5-minute audio briefing. Audio is rendered once per day on a dedicated GPU instance and assembled dynamically by web and Android clients based on user topic preferences and custom ordering.
+Hark Daily is an automated, multi-provider news briefing system that compiles, summarizes, and voices daily news into a 5-minute personalized audio briefing. Spoken audio is rendered once per day on an on-demand GPU instance, framed with permanent static transitions, and assembled dynamically by web and Android clients based on user topic preferences, category ordering, and listening mode (Full vs. Rapid).
 
 ---
 
 ## Architecture Flow
 
-The system runs a daily batch ingestion and synthesis pipeline triggered by Google Cloud Scheduler, writes shared audio clips to Supabase, and serves them to client applications.
+The system runs a daily batch ingestion and synthesis pipeline triggered by Google Cloud Scheduler, writes shared audio clips and static framing to Supabase, and serves them to client applications.
 
 ```mermaid
 flowchart TD
-    subgraph Scheduler["1. Scheduling"]
+    subgraph Scheduler["1. Cloud Scheduling & Triggers"]
         GCS["Google Cloud Scheduler<br/>(Daily 05:00 AM)"] -->|HTTP Trigger| CRJ["Cloud Run Worker Job<br/>(python -m app pack --notify)"]
     end
 
-    subgraph Extraction["2. News Ingestion & Extraction"]
-        CRJ -->|Fetch RSS| GDN["The Guardian RSS Feeds<br/>(7 Editorial Categories)"]
-        GDN -->|Article URLs| HTTPX["HTTPX Async Fetch"]
-        HTTPX -->|Raw HTML| TRAF["Trafilatura Extraction<br/>(Title, Metadata, Body Text)"]
-        TRAF -->|Clean Text| SUM["Extractive Summarizer<br/>(Lead Salience, 22s Scripts)"]
+    subgraph Extraction["2. Multi-Provider Ingestion & Extraction"]
+        CRJ -->|Fetch RSS Feeds| FEEDS["Public News Providers"]
+        FEEDS --> CBC["CBC News<br/>(Top, Politics, Arts, Science, Sports)"]
+        FEEDS --> TC["TechCrunch<br/>(Artificial Intelligence)"]
+        FEEDS --> BK["BetaKit<br/>(Canadian Tech & Innovation)"]
+        CBC & TC & BK -->|Article URLs| HTTPX["HTTPX Async Client"]
+        HTTPX -->|Raw HTML| TRAF["Trafilatura Extraction<br/>(Title, Lead Image, Clean Text)"]
+        TRAF -->|Normalized Text| SUM["Extractive Summarizer<br/>(Lead Salience, ~22s Scripts)"]
     end
 
-    subgraph GPU["3. On-Demand TTS Generation"]
+    subgraph GPU["3. On-Demand TTS & Pre-Closure Guard"]
         SUM -->|Start VM| GCE_API["Compute Engine REST API<br/>(OAuth2 via Metadata Server)"]
-        GCE_API -->|Boot VM| VM["GCE GPU Instance<br/>(morning-brief-voice, T4 GPU)"]
+        GCE_API -->|Boot VM| VM["GCE L4 GPU Instance<br/>(morning-brief-voice)"]
         VM -->|Dynamic IP Lookup| HEALTH["Poll /health (Port 8090)"]
-        HEALTH -->|Ready| TTS["Chatterbox-Turbo TTS Service"]
-        TTS -->|POST /synthesize| AUDIO["Synthesize Audio Clips<br/>(Alice, Mike, Jerry, C-3PO)"]
-        AUDIO -->|Finished| STOP["Stop VM immediately<br/>(~12-14 min daily runtime)"]
+        HEALTH -->|Ready| TTS["Chatterbox-Turbo / Kokoro TTS"]
+        TTS -->|POST /synthesize| AUDIO["Synthesize Day's Story Clips<br/>(C-3PO flagship, Alice alternate)"]
+        TTS -->|Pre-Closure Guard| NOTES["ensure_static_notes()<br/>(Synthesize only missing static notes)"]
+        NOTES -->|Verified| STOP["Stop VM immediately<br/>(~12-14 min daily runtime, $0 idle)"]
     end
 
-    subgraph Storage["4. Persistence & Distribution"]
-        AUDIO -->|Upload MP3s| SB_STORAGE["Supabase Storage<br/>(bucket: briefings)"]
-        AUDIO -->|Insert Metadata| SB_DB["Supabase PostgreSQL<br/>(story_audio, voice_notes)"]
-        AUDIO -->|VAPID Web Push| PUSH["Web Push Service"]
+    subgraph Storage["4. Permanent Storage & Metadata Distribution"]
+        AUDIO -->|Upload Story MP3s| SB_STOR_DAILY["Supabase Storage: stories/{date}/"]
+        NOTES -->|Upload Static MP3s| SB_STOR_STATIC["Supabase Storage: notes/static/"]
+        AUDIO & NOTES -->|Insert Metadata| SB_DB["Supabase PostgreSQL<br/>(story_audio, voice_notes)"]
+        SB_DB -->|VAPID Web Push| PUSH["Web Push Notifications"]
     end
 
-    subgraph Clients["5. Dynamic Client Assembly"]
-        SB_DB -->|Fetch Rows| PWA["Web PWA<br/>(Static HTML/CSS/JS)"]
-        SB_DB -->|Fetch Rows| ANDROID["Android App<br/>(Kotlin, Compose, Media3)"]
-        SB_STORAGE -->|Stream MP3s| PWA
-        SB_STORAGE -->|Stream MP3s| ANDROID
+    subgraph Clients["5. Dynamic Client Assembly & Gestures"]
+        SB_DB -->|Fetch Pack Rows| PWA["Web PWA (Hark Daily)<br/>(Full & Rapid Modes)"]
+        SB_DB -->|Fetch Pack Rows| ANDROID["Android App (Hark Daily)<br/>(Pull-to-Refresh, Media3, Compose)"]
+        SB_STOR_DAILY & SB_STOR_STATIC -->|Stream MP3s| PWA
+        SB_STOR_DAILY & SB_STOR_STATIC -->|Stream MP3s| ANDROID
     end
 ```
 
 ---
 
-## 1. News Ingestion & Article Extraction
+## 1. Multi-Provider News Ingestion & Article Extraction
 
-### The Guardian Single-Source Architecture
-The system ingests stories across 7 fixed categories defined in [`app/topics.py`](file:///Users/vattitude/Coding/Morning_Brief/app/topics.py):
-- `top` — Top stories (`international/rss`)
-- `ai` — Artificial Intelligence (`technology/artificialintelligenceai/rss`)
-- `tech` — Technology (`uk/technology/rss`)
-- `politics` — Politics (`politics/rss`)
-- `entertainment` — Culture & Entertainment (`culture/rss`)
-- `science` — Science (`science/rss`)
-- `sports` — Sport (`uk/sport/rss`)
+### Multi-Provider Architecture ([`app/topics.py`](file:///Users/vattitude/Coding/Morning_Brief/app/topics.py))
+The system ingests stories across 7 editorial categories configured with reputable Canadian and international tech news feeds:
+- `top` — CBC News Top Stories (`https://www.cbc.ca/cmlink/rss-topstories`)
+- `ai` — TechCrunch Artificial Intelligence (`https://techcrunch.com/category/artificial-intelligence/feed/`)
+- `tech` — BetaKit Canadian Tech & Innovation (`https://betakit.com/feed/`)
+- `politics` — CBC News Politics (`https://www.cbc.ca/cmlink/rss-politics`)
+- `entertainment` — CBC News Arts & Entertainment (`https://www.cbc.ca/cmlink/rss-arts`)
+- `science` — CBC News Technology & Science (`https://www.cbc.ca/cmlink/rss-technology`)
+- `sports` — CBC News Sports (`https://www.cbc.ca/cmlink/rss-sports`)
 
-The RSS order represents editorial curation, avoiding ranking models. The worker takes the top 5 articles per section (with a 5-article deduplication margin) and discards articles older than 48 hours.
+The feed order reflects editorial curation. The worker selects the top 5 articles per category (with deduplication margins) and discards articles published more than 48 hours ago.
 
-### Parsing with Trafilatura
-In [`app/fetcher.py`](file:///Users/vattitude/Coding/Morning_Brief/app/fetcher.py), `trafilatura` extracts clean article text, metadata, and hero images from raw HTML while discarding boilerplate, navigation menus, inline ads, and comments:
+### Parsing with Trafilatura ([`app/fetcher.py`](file:///Users/vattitude/Coding/Morning_Brief/app/fetcher.py))
+`trafilatura` extracts clean article text, metadata, and hero images from raw HTML while stripping out boilerplate, navigation menus, inline ads, and comments:
 
 ```python
 def extract_article(page_html: str, url: str) -> dict:
@@ -94,44 +99,73 @@ def extract_article(page_html: str, url: str) -> dict:
     }
 ```
 
-### Extractive Summarization
-Rather than using generative LLMs that risk hallucination and impose per-call API billing, [`app/summarizer.py`](file:///Users/vattitude/Coding/Morning_Brief/app/summarizer.py) generates spoken broadcast scripts algorithmically:
+### Extractive Summarization ([`app/summarizer.py`](file:///Users/vattitude/Coding/Morning_Brief/app/summarizer.py))
+Spoken broadcast scripts are extracted algorithmically from original reporting:
 1. Strips datelines, author credits, and photo captions.
-2. Identifies key informational sentences using lead paragraph proximity and term frequency.
-3. Produces a 2-to-3 sentence script calibrated to ~22 seconds of spoken speech.
+2. Identifies key informational sentences using lead paragraph proximity and term frequency salience.
+3. Produces a 2-to-3 sentence script calibrated to ~22 seconds of spoken broadcast.
 
 ---
 
-## 2. On-Demand TTS & GCE GPU Lifecycle
+## 2. Permanent Static Voice Notes Library & Pre-Closure Guard
 
-Neural audio synthesis requires an NVIDIA GPU (running Chatterbox-Turbo / PyTorch). To prevent the high cost of a 24/7 GPU VM (~$500/month), [`app/gce.py`](file:///Users/vattitude/Coding/Morning_Brief/app/gce.py) manages the instance lifecycle dynamically via Compute Engine REST APIs:
+Spoken framing consists of greetings, section introductions, and the briefing sign-off. Because these scripts are static and fixed, synthesizing them every single day was redundant and incurred avoidable GPU costs.
+
+### Static Asset Storage ([`app/storypack.py`](file:///Users/vattitude/Coding/Morning_Brief/app/storypack.py))
+1. **Permanent Storage Path**:
+   Spoken framing clips are stored permanently in Supabase Storage at:
+   `notes/static/{note_key}-{voice}.mp3`
+2. **Sentinel Date Indexing**:
+   Static metadata rows are indexed in PostgreSQL under sentinel date `STATIC_DATE = "2000-01-01"`.
+3. **11 Canonical Notes per Voice**:
+   - 3 Time-adaptive greetings (`greeting_morning`, `greeting_afternoon`, `greeting_evening`)
+   - 7 Section transitions (`intro_top`, `intro_ai`, `intro_tech`, `intro_politics`, `intro_entertainment`, `intro_science`, `intro_sports`)
+   - 1 Sign-off (`outro`)
+
+### Pre-Closure Guard (`ensure_static_notes`)
+Before the daily batch completes and shuts down the GPU VM:
+- `ensure_static_notes()` checks if any static note is missing for the active voices.
+- If all 11 static notes exist for that voice: **0 GPU calls are made** (100% compute savings).
+- If a new voice is added (e.g. adding a custom narrator) or a note is missing: The pipeline synthesizes the missing notes using the active VM session and registers them permanently in `notes/static/` before shutting down the instance.
+- `build_notes()` links the static storage paths into today's `voice_notes` rows for the current date, ensuring 100% transparent backwards compatibility with existing Android and Web client versions.
+
+### Retention Protection (`prune_older`)
+Automated database and storage cleanup routines in [`app/storypack.py:prune_older()`](file:///Users/vattitude/Coding/Morning_Brief/app/storypack.py#L134-L160) are guarded:
+- Excludes `STATIC_DATE = "2000-01-01"` from table row pruning.
+- Explicitly filters out all paths starting with `notes/static/` from `remove_objects()`, guaranteeing permanent static audio files are never purged.
+
+---
+
+## 3. On-Demand TTS & GCE GPU Lifecycle
+
+Neural audio synthesis runs on an NVIDIA L4 GPU instance (`morning-brief-voice`). To eliminate the high cost of a 24/7 VM (~$600/month), [`app/gce.py`](file:///Users/vattitude/Coding/Morning_Brief/app/gce.py) manages the instance lifecycle dynamically via Compute Engine REST APIs:
 
 ```text
-Run cost breakdown (Active voices: C-3PO [main], Alice):
-- 24/7 GCE L4 GPU:               ~$600.00 / month
-- 1-hour static daily cron:       ~$26.00 / month
-- Dynamic on-demand lifecycle:      ~$10.30 / month (~$0.34 / day total)
-    • GPU Compute (13 min/day @ $0.84/hr):  ~$0.18 / day (~$5.50 / mo)
-    • 40 GB Boot Disk (pd-balanced):         ~$0.13 / day ($4.00 / mo)
-    • Artifact Registry image storage:       ~$0.03 / day ($0.80 / mo)
-    • Static External IP:                    $0.00 (ephemeral IP released on stop)
+Monthly Cost Profile (2 active voices: C-3PO [flagship], Alice):
+- 24/7 GCE L4 GPU:                  ~$600.00 / month
+- 1-hour static daily cron:          ~$26.00 / month
+- Dynamic on-demand lifecycle:         ~$9.80 / month (~$0.32 / day total)
+    • GPU Compute (~12 min/day @ $0.84/hr): ~$0.17 / day (~$5.10 / mo)
+    • 40 GB Boot Disk (pd-balanced):        ~$0.13 / day ($4.00 / mo)
+    • Artifact Registry image storage:      ~$0.02 / day ($0.70 / mo)
+    • Static Framing Notes:                 $0.00 (reused permanently from notes/static/)
+    • Ephemeral External IP:                $0.00 (allocated on boot, released on stop)
 ```
 
 ### Dynamic VM Session Flow
-[`app/gce.py:voice_vm_session`](file:///Users/vattitude/Coding/Morning_Brief/app/gce.py#L104-L180) handles authentication, boot, IP resolution, and shutdown in a Python context manager:
+[`app/gce.py:voice_vm_session`](file:///Users/vattitude/Coding/Morning_Brief/app/gce.py#L182-L287) handles authentication, boot, IP resolution, health checks, and verified shutdown in a Python context manager:
 
 1. **Authentication**: Requests an OAuth2 access token via Google Cloud internal metadata server (`http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token`) in Cloud Run, or falls back to `gcloud auth print-access-token` locally.
-2. **Ephemeral Dynamic IP Resolution**: When the instance starts, GCE allocates an ephemeral external IP. The session loop queries `https://compute.googleapis.com/compute/v1/projects/{project}/zones/{zone}/instances/{instance}` to read the instance's active `natIP`. Using an ephemeral IP avoids GCP's $0.010/hr ($7.20/month) idle reservation fee when the VM is powered down.
-3. **Instance Start**: Calls the GCE start endpoint if the instance is not already running.
-4. **Health Check**: Polls `GET http://<VM_IP>:8090/health` up to 180 seconds (configurable via `GCE_HEALTH_TIMEOUT`) until the FastAPI service responds with `{"status": "ok"}`.
-5. **Synthesis**: Synthesizes the day's stories and voice framing notes across all 4 narrators.
-6. **Automatic Teardown**: An outer `finally` block unconditionally calls the GCE stop endpoint once audio generation completes (or on error), which automatically releases the ephemeral IP.
+2. **Fail-Fast Error Handling**: Immediately raises `VoiceServiceDown` if the instance returns HTTP 404 (deleted/not found) or 403 (unauthorized), avoiding 180s polling retry loops.
+3. **Ephemeral Dynamic IP Resolution**: When the instance starts, GCE allocates an ephemeral external IP. The session loop queries `https://compute.googleapis.com/compute/v1/projects/{project}/zones/{zone}/instances/{instance}` to read the instance's active `natIP`. Using an ephemeral IP avoids GCP's idle reservation fees when the VM is powered down.
+4. **Health Check**: Polls `GET http://<VM_IP>:8090/health` up to 180 seconds until the FastAPI service responds with `{"status": "ok"}`.
+5. **Synthesis & Pre-Closure Check**: Synthesizes the day's story scripts, verifies all static framing notes exist, and sets the `pack_ready` status.
+6. **Automatic Teardown**: An outer `finally` block unconditionally calls `stop_vm_verified()` once audio generation completes (or on error), which automatically transitions the VM to `TERMINATED` and releases the ephemeral IP.
 
 ### Voice Service API Contracts
-The TTS service in [`voice_service/`](file:///Users/vattitude/Coding/Morning_Brief/voice_service) exposes three primary endpoints on port `8090`:
+The TTS service in [`voice_service/`](file:///Users/vattitude/Coding/Morning_Brief/voice_service) exposes three endpoints on port `8090`:
 
 #### `GET /health`
-Returns service status, active device (`cuda`, `mps`, or `cpu`), and audio sample rate.
 ```json
 {
   "status": "ok",
@@ -141,14 +175,13 @@ Returns service status, active device (`cuda`, `mps`, or `cpu`), and audio sampl
 ```
 
 #### `GET /voices`
-Lists available voice reference clips bundled in `voice_service/data/voices/`:
-- `c3po_reference` — C-3PO (Polite protocol droid)
+Lists available voice reference clips in `voice_service/data/voices/`:
+- `c3po_reference` — C-3PO (Polite protocol droid, flagship narrator)
+- `her_reference` — Alice (Warm British newsreader, alternate narrator)
 - `jerry_reference` — Jerry (Observational wit)
-- `her_reference` — Alice (Warm British broadcast)
 - `him_reference` — Mike (Crisp American morning news)
 
 #### `POST /synthesize?format=mp3`
-Accepts text and voice identifier, returning synthesized audio bytes along with an `X-Duration` header indicating clip length in seconds:
 ```http
 POST /synthesize?format=mp3 HTTP/1.1
 Content-Type: application/json
@@ -169,30 +202,43 @@ X-Duration: 21.84
 
 ---
 
-## 3. Storage & Client Assembly
-
-### Supabase Storage & Database Schema
-Synthesized audio files are stored in Supabase Storage under `briefings/{date}/{voice}/` and tracked in PostgreSQL:
-
-- **`story_audio`**: Individual story clips.
-  - Columns: `date`, `section`, `rank`, `title`, `script`, `url`, `source`, `image`, `audio_path`, `duration`, `voice`.
-- **`voice_notes`**: Spoken framing audio clips per voice.
-  - `note_key`: `greeting_morning`, `greeting_afternoon`, `greeting_evening`, `intro_{section}`, `outro`, `pack_ready`.
-- **`profiles`**: User settings stored as JSONB (`stories`, `section_order`, `voice`, `speed`, `daily`, `color_photos`).
+## 4. Client Assembly & Dual Listening Modes
 
 ### Client Assembly Engine (`StoryPack`)
-Audio clips are synthesized once for all listeners. The web PWA ([`web/js/storypack.js`](file:///Users/vattitude/Coding/Morning_Brief/web/js/storypack.js)) and Android app ([`StoryPack.kt`](file:///Users/vattitude/Coding/Morning_Brief/android/app/src/main/java/me/vattitude/morningbrief/data/StoryPack.kt)) assemble custom briefings client-side without re-encoding:
+Audio clips are synthesized once globally for all listeners. The web PWA ([`web/js/storypack.js`](file:///Users/vattitude/Coding/Morning_Brief/web/js/storypack.js)) and Android app ([`StoryPack.kt`](file:///Users/vattitude/Coding/Morning_Brief/android/app/src/main/java/me/vattitude/morningbrief/data/StoryPack.kt)) assemble custom briefings client-side without re-encoding:
 
-1. **Verify Readiness**: Checks that `voice_notes` contains a `pack_ready` record for the requested voice and date.
+1. **Verify Readiness**: Checks that `voice_notes` contains a `pack_ready` marker for the requested voice and date.
 2. **Greeting Selection**: Selects `greeting_morning` (< 12:00), `greeting_afternoon` (12:00–17:00), or `greeting_evening` (>= 17:00) according to the user's local clock.
-3. **Category Ordering**: Loops through `section_order` (falling back to default: `top`, `ai`, `tech`, `politics`, `entertainment`, `science`, `sports`).
-4. **Story Counts**: Selects the top $N$ stories configured for each category in the user's settings.
-5. **Breaths**: Inserts a 0.8-second silent pause (`BREATH = 0.8`) between consecutive clips to ensure natural speech cadence.
-6. **Sign-off**: Plays the narrator's `outro` clip at the end.
+3. **Dual Listening Modes**:
+   - **Full Briefing**: Plays the time greeting, followed by spoken section introductions (`intro_{section}`) before each section's first story, concluding with the `outro`.
+   - **Rapid Briefing**: Omits category intros to deliver a swift, continuous headline flow with zero conversational interruptions.
+4. **Category Ordering**: Sequences stories according to user's custom `section_order` (default: `top`, `ai`, `tech`, `politics`, `entertainment`, `science`, `sports`).
+5. **Story Counts**: Selects the top $N$ stories configured for each category.
+6. **Breaths**: Inserts a 0.8-second silent pause (`BREATH = 0.8`) between consecutive clips for natural broadcast pacing.
+
+### Android Native App & Gestures ([`TodayScreen.kt`](file:///Users/vattitude/Coding/Morning_Brief/android/app/src/main/java/me/vattitude/morningbrief/ui/TodayScreen.kt))
+- **Pull-Down-to-Refresh**: Wrapped in Material3 `PullToRefreshBox` styled with app tokens (`containerColor = t.cardBg`, `color = t.ink`). Users can pull down on `TodayScreen` to re-fetch stories and audio packs on demand without blanking the active UI.
+- **Background Playback**: Android Media3 notification and lock-screen playback controls with scrubber.
+- **Narrator Switcher**: Instant switching between C-3PO and Alice without losing playback position.
 
 ---
 
-## 4. Environment Configuration
+## 5. Storage & Database Schema
+
+Synthesized audio files are stored in Supabase Storage (`briefings` bucket) and tracked in PostgreSQL:
+
+- **`story_audio`**: Individual story clips.
+  - Columns: `date`, `section`, `rank`, `title`, `script`, `url`, `source`, `image`, `audio_path`, `duration`, `voice`.
+- **`voice_notes`**: Spoken framing audio clips and status markers.
+  - Columns: `date`, `voice`, `note_key`, `text`, `duration`, `audio_path`.
+  - Permanent static rows: `date = "2000-01-01"`, `audio_path = "notes/static/{key}-{voice}.mp3"`.
+  - Daily pointer rows: `date = "{YYYY-MM-DD}"`, pointing to the static audio paths.
+  - Completion marker: `note_key = "pack_ready"`, `text = "{clips} clips, {notes} notes"`.
+- **`profiles`**: User settings stored as JSONB (`stories`, `section_order`, `voice`, `speed`, `daily`, `color_photos`).
+
+---
+
+## 6. Environment Configuration
 
 | Variable | Example Value | Description |
 | :--- | :--- | :--- |
@@ -203,14 +249,14 @@ Audio clips are synthesized once for all listeners. The web PWA ([`web/js/storyp
 | `GCE_ZONE` | `us-central1-c` | Zone containing the GPU VM |
 | `GCE_INSTANCE` | `morning-brief-voice` | Compute Engine VM instance name |
 | `GCE_MANAGE_VM` | `true` | Enables automatic VM boot, dynamic IP resolution, and shutdown |
-| `STORY_VOICES` | `her_reference,him_reference,jerry_reference,c3po_reference` | Comma-separated voices to render during daily batch |
+| `STORY_VOICES` | `c3po_reference,her_reference` | Comma-separated voices to render during daily batch (C-3PO default, Alice alternate) |
 | `BRIEFING_TIMEZONE` | `America/Toronto` | Primary timezone for schedule calculations |
 | `VAPID_PRIVATE_KEY` | `...` | Key for Web Push delivery |
 | `VAPID_PUBLIC_KEY` | `...` | Public key distributed to clients for push subscription |
 
 ---
 
-## 5. Operations & CLI Commands
+## 7. Operations & CLI Commands
 
 ### Run Story Pack Generation Locally
 ```bash
@@ -218,9 +264,9 @@ Audio clips are synthesized once for all listeners. The web PWA ([`web/js/storyp
 python3 -m app pack
 
 # Build for a specific voice and date
-python3 -m app pack --date 2026-10-10 --voice c3po_reference
+python3 -m app pack --date 2026-10-24 --voice c3po_reference
 
-# Verify environment and database connections
+# Verify environment, database connections, and static voice notes
 python3 -m app check
 ```
 
@@ -229,20 +275,20 @@ python3 -m app check
 ./scripts/daily_pack_run.sh
 ```
 
-### Deploy Cloud Run Scheduled Job
+### Deploy Cloud Run Scheduled Job & Worker Image
 ```bash
-# Deploys container image and schedules Cloud Run Job for 05:00 AM daily
+# Builds worker image via Cloud Build and deploys Cloud Run Jobs
 ./scripts/setup-scheduler.sh project-67937e0a-4d2d-43ea-9ba us-central1
 ```
 
-### Sync Custom Voice Reference Audio to GCE VM
+### Complete Teardown of GCE Resources (To Eliminate All GCP Costs)
 ```bash
-./scripts/sync-voices-to-gce.sh
+./scripts/teardown-gce.sh project-67937e0a-4d2d-43ea-9ba us-central1-c morning-brief-voice
 ```
 
 ---
 
-## 6. Testing
+## 8. Testing
 
 ### Python Backend Unit Tests
 ```bash
@@ -252,5 +298,6 @@ pytest -q
 ### Android Unit Tests
 ```bash
 cd android
-JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testDebugUnitTest
+./gradlew testDebugUnitTest
 ```
+
