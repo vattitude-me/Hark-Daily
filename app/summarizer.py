@@ -18,6 +18,54 @@ BOILERPLATE = re.compile(
     re.I,
 )
 
+CONNECTORS: list[str] = [
+    "Here are the details:",
+    "Here's what you need to know:",
+    "Taking a closer look:",
+    "Here's what's happening:",
+    "According to the reporting:",
+    "In the details:",
+    "Behind the headline:",
+]
+
+
+def get_connector(rank_or_idx: int = 1) -> str:
+    """Return a rotating podcast conversational connector."""
+    idx = max(0, rank_or_idx - 1) if rank_or_idx > 0 else 0
+    return CONNECTORS[idx % len(CONNECTORS)]
+
+
+def headline_overlap(headline: str, sentence: str) -> float:
+    """Fraction of headline content words present in the sentence (0.0 to 1.0)."""
+    h_words = {w for w in re.findall(r"[a-z']+", (headline or "").lower()) if w not in STOPWORDS and len(w) > 2}
+    if not h_words:
+        return 0.0
+    s_words = {w for w in re.findall(r"[a-z']+", (sentence or "").lower()) if w not in STOPWORDS and len(w) > 2}
+    return len(h_words & s_words) / len(h_words)
+
+
+def format_script(title: str, summary: str, rank: int = 1, connector: str | None = None) -> str:
+    """Format full broadcast script: [Headline]. [Podcast Banter Connector] [Body Summary]."""
+    clean_title = (title or "").strip()
+    if clean_title and not re.search(r"[.!?]$", clean_title):
+        clean_title = f"{clean_title}."
+
+    if not summary:
+        return clean_title
+
+    # If the summary is identical or almost identical to the title, return the title only
+    if summary.strip().lower() == clean_title.rstrip(".").lower():
+        return clean_title
+
+    chosen_conn = connector if connector is not None else get_connector(rank)
+    if not clean_title:
+        return summary.strip()
+
+    if chosen_conn:
+        return f"{clean_title} {chosen_conn} {summary.strip()}"
+    return f"{clean_title} {summary.strip()}"
+
+
 
 def drop_boilerplate(text: str) -> str:
     """Drops lines of site furniture from article text, so neither the summary nor the voice reads them."""
@@ -57,6 +105,12 @@ def summarize(text: str, fallback: str = "", max_words: int = 60, max_sentences:
         s for s in split_sentences(text, title)
         if 6 <= len(s.split()) <= 50 and not BOILERPLATE.search(s)
     ][:40]
+
+    # Deduplication: If the lead sentence essentially repeats the headline (>= 60% overlap),
+    # drop it so the narrator moves straight to deeper context.
+    if title and len(sentences) > 1 and headline_overlap(title, sentences[0]) >= 0.60:
+        sentences = sentences[1:]
+
     if not sentences:
         return _clip_words(fallback.strip(), max_words) if fallback else ""
 
