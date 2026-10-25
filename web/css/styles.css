@@ -1241,9 +1241,29 @@ main { flex: 1; }
   width: 4.5rem; height: 4.5rem; border-radius: var(--r); object-fit: cover; flex: none;
   border: 1px solid rgba(15, 23, 42, .08);
   box-shadow: 0 1px 3px rgba(0, 0, 0, .05);
+  transition: all .25s var(--ease);
 }
 :root[data-theme="dark"] .story-thumb {
   border-color: rgba(255, 255, 255, .1);
+}
+
+/* Option A Editorial Hero layout: Active playing story expands image to 16:9 banner */
+.story-row.current .story-main {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.story-row.current .story-thumb {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  max-height: 240px;
+  border-radius: var(--r-md);
+  order: 10;
+  margin-top: .75rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .08);
+}
+:root[data-theme="dark"] .story-row.current .story-thumb {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .35);
 }
 
 /* Play button on the right */
@@ -1818,7 +1838,21 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
     min-width: 2.2rem !important; min-height: 2.2rem !important;
     aspect-ratio: 1 / 1 !important; flex: 0 0 auto !important;
   }
-  .story-thumb { display: none; }
+  .story-thumb {
+    display: block;
+    width: 3.75rem;
+    height: 3.75rem;
+    border-radius: var(--r-sm);
+  }
+  .story-row.current .story-thumb {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    max-height: 200px;
+    border-radius: var(--r);
+    order: 10;
+    margin-top: .65rem;
+  }
   .play-dot span { display: none; }
   .play-dot {
     padding: 0 !important;

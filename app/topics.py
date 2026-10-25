@@ -22,7 +22,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .fetcher import Item, enrich_items, fetch_source, make_client
-from .summarizer import drop_boilerplate, summarize
+from .summarizer import CONNECTORS, drop_boilerplate, format_script, get_connector, summarize
 
 log = logging.getLogger(__name__)
 
@@ -125,10 +125,17 @@ def pick_unique(picked: dict[str, list[Item]],
     return out
 
 
-def script_for(item: Item, max_words: int = 60, title: str = "") -> str:
-    """The spoken script: the built-in extractive summary, never an LLM."""
+def script_for(item: Item, max_words: int = 60, title: str = "", rank: int = 1) -> str:
+    """The spoken broadcast script: [Headline] + [Podcast Banter Filler] + [Body Summary]."""
+    headline = (item.title or title or "").strip()
+    connector = get_connector(rank)
+    head_words = len(headline.split())
+    conn_words = len(connector.split())
+    body_budget = max(25, max_words - head_words - conn_words)
+
     body = drop_boilerplate(item.text) or item.summary or item.title
-    return summarize(body, fallback=item.summary or item.title, max_words=max_words, title=item.title or title)
+    summary = summarize(body, fallback=item.summary or item.title, max_words=body_budget, title=headline)
+    return format_script(headline, summary, rank=rank, connector=connector)
 
 
 async def collect_section(client, key: str, limit: int = DEFAULT_PER_SECTION) -> list[Item]:
@@ -177,7 +184,7 @@ async def build_pack(per_section: int = DEFAULT_PER_SECTION, sections: list[str]
                 "url": item.url,
                 "published": item.published.isoformat() if item.published else None,
                 "image": item.image,
-                "script": script_for(item, max_words=max_words, title=item.title),
+                "script": script_for(item, max_words=max_words, title=item.title, rank=rank),
             })
     return pack
 

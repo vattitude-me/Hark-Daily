@@ -41,3 +41,51 @@ def test_feed_url_matches_the_section_map():
 
 def test_pack_label_is_not_a_single_outlet():
     assert PROVIDER != "The Guardian"
+
+
+def test_headline_overlap_and_deduplication():
+    from app.summarizer import headline_overlap, summarize
+
+    headline = "Ottawa announces new $5,000 EV rebate program for Canadian car buyers"
+    dup_lead = "The federal government in Ottawa announced a new $5,000 electric vehicle rebate program for Canadian car buyers on Friday."
+    fresh_body = "The initiative aims to accelerate zero-emission adoption ahead of 2035 targets. Dealerships will apply the discount directly at point of sale."
+    article = f"{dup_lead}\n\n{fresh_body}"
+
+    # Overlap should be >= 0.60
+    assert headline_overlap(headline, dup_lead) >= 0.60
+
+    # Summarize with title should skip the duplicate lead sentence
+    summary = summarize(article, title=headline, max_words=60)
+    assert "The initiative aims to accelerate" in summary
+    assert "The federal government in Ottawa announced" not in summary
+
+
+def test_script_for_includes_headline_and_rotating_connector():
+    from app.summarizer import CONNECTORS
+    from app.topics import script_for
+
+    item1 = Item(
+        title="Bank of Canada holds benchmark interest rate",
+        url="https://example.com/story-1",
+        text="The central bank kept its key overnight rate at 2.5 per cent amid steady economic signals.",
+        source_id=1,
+        source_name="CBC",
+        section="top",
+    )
+    script1 = script_for(item1, rank=1)
+    assert script1.startswith("Bank of Canada holds benchmark interest rate.")
+    assert CONNECTORS[0] in script1
+    assert "2.5 per cent" in script1
+
+    item2 = Item(
+        title="Tech stocks surge following breakthrough chip earnings",
+        url="https://example.com/story-2",
+        text="Major semiconductor firms saw double-digit growth as enterprise AI demand hit new records.",
+        source_id=2,
+        source_name="TechCrunch",
+        section="ai",
+    )
+    script2 = script_for(item2, rank=2)
+    assert script2.startswith("Tech stocks surge following breakthrough chip earnings.")
+    assert CONNECTORS[1] in script2
+

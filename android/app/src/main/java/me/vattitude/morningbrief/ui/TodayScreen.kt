@@ -457,10 +457,10 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     ) {
                         Box(
                             Modifier
-                                .size(48.dp)
-                                .clip(RoundedCornerShape(12.dp))
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(14.dp))
                                 .background(t.track)
-                                .border(1.dp, t.line, RoundedCornerShape(12.dp)),
+                                .border(1.dp, t.line, RoundedCornerShape(14.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             if (cover != null) {
@@ -1016,11 +1016,11 @@ private fun StoryRow(
                     Text(
                         card.headline,
                         modifier = Modifier.padding(top = 3.dp),
-                        style = Type.title.copy(fontSize = 15.sp, fontWeight = if (current) FontWeight.Bold else FontWeight.SemiBold, lineHeight = 20.sp),
+                        style = Type.title.copy(fontSize = if (current) 16.sp else 15.sp, fontWeight = if (current) FontWeight.Bold else FontWeight.SemiBold, lineHeight = if (current) 21.sp else 20.sp),
                         color = t.ink
                     )
 
-                    if (!isExpanded && card.summary.isNotBlank()) {
+                    if (!isExpanded && card.summary.isNotBlank() && (!current || card.image == null)) {
                         Text(
                             card.summary,
                             modifier = Modifier.padding(top = 4.dp),
@@ -1032,7 +1032,7 @@ private fun StoryRow(
                     }
                 }
 
-                if (card.image != null) {
+                if (!current && card.image != null) {
                     Spacer(Modifier.width(12.dp))
                     AsyncImage(
                         model = card.image,
@@ -1040,10 +1040,37 @@ private fun StoryRow(
                         contentScale = ContentScale.Crop,
                         colorFilter = if (colorPhotos) null else Grayscale,
                         modifier = Modifier
-                            .size(54.dp)
+                            .size(72.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(t.track)
                             .border(1.dp, t.line, RoundedCornerShape(12.dp))
+                    )
+                }
+            }
+
+            // Option A Editorial Hero layout: When story is currently playing, display 16:9 editorial banner
+            if (current && card.image != null) {
+                Spacer(Modifier.height(10.dp))
+                AsyncImage(
+                    model = card.image,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    colorFilter = if (colorPhotos) null else Grayscale,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(t.track)
+                        .border(1.dp, t.line, RoundedCornerShape(16.dp))
+                )
+                if (!isExpanded && card.summary.isNotBlank()) {
+                    Text(
+                        card.summary,
+                        modifier = Modifier.padding(top = 8.dp),
+                        style = Type.body.copy(fontSize = 13.sp, lineHeight = 18.5.sp),
+                        color = t.muted,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

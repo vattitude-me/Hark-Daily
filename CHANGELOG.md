@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.58] - 2026-10-25
+
+### Added
+- **Broadcast Headline Narration & Podcast Banter Fillers**:
+  - Upgraded story scripts to naturally read `[Headline] + [Podcast Banter Filler] + [Body Summary]`, delivering a polished podcast/radio listening experience for eyes-free listeners.
+  - Added rotating friendly conversational connectors across stories (`"Here are the details:"`, `"Here's what you need to know:"`, `"Taking a closer look:"`, `"Here's what's happening:"`, `"According to the reporting:"`, `"In the details:"`, `"Behind the headline:"`).
+- **60% Word-Overlap Deduplication Filter**:
+  - Implemented automatic token overlap analysis in `app/summarizer.py`: when article lead sentences repeat the headline verbatim ($\ge 60\%$ word overlap), sentence 1 is dropped, advancing the narrator directly to rich background details.
+- **Option A Editorial Hero Card Layout (Android & Web)**:
+  - **Hero Lead Card**: Currently playing / active stories expand to feature a prominent full-width 16:9 editorial hero banner image (`height: 180dp`, `RoundedCornerShape(16.dp)`) with subtle border and crisp typography.
+  - **Enlarged Secondary Thumbnails**: Secondary story cards now feature generous, prominent 72×72dp thumbnails with rounded corners (12dp).
+  - **Mini Player / Hero Art**: Enlarged playback artwork box from 48dp to 56dp with 14dp rounded corners.
+  - **Mobile Web Imagery Restored**: Removed `.story-thumb { display: none; }` on phone viewports (`@media (max-width: 600px)`), enabling rich photography across mobile web.
+
+---
+
 ## [0.1.57] - 2026-10-24
 
 ### Added
