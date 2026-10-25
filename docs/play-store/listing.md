@@ -5,35 +5,33 @@ in listing order). `icon.svg` is the source for the icon.
 
 ## Title (30 max)
 
-Morning Brief: News Read Aloud
+Hark Daily: News Read Aloud
 
 ## Short description (80 max)
 
-Your daily news, read aloud by a natural voice. Made on your phone, no ads.
+The news you hear, not just read. Spoken daily briefing with neural voices.
 
 ## Full description
 
 Wake up to the news, read aloud.
 
-Morning Brief gathers the stories you care about overnight and turns them into a short audio briefing, ready before
-you get up. Press play over coffee, on the commute or on a run, and hear the day's news in about five minutes.
+Hark Daily gathers the stories you care about from trusted sources (CBC News, TechCrunch, BetaKit) and turns them into a concise audio briefing, ready before you get up. Press play over coffee, on the commute or on a run, and hear the day's news in minutes.
 
 **Your news, your way**
-• Pick topics: top stories, world, business, tech, science, health, sports and entertainment
-• Local news for your city
-• Follow a person, team or topic by name
-• Add any news site or link, or share a link to the app
+• Curated sections: Top Stories, AI, Tech, Politics, Entertainment, Science, and Sports
+• Dynamic neural voices: C-3PO, Alice, Jerry, and Mike
+• Dual listening modes: Full briefing with section intros or swift Rapid headline flow
+• Reorder categories to prioritize what you care about first
 
 **Listen and follow along**
-• A natural voice reads each story, with the weather to start
-• Each story lights up as it's read; tap any story to jump to it
+• Natural voices read each story with time-adaptive greetings
+• Each story card highlights and auto-scrolls as it's read; tap any card to seek
 • Skip, scrub and change the playback speed
-• Every story links to the full article from its publisher
+• Every story links directly to the full article from its publisher
 
 **Private by design**
-• The briefing is built and recorded on your phone
-• No ads, no tracking
-• Signing in is optional and only syncs your settings
+• No ads, no tracking pixels, no algorithmic feeds
+• Signing in is optional and only syncs your preferences
 
 **Smarter summaries, if you want them**
 • Works out of the box with built-in summaries
