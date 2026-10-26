@@ -14,6 +14,10 @@ venv/
 .coverage
 htmlcov/
 
+# Logs
+logs/
+*.log
+
 # App data (database, audio, voice models, generated clips)
 /data/
 !voice_service/data/voices/
