@@ -471,3 +471,78 @@ def test_the_run_log_outlives_the_audio_by_a_fortnight(cfg, store):
 
     assert [r["run_date"] for r in store.tables["run_log"]] == ["2026-10-01", DAY]
 
+
+def test_story_audio_path_contains_content_hash(cfg, store, monkeypatch):
+    """Clips must be content-hashed so new renders never overwrite active files in-place."""
+    cfg = dataclasses.replace(cfg, voice_url="http://voice.test")
+    _one_story(monkeypatch)
+
+    rows = asyncio.run(storypack.build(cfg, store, day=DAY, voice="him_reference", notes=False))
+    assert len(rows) == 1
+    path = rows[0]["audio_path"]
+    assert path.startswith(f"stories/{DAY}/top-1-him_reference-")
+    assert path.endswith(".mp3")
+    assert path in store.objects
+
+
+def test_rerun_does_not_overwrite_active_audio_files_in_place(cfg, store, monkeypatch):
+    """An evening run or rerun creates new content-hashed files and leaves active morning files intact."""
+    cfg = dataclasses.replace(cfg, voice_url="http://voice.test")
+
+    # 1. Morning run with audio A
+    async def fake_pack(per_section=5, sections=None, max_words=60):
+        return [SCRIPT]
+
+    async def synth_a(client, base, text, voice, *args, **kwargs):
+        return b"morning_mp3_audio", 4.0
+
+    monkeypatch.setattr(topics, "build_pack", fake_pack)
+    monkeypatch.setattr(storypack, "synthesise", synth_a)
+    rows_morning = asyncio.run(storypack.build(cfg, store, day=DAY, voice="him_reference", notes=False))
+    morning_path = rows_morning[0]["audio_path"]
+    assert store.objects[morning_path] == b"morning_mp3_audio"
+
+    # 2. Evening run with audio B (forced re-voice)
+    async def synth_b(client, base, text, voice, *args, **kwargs):
+        return b"evening_mp3_audio", 5.0
+
+    monkeypatch.setattr(storypack, "synthesise", synth_b)
+    rows_evening = asyncio.run(storypack.build(cfg, store, day=DAY, voice="him_reference", notes=False, force=True))
+    evening_path = rows_evening[0]["audio_path"]
+
+    # Both files must coexist in storage: morning listeners aren't cut off mid-playback
+    assert morning_path != evening_path
+    assert store.objects[morning_path] == b"morning_mp3_audio"
+    assert store.objects[evening_path] == b"evening_mp3_audio"
+    # But story_audio points to the new evening path
+    current_row = store.tables["story_audio"][0]
+    assert current_row["audio_path"] == evening_path
+
+
+def test_voice_scripts_defers_db_insert_until_all_clips_finish(cfg, store, monkeypatch):
+    """If voice synthesis fails halfway through, story_audio must not have partial/corrupted rows."""
+    script1 = {**SCRIPT, "id": "1", "rank": 1}
+    script2 = {**SCRIPT, "id": "2", "rank": 2, "title": "Second story"}
+
+    async def fake_pack(per_section=5, sections=None, max_words=60):
+        return [script1, script2]
+
+    count = 0
+    async def fail_on_second(client, base, text, voice, *args, **kwargs):
+        nonlocal count
+        count += 1
+        if count == 2:
+            raise RuntimeError("GPU died on clip 2")
+        return b"clip1_audio", 3.0
+
+    monkeypatch.setattr(topics, "build_pack", fake_pack)
+    monkeypatch.setattr(storypack, "synthesise", fail_on_second)
+
+    with pytest.raises(RuntimeError, match="GPU died on clip 2"):
+        asyncio.run(storypack.voice_scripts(store, [script1, script2], day=DAY, voice="him_reference",
+                                            base="http://voice.test", force=True))
+
+    # story_audio must NOT contain clip 1 because the batch failed before completion
+    assert len(store.tables.get("story_audio", [])) == 0
+
+
