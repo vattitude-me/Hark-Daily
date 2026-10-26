@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import hashlib
 import json
 import logging
 import os
@@ -166,12 +167,20 @@ def prune_older(store, *, keep: str) -> list[str]:
             store.delete(table, {"date": f"lt.{keep}"})
         days += [str(r["date"]) for r in rows]
         log.info("[prune] %s: %d rows, %d files removed", table, len(rows), len(paths))
+    unique_days = sorted(set(days))
+    for d in unique_days:
+        try:
+            extra = [p for p in store.list_objects(f"stories/{d}") if p not in paths]
+            if extra:
+                store.remove_objects(extra)
+        except Exception as exc:  # noqa: BLE001
+            log.debug("Could not prune extra objects for %s: %s", d, exc)
     cutoff = (datetime.fromisoformat(keep) - timedelta(days=14)).isoformat()
     try:
         store.delete("run_log", {"run_date": f"lt.{cutoff}"})
     except Exception as exc:  # noqa: BLE001 — an unpruned log is harmless
         log.debug("Could not trim the run log: %s", exc)
-    return sorted(set(days))
+    return unique_days
 
 
 def notify_listeners(cfg, store, *, title: str, body: str) -> int:
@@ -746,8 +755,12 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
     return rows
 
 
-def _publish_clip(store, path: str, audio: bytes, row: dict) -> None:
+def _publish_audio_file(store, path: str, audio: bytes) -> None:
     store.upload(path, audio, content_type="audio/mpeg", cache="max-age=86400")
+
+
+def _publish_clip(store, path: str, audio: bytes, row: dict) -> None:
+    _publish_audio_file(store, path, audio)
     store.insert("story_audio", row, on_conflict="date,section,rank,voice")
 
 
@@ -784,12 +797,13 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
                 image = (story.get("image") or "")[:2000] or None
                 done = existing.get((story["section"], story["rank"]))
                 if not force and done and done.get("audio_path") and done.get("url") == story["url"]:
-                    store.update("story_audio",
-                                 {"date": f"eq.{day}", "section": f"eq.{story['section']}",
-                                  "rank": f"eq.{story['rank']}", "voice": f"eq.{voice}"},
-                                 {"image": image, "title": story["title"][:500],
-                                  "source": (story["source"] or "")[:200], "script": story["script"]})
-                    rows.append({**done, "image": image})
+                    rows.append({
+                        **done,
+                        "image": image,
+                        "title": story["title"][:500],
+                        "source": (story["source"] or "")[:200],
+                        "script": story["script"],
+                    })
                     log.info("[%s %s #%s] %s — reused (%.1fs)", voice_name(voice), story["section"],
                              story["rank"], story["title"][:60], done.get("duration") or 0)
                     continue
@@ -797,7 +811,8 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
                 if deadline is not None and time.monotonic() >= deadline:
                     raise DeadlineReached(f"ran out of time at {story['section']} #{story['rank']}")
                 audio, duration = await synthesise(client, base, story["script"], voice)
-                path = f"stories/{day}/{story['section']}-{story['rank']}-{voice}.mp3"
+                content_hash = hashlib.sha256(audio).hexdigest()[:8]
+                path = f"stories/{day}/{story['section']}-{story['rank']}-{voice}-{content_hash}.mp3"
                 row = {
                     "date": day, "section": story["section"], "rank": story["rank"], "voice": voice,
                     "title": story["title"][:500], "url": story["url"],
@@ -805,10 +820,11 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
                     "script": story["script"],
                     "duration": round(duration, 3), "audio_path": path,
                 }
-                # Publish each story as it lands, so a failure part-way through still leaves
-                # a usable pack instead of throwing away every minute already rendered.
+                # Upload audio file in the background so storage upload overlaps with GPU synthesis.
+                # Writing the story_audio rows is deferred until all stories for this voice finish,
+                # guaranteeing live listeners never experience mismatched cards and audio.
                 publishing.append(asyncio.ensure_future(
-                    asyncio.to_thread(_publish_clip, store, path, audio, row)))
+                    asyncio.to_thread(_publish_audio_file, store, path, audio)))
                 rows.append(row)
                 log.info("[%s %s #%s] %s — %.1fs", voice_name(voice), story["section"], story["rank"],
                          story["title"][:60], duration)
@@ -816,6 +832,16 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
             await asyncio.gather(*publishing, return_exceptions=True)
             raise
         await asyncio.gather(*publishing)
+
+    # All clips are successfully uploaded to storage.
+    # Atomically upsert this narrator's complete set of stories.
+    for row in rows:
+        store.insert("story_audio", row, on_conflict="date,section,rank,voice")
+    current_keys = {(r["section"], r["rank"]) for r in rows}
+    stale_ranks = set(existing.keys()) - current_keys
+    for sec, rk in stale_ranks:
+        store.delete("story_audio", {"date": f"eq.{day}", "voice": f"eq.{voice}",
+                                     "section": f"eq.{sec}", "rank": f"eq.{rk}"})
     return rows
 
 
