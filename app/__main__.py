@@ -380,13 +380,19 @@ def cmd_pack(args) -> int:
                                  + (f" · {why}" if why else ""))
         else:
             per_voice = len(rows) // max(1, len(here))
+            from datetime import datetime
+            from zoneinfo import ZoneInfo
+
+            is_evening = datetime.now(ZoneInfo(cfg.timezone)).hour >= 17
+            brief_label = "Evening Brief" if is_evening else "Morning Brief"
             notify_admins(cfg, store, day=day, status="ok", voices=voices,
-                          title=f"✓ Morning Brief ready: {', '.join(names)}",
+                          title=f"✓ {brief_label} ready: {', '.join(names)}",
                           body=f"{day}: {per_voice} stories for {', '.join(names)}, "
                                f"{total_seconds(rows) / max(1, len(here)) / 60:.0f} min each.",
                           detail=f"Took {duration_fmt} · {len(rows)} clips ({audio_mins:.1f} min audio)")
             if rows:
-                notify_listeners(cfg, store, title="☀️ Your Morning Brief is ready",
+                push_title = "🌙 Your Evening Brief is ready" if is_evening else "☀️ Your Morning Brief is ready"
+                notify_listeners(cfg, store, title=push_title,
                                  body=f"{rows[0]['title']}, and the rest of the day's stories.")
     return 0 if rows and not incomplete else 1
 
