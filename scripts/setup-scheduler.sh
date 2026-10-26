@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Setup Google Cloud Scheduler and Cloud Run Jobs to run the morning briefing daily.
-# - 05:00 AM: Main story pack synthesis (with 50 min deadline, 0 retries to prevent runaway GPU billing)
-# - 06:15 AM: Safety-net report & retry (checks if all voices completed, re-renders any missing, notifies admin)
+# - 06:00 AM: Main story pack synthesis (with 50 min deadline, 0 retries to prevent runaway GPU billing)
+# - 06:45 AM: Safety-net report & retry (checks if all voices completed, re-renders any missing, notifies admin)
 #
 # Usage:
 #   scripts/setup-scheduler.sh [PROJECT_ID] [REGION]
@@ -15,8 +15,8 @@ PROJECT_ID="${1:-$(gcloud config get-value project 2>/dev/null || echo 'project-
 REGION="${2:-us-central1}"
 JOB_NAME="morning-brief-pack"
 REPORT_JOB_NAME="morning-brief-report"
-SCHEDULER_NAME="morning-brief-daily-5am"
-REPORT_SCHEDULER_NAME="morning-brief-daily-615am"
+SCHEDULER_NAME="morning-brief-daily-6am"
+REPORT_SCHEDULER_NAME="morning-brief-daily-645am"
 TIMEZONE="${BRIEFING_TIMEZONE:-America/Toronto}"
 
 echo "============================================================"
@@ -125,28 +125,28 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${SERVICE_ACCOUNT}" \
   --role="roles/run.invoker" --condition=None --quiet >/dev/null 2>&1 || true
 
-# 3. Main Schedule (05:00 AM)
-echo "→ Creating/updating Cloud Scheduler ($SCHEDULER_NAME) for 05:00 AM..."
+# 3. Main Schedule (06:00 AM)
+echo "→ Creating/updating Cloud Scheduler ($SCHEDULER_NAME) for 06:00 AM..."
 gcloud scheduler jobs delete "$SCHEDULER_NAME" --location="$REGION" --project="$PROJECT_ID" --quiet 2>/dev/null || true
 gcloud scheduler jobs create http "$SCHEDULER_NAME" \
   --location="$REGION" \
   --project="$PROJECT_ID" \
-  --schedule="0 5 * * *" \
+  --schedule="0 6 * * *" \
   --time-zone="$TIMEZONE" \
-  --description="Run Morning Brief pack daily at 5:00 AM" \
+  --description="Run Morning Brief pack daily at 6:00 AM" \
   --uri="https://${REGION}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${PROJECT_ID}/jobs/${JOB_NAME}:run" \
   --http-method="POST" \
   --oauth-service-account-email="$SERVICE_ACCOUNT"
 
-# 4. Report & Retry Schedule (06:15 AM)
-echo "→ Creating/updating Cloud Scheduler ($REPORT_SCHEDULER_NAME) for 06:15 AM..."
+# 4. Report & Retry Schedule (06:45 AM)
+echo "→ Creating/updating Cloud Scheduler ($REPORT_SCHEDULER_NAME) for 06:45 AM..."
 gcloud scheduler jobs delete "$REPORT_SCHEDULER_NAME" --location="$REGION" --project="$PROJECT_ID" --quiet 2>/dev/null || true
 gcloud scheduler jobs create http "$REPORT_SCHEDULER_NAME" \
   --location="$REGION" \
   --project="$PROJECT_ID" \
-  --schedule="15 6 * * *" \
+  --schedule="45 6 * * *" \
   --time-zone="$TIMEZONE" \
-  --description="Verify Morning Brief completeness, retry missing narrators, and notify admin at 6:15 AM" \
+  --description="Verify Morning Brief completeness, retry missing narrators, and notify admin at 6:45 AM" \
   --uri="https://${REGION}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${PROJECT_ID}/jobs/${REPORT_JOB_NAME}:run" \
   --http-method="POST" \
   --oauth-service-account-email="$SERVICE_ACCOUNT"
@@ -154,6 +154,6 @@ gcloud scheduler jobs create http "$REPORT_SCHEDULER_NAME" \
 echo ""
 echo "============================================================"
 echo "✓ Scheduled successfully!"
-echo "  1) Main pack at 05:00 AM ($JOB_NAME)"
-echo "  2) Report/retry at 06:15 AM ($REPORT_JOB_NAME)"
+echo "  1) Main pack at 06:00 AM ($JOB_NAME)"
+echo "  2) Report/retry at 06:45 AM ($REPORT_JOB_NAME)"
 echo "============================================================"
