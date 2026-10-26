@@ -91,6 +91,8 @@ class Config:
     # Off by default: a session stops the VM on the way out. Set it to keep the GPU warm on purpose.
     gce_keep_vm: bool = _bool("GCE_KEEP_VM")
     gce_health_timeout: float = float(os.getenv("GCE_HEALTH_TIMEOUT", "300.0"))
+    gce_start_retries: int = int(os.getenv("GCE_START_RETRIES", "3"))
+    gce_start_backoff: float = float(os.getenv("GCE_START_BACKOFF", "60.0"))
 
     @property
     def cache_dir(self) -> Path:

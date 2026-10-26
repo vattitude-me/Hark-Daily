@@ -198,3 +198,98 @@ def test_storypack_build_raises_voice_service_down_when_url_missing(cfg, store):
         asyncio.run(storypack.build(cfg2, store, day="2026-10-24"))
     assert "VOICE_SERVICE_URL is not set" in str(exc.value)
 
+
+def test_wait_for_operation_success(monkeypatch):
+    class FakeOpResponse:
+        status_code = 200
+        def json(self):
+            return {"status": "DONE"}
+
+    monkeypatch.setattr("httpx.get", lambda *args, **kwargs: FakeOpResponse())
+    ok, err = gce.wait_for_operation("proj", "zone", "op-123", "tok", timeout=5.0)
+    assert ok is True
+    assert err is None
+
+
+def test_wait_for_operation_stockout(monkeypatch):
+    class FakeOpStockout:
+        status_code = 200
+        def json(self):
+            return {
+                "status": "DONE",
+                "error": {
+                    "errors": [{
+                        "code": "ZONE_RESOURCE_POOL_EXHAUSTED_WITH_DETAILS",
+                        "message": "Zone out of L4 GPUs"
+                    }]
+                }
+            }
+
+    monkeypatch.setattr("httpx.get", lambda *args, **kwargs: FakeOpStockout())
+    ok, err = gce.wait_for_operation("proj", "zone", "op-stockout", "tok", timeout=5.0)
+    assert ok is False
+    assert "ZONE_RESOURCE_POOL_EXHAUSTED_WITH_DETAILS" in err
+
+
+def test_voice_vm_session_retries_on_stockout(cfg, monkeypatch):
+    """When attempt 1 hits a stockout, attempt 2 succeeds after backoff."""
+    start_calls = 0
+    sleeps = []
+
+    def mock_send_start(proj, zone, inst, tok):
+        nonlocal start_calls
+        start_calls += 1
+        return True, f"op-{start_calls}", None
+
+    def mock_wait_op(proj, zone, op, tok, timeout):
+        if op == "op-1":
+            return False, "ZONE_RESOURCE_POOL_EXHAUSTED_WITH_DETAILS: Stockout"
+        return True, None
+
+    monkeypatch.setattr(gce, "get_access_token", lambda: "mock_tok")
+    monkeypatch.setattr(gce, "instance_status", lambda proj, zone, inst, tok: "TERMINATED" if start_calls < 2 else "RUNNING")
+    monkeypatch.setattr(gce, "send_start_vm", mock_send_start)
+    monkeypatch.setattr(gce, "wait_for_operation", mock_wait_op)
+    monkeypatch.setattr(gce, "wait_for_vm_running", lambda proj, zone, inst, tok, timeout: True)
+    monkeypatch.setattr(gce, "get_instance_ip", lambda proj, zone, inst, tok: "10.0.0.2")
+    monkeypatch.setattr(gce, "is_service_healthy", lambda url: start_calls >= 2)
+    monkeypatch.setattr(gce, "stop_vm_verified", lambda proj, zone, inst, tok: True)
+    monkeypatch.setattr("time.sleep", lambda s: sleeps.append(s))
+
+    cfg_gce = dataclasses.replace(cfg, gce_manage_vm=True, voice_url="auto", gce_start_retries=3, gce_start_backoff=60.0)
+    with gce.voice_vm_session(cfg_gce) as url:
+        assert url == "http://10.0.0.2:8090"
+
+    assert start_calls == 2
+    assert 60.0 in sleeps
+
+
+def test_voice_vm_session_fails_after_all_attempts_exhausted(cfg, monkeypatch):
+    """When all start attempts fail, raises VoiceServiceDown and stops VM."""
+    start_calls = 0
+    sleeps = []
+    stopped = []
+
+    def mock_send_start(proj, zone, inst, tok):
+        nonlocal start_calls
+        start_calls += 1
+        return True, f"op-{start_calls}", None
+
+    monkeypatch.setattr(gce, "get_access_token", lambda: "mock_tok")
+    monkeypatch.setattr(gce, "instance_status", lambda proj, zone, inst, tok: "TERMINATED")
+    monkeypatch.setattr(gce, "send_start_vm", mock_send_start)
+    monkeypatch.setattr(gce, "wait_for_operation", lambda proj, zone, op, tok, timeout: (False, "ZONE_RESOURCE_POOL_EXHAUSTED"))
+    monkeypatch.setattr(gce, "stop_vm_verified", lambda proj, zone, inst, tok: stopped.append(inst) or True)
+    monkeypatch.setattr("time.sleep", lambda s: sleeps.append(s))
+
+    cfg_gce = dataclasses.replace(cfg, gce_manage_vm=True, voice_url="auto", gce_start_retries=2, gce_start_backoff=10.0)
+    with pytest.raises(VoiceServiceDown) as exc:
+        with gce.voice_vm_session(cfg_gce):
+            pass
+
+    assert start_calls == 2
+    assert 10.0 in sleeps
+    assert "after 2 attempts" in str(exc.value)
+    assert stopped == [cfg_gce.gce_instance]
+
+

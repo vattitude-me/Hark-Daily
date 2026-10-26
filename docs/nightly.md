@@ -29,10 +29,11 @@ publishes directly to Supabase Storage, and immediately spins down to zero when 
 
 ## Running the Pack
 
-### 1. Cloud Scheduler (Production 05:00 AM)
+### 1. Cloud Scheduler (Production 06:00 AM)
 Set up using `scripts/setup-scheduler.sh`:
-- Cloud Scheduler triggers the Cloud Run Job `morning-brief-pack` at 05:00 AM every morning.
+- Cloud Scheduler triggers the Cloud Run Job `morning-brief-pack` at 06:00 AM every morning.
 - The job boots, fetches news, voices clips via Chatterbox-Turbo, uploads to Supabase, and exits.
+- A safety-net report & retry runs at 06:45 AM.
 - When idle, compute resources scale to 0.
 
 ### 2. Manual / CLI Run

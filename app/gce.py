@@ -91,15 +91,23 @@ def is_service_healthy(url: str, timeout: float = 3.0) -> bool:
         return False
 
 
-def start_vm(project: str, zone: str, instance: str, token: str) -> bool:
+def send_start_vm(project: str, zone: str, instance: str, token: str) -> tuple[bool, str | None, str | None]:
     """Send an asynchronous start request to Google Compute Engine API.
+    Returns (accepted: bool, op_name: str | None, error_msg: str | None).
     Fails fast if the VM was deleted/removed (404) or access is denied (403).
     """
     url = f"https://compute.googleapis.com/compute/v1/projects/{project}/zones/{zone}/instances/{instance}/start"
     try:
         resp = httpx.post(url, headers={"Authorization": f"Bearer {token}"}, timeout=30.0)
         if resp.status_code in (200, 204):
-            return True
+            op_name = None
+            if resp.status_code == 200:
+                try:
+                    data = resp.json()
+                    op_name = data.get("name")
+                except Exception:
+                    pass
+            return True, op_name, None
         if resp.status_code == 404:
             raise VoiceServiceDown(
                 f"GCE instance '{instance}' was not found (HTTP 404) in project '{project}', zone '{zone}'. "
@@ -111,13 +119,60 @@ def start_vm(project: str, zone: str, instance: str, token: str) -> bool:
                 f"Access denied (HTTP 403) when starting GCE instance '{instance}' in project '{project}'. "
                 "Ensure the Compute Engine API is enabled and caller has roles/compute.instanceAdmin."
             )
+        msg = f"HTTP {resp.status_code}: {resp.text[:200]}"
         log.warning("GCE start API returned status %d: %s", resp.status_code, resp.text[:200])
-        return False
+        return False, None, msg
     except VoiceServiceDown:
         raise
     except Exception as exc:
         log.warning("Failed to call GCE start API: %s", exc)
-        return False
+        return False, None, str(exc)
+
+
+def start_vm(project: str, zone: str, instance: str, token: str) -> bool:
+    """Send an asynchronous start request to Google Compute Engine API.
+    Preserves backward compatibility for callers expecting bool.
+    """
+    accepted, _, _ = send_start_vm(project, zone, instance, token)
+    return accepted
+
+
+def wait_for_operation(project: str, zone: str, operation_name: str, token: str, timeout: float = 60.0) -> tuple[bool, str | None]:
+    """Poll a GCE zone operation until it reaches DONE.
+    Returns (success: bool, error_message: str | None).
+    """
+    url = f"https://compute.googleapis.com/compute/v1/projects/{project}/zones/{zone}/operations/{operation_name}"
+    start = time.monotonic()
+    while time.monotonic() - start < timeout:
+        try:
+            resp = httpx.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=15.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("status") == "DONE":
+                    error = data.get("error")
+                    if error:
+                        errors = error.get("errors", [])
+                        code = errors[0].get("code", "") if errors else ""
+                        msg = errors[0].get("message") if errors else "Operation failed"
+                        return False, f"{code}: {msg}" if code else msg
+                    return True, None
+        except Exception as exc:
+            log.warning("Error checking operation %s: %s", operation_name, exc)
+        time.sleep(2.0)
+    return False, f"Operation {operation_name} did not complete within {timeout}s"
+
+
+def wait_for_vm_running(project: str, zone: str, instance: str, token: str, timeout: float = 60.0) -> bool:
+    """Wait for the instance status to reach RUNNING."""
+    start = time.monotonic()
+    while time.monotonic() - start < timeout:
+        st = instance_status(project, zone, instance, token)
+        if st == "RUNNING":
+            return True
+        if st in ("TERMINATED", "STOPPED"):
+            return False
+        time.sleep(2.0)
+    return False
 
 
 def stop_vm(project: str, zone: str, instance: str, token: str) -> bool:
@@ -233,14 +288,61 @@ def voice_vm_session(cfg):
                 _stop_on_exit(cfg, token)
             return
 
-    log.info(
-        "Starting GCE GPU VM '%s' (%s/%s) for Chatterbox-Turbo...",
-        cfg.gce_instance,
-        cfg.gcp_project,
-        cfg.gce_zone,
-    )
-    if not start_vm(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token):
-        log.warning("Failed to send start command to %s", cfg.gce_instance)
+    max_attempts = getattr(cfg, "gce_start_retries", 3)
+    backoff = getattr(cfg, "gce_start_backoff", 60.0)
+    vm_started = False
+    last_error = "Unknown error"
+
+    for attempt in range(1, max_attempts + 1):
+        st = instance_status(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token)
+        if st == "RUNNING":
+            log.info("GCE GPU VM '%s' is in RUNNING state.", cfg.gce_instance)
+            vm_started = True
+            break
+
+        log.info(
+            "Starting GCE GPU VM '%s' (%s/%s) for Chatterbox-Turbo (attempt %d/%d)...",
+            cfg.gce_instance,
+            cfg.gcp_project,
+            cfg.gce_zone,
+            attempt,
+            max_attempts,
+        )
+        accepted, op_name, err = send_start_vm(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token)
+        if not accepted:
+            last_error = err or "Start request rejected"
+            log.warning("GCE start request %d/%d not accepted: %s", attempt, max_attempts, last_error)
+        elif op_name:
+            op_ok, op_err = wait_for_operation(cfg.gcp_project, cfg.gce_zone, op_name, token, timeout=60.0)
+            if op_ok:
+                if wait_for_vm_running(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token, timeout=30.0):
+                    log.info("✓ GCE GPU VM '%s' successfully started (RUNNING).", cfg.gce_instance)
+                    vm_started = True
+                    break
+                else:
+                    last_error = f"VM did not reach RUNNING state after operation {op_name}"
+                    log.warning("GCE start attempt %d/%d: %s", attempt, max_attempts, last_error)
+            else:
+                last_error = op_err or "Operation failed"
+                log.warning("GCE start operation %d/%d failed: %s", attempt, max_attempts, last_error)
+        else:
+            if wait_for_vm_running(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token, timeout=45.0):
+                log.info("✓ GCE GPU VM '%s' reached RUNNING state.", cfg.gce_instance)
+                vm_started = True
+                break
+            last_error = "VM did not reach RUNNING state"
+            log.warning("GCE start attempt %d/%d: %s", attempt, max_attempts, last_error)
+
+        if attempt < max_attempts:
+            log.info("Waiting %.0fs backoff before retrying VM start (attempt %d/%d)...", backoff, attempt + 1, max_attempts)
+            time.sleep(backoff)
+
+    if not vm_started:
+        log.error("Failed to start GCE GPU VM '%s' after %d attempts: %s", cfg.gce_instance, max_attempts, last_error)
+        stop_vm_verified(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token)
+        raise VoiceServiceDown(
+            f"Failed to start GCE GPU VM '{cfg.gce_instance}' after {max_attempts} attempts: {last_error}"
+        )
 
     # Wait for GCE to assign external IP (ephemeral or static) and for service to report healthy
     ready = False
@@ -253,6 +355,12 @@ def voice_vm_session(cfg):
     )
 
     while time.monotonic() - start_time < timeout:
+        # Check if VM unexpectedly terminated while waiting for the voice service
+        vm_st = instance_status(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token)
+        if vm_st in ("TERMINATED", "STOPPED", "STOPPING"):
+            log.error("GCE GPU VM '%s' unexpectedly transitioned to %s during service startup.", cfg.gce_instance, vm_st)
+            break
+
         if not voice_url or "auto" in voice_url:
             fresh_ip = get_instance_ip(cfg.gcp_project, cfg.gce_zone, cfg.gce_instance, token)
             if fresh_ip:
