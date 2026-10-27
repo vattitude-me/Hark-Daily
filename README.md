@@ -23,7 +23,8 @@ No ads. No tracking. Zero doom-scrolling.
 ## ☕ Features
 
 * **Multi-Provider News Architecture**: Curated stories across 7 focused sections:
-  * **CBC News** — Canadian & world Top Stories, Politics, Entertainment, Science, and Sports.
+  * **CBC News** — Canadian & world Top Stories, Politics, Entertainment, and Sports.
+  * **ScienceDaily** — Cutting-edge research, health breakthroughs, space, and discoveries (CBC News fallback).
   * **TechCrunch** — Deep dive into Artificial Intelligence and machine intelligence.
   * **BetaKit** — Canadian tech, startup ecosystems, and venture innovation.
 * **Neural Voice Personas**:

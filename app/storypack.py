@@ -659,6 +659,71 @@ async def build_notes(cfg, store, *, day: str | None = None, voice: str | None =
     return rows
 
 
+def backfill_from_existing(scripts: list[dict], store, day: str, per_section: int,
+                           sections: list[str] | None = None) -> list[dict]:
+    """If a fresh scan returned fewer than per_section stories for a category,
+    backfill remaining slots using unexpired stories from earlier today's run.
+    """
+    target_sections = sections or list(topics.SECTIONS)
+    current_by_sec: dict[str, list[dict]] = {sec: [] for sec in target_sections}
+    for s in scripts:
+        if s.get("section") in current_by_sec:
+            current_by_sec[s["section"]].append(s)
+
+    starved_sections = [sec for sec, items in current_by_sec.items() if len(items) < per_section]
+    if not starved_sections:
+        return scripts
+
+    try:
+        rows = store.select("story_audio", {"date": f"eq.{day}"})
+    except Exception as e:
+        log.warning("Could not check existing story_audio for backfill: %s", e)
+        return scripts
+
+    existing_by_sec: dict[str, list[dict]] = {}
+    seen_urls = {topics.bare_url(s.get("url")) for s in scripts if s.get("url")}
+    seen_titles = {topics.plain_title(s.get("title")) for s in scripts if s.get("title")}
+
+    # Group existing rows by section in editorial order (rank)
+    for r in sorted(rows, key=lambda x: x.get("rank", 99)):
+        sec = r.get("section")
+        url = topics.bare_url(r.get("url"))
+        title = topics.plain_title(r.get("title"))
+        if sec in starved_sections and url and url not in seen_urls and (not title or title not in seen_titles):
+            seen_urls.add(url)
+            if title:
+                seen_titles.add(title)
+            existing_by_sec.setdefault(sec, []).append(r)
+
+    out: list[dict] = []
+    for sec in target_sections:
+        items = current_by_sec.get(sec, [])
+        needed = per_section - len(items)
+        if needed > 0 and sec in existing_by_sec:
+            backfill = existing_by_sec[sec][:needed]
+            log.info("Backfilling %d earlier stories for section '%s'", len(backfill), sec)
+            for extra in backfill:
+                items.append({
+                    "id": extra.get("id") or extra.get("url"),
+                    "section": sec,
+                    "rank": len(items) + 1,
+                    "title": extra.get("title", ""),
+                    "source": extra.get("source", ""),
+                    "url": extra.get("url", ""),
+                    "published": extra.get("published"),
+                    "image": extra.get("image"),
+                    "summary": extra.get("summary", ""),
+                    "script": extra.get("script", ""),
+                    "duration": extra.get("duration"),
+                    "audio_path": extra.get("audio_path"),
+                })
+        for rank, item in enumerate(items, 1):
+            item["rank"] = rank
+            out.append(item)
+
+    return out
+
+
 async def build(cfg, store, *, day: str | None = None, per_section: int | None = None,
                 sections: list[str] | None = None, voice: str | None = None,
                 voice_url: str | None = None, notes: bool = True,
@@ -692,6 +757,7 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
     voices = [voice] if voice else list(cfg.story_voices or (DEFAULT_VOICE,))
 
     scripts = await topics.build_pack(per_section=per_section, sections=sections)
+    scripts = backfill_from_existing(scripts, store, day=day, per_section=per_section, sections=sections)
     log.info("Voicing %d stories for %s as %s", len(scripts), day, ", ".join(voices))
 
     # Every clip is one unit of work, so the fraction means something to a waiting admin.
@@ -779,6 +845,7 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
     # metadata such as the lead image can be refreshed without paying for audio again.
     existing = {(r["section"], r["rank"]): r for r in store.select(
         "story_audio", {"date": f"eq.{day}", "voice": f"eq.{voice}"})}
+    existing_by_url = {r["url"]: r for r in existing.values() if r.get("url")}
 
     rows: list[dict] = []
     publishing: list[asyncio.Future] = []
@@ -796,12 +863,16 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
                     on_clip(story)
                 image = (story.get("image") or "")[:2000] or None
                 done = existing.get((story["section"], story["rank"]))
+                if not (done and done.get("audio_path") and done.get("url") == story["url"]):
+                    done = existing_by_url.get(story["url"])
                 if not force and done and done.get("audio_path") and done.get("url") == story["url"]:
                     rows.append({
                         **done,
+                        "section": story["section"],
+                        "rank": story["rank"],
                         "image": image,
                         "title": story["title"][:500],
-                        "source": (story["source"] or "")[:200],
+                        "source": (story.get("source") or done.get("source") or "")[:200],
                         "script": story["script"],
                     })
                     log.info("[%s %s #%s] %s — reused (%.1fs)", voice_name(voice), story["section"],

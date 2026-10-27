@@ -114,3 +114,38 @@ def test_clean_sentence_strips_editorial_label_prefixes():
     assert "The news:" not in clean
 
 
+def test_top_n_backfills_when_fresh_count_is_low():
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    fresh_item = Item(title="Fresh story", url="https://example.com/fresh", source_id=1,
+                      source_name="Science", section="science", published=now - timedelta(hours=5))
+    old_item1 = Item(title="Old story 1", url="https://example.com/old1", source_id=1,
+                     source_name="Science", section="science", published=now - timedelta(hours=55))
+    old_item2 = Item(title="Old story 2", url="https://example.com/old2", source_id=1,
+                     source_name="Science", section="science", published=now - timedelta(hours=65))
+
+    picked = top_n([fresh_item, old_item1, old_item2], n=3)
+    assert len(picked) == 3
+    assert picked[0].title == "Fresh story"
+    assert picked[1].title == "Old story 1"
+    assert picked[2].title == "Old story 2"
+
+
+def test_science_section_uses_sciencedaily_with_fallback():
+    assert SECTIONS["science"]["provider"] == "ScienceDaily"
+    assert "sciencedaily.com" in SECTIONS["science"]["feed"]
+    assert SECTIONS["science"]["fallback_provider"] == "CBC News"
+    assert "cbc.ca" in SECTIONS["science"]["fallback_feed"]
+
+
+def test_clean_sentence_strips_markdown_bullets():
+    from app.summarizer import clean_sentence
+
+    raw = "- Regular exercise does more than strengthen the heart. New research reveals it."
+    cleaned = clean_sentence(raw)
+    assert cleaned.startswith("Regular exercise does more than")
+    assert not cleaned.startswith("-")
+
+
+

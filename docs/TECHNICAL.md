@@ -60,10 +60,10 @@ The system ingests stories across 7 editorial categories configured with reputab
 - `tech` — BetaKit Canadian Tech & Innovation (`https://betakit.com/feed/`)
 - `politics` — CBC News Politics (`https://www.cbc.ca/cmlink/rss-politics`)
 - `entertainment` — CBC News Arts & Entertainment (`https://www.cbc.ca/cmlink/rss-arts`)
-- `science` — CBC News Technology & Science (`https://www.cbc.ca/cmlink/rss-technology`)
+- `science` — ScienceDaily (`https://www.sciencedaily.com/rss/top/science.xml`, CBC News fallback)
 - `sports` — CBC News Sports (`https://www.cbc.ca/cmlink/rss-sports`)
 
-The feed order reflects editorial curation. The worker selects the top 5 articles per category (with deduplication margins) and discards articles published more than 48 hours ago.
+The feed order reflects editorial curation. The worker selects the top 5 articles per category with deep deduplication buffers, editorial recency backfill, and cross-run continuity to guarantee sections never starve below the requested story count.
 
 ### Parsing with Trafilatura ([`app/fetcher.py`](file:///Users/vattitude/Coding/Morning_Brief/app/fetcher.py))
 `trafilatura` extracts clean article text, metadata, and hero images from raw HTML while stripping out boilerplate, navigation menus, inline ads, and comments:
