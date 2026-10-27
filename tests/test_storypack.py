@@ -546,3 +546,64 @@ def test_voice_scripts_defers_db_insert_until_all_clips_finish(cfg, store, monke
     assert len(store.tables.get("story_audio", [])) == 0
 
 
+def test_backfill_from_existing_tops_up_starved_sections(store):
+    """If a section has fewer than per_section stories, earlier stories from today top it up."""
+    # Morning run created stories for science
+    store.insert("story_audio", {
+        "date": DAY, "section": "science", "rank": 1, "voice": VOICE,
+        "title": "Morning Science 1", "url": "https://example.com/sci-1",
+        "audio_path": "stories/2026-10-07/sci-1.mp3", "duration": 15.0,
+    })
+    store.insert("story_audio", {
+        "date": DAY, "section": "science", "rank": 2, "voice": VOICE,
+        "title": "Morning Science 2", "url": "https://example.com/sci-2",
+        "audio_path": "stories/2026-10-07/sci-2.mp3", "duration": 18.0,
+    })
+
+    # Evening run only found 1 new science story
+    evening_scripts = [{
+        "id": "new-1", "section": "science", "rank": 1,
+        "title": "Breaking Evening Science", "url": "https://example.com/sci-new",
+        "script": "Breaking evening science script.",
+    }]
+
+    backfilled = storypack.backfill_from_existing(evening_scripts, store, day=DAY, per_section=3, sections=["science"])
+    assert len(backfilled) == 3
+    assert backfilled[0]["title"] == "Breaking Evening Science" and backfilled[0]["rank"] == 1
+    assert backfilled[1]["title"] == "Morning Science 1" and backfilled[1]["rank"] == 2
+    assert backfilled[2]["title"] == "Morning Science 2" and backfilled[2]["rank"] == 3
+
+
+def test_voice_scripts_reuses_audio_when_rank_shifts(store, monkeypatch):
+    """When a story moves from rank 1 to rank 2, its audio file is reused without re-synthesizing."""
+    store.insert("story_audio", {
+        "date": DAY, "section": "science", "rank": 1, "voice": "him_reference",
+        "title": "Existing Story", "url": "https://example.com/story-a",
+        "audio_path": "stories/2026-10-07/science-1-him_reference-abc.mp3", "duration": 20.0,
+        "script": "Existing script.",
+    })
+
+    synth_called = False
+    async def fake_synth(client, base, text, voice, *args, **kwargs):
+        nonlocal synth_called
+        synth_called = True
+        return b"should_not_be_called", 10.0
+
+    monkeypatch.setattr(storypack, "synthesise", fake_synth)
+
+    # Now the story is at rank 2
+    shifted_script = {
+        "id": "a", "section": "science", "rank": 2,
+        "title": "Existing Story", "url": "https://example.com/story-a",
+        "script": "Existing script.",
+    }
+
+    rows = asyncio.run(storypack.voice_scripts(store, [shifted_script], day=DAY, voice="him_reference",
+                                               base="http://voice.test", force=False))
+    assert not synth_called, "Synthesis should have been skipped via reuse"
+    assert len(rows) == 1
+    assert rows[0]["rank"] == 2
+    assert rows[0]["audio_path"] == "stories/2026-10-07/science-1-him_reference-abc.mp3"
+
+
+

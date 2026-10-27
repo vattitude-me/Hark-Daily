@@ -68,16 +68,18 @@ def format_script(title: str, summary: str, rank: int = 1, connector: str | None
 
 
 LABEL_PREFIX = re.compile(
-    r"^(?:the news|why it matters|what to know|what happened|the big picture|from the source|"
+    r"^(?:[-*•]\s*)?(?:the news|why it matters|what to know|what happened|the big picture|from the source|"
     r"between the lines|catch up quick|by the numbers|what they(?:'re| are) saying|what's next|"
-    r"the backstory|yes, but|details|context|zoom in|zoom out|what to watch|state of play):\s*",
+    r"the backstory|yes, but|details|context|zoom in|zoom out|what to watch|state of play|summary):\s*",
     re.I,
 )
 
 
 def clean_sentence(sent: str) -> str:
-    """Clean a sentence by stripping editorial section tags (e.g. 'The news:', 'Why it matters:')."""
-    s = LABEL_PREFIX.sub("", (sent or "").strip()).strip()
+    """Clean a sentence by stripping editorial section tags (e.g. 'The news:', 'Why it matters:') and bullets."""
+    s = re.sub(r"^[-*•]\s*", "", (sent or "").strip()).strip()
+    s = LABEL_PREFIX.sub("", s).strip()
+    s = re.sub(r"^[-*•]\s*", "", s).strip()
     if s and s[0].islower():
         s = s[0].upper() + s[1:]
     return s

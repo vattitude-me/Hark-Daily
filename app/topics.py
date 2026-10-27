@@ -31,13 +31,14 @@ log = logging.getLogger(__name__)
 # its entry here; the collector only needs a feed whose order is the editor's
 # ranking.
 SECTIONS: dict[str, dict] = {
-    "top":           {"title": "Top stories",   "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-topstories"},
-    "ai":            {"title": "AI",            "provider": "TechCrunch", "feed": "https://techcrunch.com/category/artificial-intelligence/feed/"},
-    "tech":          {"title": "Tech",          "provider": "BetaKit",    "feed": "https://betakit.com/feed/"},
-    "politics":      {"title": "Politics",      "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-politics"},
-    "entertainment": {"title": "Entertainment", "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-arts"},
-    "science":       {"title": "Science",       "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-technology"},
-    "sports":        {"title": "Sports",        "provider": "CBC News",   "feed": "https://www.cbc.ca/webfeed/rss/rss-sports"},
+    "top":           {"title": "Top stories",   "provider": "CBC News",      "feed": "https://www.cbc.ca/webfeed/rss/rss-topstories"},
+    "ai":            {"title": "AI",            "provider": "TechCrunch",    "feed": "https://techcrunch.com/category/artificial-intelligence/feed/"},
+    "tech":          {"title": "Tech",          "provider": "BetaKit",       "feed": "https://betakit.com/feed/"},
+    "politics":      {"title": "Politics",      "provider": "CBC News",      "feed": "https://www.cbc.ca/webfeed/rss/rss-politics"},
+    "entertainment": {"title": "Entertainment", "provider": "CBC News",      "feed": "https://www.cbc.ca/webfeed/rss/rss-arts"},
+    "science":       {"title": "Science",       "provider": "ScienceDaily",  "feed": "https://www.sciencedaily.com/rss/top/science.xml",
+                      "fallback_provider": "CBC News", "fallback_feed": "https://www.cbc.ca/webfeed/rss/rss-technology"},
+    "sports":        {"title": "Sports",        "provider": "CBC News",      "feed": "https://www.cbc.ca/webfeed/rss/rss-sports"},
 }
 
 # The pack has no single provider anymore; this label only fills pack-level
@@ -48,7 +49,8 @@ MAX_AGE = timedelta(hours=48)
 DEFAULT_PER_SECTION = 5
 # Extra candidates a section keeps in hand, so losing a story to an earlier section does not leave
 # it short of its count.
-DEDUP_MARGIN = 5
+DEDUP_MARGIN = 15
+CANDIDATE_POOL = 20
 
 
 def feed_url(key: str) -> str:
@@ -67,23 +69,42 @@ def source_for(key: str) -> dict:
     }
 
 
+def fallback_source_for(key: str) -> dict | None:
+    """Secondary source dict for a section if its primary feed is short of candidates."""
+    section = SECTIONS.get(key, {})
+    if "fallback_feed" not in section:
+        return None
+    return {
+        "id": 0,
+        "name": f"{section.get('fallback_provider', section['provider'])} · {section['title']}",
+        "url": section["fallback_feed"],
+        "section": key,
+        "weight": 1.0,
+        "kind": "feed",
+    }
+
+
 def top_n(items: list[Item], n: int = DEFAULT_PER_SECTION, max_age: timedelta = MAX_AGE) -> list[Item]:
     """The editor's top ``n``: the feed is already ranked, so keep its order.
 
-    Dead links and stale items are dropped first, but if a feed is entirely older
-    than ``max_age`` we still return its head rather than nothing.
+    Prioritizes fresh items (newer than max_age), but if the fresh pool has fewer
+    than ``n`` items, backfills from subsequent editorial items in the feed rather
+    than starving the section.
     """
     now = datetime.now(timezone.utc)
     seen: set[str] = set()
     fresh: list[Item] = []
+    stale: list[Item] = []
     for item in items:
         if not item.title or not item.url or item.url in seen or "/player/play/" in item.url:
             continue
         seen.add(item.url)
         if item.published and (now - item.published) > max_age:
-            continue
-        fresh.append(item)
-    return (fresh or items)[:n]
+            stale.append(item)
+        else:
+            fresh.append(item)
+    combined = fresh + [it for it in stale if it.url not in {f.url for f in fresh}]
+    return combined[:n]
 
 
 def bare_url(url: str | None) -> str:
@@ -146,7 +167,20 @@ def script_for(item: Item, max_words: int = 60, title: str = "", rank: int = 1) 
 
 
 async def collect_section(client, key: str, limit: int = DEFAULT_PER_SECTION) -> list[Item]:
-    items = await fetch_source(client, source_for(key))
+    items: list[Item] = []
+    try:
+        items = await fetch_source(client, source_for(key))
+    except Exception as e:
+        log.warning("%s · %s primary source failed: %s", SECTIONS[key]["provider"], key, e)
+
+    fallback = fallback_source_for(key)
+    if fallback and len(items) < limit:
+        try:
+            extra = await fetch_source(client, fallback)
+            items = items + extra
+        except Exception as e:
+            log.warning("%s · %s fallback source failed: %s", SECTIONS[key]["provider"], key, e)
+
     return top_n(items, limit)
 
 
@@ -174,8 +208,10 @@ async def build_pack(per_section: int = DEFAULT_PER_SECTION, sections: list[str]
     candidate takes its place.
     """
     keys = [k for k in (sections or list(SECTIONS)) if k in SECTIONS]
-    # Ask each feed for more than we need, since a section can lose its head to an earlier section.
-    collected = await collect(per_section + DEDUP_MARGIN, sections)
+    # Ask each feed for a deep candidate pool so deduplication across sections never leaves
+    # a section short of its requested count.
+    candidate_limit = max(CANDIDATE_POOL, per_section * 3)
+    collected = await collect(candidate_limit, sections)
     picked = pick_unique({k: collected.get(k, []) for k in keys}, per_section)
     # Only the stories that made it are read, which also saves the article fetches for the rest.
     await enrich_items([item for items in picked.values() for item in items])
