@@ -77,7 +77,7 @@ fi
 # Run the storypack generation pipeline and push to Supabase
 cd "$ROOT"
 log "Running briefing pack generation (voicing on M3 Pro, pushing to Supabase)..."
-"$ROOT/.venv/bin/python" -m app pack --notify --force >> "$LOG_FILE" 2>&1
+"$ROOT/.venv/bin/python" -m app pack --notify "${@:---force}" >> "$LOG_FILE" 2>&1
 
 log "✓ Evening Edition successfully published to Supabase!"
 log "============================================================"

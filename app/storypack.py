@@ -909,7 +909,8 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
     for row in rows:
         store.insert("story_audio", row, on_conflict="date,section,rank,voice")
     current_keys = {(r["section"], r["rank"]) for r in rows}
-    stale_ranks = set(existing.keys()) - current_keys
+    built_sections = {s["section"] for s in scripts}
+    stale_ranks = {(sec, rk) for (sec, rk) in existing.keys() if sec in built_sections} - current_keys
     for sec, rk in stale_ranks:
         store.delete("story_audio", {"date": f"eq.{day}", "voice": f"eq.{voice}",
                                      "section": f"eq.{sec}", "rank": f"eq.{rk}"})
