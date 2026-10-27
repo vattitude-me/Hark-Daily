@@ -7,6 +7,12 @@
 
 set -euo pipefail
 
+# Ensure the Mac stays awake while running, even with the lid closed on AC power
+if [ -z "${CAFFEINATED:-}" ] && command -v caffeinate >/dev/null 2>&1; then
+  export CAFFEINATED=1
+  exec caffeinate -i -s -m "$0" "$@"
+fi
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_FILE="$ROOT/logs/evening_pack.log"
 SERVICE_LOG="$ROOT/logs/voice_service_evening.log"
