@@ -44,10 +44,16 @@ log = logging.getLogger(__name__)
 MAX_PER_SECTION = 5
 
 # The voices the pack publishes, keyed by their reference clip in the voice service.
-# The names are what listeners see, in Settings and under each briefing; the clients keep
-# their own copy of this list so they can label a briefing before it loads.
+# C-3PO is the flagship anchor, accompanied by modular neural narrators (e.g. Matthew, Kelly).
+# Clients display these names in Settings and under each briefing.
 VOICES: dict[str, dict[str, str]] = {
     "c3po_reference": {"name": "C-3PO", "gender": "male"},
+    "matthew_reference": {"name": "Matthew", "gender": "male"},
+    "kelly_reference": {"name": "Kelly", "gender": "female"},
+    "matthew_american": {"name": "Matthew", "gender": "male"},
+    "kelly": {"name": "Kelly", "gender": "female"},
+    "kelley_reference": {"name": "Kelly", "gender": "female"},
+    # Legacy narrator IDs preserved for backwards compatibility with historical packs and test suites
     "her_reference": {"name": "Alice", "gender": "female"},
     "him_reference": {"name": "Mike", "gender": "male"},
     "jerry_reference": {"name": "Jerry", "gender": "male"},
@@ -56,8 +62,22 @@ DEFAULT_VOICE = "c3po_reference"
 
 
 def voice_name(voice: str | None) -> str:
-    """The name a listener would recognise for a clip: 'Alice', not 'her_reference'."""
-    return (VOICES.get(voice or "") or {}).get("name") or (voice or "the narrator")
+    """The name a listener would recognise for a clip: e.g. 'C-3PO', 'Matthew', 'Kelly'."""
+    if not voice:
+        return "the narrator"
+    if voice in VOICES:
+        return VOICES[voice]["name"]
+    # Dynamic fallback: clean up arbitrary voice ID (e.g. nora_reference -> Nora)
+    clean = (
+        voice.replace("_reference", "")
+        .replace("_american", "")
+        .replace("_male", "")
+        .replace("_female", "")
+        .replace("_", " ")
+        .strip()
+        .title()
+    )
+    return clean or voice
 
 # The landing page has to play something for people who aren't signed in, and
 # `story_audio` is not readable without a session. So every pack also publishes a

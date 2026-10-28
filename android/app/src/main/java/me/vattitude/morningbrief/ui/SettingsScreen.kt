@@ -284,16 +284,18 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
 }
 
 private fun voiceAvatarBrush(id: String): Brush = when (id) {
-    "her_reference" -> Brush.linearGradient(listOf(Color(0xFFF59E0B), Color(0xFFD97706))) // Alice - warm amber
-    "him_reference" -> Brush.linearGradient(listOf(Color(0xFF3B82F6), Color(0xFF1D4ED8))) // Mike - royal blue
-    "jerry_reference" -> Brush.linearGradient(listOf(Color(0xFF10B981), Color(0xFF047857))) // Jerry - emerald
     "c3po_reference" -> Brush.linearGradient(listOf(Color(0xFFEAB308), Color(0xFFB45309))) // C-3PO - brass gold
+    "matthew_reference", "matthew_american" -> Brush.linearGradient(listOf(Color(0xFF3B82F6), Color(0xFF1D4ED8))) // Matthew - royal blue
+    "kelly_reference", "kelly", "kelley_reference" -> Brush.linearGradient(listOf(Color(0xFFEC4899), Color(0xFFBE185D))) // Kelly - vibrant rose
+    "her_reference" -> Brush.linearGradient(listOf(Color(0xFFF59E0B), Color(0xFFD97706))) // Legacy Alice - warm amber
+    "him_reference" -> Brush.linearGradient(listOf(Color(0xFF3B82F6), Color(0xFF1D4ED8))) // Legacy Mike - royal blue
+    "jerry_reference" -> Brush.linearGradient(listOf(Color(0xFF10B981), Color(0xFF047857))) // Legacy Jerry - emerald
     else -> Brush.linearGradient(listOf(Color(0xFF6366F1), Color(0xFF4338CA)))
 }
 
 /**
- * Who reads the brief. Both narrators are recorded every morning from the same stories, so
- * choosing one only changes who you hear — it isn't a per-listener recording.
+ * Who reads the brief. Daily briefing narrators are voiced from the same stories, so
+ * choosing one changes who you hear — it isn't a per-listener recording. C-3PO is the flagship default.
  */
 @Composable
 private fun NarratorGroup(vm: AppViewModel) {

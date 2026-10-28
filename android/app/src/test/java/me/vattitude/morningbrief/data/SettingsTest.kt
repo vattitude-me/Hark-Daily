@@ -12,18 +12,23 @@ import org.junit.Test
 class SettingsTest {
     @Test
     fun activeNarratorVoicesAreAvailable() {
-        assertEquals(2, PACK_VOICES.size)
+        assertEquals(3, PACK_VOICES.size)
         val ids = PACK_VOICES.map { it.id }
-        assertEquals(listOf("c3po_reference", "her_reference"), ids)
+        assertEquals(listOf("c3po_reference", "matthew_reference", "kelly_reference"), ids)
 
         assertEquals("C-3PO", PACK_VOICES[0].name)
         assertEquals("c3po_reference", PACK_VOICES[0].id)
-        assertEquals("Alice", PACK_VOICES[1].name)
-        assertEquals("her_reference", PACK_VOICES[1].id)
+        assertEquals("Matthew", PACK_VOICES[1].name)
+        assertEquals("matthew_reference", PACK_VOICES[1].id)
+        assertEquals("Kelly", PACK_VOICES[2].name)
+        assertEquals("kelly_reference", PACK_VOICES[2].id)
 
         // Fallback narrator is C-3PO (first voice)
         assertEquals("c3po_reference", packVoice(null).id)
-        assertEquals("c3po_reference", packVoice("unknown_voice").id)
+        // Modular/dynamic voices format cleanly
+        val dynamic = packVoice("nora_reference")
+        assertEquals("nora_reference", dynamic.id)
+        assertEquals("Nora", dynamic.name)
     }
 
     @Test
@@ -59,13 +64,13 @@ class SettingsTest {
     @Test
     fun withSharedReadsRemoteVoiceAndSectionOrder() {
         val remote = JSONObject()
-            .put("voice", "her_reference")
+            .put("voice", "matthew_reference")
             .put("section_order", JSONArray(listOf("ai", "tech", "sports")))
             .put("speed", 1.2)
             .put("color_photos", false)
 
         val s = Settings().withShared(remote)
-        assertEquals("her_reference", s.voice)
+        assertEquals("matthew_reference", s.voice)
         assertEquals(listOf("ai", "tech", "sports"), s.sectionOrder)
         assertEquals(listOf("ai", "tech", "sports", "top", "politics", "entertainment", "science"), s.orderedSections)
         assertEquals(1.2f, s.speed, 0.01f)

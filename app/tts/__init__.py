@@ -65,16 +65,22 @@ class ChatterboxEngine:
         if not url:
             raise RuntimeError("VOICE_SERVICE_URL is not set")
         voice_map = {
+            "c3po": "c3po_reference",
+            "c3po_reference": "c3po_reference",
+            "matthew": "matthew_reference",
+            "matthew_american": "matthew_reference",
+            "matthew_reference": "matthew_reference",
+            "kelly": "kelly_reference",
+            "kelley": "kelly_reference",
+            "kelly_reference": "kelly_reference",
             "alice": "her_reference",
             "her_reference": "her_reference",
             "mike": "him_reference",
             "him_reference": "him_reference",
             "jerry": "jerry_reference",
             "jerry_reference": "jerry_reference",
-            "c3po": "c3po_reference",
-            "c3po_reference": "c3po_reference",
         }
-        ref = voice_map.get(voice, "her_reference")
+        ref = voice_map.get(voice, voice or "c3po_reference")
         with httpx.Client(timeout=180) as client:
             resp = client.post(f"{url}/synthesize", params={"format": "wav"}, json={"text": text, "voice": ref})
             resp.raise_for_status()

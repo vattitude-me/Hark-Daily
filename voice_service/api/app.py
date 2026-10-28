@@ -108,9 +108,18 @@ def clip_path(name: str) -> Path:
     if raw.suffix == "":
         raw = raw.with_suffix(".wav")
     resolved = (directory / raw).resolve()
-    if directory not in resolved.parents or not resolved.is_file():
-        raise HTTPException(status_code=400, detail=f"Unknown voice '{name}'")
-    return resolved
+    if directory in resolved.parents and resolved.is_file():
+        return resolved
+
+    # Modular alias matching: resolve voice IDs even if caller uses short name or alternate suffix
+    target_norm = Path(name).stem.lower().replace("_reference", "").replace("_american", "").replace("_male", "").replace("_female", "")
+    for candidate in sorted(directory.iterdir()):
+        if candidate.suffix.lower() in CLIP_SUFFIXES:
+            cand_norm = candidate.stem.lower().replace("_reference", "").replace("_american", "").replace("_male", "").replace("_female", "")
+            if target_norm and (target_norm == cand_norm or cand_norm.startswith(target_norm) or target_norm.startswith(cand_norm)):
+                return candidate.resolve()
+
+    raise HTTPException(status_code=400, detail=f"Unknown voice '{name}'")
 
 
 def target_for(requested: str | None) -> Path:

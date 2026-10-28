@@ -31,13 +31,13 @@ export const store = {
 };
 
 /**
- * The narrators the pack records every morning (app/storypack.py). A listener picks one and
- * hears that recording; the clips are shared, so this is a choice of who reads, not a
- * per-listener recording.
+ * The narrators the pack records (app/storypack.py). C-3PO serves as the permanent flagship anchor,
+ * accompanied by modular neural narrators that can rotate or be customized.
  */
 export const BUILTIN_VOICES = [
   { id: 'c3po_reference', name: 'C-3PO', gender: 'male', desc: 'Polite protocol droid', style: 'Polite & Precise', icon: 'bot', builtin: true },
-  { id: 'her_reference', name: 'Alice', gender: 'female', desc: 'Warm British newsreader', style: 'Warm Broadcast', icon: 'mic', builtin: true },
+  { id: 'matthew_reference', name: 'Matthew', gender: 'male', desc: 'Calm American newsreader', style: 'Conversational', icon: 'mic', builtin: true },
+  { id: 'kelly_reference', name: 'Kelly', gender: 'female', desc: 'Engaging American newsreader', style: 'Clear & Engaging', icon: 'mic', builtin: true },
 ];
 
 /** The narrator a new visitor hears first: C-3PO is the flagship default narrator. */
@@ -79,8 +79,32 @@ export function deleteCustomVoice(id) {
   return VOICES;
 }
 
-/** The voice a listener picked, falling back to the first for anything older or unknown. */
-export const voiceFor = (id) => VOICES.find((v) => v.id === id) || VOICES[0];
+/**
+ * The voice a listener picked. Matches known narrators or dynamically formats any modular
+ * narrator ID so voice rotations render seamlessly without code changes, falling back to C-3PO.
+ */
+export const voiceFor = (id) => {
+  if (!id) return VOICES[0] || BUILTIN_VOICES[0];
+  const found = VOICES.find((v) => v.id === id);
+  if (found) return found;
+  const cleanName = id
+    .replace(/_reference$/i, '')
+    .replace(/_american$/i, '')
+    .replace(/_male$/i, '')
+    .replace(/_female$/i, '')
+    .replace(/_/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return {
+    id,
+    name: cleanName || id,
+    gender: 'neutral',
+    desc: 'Neural narrator',
+    style: 'Broadcast',
+    icon: 'mic',
+    builtin: false,
+  };
+};
 export const voiceName = (id) => voiceFor(id).name;
 
 /**

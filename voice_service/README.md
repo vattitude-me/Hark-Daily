@@ -76,10 +76,10 @@ The helper resamples to mono 24 kHz, trims the silence at each end, checks the l
 (Chatterbox refuses anything at or under 5 seconds, and 8–30 seconds clones best), clears
 the stale `.conds.pt` embedding, and prints the exact registration lines.
 
-Replacing the voice behind an existing narrator — a different reference for Alice, say —
-is the same command with `--id her_reference --force`. Nothing re-records by itself
+Replacing the voice behind an existing narrator — a different reference for Matthew, say —
+is the same command with `--id matthew_reference --force`. Nothing re-records by itself
 afterwards: the pack reuses a clip whose article URL has not changed, so re-voice with
-`python -m app pack --voice her_reference --force`. On the deployment the directory is
+`python -m app pack --voice matthew_reference --force`. On the deployment the directory is
 bind-mounted, so the new clip needs no image rebuild. A re-voice writes the same storage
 path, which is uploaded with a day-long cache header, so a listener may hear the old
 recording for up to a day (the day being re-voiced is usually the current one, which is
@@ -136,7 +136,7 @@ VOICE_CORS_ORIGINS=http://localhost:5173,https://your-app.vercel.app
 const res = await fetch('http://localhost:8090/synthesize?format=mp3', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ text: 'Good morning!', voice: 'her_reference' }),
+  body: JSON.stringify({ text: 'Good morning!', voice: 'matthew_reference' }),
 });
 const clip = await res.blob();   // audio/mpeg; X-Duration holds the length in seconds
 ```
@@ -173,7 +173,7 @@ Drop any number of clips into `data/voices/`. Each becomes a selectable voice by
 its **filename without the extension**, and the caller picks one per request:
 
 ```json
-{ "text": "Hello there.", "voice": "her_reference" }
+{ "text": "Hello there.", "voice": "matthew_reference" }
 ```
 
 `GET /voices` lists them with durations and a `usable` flag — Chatterbox requires
@@ -198,7 +198,7 @@ Interactive docs (Swagger UI, no setup needed): `http://10.0.0.130:8090/docs`
 ```json
 {
   "text": "Good morning! [[pause:0.6]] The port strike is over... [sigh] it was a long week.",
-  "voice": "her_reference"
+  "voice": "matthew_reference"
 }
 ```
 
