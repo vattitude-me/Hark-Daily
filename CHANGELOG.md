@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Chatterbox voice tags in podcast banter**: hosts can now `[laugh]`, `[chuckle]`, `[sigh]`, `[gasp]` and so on, performed natively by the voice. Tags are whitelisted, capped at 2 per piece, stripped from the Top stories and Politics banter, and removed from captions. Any other bracketed text rejects the piece.
 
+- `python -m app pack --podcast-only [--force]`: writes and voices the banter for the stories already published today, without fetching news or re-voicing stories. Supabase SQL for the new table is also in `supabase/podcast_clips.sql`.
+
 ---
 
 ## [0.1.62] - 2026-10-27
