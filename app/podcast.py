@@ -103,7 +103,12 @@ def plan_pieces(scripts: list[dict]) -> list[Piece]:
 
 
 def _clean(text: str) -> str:
-    return " ".join(str(text or "").split())
+    s = str(text or "")
+    s = re.sub(r"\s*[—–]\s*", ", ", s)
+    s = re.sub(r"\s+-\s+", ", ", s)
+    s = re.sub(r",\s*,+", ",", s)
+    s = re.sub(r",\s*([.!?])", r"\1", s)
+    return " ".join(s.split())
 
 
 # ------------------------------------------------------------------ templates

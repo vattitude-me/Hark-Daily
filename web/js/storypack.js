@@ -277,6 +277,8 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
   }
 
   let currentSection = null;
+  const podHosts = isPodcast ? (pod.hosts || '').split('+').filter(Boolean) : [];
+  let storyIndex = 0;
   for (const row of chosen) {
     // In rapid mode, skip section intros to deliver a swift, continuous headline flow
     if (!isRapid && row.section !== currentSection) {
@@ -285,23 +287,31 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
       currentSection = row.section;
     }
     breath();
-    const duration = Number(row.duration) || 0;
+    // In podcast mode, alternate the stories between the two hosts so they co-anchor
+    let storyRow = row;
+    if (isPodcast && podHosts.length > 1) {
+      const targetVoice = podHosts[storyIndex % podHosts.length];
+      const match = (rows || []).find((r) => r.section === row.section && r.rank === row.rank && r.voice === targetVoice);
+      if (match) storyRow = match;
+      storyIndex++;
+    }
+    const duration = Number(storyRow.duration) || 0;
     const start = round(cursor);
     const end = round(cursor + duration);
-    const id = `${row.section}-${row.rank}`;
+    const id = `${storyRow.section}-${storyRow.rank}`;
     stories.push({
-      id, section: row.section, source: row.source || 'The Guardian',
-      headline: row.title,
-      summary: row.summary || stripHeadlineAndFiller(row.title, row.script || ''),
-      url: row.url || null,
-      image: row.image || null, start, end, rapid: isRapid,
+      id, section: storyRow.section, source: storyRow.source || 'The Guardian',
+      headline: storyRow.title,
+      summary: storyRow.summary || stripHeadlineAndFiller(storyRow.title, storyRow.script || ''),
+      url: storyRow.url || null,
+      image: storyRow.image || null, start, end, rapid: isRapid,
     });
-    chapters.push({ id, kind: 'story', title: row.title, start, end, section: row.section });
+    chapters.push({ id, kind: 'story', title: storyRow.title, start, end, section: storyRow.section });
     clips.push({
-      id, url: clipUrl(row.audio_path), duration, section: row.section, rank: row.rank,
-      title: row.title, start, end,
+      id, url: clipUrl(storyRow.audio_path), duration, section: storyRow.section, rank: storyRow.rank,
+      title: storyRow.title, start, end,
     });
-    counts.set(row.section, (counts.get(row.section) || 0) + 1);
+    counts.set(storyRow.section, (counts.get(storyRow.section) || 0) + 1);
     cursor += duration;
   }
 
@@ -323,8 +333,8 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
     duration: round(cursor),
     generated_at: new Date().toISOString(),
     voice: {
-      id,
-      name: voiceName(id),
+      id: isPodcast && podHosts.length ? podHosts.join('+') : id,
+      name: isPodcast && podHosts.length ? podHosts.map((h) => voiceName(h)).join(' & ') : voiceName(id),
       requested: voice || null,
       isFallback: Boolean(voice && id !== voice),
     },

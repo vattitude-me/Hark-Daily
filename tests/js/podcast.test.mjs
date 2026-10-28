@@ -85,3 +85,20 @@ test('opening varies from day to day', () => {
     .map((date) => planPodcast(pod, ['top'], `${date}:v`).open.clip_key));
   assert.ok(seen.size > 1);
 });
+
+test('podcast alternates voices between hosts for successive stories', () => {
+  const multiRows = [
+    { date: 'd', section: 'top', rank: 1, voice: 'a', title: 'top1', duration: 10, audio_path: 's/a/top1.mp3' },
+    { date: 'd', section: 'top', rank: 1, voice: 'b', title: 'top1', duration: 10, audio_path: 's/b/top1.mp3' },
+    { date: 'd', section: 'top', rank: 2, voice: 'a', title: 'top2', duration: 10, audio_path: 's/a/top2.mp3' },
+    { date: 'd', section: 'top', rank: 2, voice: 'b', title: 'top2', duration: 10, audio_path: 's/b/top2.mp3' },
+    { date: 'd', section: 'top', rank: 3, voice: 'a', title: 'top3', duration: 10, audio_path: 's/a/top3.mp3' },
+    { date: 'd', section: 'top', rank: 3, voice: 'b', title: 'top3', duration: 10, audio_path: 's/b/top3.mp3' },
+  ];
+  const b = buildBriefing(multiRows, { stories: { top: 3 } }, { date: 'd', voice: 'a', notes, mode: 'podcast', podcastClips: pod });
+  const storyClips = b.clips.filter((c) => !c.note && !c.gap);
+  assert.equal(storyClips.length, 3);
+  assert.ok(storyClips[0].url.includes('/a/top1.mp3'), `story 0 voice was ${storyClips[0].url}`);
+  assert.ok(storyClips[1].url.includes('/b/top2.mp3'), `story 1 voice was ${storyClips[1].url}`);
+  assert.ok(storyClips[2].url.includes('/a/top3.mp3'), `story 2 voice was ${storyClips[2].url}`);
+});

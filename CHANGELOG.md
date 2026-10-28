@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.65] - 2026-10-27
+
+### Added
+- **Default Podcast Edition**: Made Podcast Edition the default playback mode across both Web (`app.js`, `sheets.js`) and Android (`Prefs.kt`, `AppViewModel.kt`), automatically falling back to the Full Brief when podcast banter is unavailable.
+- **Alternating Host Voices in Podcast Mode**: News stories are now co-anchored and alternated between both hosts (Matthew & Kelly) across the entire briefing instead of a single voice reading all stories. The narrator credit displays both co-hosts ("Matthew & Kelly").
+- **Em-dash and En-dash Normalization**: Stripped em-dashes (`—`) and en-dashes (`–`) across podcast dialogue generation, story pack synthesis, and the `voice_service` pipeline, converting them to natural comma pauses to prevent Chatterbox from speeding through hyphens.
+- Bumped PWA service worker cache to `hark-daily-v17` and Android version to `0.1.65` (`165`).
+
+---
+
 ## [0.1.64] - 2026-10-27
 
 ### Added

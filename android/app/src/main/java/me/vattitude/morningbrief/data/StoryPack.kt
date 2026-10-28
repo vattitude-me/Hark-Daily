@@ -330,6 +330,8 @@ object StoryPack {
             sayNote(greetingKey())
         }
 
+        val podHosts = if (isPodcast) pod!!.hosts.split("+").filter { it.isNotEmpty() } else emptyList()
+        var storyIndex = 0
         for (key in order) {
             val count = wanted[key] ?: 0
             if (count <= 0) continue
@@ -344,17 +346,25 @@ object StoryPack {
             }
             for (row in chosen) {
                 breath()
-                val duration = row.optDouble("duration", 0.0)
-                val id = "$key-${row.optInt("rank")}"
-                val title = row.optString("title")
+                // In podcast mode, alternate the stories between the two hosts so they co-anchor
+                var storyRow = row
+                if (isPodcast && podHosts.size >= 2) {
+                    val targetVoice = podHosts[storyIndex % podHosts.size]
+                    val match = every.firstOrNull { it.optString("section") == key && it.optInt("rank") == row.optInt("rank") && it.optString("voice") == targetVoice }
+                    if (match != null) storyRow = match
+                    storyIndex++
+                }
+                val duration = storyRow.optDouble("duration", 0.0)
+                val id = "$key-${storyRow.optInt("rank")}"
+                val title = storyRow.optString("title")
                 val start = cursor
                 val end = cursor + duration
-                clips += Clip(id, title, clipUrl(row.optString("audio_path")), duration, start, end, note = false)
-                val cleanSummary = row.optString("summary").ifEmpty { stripHeadlineAndFiller(title, row.optString("script")) }
+                clips += Clip(id, title, clipUrl(storyRow.optString("audio_path")), duration, start, end, note = false)
+                val cleanSummary = storyRow.optString("summary").ifEmpty { stripHeadlineAndFiller(title, storyRow.optString("script")) }
                 cards += Card(
                     id = id, section = key, headline = title, summary = cleanSummary,
-                    url = row.optString("url"), source = row.optString("source").ifEmpty { "The Guardian" },
-                    also = emptyList(), image = row.optString("image").takeIf { it.startsWith("http") },
+                    url = storyRow.optString("url"), source = storyRow.optString("source").ifEmpty { "The Guardian" },
+                    also = emptyList(), image = storyRow.optString("image").takeIf { it.startsWith("http") },
                     start = start, end = end,
                 )
                 chapters += Chapter(id, "story", title, start, end, key)
@@ -391,7 +401,11 @@ object StoryPack {
             notes = emptyList(),
             // The pack is voiced by the server's cloned narrator, not a phone voice, so
             // voiceId stays empty: there is nothing on this device to re-record.
-            voiceName = packVoice(spokenBy).name,
+            voiceName = if (isPodcast && podHosts.isNotEmpty()) {
+                podHosts.joinToString(" & ") { packVoice(it).name }
+            } else {
+                packVoice(spokenBy).name
+            },
             version = version,
             mode = when {
                 isRapid -> "rapid"

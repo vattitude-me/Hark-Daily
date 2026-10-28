@@ -40,6 +40,32 @@ class StoryPackTest {
                         .put("audio_path", "pack/2026-10-22/$voice/$section-$rank.mp3")
                         .put("duration", 12.0)
                 )
+                rows.add(
+                    JSONObject()
+                        .put("date", "2026-10-22")
+                        .put("section", section)
+                        .put("rank", rank)
+                        .put("voice", "matthew_reference")
+                        .put("headline", "Headline $section $rank")
+                        .put("script", "Summary for $section story $rank")
+                        .put("url", "https://example.com/$section/$rank")
+                        .put("source_name", "The Guardian")
+                        .put("audio_path", "pack/2026-10-22/matthew_reference/$section-$rank.mp3")
+                        .put("duration", 11.0)
+                )
+                rows.add(
+                    JSONObject()
+                        .put("date", "2026-10-22")
+                        .put("section", section)
+                        .put("rank", rank)
+                        .put("voice", "kelly_reference")
+                        .put("headline", "Headline $section $rank")
+                        .put("script", "Summary for $section story $rank")
+                        .put("url", "https://example.com/$section/$rank")
+                        .put("source_name", "The Guardian")
+                        .put("audio_path", "pack/2026-10-22/kelly_reference/$section-$rank.mp3")
+                        .put("duration", 11.5)
+                )
             }
         }
         return rows
@@ -230,10 +256,17 @@ class StoryPackTest {
         assertTrue(briefing.isPodcast)
         assertFalse(briefing.podcastFallback)
         assertTrue(briefing.title.contains("Podcast"))
+        assertEquals("Matthew & Kelly", briefing.voiceName)
         val banterClips = podcastPack.clips.filter { it.banter }
         assertTrue(banterClips.isNotEmpty())
         assertTrue(banterClips.any { it.id == "pod_open_1" })
         assertTrue(banterClips.any { it.id == "pod_close_1" })
+
+        val storyClips = podcastPack.clips.filter { !it.note && !it.gap }
+        assertTrue(storyClips.size >= 3)
+        assertTrue(storyClips[0].url.contains("matthew_reference"))
+        assertTrue(storyClips[1].url.contains("kelly_reference"))
+        assertTrue(storyClips[2].url.contains("matthew_reference"))
 
         val fallbackPack = StoryPack.assemble(
             day = "2026-10-22",
