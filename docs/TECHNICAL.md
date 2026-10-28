@@ -222,6 +222,7 @@ Two hosts (`PODCAST_HOSTS`, default Matthew and Kelly; any two voice ids) chat a
 - **Pieces, shared by everyone**: `pod_open_1..3` (greeting chat, no news), `pod_tease_<section>` (reaction to that section's #1 story), `pod_bridge_<section>` (lead-in), `pod_close_1..2`. Stored in `podcast_clips` with a `podcast_ready` marker.
 - **Dynamic lineup**: the client (`planPodcast` in `storypack.js`) picks an opening and closing variant by date, then adds teasers (first 3 sections) and bridges while they fit a 90 s banter budget, so a 3-category lineup gets a short chat and a 7-category one doesn't get a long one. Missing pieces are skipped.
 - **Writer**: one AI call per day (Gemini then Groq models, same keys as story copy), each piece validated (speakers, turn and word caps, no URLs/markdown); invalid pieces or an AI outage use built-in template dialogue.
+- **Voice tags**: banter may carry Chatterbox's native tags (`[laugh]`, `[chuckle]`, `[sigh]`, `[cough]`, `[gasp]`, `[groan]`, `[sniffle]`, `[yawn]`). At most 2 per piece, removed for `top` and `politics`, and stripped from captions (`podcast_clips.text`). Other square brackets reject the piece.
 - **Toggles**: server `PODCAST_ENABLED` (nothing is generated; the worker publishes `podcast.enabled` in `app_status`, so the UI hides the mode on its next load) and front-end `FEATURES.podcast` in `web/config.js`. Both must be on.
 - **Fallbacks**: flag off, no ready marker, or no opening/closing means the Full Briefing plays (with a notice if the listener had chosen Podcast).
 
