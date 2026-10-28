@@ -14,13 +14,13 @@ flowchart LR
     end
 
     subgraph Backend["Worker Pipeline (app/)"]
-        WORKER["Worker Daemon / Batch<br/>(macOS / Cloud Run)"]
+        WORKER["Worker Batch / launchd<br/>(macOS Apple Silicon MPS)"]
     end
 
     subgraph VoiceService["Voice Microservice (voice_service/api/app.py)"]
         API["FastAPI App (:8090)"]
         ENGINE["TurboVoice Engine<br/>(Chatterbox-Turbo / PerthNet)"]
-        GPU["Hardware Acceleration<br/>(MPS Apple Silicon / NVIDIA CUDA)"]
+        GPU["Hardware Acceleration<br/>(Apple Silicon MPS / PyTorch)"]
     end
 
     subgraph Storage["Supabase Infrastructure"]
@@ -37,7 +37,7 @@ flowchart LR
 ```
 
 * **Voice Microservice Entry Point**: [`voice_service/api/app.py`](file:///Users/vattitude/Coding/Morning_Brief/voice_service/api/app.py)
-* **Default Host & Port**: `http://127.0.0.1:8090` (Local) / `http://<VM_IP>:8090` (Cloud GPU)
+* **Default Host & Port**: `http://127.0.0.1:8090` (Local Apple Silicon M3 Pro)
 * **Framework**: FastAPI (Python 3.11/3.12) with Uvicorn ASGI server
 * **Concurrency Model**: Endpoints are defined as synchronous `def` functions so FastAPI dispatches model execution to threadpools, ensuring the async event loop is never blocked by CPU/GPU inference.
 
@@ -319,6 +319,17 @@ Hark Daily publishes atomic briefing packs to Supabase. Web and mobile clients i
   * `script` (`text`): Spoken text voiced by the neural model.
   * `duration` (`real`): Clip audio duration in seconds.
   * `audio_path` (`text`): Content-hashed storage path (`stories/{day}/{section}-{rank}-{voice}-{hash}.mp3`).
+
+### 4.3. Podcast Banter Table (`podcast_clips`)
+* **Endpoint**: `GET /rest/v1/podcast_clips?date=eq.{YYYY-MM-DD}&hosts=eq.{HOSTS}&select=*`
+* **Schema**:
+  * `date` (`text`): Briefing date in ISO format (`YYYY-MM-DD`).
+  * `hosts` (`text`): Duo host identifiers (`matthew_reference+kelly_reference`).
+  * `clip_key` (`text`): Banter piece identifier (`pod_open_1..3`, `pod_tease_<section>`, `pod_bridge_<section>`, `pod_close_1..2`, `podcast_ready`).
+  * `text` (`text`): Spoken dialogue transcript.
+  * `duration` (`real`): Clip audio duration in seconds.
+  * `audio_path` (`text`): Storage path (`podcast/{date}/{clip_key}-{hosts}.mp3`).
+  * `writer` (`text`): AI model attribution (`gemini-2.5-flash`, `openai/gpt-oss-120b`, or `built-in`).
 
 ---
 

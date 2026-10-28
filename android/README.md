@@ -21,7 +21,7 @@ summaries and records them in a natural voice, then plays the result. No server 
   [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx). Otherwise the phone's own voice reads the briefing.
 - **Every morning:** builds before your "ready by" time, and again if a scheduled build was missed.
 
-Android 10+. Download the APK from the [releases](https://github.com/vattitude-me/morning-brief-voice/releases)
+Android 10+. Download the APK from the [releases](https://github.com/vattitude-me/Hark-Daily/releases)
 tagged `android-v*`. Store listing text and assets are in [`docs/play-store`](../docs/play-store).
 
 ## Build
