@@ -398,32 +398,36 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             selected.value = packDate
             nowPlayingTried = null
             briefing.value = activePack.briefing
+            nowPlaying.value = activePack.briefing
             BuildState.clearError()
-            val c = load(packDate, briefingMode.value)
-            tick()
-            // If settings changed or narrator switched, resume gracefully without playing removed stories.
+            var startIdx = 0
+            var startOffsetMs = 0L
             if (resumeCardId != null) {
                 val targetCard = activePack.briefing.cards.firstOrNull { it.id == resumeCardId }
-                if (c != null) {
-                    if (targetCard != null) {
-                        val seekTarget = (targetCard.start + resumeCardOffset).coerceIn(targetCard.start, targetCard.end)
-                        seekGlobal(c, seekTarget, play = resumePlaying)
-                    } else {
-                        // The story that was playing was removed by new story counts. Reset cleanly.
-                        c.stop()
-                        c.seekTo(0, 0L)
-                    }
+                if (targetCard != null) {
+                    val seekTarget = (targetCard.start + resumeCardOffset).coerceIn(targetCard.start, targetCard.end)
+                    val (idx, offMs) = clipIndexAndOffset(activePack, seekTarget)
+                    startIdx = idx
+                    startOffsetMs = offMs
                 }
                 resumeCardId = null
                 resumeCardOffset = 0.0
                 resumeAt = null
-                resumePlaying = false
             } else if (resumeAt != null) {
-                val at = resumeAt!!
-                if (c != null) seekGlobal(c, at, play = resumePlaying)
+                val (idx, offMs) = clipIndexAndOffset(activePack, resumeAt!!)
+                startIdx = idx
+                startOffsetMs = offMs
                 resumeAt = null
+            }
+            val (c, reloaded) = load(packDate, briefingMode.value, startIndex = startIdx, startPositionMs = startOffsetMs)
+            if (!reloaded && c != null && (startIdx > 0 || startOffsetMs > 0)) {
+                c.seekTo(startIdx, startOffsetMs)
+            }
+            if (resumePlaying) {
+                c?.play()
                 resumePlaying = false
             }
+            tick()
         } else if (briefing.value == null) {
             repo.briefings.dates().firstOrNull()?.let { repo.briefings.load(it) }?.let {
                 briefing.value = Briefing.from(it)
@@ -543,6 +547,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (pack != null) {
             nowPlayingTried = null
             briefing.value = pack.briefing
+            nowPlaying.value = pack.briefing
             val c = controller
             if (c != null) {
                 val targetSpeed = if (newMode == "rapid") 1.1f else _settings.value.speed.coerceIn(0.8f, 1.3f)
@@ -639,48 +644,79 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         tick()
     }
 
-    /** Loads [date] into the player if it isn't already there. Uses the shared pack when there is one. */
-    private fun load(date: String, m: String = briefingMode.value): MediaController? {
-        val c = controller ?: return null
+    private fun clipIndexAndOffset(pack: Pack, targetSeconds: Double): Pair<Int, Long> {
+        if (pack.clips.isEmpty()) return 0 to (targetSeconds.coerceAtLeast(0.0) * 1000).toLong()
+        val target = targetSeconds.coerceAtLeast(0.0)
+        var acc = 0.0
+        var index = pack.clips.lastIndex
+        for ((i, clip) in pack.clips.withIndex()) {
+            if (target < acc + clip.duration) { index = i; break }
+            acc += clip.duration
+        }
+        val offset = (target - acc).coerceIn(0.0, pack.clips[index].duration)
+        return index to (offset * 1000).toLong()
+    }
+
+    /** Loads [date] into the player if it isn't already there. Uses the shared pack when there is one. Returns controller and whether reloaded. */
+    private fun load(
+        date: String,
+        m: String = briefingMode.value,
+        startIndex: Int = 0,
+        startPositionMs: Long = 0L,
+    ): Pair<MediaController?, Boolean> {
+        val c = controller ?: return null to false
         val pack = packs["$date-$m"] ?: packs[date]
         val b = pack?.briefing ?: briefing.value?.takeIf { it.date == date }
             ?: repo.briefings.load(date)?.let { Briefing.from(it) }
         val id = b?.mediaId ?: "$date-$m"
         val countMismatch = pack != null && pack.clips.isNotEmpty() && c.mediaItemCount != pack.clips.size
+        var reloaded = false
         if (c.currentMediaItem?.mediaId != id || countMismatch) {
+            reloaded = true
             if (pack != null && pack.clips.isNotEmpty()) {
+                currentPack = pack
+                nowPlaying.value = b
+                nowPlayingTried = id
                 // One MediaItem per clip: Media3 queues them, so a section's intro flows
                 // straight into its first story with no gap and no re-encoding. The breath
                 // between two stories is its own silent clip, played from the app's own asset.
-                currentPack = pack
-                // By resource id, not by name: the release build shortens resource paths.
                 val silence = Uri.parse("android.resource://${getApplication<Application>().packageName}/${R.raw.gap}")
-                c.setMediaItems(pack.clips.map { clip ->
+                val items = pack.clips.map { clip ->
                     MediaItem.Builder()
                         .setMediaId(id)
                         .setUri(if (clip.gap) silence else Uri.parse(clip.url))
                         .setMediaMetadata(MediaMetadata.Builder().setTitle(clip.title).setArtist("Hark Daily").build())
                         .build()
-                })
+                }
+                c.setMediaItems(items, startIndex, startPositionMs)
             } else {
                 currentPack = null
+                nowPlaying.value = b
+                nowPlayingTried = id
                 val item = MediaItem.Builder()
                     .setMediaId(id)
                     .setUri(Uri.fromFile(repo.briefings.audio(date)))
                     .setMediaMetadata(MediaMetadata.Builder().setTitle(b?.title ?: date).setArtist("Hark Daily").build())
                     .build()
-                c.setMediaItem(item)
+                c.setMediaItem(item, startPositionMs)
             }
             c.prepare()
             val speed = if (m == "rapid") 1.1f else _settings.value.speed.coerceIn(0.8f, 1.3f)
             c.setPlaybackSpeed(speed)
+        } else if (pack != null) {
+            currentPack = pack
+            if (nowPlaying.value?.mediaId != id) {
+                nowPlaying.value = b
+                nowPlayingTried = id
+            }
         }
-        return c
+        return c to reloaded
     }
 
     fun togglePlay() {
         val date = selected.value ?: return
-        val c = load(date, briefingMode.value) ?: return
+        val (c, _) = load(date, briefingMode.value)
+        if (c == null) return
         if (c.isPlaying) {
             c.pause()
         } else {
@@ -692,14 +728,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun seekTo(seconds: Double, play: Boolean = true) {
         val date = selected.value ?: return
-        val c = load(date, briefingMode.value) ?: return
-        seekGlobal(c, seconds, play)
+        val m = briefingMode.value
+        val pack = packs["$date-$m"] ?: packs[date]
+        val (idx, offMs) = if (pack != null) clipIndexAndOffset(pack, seconds) else (0 to (seconds * 1000).toLong())
+        val (c, reloaded) = load(date, m, startIndex = idx, startPositionMs = offMs)
+        if (c == null) return
+        if (!reloaded) {
+            seekGlobal(c, seconds, play)
+        } else if (play) {
+            c.play()
+        }
         tick()
     }
 
     fun skip(seconds: Int) {
         val date = nowPlaying.value?.date ?: selected.value ?: return
-        val c = controller?.takeIf { it.currentMediaItem != null } ?: load(date, briefingMode.value) ?: return
+        val c = controller?.takeIf { it.currentMediaItem != null } ?: load(date, briefingMode.value).first ?: return
         val maxDur = (nowPlaying.value ?: briefing.value)?.duration ?: Double.MAX_VALUE
         seekGlobal(c, (globalPosition(c) + seconds).coerceIn(0.0, maxDur.coerceAtLeast(0.0)))
         tick()

@@ -832,8 +832,21 @@ async function saveAll() {
       const briefing = buildPackBriefing(rows, settings, { date, voice: settings.voice, notes, mode: activeMode(), podcastClips });
       if (briefing) {
         briefing.fresh = fresh;
+        const curStory = player.storyFor(player.currentChapter());
+        const curStoryId = curStory?.id;
+        const offset = curStory ? Math.max(0, player.position - (curStory.start || 0)) : 0;
+        const wasPlaying = !player.audio.paused;
         state.briefing = briefing;
         displayBriefing();
+        if (curStoryId) {
+          const target = briefing.stories?.find((s) => s.id === curStoryId);
+          if (target) {
+            player.seekTo((target.start || 0) + offset);
+            if (wasPlaying) player.audio.play().catch(() => {});
+          } else {
+            player.seekTo(0);
+          }
+        }
       }
     }
   } catch (err) {

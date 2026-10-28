@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.67] - 2026-10-28
+
+### Fixed
+- **Atomic Media Loading & Playlist Synchronization on Story Count Changes**:
+  - Replaced separate asynchronous `load()` and `seekGlobal()` calls in Android with atomic `c.setMediaItems(items, startIndex, startPositionMs)`. This eliminates race conditions where ExoPlayer evaluated seek indices against the old timeline before Binder IPC delivered the new timeline, which previously caused the voice to read an unrelated story from the old lineup while displaying a different card on screen.
+  - Synchronized `nowPlaying` and `briefing` state flows across `doFetchPack()`, `load()`, and `setBriefingMode()`, ensuring the floating MiniPlayer and the broadsheet card view always reference the exact same story lineup and timeline timestamps.
+  - Enhanced Web PWA `saveAll()` to retain active story ID and seek cleanly to the target story upon lineup updates.
+
+### Infrastructure
+- **Full GCP Infrastructure Decommission & Mac Local Automation**:
+  - Permanently turned off and deleted all Google Cloud Platform components (Compute Engine VM `morning-brief-voice`, attached 60GB disk, firewall rules, Cloud Run jobs `morning-brief-pack` and `morning-brief-report`, Cloud Scheduler jobs, and Artifact Registry repository `voice-service`). Zero GCP cost or cloud stockouts.
+  - Configured local Mac M3 Pro as primary daily briefing runner with `scripts/morning_pack_mac.sh` and LaunchAgent `me.vattitude.harkdaily.morning` scheduled at 06:00 AM daily, running Apple Silicon MPS Chatterbox-Turbo with `caffeinate -i -s -m`.
+- Bumped PWA service worker cache to `hark-daily-v19` and Android version to `0.1.67` (`167`).
+
+---
+
 ## [0.1.66] - 2026-10-28
 
 ### Fixed
