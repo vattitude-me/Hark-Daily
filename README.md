@@ -22,24 +22,19 @@ No ads. No tracking. Zero doom-scrolling.
 
 ## ☕ Features
 
-* **Multi-Provider News Architecture**: Curated stories across 7 focused sections:
-  * **CBC News** — Canadian & world Top Stories, Politics, Entertainment, and Sports.
-  * **ScienceDaily** — Cutting-edge research, health breakthroughs, space, and discoveries (CBC News fallback).
-  * **TechCrunch** — Deep dive into Artificial Intelligence and machine intelligence.
-  * **BetaKit** — Canadian tech, startup ecosystems, and venture innovation.
-* **Neural Voice Personas & Modular Architecture**:
-  * Anchored by permanent flagship narrator **C-3PO** alongside a modular, rotating roster of neural personas across conversational, broadcast, and character delivery styles.
-  * **Interactive Live Demo**: Audition all active narrators and switch voices seamlessly in the live web player at [**hark.vattitude.ca**](https://hark.vattitude.ca)—no sign-up required.
-* **Dual Listening Modes**:
-  * **Podcast (Default)** — Two dynamic co-hosts (**Matthew & Kelly**) banter and unpack the day's stories with natural cadence, expressive turns, and broadcast title framing, adapting to the topics you follow.
-  * **Full Briefing** — Immersive radio-style listening with individual story narration, spoken section intros, and dynamic greetings.
-* **Time-Adaptive Audio**: Adapts greetings (`Good morning`, `Good afternoon`, `Good evening`) to your local timezone.
-* **Permanent Static Notes Architecture**: Greetings, section transitions, and sign-offs are voiced once and stored in a permanent static repository (`notes/static/`), verified before voice service exit to ensure $0 recurring compute costs.
-* **Interactive Follow-Along**: Story cards highlight and auto-scroll in sync with the audio. Tap any story card to seek directly to it.
-* **Pull-Down-to-Refresh**: Native Android gesture on `TodayScreen` to instantly re-check for the latest stories and audio updates.
-* **Custom Topic Ordering**: Drag and reorder topics to prioritize the sections you care about first.
-* **Zero-Cost Local Hardware Acceleration**: Automated batch synthesis runs locally on Apple Silicon (M3 Pro) using PyTorch Metal Performance Shaders (MPS), with automated `launchd` daemons and a dual morning/evening power relay. Zero cloud GPU bills, zero external rental fees.
-* **Strict Privacy by Design**: No sponsored stories, no advertising networks, no tracking pixels, and no algorithmic rabbit holes.
+* **Curated News Sources**: Verified reporting from CBC News, ScienceDaily, TechCrunch, and BetaKit across 7 categories (Top, AI, Tech, Politics, Entertainment, Science, Sports).
+* **Neural Voices**: Voiced by C-3PO alongside co-hosts Matthew & Kelly via local Chatterbox-Turbo TTS.
+* **Instant Playback**: Listen immediately on the web at [hark.vattitude.ca](https://hark.vattitude.ca) without sign-up.
+* **Two Listening Modes**:
+  * **Podcast (Default)** — Duo-host conversation with Matthew & Kelly tailored to your selected topics, with natural cadence, pauses, and broadcast titles.
+  * **Full Brief** — Continuous radio-style narration across all chosen stories.
+* **Time-Adaptive Greetings**: Adapts greeting audio (`Good morning`, `Good afternoon`, `Good evening`) to your local clock.
+* **Cached Static Audio**: Reusable intros and sign-offs are stored permanently in Supabase, saving synthesis time on each batch.
+* **Read-Along Teleprompter**: Subtitles and story cards follow the narrator in real time. Tap any card to seek to it.
+* **Pull-to-Refresh**: Native pull gesture on Android to check for fresh editions on demand.
+* **Custom Lineup**: Reorder topics and toggle categories to build your personal lineup.
+* **Local Apple Silicon Synthesis**: Runs locally on macOS with PyTorch Metal Performance Shaders (MPS) and automated `launchd` scheduling. Zero cloud GPU costs.
+* **No Ads or Tracking**: No sponsored stories, tracking pixels, or algorithmic feeds.
 
 ---
 

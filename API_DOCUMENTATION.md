@@ -1,6 +1,6 @@
 # 🎙️ Hark Daily — API Documentation
 
-This document provides a comprehensive technical reference for the Hark Daily API surface area, covering the **Chatterbox-Turbo Voice Service (FastAPI)** and the **Storage & Data Access Protocols (Supabase)**.
+Technical reference for the **Chatterbox-Turbo Voice Service (FastAPI)** and **Supabase Data Layer**.
 
 ---
 

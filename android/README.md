@@ -1,28 +1,19 @@
-# Morning Brief for Android
+# Hark Daily for Android
 
-A standalone Android app that builds the briefing **on the phone**. It fetches the feeds, ranks them, writes the
-summaries and records them in a natural voice, then plays the result. No server is needed. Signing in with Google
-(the same account as the web app) is optional; it syncs your settings and sources.
+Native Android client built with Jetpack Compose, Material3 tokens, and Media3 background playback. Plays daily editions streamed from Supabase Storage with optional on-device offline synthesis.
 
 | Today | Following along | Sources | Settings |
-|---|---|---|---|
+| :---: | :---: | :---: | :---: |
 | ![](../docs/screenshots/android-today-light.png) | ![](../docs/screenshots/android-playing-dark.png) | ![](../docs/screenshots/android-sources-light.png) | ![](../docs/screenshots/android-settings-light.png) |
 
-- **About five minutes:** 12 stories in total, at most 4 per topic. Sources shows how full the brief is.
-- **Sources:** topics, local news for your city, and *Your picks*: follow a name or add any site or link.
-  Changes are a draft until you save them.
-- **Follow along:** the story being read is highlighted and scrolled into view. Tap ▶ beside any story to start there.
-  A mini player follows you to the other tabs.
-- **Summaries:** built in, or written by an AI service with your own key: Groq, Gemini, OpenRouter, OpenAI or any
-  OpenAI-compatible endpoint.
-- **First run:** a short setup with a sample briefing to hear, then voice, morning time and notifications, and an
-  optional summary key.
-- **Voices:** Settings → Voice → Natural downloads the Kokoro model (about 350 MB, once) and runs it offline with
-  [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx). Otherwise the phone's own voice reads the briefing.
-- **Every morning:** builds before your "ready by" time, and again if a scheduled build was missed.
+- **Listening Modes**: Supports **Podcast** (default two-host conversation) and **Full Brief**.
+- **Follow-Along Visor**: Highlights the active story in real time with synchronized playback and inline read-along transcripts.
+- **Background Audio**: Android Media3 notification and lock-screen playback controls with scrubber.
+- **Pull-to-Refresh**: Native pull gesture on TodayScreen to check for updated editions.
+- **Offline Fallback**: Optional on-device Kokoro TTS offline engine via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx).
+- **Custom Lineup**: Reorder categories and toggle story counts per section.
 
-Android 10+. Download the APK from the [releases](https://github.com/vattitude-me/Hark-Daily/releases)
-tagged `android-v*`. Store listing text and assets are in [`docs/play-store`](../docs/play-store).
+Requires Android 10+ (API 29+). Download signed APKs from [GitHub Releases](https://github.com/vattitude-me/Hark-Daily/releases). Store assets are in [`docs/play-store`](../docs/play-store).
 
 ## Build
 
