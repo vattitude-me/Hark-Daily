@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.61] - 2026-10-27
+
+### Added
+- **Modular Voice Lineup (C-3PO Flagship, Matthew & Kelly)**:
+  - Rotated the active narrator lineup to permanent flagship anchor C-3PO (`c3po_reference`) alongside modular neural narrators Matthew (`matthew_reference`) and Kelly (`kelly_reference`).
+  - Added dynamic voice architecture across Android (`Voices.kt`, `SettingsScreen.kt`) and Web (`api.js`): any present or future voice ID is dynamically formatted with clean title-casing and default avatars without client regressions.
+  - Added vibrant visual gradients for Matthew (royal blue) and Kelly (rose) in Android Settings.
+- **Section Starvation Protection & ScienceDaily Feed**:
+  - Implemented 3-tier recency backfill in `app/topics.py` (`top_n()`) with pool expansion to 20 stories to guarantee full 5-story sections during multi-run editions.
+  - Added ScienceDaily source with automated fallback to CBC Science.
+  - Added same-day unexpired story backfill and rank-shifted audio reuse (`existing_by_url`) in `app/storypack.py`.
+- **Cache & API Updates**:
+  - Bumped PWA service worker offline cache to `hark-daily-v14`.
+  - Updated API documentation and client integration guides in `API_DOCUMENTATION.md` and `docs/TECHNICAL.md`.
+
+---
+
 ## [0.1.60] - 2026-10-25
 
 ### Fixed
