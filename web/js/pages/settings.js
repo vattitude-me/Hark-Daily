@@ -244,13 +244,21 @@ export class SettingsPage {
       this.upcomingFeaturesGroup(),
 
       SectionLabel('Account'),
-      GlassGroup(
-        ListRow({ label: this.email || 'Signed in', end: Tag('SYNCED') }),
+      this.email ? GlassGroup(
+        ListRow({ label: this.email, end: Tag('SYNCED') }),
         Hairline(),
         ListRow({ label: 'Sign out', color: 'var(--err)', onClick: async () => { await api.signOut(); location.reload(); } }),
         Hairline(),
         ListRow({ label: 'Delete account', color: 'var(--err)', onClick: () => this.openDelete() }),
+      ) : GlassGroup(
+        ListRow({
+          label: 'Sign in to Hark Daily',
+          end: Tag('GUEST'),
+          caret: true,
+          onClick: () => window.openSignIn?.('settings'),
+        }),
       ),
+      !this.email ? h('p', { class: 'hint' }, 'Sign in free with Google or email to sync your preferences and sources with the Android app.') : null,
 
       h('div', { class: 'legal-row' },
         h('span', { class: 'hint' }, 'Hark Daily for web'),

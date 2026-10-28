@@ -170,13 +170,13 @@
           <p class="landing-lead">Seven sections of news, summarized and read aloud by the narrator you pick. Your Hark Daily brief is ready before you wake.</p>
           <ul class="landing-points">
             <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Choose the topics you follow and their order</span></li>
-            <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Four narrators: Alice, Mike, Jerry and C-3PO</span></li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Neural narrators: C-3PO, Matthew, and Kelly</span></li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Full Brief, or a Podcast edition with two hosts chatting about your news</span></li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Free to listen, with no ads</span></li>
           </ul>
           <div class="landing-cta">
-            <button class="pill-btn lg" type="button" id="startPreview">Start your brief</button>
-            <span class="hint">Listen to a preview in the voice you like. Sign in free to hear the whole brief.</span>
+            <button class="pill-btn lg" type="button" id="startPreview">Listen to today's brief</button>
+            <span class="hint">Free daily news briefings, ready before you wake.</span>
           </div>
         </section>
 
@@ -218,10 +218,10 @@
               </div>
             </div>
             <div class="sample-gate hidden" id="sampleGate" role="status" aria-live="polite">
-              <b id="gateTitle">That's the preview.</b>
-              <p id="gateText">Sign in free to hear the rest of today's brief, in any voice.</p>
-              <button class="pill-btn" type="button" id="gateContinue">Keep listening</button>
-              <button class="link-btn" type="button" id="gateReplay">Replay the preview</button>
+              <b id="gateTitle">Sample completed.</b>
+              <p id="gateText">Listen to today's full briefing in any voice, or sign in to customize topics.</p>
+              <button class="pill-btn" type="button" id="gateContinue">Go to Today's Brief →</button>
+              <button class="link-btn" type="button" id="gateReplay">Replay the sample</button>
             </div>
             <audio id="sampleAudio" preload="none"></audio>
           </section>
@@ -261,45 +261,6 @@
       </div>
 
       <p class="footnote"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
-    </div>
-
-    <!-- Sign in: email, then the link or code from the email -->
-    <div class="signin hidden" id="signin" role="dialog" aria-modal="true" aria-labelledby="signinTitle">
-      <div class="login-card">
-        <button class="icon-btn signin-close" type="button" id="signinClose" aria-label="Close"><svg><use href="#i-close"/></svg></button>
-        <img src="/icons/icon.svg" alt="" width="44" height="44" class="login-mark">
-        <h1 id="signinTitle">Start your daily brief</h1>
-        <p class="login-intro" id="loginHint">Sign in once. Your brief and settings follow you between the web and Android apps.</p>
-        <div id="providerStep" class="login-form">
-          <button class="btn btn-lg btn-google" type="button" id="googleBtn">
-            <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.5 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
-            <span id="googleLabel">Continue with Google</span>
-          </button>
-          <button class="btn btn-ghost btn-lg" type="button" id="useEmail">Continue with email</button>
-        </div>
-        <form id="emailForm" class="login-form hidden">
-          <label class="sr-only" for="loginEmail">Email</label>
-          <input type="email" id="loginEmail" class="text-input" placeholder="you@example.com" autocomplete="email" required>
-          <button class="btn btn-primary btn-lg" type="submit" id="sendCodeBtn">Email me a sign-in link</button>
-        </form>
-        <div id="sentStep" class="login-form hidden">
-          <div class="sent-waiting" aria-live="polite"><span class="spinner" aria-hidden="true"></span>Waiting for you to tap the link…</div>
-          <a class="btn btn-primary btn-lg hidden" id="openMail" target="_blank" rel="noopener">Open Gmail</a>
-          <div class="sent-actions">
-            <button class="link-btn" type="button" id="resendBtn">Resend email</button>
-            <span aria-hidden="true">·</span>
-            <button class="link-btn" type="button" id="changeEmail">Use a different email</button>
-          </div>
-          <button class="link-btn" type="button" id="showCode">Have a code instead?</button>
-          <form id="codeForm" class="login-form hidden">
-            <label class="sr-only" for="loginCode">Code from the email</label>
-            <input type="text" id="loginCode" class="text-input code-input" inputmode="numeric" autocomplete="one-time-code"
-                   pattern="[0-9]{6,10}" maxlength="10" placeholder="123456">
-            <button class="btn btn-ghost" type="submit" id="verifyBtn">Sign in with code</button>
-          </form>
-        </div>
-        <p class="error hidden" id="loginError" role="alert"></p>
-      </div>
     </div>
   </div>
 
@@ -367,6 +328,7 @@
         </div>
         <button class="icon-btn hidden" id="installBtn" aria-label="Install the app" title="Install the app"><svg><use href="#i-download"/></svg></button>
         <button class="icon-btn" id="themeToggle" aria-label="Switch theme" title="Switch theme"><svg><use href="#i-moon"/></svg></button>
+        <button class="pill-btn glass-btn sm hidden" id="topbarSignInBtn" type="button">Sign in</button>
         <button class="avatar-btn" id="avatarBtn" type="button" aria-label="Account and settings"><span id="avatarInitial"><svg aria-hidden="true"><use href="#i-user"/></svg></span></button>
       </header>
 
@@ -385,6 +347,39 @@
             </header>
 
             <div id="notice"></div>
+
+            <!-- Optional Guest Action Banner: Notifications, Install, Sign in -->
+            <section class="glass guest-banner hidden" id="guestBanner" aria-label="Welcome to Hark Daily">
+              <div class="guest-banner-main">
+                <div class="guest-banner-icon" aria-hidden="true">
+                  <img src="/icons/icon.svg" alt="" width="32" height="32">
+                </div>
+                <div class="guest-banner-content">
+                  <div class="guest-banner-header">
+                    <span class="badge badge-accent"><span class="badge-dot" aria-hidden="true"></span>Guest Mode</span>
+                    <h2 class="guest-banner-title">Welcome to Hark Daily</h2>
+                  </div>
+                  <p class="guest-banner-desc">You are listening to today's news free as a guest. Enable morning notifications, install the app for instant access, or sign in to sync preferences.</p>
+                  <div class="guest-banner-actions">
+                    <button class="pill-btn sm" type="button" id="bannerPushBtn">
+                      <svg aria-hidden="true" width="15" height="15"><use href="#i-bell"/></svg>
+                      <span>Enable notifications</span>
+                    </button>
+                    <button class="pill-btn glass-btn sm hidden" type="button" id="bannerInstallBtn">
+                      <svg aria-hidden="true" width="15" height="15"><use href="#i-download"/></svg>
+                      <span>Install app</span>
+                    </button>
+                    <button class="pill-btn glass-btn sm" type="button" id="bannerSignInBtn">
+                      <svg aria-hidden="true" width="15" height="15"><use href="#i-user"/></svg>
+                      <span>Sign in</span>
+                    </button>
+                  </div>
+                </div>
+                <button class="icon-btn guest-banner-close" type="button" id="bannerCloseBtn" aria-label="Dismiss banner" title="Dismiss banner">
+                  <svg><use href="#i-close"/></svg>
+                </button>
+              </div>
+            </section>
 
             <!-- Hero player card -->
             <section class="glass hero hidden" id="hero" aria-label="Audio briefing">
@@ -737,6 +732,45 @@
       <button class="btn btn-primary" data-close>Done</button>
     </div>
   </dialog>
+
+  <!-- Sign in modal dialog: accessible globally from guest banner, topbar, and settings -->
+  <div class="signin hidden" id="signin" role="dialog" aria-modal="true" aria-labelledby="signinTitle">
+    <div class="login-card">
+      <button class="icon-btn signin-close" type="button" id="signinClose" aria-label="Close"><svg><use href="#i-close"/></svg></button>
+      <img src="/icons/icon.svg" alt="" width="44" height="44" class="login-mark">
+      <h2 id="signinTitle">Start your daily brief</h2>
+      <p class="login-intro" id="loginHint">Sign in once. Your brief and settings follow you between the web and Android apps.</p>
+      <div id="providerStep" class="login-form">
+        <button class="btn btn-lg btn-google" type="button" id="googleBtn">
+          <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.5 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
+          <span id="googleLabel">Continue with Google</span>
+        </button>
+        <button class="btn btn-ghost btn-lg" type="button" id="useEmail">Continue with email</button>
+      </div>
+      <form id="emailForm" class="login-form hidden">
+        <label class="sr-only" for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" class="text-input" placeholder="you@example.com" autocomplete="email" required>
+        <button class="btn btn-primary btn-lg" type="submit" id="sendCodeBtn">Email me a sign-in link</button>
+      </form>
+      <div id="sentStep" class="login-form hidden">
+        <div class="sent-waiting" aria-live="polite"><span class="spinner" aria-hidden="true"></span>Waiting for you to tap the link…</div>
+        <a class="btn btn-primary btn-lg hidden" id="openMail" target="_blank" rel="noopener">Open Gmail</a>
+        <div class="sent-actions">
+          <button class="link-btn" type="button" id="resendBtn">Resend email</button>
+          <span aria-hidden="true">·</span>
+          <button class="link-btn" type="button" id="changeEmail">Use a different email</button>
+        </div>
+        <button class="link-btn" type="button" id="showCode">Have a code instead?</button>
+        <form id="codeForm" class="login-form hidden">
+          <label class="sr-only" for="loginCode">Code from the email</label>
+          <input type="text" id="loginCode" class="text-input code-input" inputmode="numeric" autocomplete="one-time-code"
+                 pattern="[0-9]{6,10}" maxlength="10" placeholder="123456">
+          <button class="btn btn-ghost" type="submit" id="verifyBtn">Sign in with code</button>
+        </form>
+      </div>
+      <p class="error hidden" id="loginError" role="alert"></p>
+    </div>
+  </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 

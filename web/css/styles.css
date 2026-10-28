@@ -811,6 +811,81 @@ main { flex: 1; }
   width: .9rem; height: .9rem; border-width: 1.5px; flex: none;
 }
 
+/* Guest Action Banner */
+.guest-banner {
+  position: relative;
+  padding: 1.15rem 1.3rem;
+  margin-bottom: 1.25rem;
+  border-radius: var(--r-xl);
+  background: color-mix(in oklab, var(--glass) 88%, var(--accent-soft));
+  border: 1px solid var(--accent-line);
+  box-shadow: var(--shadow-sm);
+  animation: fadeIn .3s var(--ease);
+}
+.guest-banner-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.guest-banner-icon {
+  flex: none;
+  width: 2.6rem;
+  height: 2.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-lg);
+  background: var(--well-strong);
+  border: 1px solid var(--line);
+}
+.guest-banner-content {
+  flex: 1;
+  min-width: 0;
+}
+.guest-banner-header {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  margin-bottom: .25rem;
+}
+.guest-banner-title {
+  font-family: var(--font-head);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  margin: 0;
+  color: var(--ink);
+}
+.guest-banner-desc {
+  color: var(--muted);
+  font-size: .875rem;
+  line-height: 1.45;
+  margin: 0 0 .85rem;
+}
+.guest-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+}
+.guest-banner-actions .pill-btn {
+  font-size: .8125rem;
+}
+.guest-banner-close {
+  flex: none;
+  opacity: .6;
+  transition: opacity .2s var(--ease);
+}
+.guest-banner-close:hover {
+  opacity: 1;
+}
+@media (max-width: 768px) {
+  .guest-banner { padding: .95rem 1rem; margin-bottom: 1rem; }
+  .guest-banner-icon { display: none; }
+  .guest-banner-desc { font-size: .8125rem; margin-bottom: .75rem; }
+  .guest-banner-actions { gap: .4rem; }
+  .guest-banner-actions .pill-btn { width: 100%; justify-content: center; }
+}
+
 /* =============================================================== HERO AUDIO CONSOLE */
 .hero {
   position: relative;

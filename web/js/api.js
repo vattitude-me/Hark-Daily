@@ -180,7 +180,7 @@ let me = null;
 async function userId() {
   if (me) return me.id;
   const { data } = await sb.auth.getSession();
-  if (!data.session) throw new Error('Please sign in again.');
+  if (!data?.session?.user) throw new Error('Please sign in again.');
   return data.session.user.id;
 }
 
@@ -224,7 +224,7 @@ export async function publicPack(date = null) {
 
 export const api = {
   // ------------------------------------------------------------------ auth
-  session: async () => (await sb.auth.getSession()).data.session,
+  session: async () => (await sb.auth.getSession()).data?.session || null,
   // Signs in, or creates the account on first use. The email links back here (plus a code if the template has one).
   sendCode: async (email) => check(await sb.auth.signInWithOtp({
     email, options: { shouldCreateUser: true, emailRedirectTo: location.origin },
@@ -234,12 +234,20 @@ export const api = {
     provider: 'google', options: { redirectTo: location.origin, queryParams: { prompt: 'select_account' } },
   })),
   verifyCode: async (email, token) => check(await sb.auth.verifyOtp({ email, token, type: 'email' })),
-  signOut: () => sb.auth.signOut(),
+  signOut: async () => {
+    me = null;
+    return sb.auth.signOut();
+  },
 
   async profile() {
-    const id = await userId();
-    me = check(await sb.from('profiles').select('id,email,is_admin,settings,status').eq('id', id).single());
-    return me;
+    try {
+      const id = await userId();
+      me = check(await sb.from('profiles').select('id,email,is_admin,settings,status').eq('id', id).single());
+      return me;
+    } catch {
+      me = null;
+      return null;
+    }
   },
 
   // ------------------------------------------------------------- briefings
@@ -450,13 +458,15 @@ export const api = {
     }));
   },
   async sources() {
-    const [rows, profile] = await Promise.all([
-      sb.from('sources').select('*').order('id').then(check),
-      api.profile(),
-    ]);
-    const disabled = new Set(profile.settings?.disabled_sources || []);
+    let rows = [];
+    try {
+      rows = check(await sb.from('sources').select('*').order('id'));
+    } catch { /* guest or offline */ }
+    const profile = await api.profile();
+    const guest = store.get('guest-settings', {});
+    const disabled = new Set(profile?.settings?.disabled_sources || guest.disabled_sources || []);
     return {
-      sources: rows.map((s) => ({ ...s, builtin: s.user_id == null, enabled: s.user_id == null ? !disabled.has(s.id) : s.enabled })),
+      sources: (rows || []).map((s) => ({ ...s, builtin: s.user_id == null, enabled: s.user_id == null ? !disabled.has(s.id) : s.enabled })),
     };
   },
   async addSource({ url, section, name }) {
@@ -466,7 +476,13 @@ export const api = {
   async updateSource(source, body) {
     if (source.builtin) {
       const profile = await api.profile();
-      const disabled = new Set(profile.settings?.disabled_sources || []);
+      if (profile) {
+        const disabled = new Set(profile.settings?.disabled_sources || []);
+        if (body.enabled) disabled.delete(source.id); else disabled.add(source.id);
+        return api.saveSettings({ disabled_sources: [...disabled] });
+      }
+      const guest = store.get('guest-settings', {});
+      const disabled = new Set(guest.disabled_sources || []);
       if (body.enabled) disabled.delete(source.id); else disabled.add(source.id);
       return api.saveSettings({ disabled_sources: [...disabled] });
     }
@@ -477,14 +493,29 @@ export const api = {
   // -------------------------------------------------------------- settings
   async settings() {
     const profile = await api.profile();
-    const stored = profile.settings || {};
-    return { settings: { ...DEFAULT_SETTINGS, ...stored, stories: { ...DEFAULT_SETTINGS.stories, ...(stored.stories || {}) } } };
+    if (profile) {
+      const stored = profile.settings || {};
+      return { settings: { ...DEFAULT_SETTINGS, ...stored, stories: { ...DEFAULT_SETTINGS.stories, ...(stored.stories || {}) } } };
+    }
+    const guest = store.get('guest-settings', {});
+    return { settings: { ...DEFAULT_SETTINGS, ...guest, stories: { ...DEFAULT_SETTINGS.stories, ...(guest.stories || {}) } } };
   },
   async saveSettings(values) {
     const profile = await api.profile();
-    const settings = { ...(profile.settings || {}), ...values };
-    check(await sb.from('profiles').update({ settings }).eq('id', profile.id));
-    me = { ...profile, settings };
+    if (profile) {
+      const settings = { ...(profile.settings || {}), ...values };
+      check(await sb.from('profiles').update({ settings }).eq('id', profile.id));
+      me = { ...profile, settings };
+      return { settings };
+    }
+    const guest = store.get('guest-settings', {});
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      ...guest,
+      ...values,
+      stories: { ...DEFAULT_SETTINGS.stories, ...(guest.stories || {}), ...(values.stories || {}) },
+    };
+    store.set('guest-settings', settings);
     return { settings };
   },
 

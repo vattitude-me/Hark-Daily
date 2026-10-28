@@ -2,8 +2,8 @@
 import { BUILTIN_VOICES, DEFAULT_VOICE_ID, SECTIONS, api, h, icon, store, toast } from './api.js';
 import { SUPABASE_URL } from '../config.js';
 
-// How much a visitor hears before the account prompt: the greeting plus this many stories.
-const PREVIEW_STORIES = 2;
+// How much a visitor hears before the sample completes (all stories in the sample).
+const PREVIEW_STORIES = Infinity;
 // timeupdate fires a few times a second; stop this early so the next story never starts.
 const GRACE = 0.25;
 
@@ -247,7 +247,10 @@ export class Landing {
     $('samplePlay').addEventListener('click', () => this.toggle());
     $('samplePrev').addEventListener('click', () => this.step(-1));
     $('sampleNext').addEventListener('click', () => this.step(1));
-    $('gateContinue').addEventListener('click', () => this.openSignIn('gate'));
+    $('gateContinue').addEventListener('click', () => {
+      if (window.enterApp) window.enterApp();
+      else this.openSignIn('gate');
+    });
     $('gateReplay').addEventListener('click', () => this.seekTo(0, true));
 
     // Tap or drag the segmented bar to seek, exactly as in the app.
@@ -319,12 +322,14 @@ export class Landing {
     this.loadClip(i, { seek: t - this.clips[i].start, autoplay: play });
   }
 
-  /** The preview is over: stop, and offer the rest of the brief for an account. */
+  /** The sample is complete: show the completion card with a direct link to the app. */
   lock() {
     this.gated = true;
     this.audio.pause();
     const name = BUILTIN_VOICES.find((v) => v.id === this.voiceId)?.name;
-    $('gateText').textContent = `Sign in free to hear the rest of today's brief${name ? `, read by ${name} or any other narrator` : ''}.`;
+    $('gateTitle').textContent = 'Sample completed.';
+    $('gateText').textContent = `Listen to today's full briefing in any voice${name ? `, read by ${name} or other narrators` : ''}. No account required.`;
+    $('gateContinue').textContent = "Go to Today's Brief →";
     $('sampleGate').classList.remove('hidden');
     $('sampleHero').classList.add('gated');
   }
@@ -440,8 +445,10 @@ export class Landing {
   bindSignIn() {
     document.querySelectorAll('[data-signin]').forEach((b) => b.addEventListener('click', () => this.openSignIn()));
     $('startPreview').addEventListener('click', () => {
-      // No account yet: "Start your brief" plays the preview. Sign-in is offered once they've heard it.
-      if (!this.clips.length) { this.openSignIn(); return; }
+      if (window.enterApp) {
+        window.enterApp();
+        return;
+      }
       const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
       $('sampleHero').scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'center' });
       if (this.gated) this.seekTo(0, true);

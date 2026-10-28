@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.69] - 2026-10-28
+
+### Added
+- **Direct Home Page Access (Guest Mode / Zero Forced Login)**:
+  - Web visitors land directly on Today's Brief (`page-today`) with immediate access to play the full briefing without requiring an account.
+  - Added guest preference storage in `localStorage` (`mb-guest-settings`) that automatically migrates to profile upon sign-in.
+  - Added sleek, dismissible **Guest Action Banner** on Today's screen offering one-tap notifications, PWA installation, and optional sign-in.
+  - Added clean topbar "Sign in" pill button and Settings "Sign in to Hark Daily" entry point for guests.
+
+### Changed
+- **Streamlined Landing & Preview Experience**:
+  - Removed artificial 2-story audio gate (`PREVIEW_STORIES = Infinity`) in `web/js/landing.js`.
+  - Replaced confusing "Keep listening" dialog button with honest "Go to Today's Brief →" CTA.
+  - Updated narrator roster to reflect active voices: C-3PO, Matthew, and Kelly.
+  - Bumped PWA service worker cache to `hark-daily-v21`.
+
+---
+
 ## [0.1.68] - 2026-10-28
 
 ### Fixed
