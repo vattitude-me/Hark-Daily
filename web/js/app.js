@@ -348,6 +348,7 @@ function setBriefingMode(mode) {
   state.mode = mode;
   store.set('brief-mode', mode);
   syncModePicker();
+  $('podcastVoiceBanner')?.classList.add('hidden');
 
   if (state.packContext) {
     const { rows, settings, date, notes, fresh, podcastClips } = state.packContext;
@@ -390,24 +391,25 @@ function renderPersonas() {
     const isReady = available.size === 0 || available.has(v.id);
     const btn = h('button', {
       type: 'button',
-      class: 'persona' + (on ? ' on' : '') + (!isReady ? ' unready' : '') + (isPodcast ? ' is-locked' : ''),
+      class: 'persona' + (on ? ' on' : '') + (!isReady ? ' unready' : ''),
       'aria-pressed': String(on),
-      disabled: isPodcast,
       dataset: { voice: v.id },
     },
       h('span', { class: 'persona-avatar' }, icon(v.icon || 'mic')),
       h('span', { class: 'persona-text' },
         h('span', { class: 'persona-name' }, v.name),
-        h('span', { class: 'persona-desc' }, isPodcast ? 'Pre-selected for Full Brief only' : (isReady ? (v.style || v.desc) : 'Pending for today'))
+        h('span', { class: 'persona-desc' }, isPodcast ? `Switch to Full Brief with ${v.name}` : (isReady ? (v.style || v.desc) : 'Pending for today'))
       ),
-      isPodcast ? h('span', { class: 'persona-status' }, 'Locked') : (isReady ? null : h('span', { class: 'persona-status' }, 'Pending'))
+      isReady ? null : h('span', { class: 'persona-status' }, 'Pending')
     );
     btn.addEventListener('click', async () => {
       if (isPodcast) {
-        toast('Podcast mode is voiced by co-hosts Matthew & Kelly. Switch to Full Brief to choose a narrator.');
-        return;
+        state.mode = 'full';
+        store.set('brief-mode', 'full');
+        syncModePicker();
+        $('podcastVoiceBanner')?.classList.add('hidden');
       }
-      if (v.id === activeVoiceId) {
+      if (v.id === activeVoiceId && !isPodcast) {
         $('narratorSheet')?.close();
         return;
       }
@@ -1030,16 +1032,37 @@ function bindEvents() {
   });
   const narrSheet = $('narratorSheet');
   if (narrSheet) wireSheet(narrSheet);
+  const showPodcastVoiceBanner = () => {
+    const banner = $('podcastVoiceBanner');
+    if (!banner) return;
+    banner.classList.remove('hidden');
+    banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  };
+
   const openNarratorSheet = () => {
     if (activeMode() === 'podcast') {
-      toast('Podcast mode is voiced by co-hosts Matthew & Kelly. Switch to Full Brief to choose a narrator.');
+      showPodcastVoiceBanner();
       return;
     }
+    $('podcastVoiceBanner')?.classList.add('hidden');
     renderPersonas();
     narrSheet?.showModal();
   };
   $('narratorChip')?.addEventListener('click', openNarratorSheet);
   $('heroNarratorBtn')?.addEventListener('click', openNarratorSheet);
+
+  $('bannerSwitchFullBtn')?.addEventListener('click', () => {
+    $('podcastVoiceBanner')?.classList.add('hidden');
+    setBriefingMode('full');
+    renderPersonas();
+    narrSheet?.showModal();
+  });
+  $('bannerDismissVoiceBtn')?.addEventListener('click', () => {
+    $('podcastVoiceBanner')?.classList.add('hidden');
+  });
+  $('bannerCloseVoiceBtn')?.addEventListener('click', () => {
+    $('podcastVoiceBanner')?.classList.add('hidden');
+  });
   $('avatarBtn')?.addEventListener('click', () => switchTab('settings'));
 
   // Transcript full text / compact view toggle
