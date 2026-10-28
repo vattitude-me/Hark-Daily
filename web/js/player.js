@@ -433,7 +433,7 @@ export class Player extends EventTarget {
     const transText = document.getElementById('transcriptText');
     const transBody = document.getElementById('transcriptBody');
     if (transBox && transText && transBody) {
-      const text = story?.summary || story?.headline || ch?.title || '';
+      const text = story?.summary || story?.headline || ch?.text || ch?.title || '';
       if (text) {
         transBox.classList.remove('hidden');
         const currentId = story?.id || ch?.id || '';
@@ -522,15 +522,32 @@ export class Player extends EventTarget {
       }
     }
 
-    // A greeting or a section intro has no picture of its own, so the cover shows what
-    // is about to be read instead of jumping back to the first story of the brief.
-    const upNext = story ? null : this.chapters.find((c) => c.kind === 'story' && c.start >= t - 0.01);
-    const img = (story || this.storyFor(upNext))?.image || b.stories.find((s) => s.image)?.image;
+    // Cover image determination:
+    // During intro chat, host banter, or outro sign-off, show the official podcast logo.
+    // When a story is playing, show the story's editorial image.
+    const isIntroOrBanter = !story && ch && (
+      (typeof ch.id === 'string' && (
+        ch.id.startsWith('pod_open') ||
+        ch.id.startsWith('pod_tease') ||
+        ch.id.startsWith('greeting') ||
+        ch.id.startsWith('pod_close') ||
+        ch.id === 'outro'
+      )) || ch.kind === 'note'
+    );
+    let img = null;
+    if (story?.image) {
+      img = story.image;
+    } else if (isIntroOrBanter) {
+      img = '/icons/icon-512.png';
+    } else {
+      const upNext = this.chapters.find((c) => c.kind === 'story' && c.start >= t - 0.01);
+      img = (story || this.storyFor(upNext))?.image || '/icons/icon-512.png';
+    }
     if (img && el.cover.dataset.src !== img) { el.cover.dataset.src = img; el.cover.src = img; el.cover.classList.remove('hidden'); }
     else if (!img) el.cover.classList.add('hidden');
 
     // Mini player.
-    el.miniTitle.textContent = story?.headline || b.title;
+    el.miniTitle.textContent = story?.headline || ch?.title || b.title;
     el.miniSub.textContent = [section, `${fmtTime(t)} / ${fmtTime(dur)}`].filter(Boolean).join(' · ');
     el.miniBar.style.width = `${frac * 100}%`;
     if (img && el.miniCover.dataset.src !== img) { el.miniCover.dataset.src = img; el.miniCover.src = img; el.miniCover.classList.remove('hidden'); el.miniEq.classList.add('hidden'); }

@@ -299,25 +299,56 @@ object StoryPack {
             cursor += BREATH
         }
 
+        fun banterTitle(clipKey: String, sectionKey: String? = null): String {
+            if (clipKey.startsWith("pod_open")) return "Good morning · Today's preview"
+            if (clipKey.startsWith("pod_tease")) {
+                val sec = sectionKey ?: clipKey.removePrefix("pod_tease_")
+                val secName = SECTIONS[sec]?.title ?: sec
+                return "Coming up · $secName"
+            }
+            if (clipKey.startsWith("pod_bridge")) {
+                val sec = sectionKey ?: clipKey.removePrefix("pod_bridge_")
+                val secName = SECTIONS[sec]?.title ?: sec
+                return "Up next · $secName"
+            }
+            if (clipKey.startsWith("pod_close")) return "That's today's briefing · Signing off"
+            return "Today's Briefing"
+        }
+
+        fun noteTitle(noteKey: String): String {
+            if (noteKey.startsWith("greeting_morning")) return "Good morning · Daily briefing"
+            if (noteKey.startsWith("greeting_afternoon")) return "Good afternoon · Daily briefing"
+            if (noteKey.startsWith("greeting_evening")) return "Good evening · Daily briefing"
+            if (noteKey.startsWith("intro_")) {
+                val sec = noteKey.removePrefix("intro_")
+                val secName = SECTIONS[sec]?.title ?: sec
+                return "Here are the ${secName.lowercase()} stories"
+            }
+            if (noteKey == "outro") return "That's the morning brief"
+            return "Today's Briefing"
+        }
+
         fun sayNote(key: String) {
             val note = noteByKey[key] ?: return
             breath()
             val duration = note.optDouble("duration", 0.0)
             val text = note.optString("text")
-            clips += Clip(key, text, clipUrl(note.optString("audio_path")), duration, cursor, cursor + duration, note = true)
-            chapters += Chapter(key, "note", text, cursor, cursor + duration, null)
+            val title = noteTitle(key)
+            clips += Clip(key, title, clipUrl(note.optString("audio_path")), duration, cursor, cursor + duration, note = true)
+            chapters += Chapter(key, "note", title, cursor, cursor + duration, null, text = text)
             cursor += duration
         }
 
-        fun sayBanter(clip: JSONObject?) {
+        fun sayBanter(clip: JSONObject?, sectionKey: String? = null) {
             if (clip == null) return
             breath()
             val duration = clip.optDouble("duration", 0.0)
             val text = clip.optString("text")
             val key = clip.optString("clip_key")
             val path = clip.optString("audio_path")
-            clips += Clip(key, text, clipUrl(path), duration, cursor, cursor + duration, note = true, banter = true)
-            chapters += Chapter(key, "note", text, cursor, cursor + duration, null)
+            val title = banterTitle(key, sectionKey)
+            clips += Clip(key, title, clipUrl(path), duration, cursor, cursor + duration, note = true, banter = true)
+            chapters += Chapter(key, "note", title, cursor, cursor + duration, sectionKey, text = text)
             cursor += duration
         }
 
@@ -339,7 +370,7 @@ object StoryPack {
             if (chosen.isEmpty()) continue
             if (!isRapid) {
                 if (isPodcast) {
-                    sayBanter(pod!!.bridges[key])
+                    sayBanter(pod!!.bridges[key], key)
                 } else {
                     sayNote("intro_$key")
                 }

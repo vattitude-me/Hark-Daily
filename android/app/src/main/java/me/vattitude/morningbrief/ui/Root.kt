@@ -1,5 +1,6 @@
 package me.vattitude.morningbrief.ui
 
+import me.vattitude.morningbrief.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -171,12 +172,24 @@ private fun MiniPlayer(b: Briefing, player: PlayerState, colorPhotos: Boolean = 
     val pos = player.position
     val card = b.cards.lastOrNull { pos >= it.start && pos < it.end }
     val chapter = b.chapters.lastOrNull { pos >= it.start }
+    val isIntroOrBanter = card == null && chapter != null && (
+        chapter.id.startsWith("pod_open") ||
+        chapter.id.startsWith("pod_tease") ||
+        chapter.id.startsWith("greeting") ||
+        chapter.id.startsWith("pod_close") ||
+        chapter.id == "outro" ||
+        chapter.kind == "note"
+    )
     val section = card?.let { c -> b.sections.firstOrNull { it.key == c.section }?.title }
     val title = card?.headline ?: chapter?.title?.ifBlank { null } ?: b.title
     val total = b.duration.coerceAtLeast(1.0)
     Box(Modifier.fillMaxWidth().height(64.dp).floating(t).clickable(onClick = onOpen)) {
         Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            val image = card?.image ?: b.cards.firstOrNull { it.image != null }?.image
+            val image: Any? = if (isIntroOrBanter) {
+                R.drawable.ic_hark_logo
+            } else {
+                card?.image ?: b.cards.firstOrNull { it.image != null }?.image
+            }
             if (image != null) {
                 AsyncImage(model = image, contentDescription = null, contentScale = ContentScale.Crop,
                     colorFilter = if (colorPhotos) null else Grayscale,

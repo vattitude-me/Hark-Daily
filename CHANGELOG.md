@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.69] - 2026-10-28
 
 ### Added
+- **Podcast Mode Intro Clean Titles & Logo Artwork**:
+  - Replaced the full spoken speech text in the player title with a clean broadcast title message (e.g. `Good morning · Today's preview`, `Coming up · Top stories`, `Up next · Tech`, and `That's today's briefing · Signing off`).
+  - The bottom Read-Along / subtitle section continues to present the full sentence-by-sentence spoken speech transcript.
+  - During opening chat, teasers, and outro sign-off, the player displays the official Hark Daily podcast artwork (`/icons/icon-512.png` on Web, `R.drawable.ic_hark_logo` on Android) instead of the first article's thumbnail.
+- **Lively Conversational Banter & Natural Pauses**:
+  - Upgraded podcast banter AI prompt and built-in templates to introduce lively interjections, conversational cadence, beats (`...`), and expressive neural voice tags (`[chuckle]`, `[laugh]`, `[sigh]`, `[gasp]`).
+  - Added natural 0.35s inter-turn breathing pauses (`[[pause:0.35]]`) between alternating speakers in `app/podcast.py`.
+  - Fixed multi-host narrator badge formatting to cleanly render `Matthew & Kelly` instead of `Matthew Reference+Kelly`.
 - **Direct Home Page Access (Guest Mode / Zero Forced Login)**:
   - Web visitors land directly on Today's Brief (`page-today`) with immediate access to play the full briefing without requiring an account.
   - Added guest preference storage in `localStorage` (`mb-guest-settings`) that automatically migrates to profile upon sign-in.

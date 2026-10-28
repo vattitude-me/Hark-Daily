@@ -160,6 +160,41 @@ export function planPodcast(clips, sections, seed = '') {
   return { hosts, open, teasers, bridges, close, banter: used };
 }
 
+export function banterTitle(clipKey, sectionKey = null) {
+  if (!clipKey) return "Today's Briefing";
+  if (clipKey.startsWith('pod_open')) {
+    return "Good morning · Today's preview";
+  }
+  if (clipKey.startsWith('pod_tease')) {
+    const sec = sectionKey || clipKey.replace(/^pod_tease_/, '');
+    const secName = SECTIONS[sec]?.title || sec;
+    return `Coming up · ${secName}`;
+  }
+  if (clipKey.startsWith('pod_bridge')) {
+    const sec = sectionKey || clipKey.replace(/^pod_bridge_/, '');
+    const secName = SECTIONS[sec]?.title || sec;
+    return `Up next · ${secName}`;
+  }
+  if (clipKey.startsWith('pod_close')) {
+    return "That's today's briefing · Signing off";
+  }
+  return "Today's Briefing";
+}
+
+export function noteTitle(noteKey) {
+  if (!noteKey) return "Today's Briefing";
+  if (noteKey.startsWith('greeting_morning')) return 'Good morning · Daily briefing';
+  if (noteKey.startsWith('greeting_afternoon')) return 'Good afternoon · Daily briefing';
+  if (noteKey.startsWith('greeting_evening')) return 'Good evening · Daily briefing';
+  if (noteKey.startsWith('intro_')) {
+    const sec = noteKey.replace(/^intro_/, '');
+    const secName = SECTIONS[sec]?.title || sec;
+    return `Here are the ${secName.toLowerCase()} stories`;
+  }
+  if (noteKey === 'outro') return "That's the morning brief";
+  return "Today's Briefing";
+}
+
 /**
  * Turn the day's shared rows into a briefing the existing UI and player understand.
  *
@@ -250,28 +285,30 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
     const duration = Number(note.duration) || 0;
     const start = round(cursor);
     const end = round(cursor + duration);
+    const title = noteTitle(key);
     clips.push({ id: key, url: clipUrl(note.audio_path), duration, section: null, rank: 0,
-      title: note.text, start, end, note: true });
-    chapters.push({ id: key, kind: 'note', title: note.text, start, end });
+      title, text: note.text, start, end, note: true });
+    chapters.push({ id: key, kind: 'note', title, text: note.text, start, end });
     cursor += duration;
   };
 
   /** A banter clip from the podcast hosts, placed on the timeline like a note. */
-  const sayBanter = (clip) => {
+  const sayBanter = (clip, sectionKey = null) => {
     if (!clip) return;
     breath();
     const duration = Number(clip.duration) || 0;
     const start = round(cursor);
     const end = round(cursor + duration);
-    clips.push({ id: clip.clip_key, url: clipUrl(clip.audio_path), duration, section: null, rank: 0,
-      title: clip.text, start, end, note: true, banter: true });
-    chapters.push({ id: clip.clip_key, kind: 'note', title: clip.text, start, end });
+    const title = banterTitle(clip.clip_key, sectionKey);
+    clips.push({ id: clip.clip_key, url: clipUrl(clip.audio_path), duration, section: sectionKey, rank: 0,
+      title, text: clip.text, start, end, note: true, banter: true });
+    chapters.push({ id: clip.clip_key, kind: 'note', title, text: clip.text, start, end, section: sectionKey });
     cursor += duration;
   };
 
   if (isPodcast) {
     sayBanter(pod.open);
-    pod.teasers.forEach(sayBanter);
+    pod.teasers.forEach((t) => sayBanter(t));
   } else {
     sayNote(greetingKey(hour));
   }
@@ -282,7 +319,7 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
   for (const row of chosen) {
     // In rapid mode, skip section intros to deliver a swift, continuous headline flow
     if (!isRapid && row.section !== currentSection) {
-      if (isPodcast) sayBanter(pod.bridges.get(row.section));
+      if (isPodcast) sayBanter(pod.bridges.get(row.section), row.section);
       else sayNote(`intro_${row.section}`);
       currentSection = row.section;
     }

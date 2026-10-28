@@ -114,37 +114,37 @@ def _clean(text: str) -> str:
 # ------------------------------------------------------------------ templates
 # {a} and {b} are the hosts' first names, {h} the headline, {s} the section's title.
 OPEN_TEMPLATES: list[list[Turn]] = [
-    [(0, "Good morning, {b}! How are you doing this morning?"),
-     (1, "[chuckle] Doing great, {a}, coffee in hand. Ready to dig into the news?"),
-     (0, "Always. Let's get into it.")],
-    [(0, "Hey {b}, welcome back. Did you sleep okay?"),
-     (1, "[sigh] Better than most mornings, {a}. And there's plenty to talk about today."),
-     (0, "There is. Let's jump right in.")],
-    [(0, "Morning, {b}! Hope you're ready, it's a busy one."),
-     (1, "Ready as I'll ever be, {a}. Let's see what's been happening."),
-     (0, "Here we go.")],
+    [(0, "Good morning, {b}! How's that morning coffee treating you?"),
+     (1, "[chuckle] It's working wonders, {a}... and we're going to need it today! Lots going on."),
+     (0, "Oh, absolutely. Let's get right into it.")],
+    [(0, "Hey {b}, welcome back! Are you ready for today's rundown?"),
+     (1, "Ready as I'll ever be, {a}! We've got some fascinating stories lined up today."),
+     (0, "We really do... let's jump straight in.")],
+    [(0, "Morning everyone, and morning {b}! Busy morning across the board."),
+     (1, "[sigh] It really is, {a}... from tech breakthroughs to world news, it's packed."),
+     (0, "Alright, let's see what's happening.")],
 ]
 CLOSE_TEMPLATES: list[list[Turn]] = [
-    [(1, "And that's the brief. Thanks for listening."),
-     (0, "Have a great day, everyone. See you tomorrow!")],
-    [(0, "That's all for this morning."),
-     (1, "[chuckle] Take care out there, and we'll be back tomorrow.")],
+    [(1, "And that's your morning brief! Thanks for spending your morning with us."),
+     (0, "Have a wonderful day, everyone. We'll catch you tomorrow!")],
+    [(0, "And that wraps up today's headlines."),
+     (1, "[chuckle] Take care out there, stay curious, and we'll see you tomorrow morning.")],
 ]
 TEASE_TEMPLATES: dict[str, list[list[Turn]]] = {
-    "serious": [[(0, "There's a story today that caught my eye: {h}."), (1, "Yes, that one matters. We'll get into it.")]],
-    "warm": [[(0, "First up, {h}."), (1, "A lot to unpack there, so let's start.")]],
-    "excited": [[(0, "Some exciting news in {s} today: {h}."), (1, "I've been looking forward to this one.")]],
-    "light": [[(0, "Okay, this one is fun: {h}."), (1, "[laugh] I love it. Let's talk about it.")]],
-    "energetic": [[(0, "Big news in {s}: {h}."), (1, "Sports fans, this one's for you.")]],
-    "curious": [[(0, "Here's one that made me wonder: {h}."), (1, "Same here. Let's see what it says.")]],
+    "serious": [[(0, "Now here's a developing story we're watching closely: {h}."), (1, "Yeah, this one has huge implications... let's break it down.")]],
+    "warm": [[(0, "First up this morning, {h}."), (1, "There's quite a lot to unpack here... let's get into the details.")]],
+    "excited": [[(0, "Oh wow, check this out in {s}: {h}."), (1, "[chuckle] I couldn't believe this headline! Let's hear the full story.")]],
+    "light": [[(0, "Okay, you have to hear this one: {h}."), (1, "[laugh] That is fantastic! Let's hear what happened.")]],
+    "energetic": [[(0, "Big developments in {s} today: {h}."), (1, "Oh yeah, definitely one to keep an eye on. Here's the rundown.")]],
+    "curious": [[(0, "Now this one really caught my attention: {h}."), (1, "Same here, {a}... let's see what the reporting says.")]],
 }
 BRIDGE_TEMPLATES: dict[str, list[Turn]] = {
-    "serious": [(0, "Let's start with the main story.")],
-    "warm": [(0, "Let's start with the main story.")],
-    "excited": [(1, "Here's the latest in {s}.")],
-    "light": [(1, "Now for something lighter, in {s}.")],
-    "energetic": [(1, "Over to {s}.")],
-    "curious": [(1, "Now, in {s}.")],
+    "serious": [(0, "Let's turn to the lead story.")],
+    "warm": [(0, "Here are the top stories.")],
+    "excited": [(1, "Alright, here's what's buzzing in {s}.")],
+    "light": [(1, "Now for some lighter news in {s}.")],
+    "energetic": [(1, "Let's dive into {s}.")],
+    "curious": [(1, "Let's explore what's new in {s}.")],
 }
 
 
@@ -216,9 +216,16 @@ def validate_turns(raw, kind: str, section: str | None = None) -> list[Turn] | N
 
 
 # ------------------------------------------------------------------ AI writer
-SYSTEM_PROMPT = """You write the banter for a two-host morning news podcast. The hosts introduce and react to the day's news; a separate narrator reads the stories in full, so you never read the news yourself.
+SYSTEM_PROMPT = """You write the lively, animated banter for a two-host morning news podcast. The hosts introduce and react to the day's news; a separate narrator reads the stories in full, so you never read the news yourself.
 
-Hosts: "a" is {a} and "b" is {b}. Warm, natural, like two colleagues chatting. Short spoken sentences, contractions, no jargon.
+Hosts: "a" is {a} and "b" is {b}.
+Vibe: Warm, spontaneous, enthusiastic, and conversational—like two charismatic morning show co-hosts who have great chemistry and banter. Avoid sounding robotic, monotone, stiff, or overly formal.
+
+Expressiveness & Pacing:
+- Speak naturally with punchy spoken phrasing, contractions, energetic interjections ("Oh wow!", "No way", "Honestly...", "Can you believe that?"), and genuine curiosity.
+- Use conversational pauses `...` between thoughts or punchlines to give the delivery natural breathing room and comic/dramatic timing.
+- Actively use these paralinguistic voice tags, which the neural engine renders as real human sounds: [chuckle], [laugh], [sigh], [gasp], [groan]. Use them at the beginning of a reaction (e.g. "[chuckle] Oh absolutely", "[gasp] Wait, really?"). At most {max_tags} tags per piece. Do not use tags on tragedy, death, or severe hardship.
+- Keep the energy high and dynamic!
 
 Return ONLY JSON of this shape:
 {{"open": [turns, ...{open_n} variants], "close": [turns, ...{close_n} variants],
@@ -226,12 +233,11 @@ Return ONLY JSON of this shape:
 where turns is a list of {{"speaker": "a" or "b", "text": "..."}}.
 
 Rules:
-- open: a greeting chat only ("Good morning {b}, how are you doing?"). Today is {weekday}. No news. Make the {open_n} variants clearly different.
-- close: a short goodbye. Make the variants different.
-- tease: for each section, react to its headline in a way that fits its tone ("exciting news on AI today", "this one is a little scary"). Use only what the headline and summary say; never add facts.
-- bridge: one short line leading into that section's stories, in the section's tone.
+- open: an upbeat greeting chat to kick off the morning ("Good morning {b}! Ready for a wild news day?"). Today is {weekday}. No news yet. Make the {open_n} variants clearly distinct and playful.
+- close: an energetic, friendly sign-off ("That's a wrap for this morning! Have a great day everyone."). Make variants distinct.
+- tease: react with genuine human emotion to the top headline of that section ("Wait till you hear this one in AI...", "Okay, this sports finish was insane...").
+- bridge: a quick, punchy 1-line handoff into that section ("Alright, let's dive into tech.", "Over to politics...").
 - Limits per piece: open <= {w_open} words and 4 turns, tease <= {w_tease} words and 3 turns, bridge <= {w_bridge} words and 2 turns, close <= {w_close} words and 3 turns.
-- You may use these voice tags, which the hosts perform as real sounds: [laugh] [chuckle] [sigh] [cough] [gasp] [groan] [sniffle] [yawn]. Put one at the start of a turn, only where a person would genuinely react (a [chuckle] at a light moment, a [gasp] at a surprise), at most {max_tags} per piece, and many pieces should have none. Never use them for the "top" or "politics" sections or for any sad, violent or tragic story. Use no other square brackets.
 - No URLs, emoji, lists, markdown or stage directions. Do not read the headline out word for word every time; paraphrase.
 - The tone of each section is guidance for how you sound; never say the tone words themselves ("curious", "serious", "energetic").
 - Stay respectful on sensitive stories: no jokes about tragedies."""
@@ -381,8 +387,9 @@ async def build_podcast(cfg, store, scripts: list[dict], *, day: str, base: str,
                 continue
             try:
                 parts, total = [], 0.0
-                for who, line in w.turns:
-                    audio, seconds = await synthesise(http, base, line, pair[who])
+                for i, (who, line) in enumerate(w.turns):
+                    spoken_line = f"[[pause:0.35]] {line}" if i > 0 else line
+                    audio, seconds = await synthesise(http, base, spoken_line, pair[who])
                     parts.append(audio)
                     total += seconds
                 data = b"".join(parts)
