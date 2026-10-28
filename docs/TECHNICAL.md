@@ -29,7 +29,7 @@ flowchart TD
         GCE_API -->|Boot VM| VM["GCE L4 GPU Instance<br/>(morning-brief-voice)"]
         VM -->|Dynamic IP Lookup| HEALTH["Poll /health (Port 8090)"]
         HEALTH -->|Ready| TTS["Chatterbox-Turbo / Kokoro TTS"]
-        TTS -->|POST /synthesize| AUDIO["Synthesize Day's Story Clips<br/>(C-3PO flagship, Alice alternate)"]
+        TTS -->|POST /synthesize| AUDIO["Synthesize Day's Story Clips<br/>(C-3PO flagship + modular personas)"]
         TTS -->|Pre-Closure Guard| NOTES["ensure_static_notes()<br/>(Synthesize only missing static notes)"]
         NOTES -->|Verified| STOP["Stop VM immediately<br/>(~12-14 min daily runtime, $0 idle)"]
     end
@@ -141,7 +141,7 @@ Automated database and storage cleanup routines in [`app/storypack.py:prune_olde
 Neural audio synthesis runs on an NVIDIA L4 GPU instance (`morning-brief-voice`). To eliminate the high cost of a 24/7 VM (~$600/month), [`app/gce.py`](file:///Users/vattitude/Coding/Morning_Brief/app/gce.py) manages the instance lifecycle dynamically via Compute Engine REST APIs:
 
 ```text
-Monthly Cost Profile (2 active voices: C-3PO [flagship], Alice):
+Monthly Cost Profile (active voices: C-3PO flagship + modular neural personas):
 - 24/7 GCE L4 GPU:                  ~$600.00 / month
 - 1-hour static daily cron:          ~$26.00 / month
 - Dynamic on-demand lifecycle:         ~$9.80 / month (~$0.32 / day total)
@@ -218,7 +218,7 @@ Audio clips are synthesized once globally for all listeners. The web PWA ([`web/
 ### Android Native App & Gestures ([`TodayScreen.kt`](file:///Users/vattitude/Coding/Morning_Brief/android/app/src/main/java/me/vattitude/morningbrief/ui/TodayScreen.kt))
 - **Pull-Down-to-Refresh**: Wrapped in Material3 `PullToRefreshBox` styled with app tokens (`containerColor = t.cardBg`, `color = t.ink`). Users can pull down on `TodayScreen` to re-fetch stories and audio packs on demand without blanking the active UI.
 - **Background Playback**: Android Media3 notification and lock-screen playback controls with scrubber.
-- **Narrator Switcher**: Instant switching between C-3PO and Alice without losing playback position.
+- **Narrator Switcher**: Instant switching between active voice personas without losing playback position.
 
 ---
 

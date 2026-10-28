@@ -8,10 +8,10 @@
 A concise daily audio briefing from **CBC News**, **TechCrunch**, **ScienceDaily**, and **BetaKit**, voiced by neural personas anchored by flagship narrator **C-3PO** alongside modular neural voices.  
 No ads. No tracking. Zero doom-scrolling.
 
-[![Web PWA](https://img.shields.io/badge/Web-PWA_Ready-2f6fed?style=flat-square&logo=googlechrome&logoColor=white)](web/)
-[![Android App](https://img.shields.io/badge/Android-APK_v0.1.56-1a9b5b?style=flat-square&logo=android&logoColor=white)](https://github.com/vattitude-me/Hark-Daily/releases/tag/android-v0.1.56)
+[![Web PWA](https://img.shields.io/badge/Web-Live_Demo-2f6fed?style=flat-square&logo=googlechrome&logoColor=white)](https://hark.vattitude.ca)
+[![Android App](https://img.shields.io/badge/Android-APK_v0.1.61-1a9b5b?style=flat-square&logo=android&logoColor=white)](https://github.com/vattitude-me/Hark-Daily/releases/tag/android-v0.1.61)
 [![Neural Voice](https://img.shields.io/badge/Voice-Chatterbox--Turbo-6a4cf5?style=flat-square)](voice_service/)
-[![Changelog](https://img.shields.io/badge/Changelog-v0.1.57-orange?style=flat-square)](CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/Changelog-v0.1.61-orange?style=flat-square)](CHANGELOG.md)
 [![Privacy First](https://img.shields.io/badge/Privacy-No_Ads_%7C_No_Tracking-0D0D0D?style=flat-square)](web/privacy.html)
 
 [**Web PWA**](#-web-pwa) · [**Android App**](#-android-app) · [**Features**](#-features) · [**Privacy**](web/privacy.html) · [**Terms**](web/terms.html) · [**Changelog**](CHANGELOG.md) · [**Technical Guide**](docs/TECHNICAL.md)
@@ -27,10 +27,9 @@ No ads. No tracking. Zero doom-scrolling.
   * **ScienceDaily** — Cutting-edge research, health breakthroughs, space, and discoveries (CBC News fallback).
   * **TechCrunch** — Deep dive into Artificial Intelligence and machine intelligence.
   * **BetaKit** — Canadian tech, startup ecosystems, and venture innovation.
-* **Neural Voice Personas**:
-  * **C-3PO** — Polite British protocol droid (flagship narrator).
-  * **Alice** — Warm British newsreader (alternate narrator).
-  * **Jerry** & **Mike** — Observational wit & crisp morning news.
+* **Neural Voice Personas & Modular Architecture**:
+  * Anchored by permanent flagship narrator **C-3PO** alongside a modular, rotating roster of neural personas across conversational, broadcast, and character delivery styles.
+  * **Interactive Live Demo**: Audition all active narrators and switch voices seamlessly in the live web player at [**hark.vattitude.ca**](https://hark.vattitude.ca)—no sign-up required.
 * **Dual Listening Modes**:
   * **Full Briefing** — Immersive radio-style listening with spoken section intros and dynamic greetings.
   * **Rapid Briefing** — Swift, continuous headline flow designed for listeners on the go.
@@ -78,7 +77,7 @@ Native Android application built with Jetpack Compose, Compose Material3 tokens,
 
 - **Pull-Down-to-Refresh**: Smooth native pull gesture to refresh stories and audio packs on demand.
 - **Background Playback**: Android Media3 notification and lock-screen playback controls with scrubber.
-- **Narrator Switcher**: Instant switching between C-3PO and Alice without losing playback position.
+- **Narrator Switcher**: Instant switching between active voice personas without losing playback position.
 - **Custom Category Sorting**: Prioritize and toggle categories according to your morning routine.
 - **Device & Cloud Playback**: Stream cloud-voiced editions or run on-device audio offline.
 
@@ -87,14 +86,15 @@ Native Android application built with Jetpack Compose, Compose Material3 tokens,
 ## 🚀 Getting Started
 
 ### Web
-1. Open the [Hark Daily Web App](web/).
+1. Open the live web app at [**hark.vattitude.ca**](https://hark.vattitude.ca) (or local [web/](web/)).
 2. Click **Play** on today’s edition—no account or sign-up required.
-3. Sign in with Google or magic link if you wish to sync custom topic preferences across devices.
+3. Tap the voice chips in the player to audition and switch narrators on the fly.
+4. Sign in with Google or magic link if you wish to sync custom topic preferences across devices.
 
 ### Android
 1. Download the latest signed APK from [GitHub Releases](https://github.com/vattitude-me/Hark-Daily/releases).
 2. Install on any device running Android 10+ (API 29+).
-3. Select your preferred voice narrator (flagship anchor **C-3PO** or modular neural narrators such as **Matthew** and **Kelly**) and start listening.
+3. Select your preferred voice narrator in Settings and start listening.
 
 ---
 
