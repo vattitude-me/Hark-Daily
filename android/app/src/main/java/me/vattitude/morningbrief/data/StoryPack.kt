@@ -24,6 +24,8 @@ data class Clip(
     val duration: Double, val start: Double, val end: Double, val note: Boolean,
     /** True for the silent clip that separates two voiced ones. */
     val gap: Boolean = false,
+    /** True for banter clips from the podcast hosts. */
+    val banter: Boolean = false,
 )
 
 /**
@@ -38,6 +40,68 @@ const val BREATH = 0.8
  * day's clips in one voice and half in another is worse than waiting.
  */
 const val PACK_READY = "pack_ready"
+
+/** The marker clip a host pair's day carries once its banter is published (app/podcast.py). */
+const val PODCAST_READY_KEY = "podcast_ready"
+
+/** Total banter, in seconds, a podcast brief may add around the news: the news is the priority. */
+const val PODCAST_BUDGET = 90.0
+
+/** Sections that get a teaser, so a six-section lineup doesn't open with a minute of chat. */
+const val MAX_TEASERS = 3
+
+data class PodcastPlan(
+    val hosts: String,
+    val open: JSONObject,
+    val teasers: List<JSONObject>,
+    val bridges: Map<String, JSONObject>,
+    val close: JSONObject,
+    val banter: Double,
+)
+
+fun stableHash(text: String): Long {
+    var n = 0L
+    for (ch in text) {
+        n = (n * 31L + ch.code.toLong()) and 0xFFFFFFFFL
+    }
+    return n
+}
+
+fun planPodcast(clips: List<JSONObject>, sections: List<String>, seed: String = ""): PodcastPlan? {
+    if (clips.isEmpty()) return null
+    val ready = clips.filter { it.optString("clip_key") == PODCAST_READY_KEY }
+    val hosts = ready.map { it.optString("hosts") }.sorted().firstOrNull() ?: return null
+    val mine = clips.filter { it.optString("hosts") == hosts && it.optString("clip_key") != PODCAST_READY_KEY && it.optString("audio_path").isNotEmpty() }
+    val byKey = mine.associateBy { it.optString("clip_key") }
+    fun variant(kind: String): JSONObject? {
+        val all = mine.filter { it.optString("clip_key").startsWith("pod_${kind}_") }
+            .sortedBy { it.optString("clip_key") }
+        if (all.isEmpty()) return null
+        val idx = (stableHash("$seed:$kind") % all.size.toLong()).toInt()
+        return all[idx]
+    }
+    val open = variant("open") ?: return null
+    val close = variant("close") ?: return null
+    fun dur(c: JSONObject) = c.optDouble("duration", 0.0)
+    var used = dur(open) + dur(close)
+    val teasers = mutableListOf<JSONObject>()
+    for (sec in sections.take(MAX_TEASERS)) {
+        val c = byKey["pod_tease_$sec"]
+        if (c != null && used + dur(c) <= PODCAST_BUDGET) {
+            teasers += c
+            used += dur(c)
+        }
+    }
+    val bridges = mutableMapOf<String, JSONObject>()
+    for (sec in sections) {
+        val c = byKey["pod_bridge_$sec"]
+        if (c != null && used + dur(c) <= PODCAST_BUDGET) {
+            bridges[sec] = c
+            used += dur(c)
+        }
+    }
+    return PodcastPlan(hosts, open, teasers, bridges, close, used)
+}
 
 /** A listener's briefing, assembled from the shared day's clips. */
 data class Pack(val briefing: Briefing, val clips: List<Clip>, val version: String)
@@ -90,16 +154,18 @@ fun stripHeadlineAndFiller(headline: String, scriptOrSummary: String): String {
  * for everyone, so cost never grows with the number of listeners.
  */
 object StoryPack {
+    data class PackSet(val full: Pack?, val podcast: Pack?, val rapid: Pack?)
+
     /**
-     * Fetches the day's shared rows and notes once and assembles both Full and Rapid Fire packs.
+     * Fetches the day's shared rows, notes, and podcast clips, assembling full, podcast, and rapid packs.
      */
-    suspend fun fetchBoth(
+    suspend fun fetchAll(
         supabase: Supabase,
         date: String,
         stories: Map<String, Int>,
         voice: String? = null,
         sectionOrder: List<String> = emptyList(),
-    ): Pair<Pack?, Pack?> {
+    ): PackSet {
         var day = date
         var rows = supabase.storyAudio(day)
         if (rows.length() == 0) {
@@ -109,13 +175,30 @@ object StoryPack {
                 rows = supabase.storyAudio(day)
             }
         }
-        if (rows.length() == 0) return null to null
+        if (rows.length() == 0) return PackSet(null, null, null)
         val every = rows.objects()
         val notes = runCatching { supabase.voiceNotes(day) }.getOrDefault(JSONArray())
         val noteRows = notes.objects()
+        val podcasts = runCatching { supabase.podcastClips(day) }.getOrDefault(JSONArray())
+        val podRows = podcasts.objects()
         val full = assemble(day, every, noteRows, stories, voice, sectionOrder, mode = "full")
+        val podcast = assemble(day, every, noteRows, stories, voice, sectionOrder, mode = "podcast", podcastClips = podRows)
         val rapid = assemble(day, every, noteRows, stories, voice, sectionOrder, mode = "rapid")
-        return full to rapid
+        return PackSet(full, podcast, rapid)
+    }
+
+    /**
+     * Backward-compatible fetcher returning full and secondary pack (podcast if available, else rapid).
+     */
+    suspend fun fetchBoth(
+        supabase: Supabase,
+        date: String,
+        stories: Map<String, Int>,
+        voice: String? = null,
+        sectionOrder: List<String> = emptyList(),
+    ): Pair<Pack?, Pack?> {
+        val s = fetchAll(supabase, date, stories, voice, sectionOrder)
+        return s.full to (s.podcast ?: s.rapid)
     }
 
     /**
@@ -139,7 +222,10 @@ object StoryPack {
         val every = rows.objects()
         val notes = runCatching { supabase.voiceNotes(day) }.getOrDefault(JSONArray())
         val noteRows = notes.objects()
-        return assemble(day, every, noteRows, stories, voice, sectionOrder, mode)
+        val podcastClips = if (mode == "podcast") {
+            runCatching { supabase.podcastClips(day) }.getOrDefault(JSONArray()).objects()
+        } else emptyList()
+        return assemble(day, every, noteRows, stories, voice, sectionOrder, mode, podcastClips)
     }
 
     internal fun assemble(
@@ -150,6 +236,7 @@ object StoryPack {
         voice: String? = null,
         sectionOrder: List<String> = emptyList(),
         mode: String = "full",
+        podcastClips: List<JSONObject> = emptyList(),
     ): Pack? {
         if (every.isEmpty()) return null
         // Every narrator is published each morning, so the day's rows hold all of them:
@@ -189,6 +276,12 @@ object StoryPack {
             lineup(stories)
         }
 
+        val pod = if (mode == "podcast") {
+            val chosenRank1Sections = order.filter { key -> (wanted[key] ?: 0) > 0 && all.any { it.optString("section") == key && it.optInt("rank") == 1 } }
+            planPodcast(podcastClips, chosenRank1Sections, "$day:${spokenBy ?: ""}")
+        } else null
+        val isPodcast = pod != null
+
         val noteByKey = noteRows.filter { spokenBy == null || it.optString("voice") == spokenBy }
             .associateBy { it.optString("note_key") }
 
@@ -216,7 +309,26 @@ object StoryPack {
             cursor += duration
         }
 
-        sayNote(greetingKey())
+        fun sayBanter(clip: JSONObject?) {
+            if (clip == null) return
+            breath()
+            val duration = clip.optDouble("duration", 0.0)
+            val text = clip.optString("text")
+            val key = clip.optString("clip_key")
+            val path = clip.optString("audio_path")
+            clips += Clip(key, text, clipUrl(path), duration, cursor, cursor + duration, note = true, banter = true)
+            chapters += Chapter(key, "note", text, cursor, cursor + duration, null)
+            cursor += duration
+        }
+
+        if (isPodcast) {
+            sayBanter(pod!!.open)
+            for (teaser in pod.teasers) {
+                sayBanter(teaser)
+            }
+        } else {
+            sayNote(greetingKey())
+        }
 
         for (key in order) {
             val count = wanted[key] ?: 0
@@ -224,7 +336,11 @@ object StoryPack {
             val chosen = all.filter { it.optString("section") == key }.sortedBy { it.optInt("rank") }.take(count)
             if (chosen.isEmpty()) continue
             if (!isRapid) {
-                sayNote("intro_$key")
+                if (isPodcast) {
+                    sayBanter(pod!!.bridges[key])
+                } else {
+                    sayNote("intro_$key")
+                }
             }
             for (row in chosen) {
                 breath()
@@ -247,13 +363,21 @@ object StoryPack {
             }
         }
         // The sign-off, so a brief does not stop dead on the last story's final word.
-        sayNote("outro")
+        if (isPodcast) {
+            sayBanter(pod!!.close)
+        } else {
+            sayNote("outro")
+        }
         if (clips.isEmpty()) return null
 
         val version = all.map { it.optString("created_at") }.maxOrNull().orEmpty()
         val briefing = Briefing(
             date = day,
-            title = if (isRapid) "Rapid Fire · Top 5 Stories" else "Your briefing",
+            title = when {
+                isRapid -> "Rapid Fire · Top 5 Stories"
+                isPodcast -> "Your briefing · Podcast"
+                else -> "Your briefing"
+            },
             duration = cursor,
             intro = "",
             weather = null,
@@ -269,7 +393,12 @@ object StoryPack {
             // voiceId stays empty: there is nothing on this device to re-record.
             voiceName = packVoice(spokenBy).name,
             version = version,
-            mode = if (isRapid) "rapid" else "full",
+            mode = when {
+                isRapid -> "rapid"
+                isPodcast -> "podcast"
+                else -> "full"
+            },
+            podcastFallback = (mode == "podcast" && !isPodcast),
         )
         return Pack(briefing, clips, version)
     }
@@ -310,9 +439,18 @@ object StoryPack {
                 val bJson = root.optJSONObject("briefing") ?: return@runCatching null
                 val baseBriefing = Briefing.from(bJson)
                 val isRapid = mode == "rapid"
+                val isPodcast = mode == "podcast"
                 val briefing = baseBriefing.copy(
-                    mode = if (isRapid) "rapid" else "full",
-                    title = if (isRapid) "Rapid Fire · Top 5 Stories" else baseBriefing.title,
+                    mode = when {
+                        isRapid -> "rapid"
+                        isPodcast -> "podcast"
+                        else -> "full"
+                    },
+                    title = when {
+                        isRapid -> "Rapid Fire · Top 5 Stories"
+                        isPodcast -> "Your briefing · Podcast"
+                        else -> baseBriefing.title
+                    },
                     cards = if (isRapid) baseBriefing.cards.take(5) else baseBriefing.cards,
                 )
                 val clipsArr = bJson.optJSONArray("clips")

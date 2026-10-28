@@ -36,3 +36,4 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+cleanup_google_background.sh

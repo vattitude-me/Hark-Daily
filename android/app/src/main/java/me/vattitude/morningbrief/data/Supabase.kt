@@ -252,6 +252,24 @@ class Supabase(private val prefs: Prefs) {
         return pack.optJSONArray("voice_notes") ?: pack.optJSONArray("notes") ?: JSONArray()
     }
 
+    /** The day's podcast banter pieces (app/podcast.py). Empty when not created or mode off. */
+    suspend fun podcastClips(date: String): JSONArray {
+        if (prefs.session != null) runCatching { fresh() }
+        val rows = try {
+            call("GET", "/rest/v1/podcast_clips?select=hosts,clip_key,text,duration,audio_path&date=eq.$date", auth = true) as JSONArray
+        } catch (e: SupabaseError) {
+            if (Regex("Could not find the table|does not exist", RegexOption.IGNORE_CASE).containsMatchIn(e.message.orEmpty())) {
+                return JSONArray()
+            }
+            JSONArray()
+        }
+        if (rows.length() > 0) return rows
+        val pack = publicPack(date) ?: return JSONArray()
+        val packDate = pack.optString("date").ifEmpty { pack.optJSONObject("briefing")?.optString("date").orEmpty() }
+        if (packDate.isNotEmpty() && packDate != date) return JSONArray()
+        return pack.optJSONArray("podcast_clips") ?: JSONArray()
+    }
+
     /** Merges the shared fields into the stored settings, leaving the web app's own (voice, daily...) alone. */
     suspend fun saveSettings(shared: JSONObject) {
         val s = fresh()

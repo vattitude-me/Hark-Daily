@@ -48,6 +48,7 @@ import androidx.compose.material.icons.outlined.AcUnit
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.FlashOn
 import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Umbrella
 import androidx.compose.material.icons.outlined.WbCloudy
@@ -333,10 +334,15 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 ?: b.cards.firstOrNull { it.image != null }?.image
             val section = (current?.section ?: chapter?.section)?.let { k -> b.sections.firstOrNull { it.key == k }?.title }
             val title = current?.headline ?: chapter?.title?.takeIf { mine && it.isNotBlank() } ?: b.title
+            val isPodcast = briefingMode == "podcast" || b.isPodcast
             val isRapid = briefingMode == "rapid" || b.isRapid
             val currentIdx = b.cards.indexOfFirst { current != null && it.id == current.id }.takeIf { it >= 0 }
 
-            val horizonColor = if (isRapid) Color(0xFFFBBF24) else t.accent
+            val horizonColor = when {
+                isRapid -> Color(0xFFFBBF24)
+                isPodcast -> Color(0xFF8B5CF6)
+                else -> t.accent
+            }
             val deckBgModifier = if (t.dark) {
                 Modifier.background(
                     Brush.verticalGradient(listOf(Color(0xFF131926), Color(0xFF0C1018)))
@@ -373,7 +379,7 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     }
             ) {
                 Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
-                    // Briefing Edition Switcher: Full Brief vs ⚡ Rapid Fire (Clean single-line pills)
+                    // Briefing Edition Switcher: Full Brief vs Podcast (Clean single-line pills)
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -383,7 +389,7 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                             .padding(2.5.dp),
                         horizontalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
-                        val fullOn = !isRapid
+                        val fullOn = !isPodcast && !isRapid
                         Row(
                             Modifier
                                 .weight(1f)
@@ -415,37 +421,47 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                             )
                         }
 
-                        val rapidOn = isRapid
+                        val podcastOn = isPodcast
                         Row(
                             Modifier
                                 .weight(1f)
                                 .height(32.dp)
                                 .clip(CircleShape)
-                                .background(if (rapidOn) t.accent else Color.Transparent)
-                                .clickable { vm.setBriefingMode("rapid") }
+                                .background(if (podcastOn) t.accent else Color.Transparent)
+                                .clickable { vm.setBriefingMode("podcast") }
                                 .padding(horizontal = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Icon(
-                                Icons.Outlined.FlashOn,
+                                Icons.Outlined.Mic,
                                 contentDescription = null,
                                 modifier = Modifier.size(13.dp),
-                                tint = if (rapidOn) t.accentInk else Color(0xFFF59E0B)
+                                tint = if (podcastOn) t.accentInk else t.ink
                             )
                             Spacer(Modifier.width(5.dp))
                             Text(
-                                "Rapid Fire",
-                                style = Type.value.copy(fontSize = 11.5.sp, fontWeight = if (rapidOn) FontWeight.Bold else FontWeight.Medium),
-                                color = if (rapidOn) t.accentInk else t.ink
+                                "Podcast",
+                                style = Type.value.copy(fontSize = 11.5.sp, fontWeight = if (podcastOn) FontWeight.Bold else FontWeight.Medium),
+                                color = if (podcastOn) t.accentInk else t.ink
                             )
                             Spacer(Modifier.width(4.dp))
                             Text(
-                                "⚡ 1.1x",
-                                style = Type.tiny.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                                color = if (rapidOn) t.accentInk.copy(alpha = 0.9f) else Color(0xFFB45309)
+                                "Two hosts",
+                                style = Type.tiny.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
+                                color = if (podcastOn) t.accentInk.copy(alpha = 0.9f) else t.muted
                             )
                         }
+                    }
+
+                    if (b.podcastFallback) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Podcast isn't ready today · playing full brief",
+                            style = Type.tiny.copy(fontSize = 10.5.sp),
+                            color = t.muted,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
                     }
 
                     Spacer(Modifier.height(10.dp))

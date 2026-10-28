@@ -72,6 +72,66 @@ class StoryPackTest {
         return notes
     }
 
+    private fun samplePodcastClips(hosts: String = "matthew_reference+kelly_reference"): List<JSONObject> {
+        val list = mutableListOf<JSONObject>()
+        list.add(
+            JSONObject()
+                .put("date", "2026-10-22")
+                .put("hosts", hosts)
+                .put("clip_key", "podcast_ready")
+                .put("piece", "podcast_ready")
+                .put("voice", "matthew_reference")
+                .put("audio_path", "")
+                .put("duration", 0.0)
+                .put("text", "")
+        )
+        list.add(
+            JSONObject()
+                .put("date", "2026-10-22")
+                .put("hosts", hosts)
+                .put("clip_key", "pod_open_1")
+                .put("piece", "pod_open_1")
+                .put("voice", "matthew_reference")
+                .put("audio_path", "podcast/2026-10-22/pod_open_1.mp3")
+                .put("duration", 8.0)
+                .put("text", "Good morning Kelly!")
+        )
+        list.add(
+            JSONObject()
+                .put("date", "2026-10-22")
+                .put("hosts", hosts)
+                .put("clip_key", "pod_tease_top")
+                .put("piece", "pod_tease_top")
+                .put("voice", "kelly_reference")
+                .put("audio_path", "podcast/2026-10-22/pod_tease_top.mp3")
+                .put("duration", 6.0)
+                .put("text", "First up, big news in the top stories.")
+        )
+        list.add(
+            JSONObject()
+                .put("date", "2026-10-22")
+                .put("hosts", hosts)
+                .put("clip_key", "pod_bridge_top")
+                .put("piece", "pod_bridge_top")
+                .put("voice", "matthew_reference")
+                .put("audio_path", "podcast/2026-10-22/pod_bridge_top.mp3")
+                .put("duration", 4.0)
+                .put("text", "Let's dive into the top stories.")
+        )
+        list.add(
+            JSONObject()
+                .put("date", "2026-10-22")
+                .put("hosts", hosts)
+                .put("clip_key", "pod_close_1")
+                .put("piece", "pod_close_1")
+                .put("voice", "kelly_reference")
+                .put("audio_path", "podcast/2026-10-22/pod_close_1.mp3")
+                .put("duration", 7.0)
+                .put("text", "That's your brief for today. See you tomorrow!")
+        )
+        return list
+    }
+
     @Test
     fun assembleFullAndRapidBuildsDistinctPacksWithAllSections() {
         val rows = sampleRows("c3po_reference")
@@ -130,5 +190,66 @@ class StoryPackTest {
         assertFalse(cleaned.contains("Canadian Startup Capital"))
         assertFalse(cleaned.contains("Taking a closer look:"))
         assertFalse(cleaned.contains("The news:"))
+    }
+
+    @Test
+    fun planPodcastSelectsOpenTeasersBridgesAndCloseUnderBudget() {
+        val clips = samplePodcastClips()
+        val plan = planPodcast(clips, listOf("top", "politics", "tech"), "2026-10-22")
+        assertNotNull(plan)
+        assertEquals("pod_open_1", plan!!.open.optString("clip_key"))
+        assertEquals("pod_close_1", plan.close.optString("clip_key"))
+        assertEquals(1, plan.teasers.size)
+        assertEquals("pod_tease_top", plan.teasers[0].optString("clip_key"))
+        assertEquals(1, plan.bridges.size)
+        assertEquals("pod_bridge_top", plan.bridges["top"]?.optString("clip_key"))
+        assertTrue(plan.banter <= 90.0)
+    }
+
+    @Test
+    fun assemblePodcastBuildsTimelineWithBanterAndFallback() {
+        val rows = sampleRows("c3po_reference")
+        val notes = sampleNotes("c3po_reference")
+        val podcastClips = samplePodcastClips()
+        val stories = mapOf("top" to 3, "politics" to 2, "tech" to 2, "ai" to 2, "science" to 1, "sports" to 1)
+
+        val podcastPack = StoryPack.assemble(
+            day = "2026-10-22",
+            every = rows,
+            noteRows = notes,
+            stories = stories,
+            voice = "c3po_reference",
+            sectionOrder = emptyList(),
+            mode = "podcast",
+            podcastClips = podcastClips,
+        )
+
+        assertNotNull(podcastPack)
+        val briefing = podcastPack!!.briefing
+        assertEquals("podcast", briefing.mode)
+        assertTrue(briefing.isPodcast)
+        assertFalse(briefing.podcastFallback)
+        assertTrue(briefing.title.contains("Podcast"))
+        val banterClips = podcastPack.clips.filter { it.banter }
+        assertTrue(banterClips.isNotEmpty())
+        assertTrue(banterClips.any { it.id == "pod_open_1" })
+        assertTrue(banterClips.any { it.id == "pod_close_1" })
+
+        val fallbackPack = StoryPack.assemble(
+            day = "2026-10-22",
+            every = rows,
+            noteRows = notes,
+            stories = stories,
+            voice = "c3po_reference",
+            sectionOrder = emptyList(),
+            mode = "podcast",
+            podcastClips = emptyList(),
+        )
+
+        assertNotNull(fallbackPack)
+        assertEquals("full", fallbackPack!!.briefing.mode)
+        assertFalse(fallbackPack.briefing.isPodcast)
+        assertTrue(fallbackPack.briefing.podcastFallback)
+        assertEquals(0, fallbackPack.clips.count { it.banter })
     }
 }

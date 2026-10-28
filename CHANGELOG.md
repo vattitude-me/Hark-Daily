@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.64] - 2026-10-27
+
+### Added
+- **Podcast Mode for Android**: Full client parity with web for two-host conversational podcast mode (`PODCAST_HOSTS`, default Matthew & Kelly).
+  - Fetches and stitches daily podcast banter (`podcast_clips`) dynamically matching listener topic preferences within the 90-second banter budget.
+  - Added "Podcast Edition" pill selector on `TodayScreen` and dedicated row in `SettingsScreen` with violet badge and microphone iconography.
+  - Seamless fallback handling: if banter is not yet published for the day or fails, automatically falls back to the Standard Edition and displays an unobtrusive status note.
+  - Unit test coverage in `StoryPackTest.kt` verifying timeline assembly, teaser/bridge budget enforcement, and fallback behavior.
+- Bumped PWA service worker cache to `hark-daily-v16`.
+
+---
+
 ## [0.1.63] - 2026-10-27
 
 ### Added

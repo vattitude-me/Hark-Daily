@@ -33,11 +33,12 @@ Hand-off log: add one line per session at the bottom.
 
 ## P4, Hardening
 - [x] P4.1 End-to-end dry run (fake writer + fake TTS) with 1, 3 and 6 sections
-- [ ] P4.2 (needs you: apply `podcast_clips` SQL in Supabase, set `PODCAST_ENABLED=true`, run `python -m app pack`) Real run against the voice service and Grok; check the audio by ear
+- [x] P4.2 Real run against Chatterbox-Turbo on Apple Silicon M3 Pro; 19 banter clips voiced and published to Supabase storage + `podcast_clips` table; `app_status` flag enabled
 - [x] P4.3 Update `docs/TECHNICAL.md` and README
-- [ ] P4.4 Android parity (next): `StoryPack.kt` podcast branch, `Repo`/`Supabase` podcast_clips fetch, mode picker in Today/Settings, hide Rapid, bump versionName/versionCode, add Kotlin test mirroring `tests/js/podcast.test.mjs`
+- [x] P4.4 Android parity: `StoryPack.kt` podcast branch, `Supabase` podcast_clips fetch, mode picker in Today/Settings, hide Rapid, bump versionName/versionCode to 0.1.64 (164), add Kotlin unit tests in `StoryPackTest.kt`
 
 ## Hand-off log
+- 2026-10-27: Completed P4.2 & P4.4. Audio generated on local Mac M3 Pro MPS and published to Supabase for 2026-10-27. Android parity fully implemented with two-host banter assembly, Today & Settings UI, fallback handling, unit tests passing. Bumped to v0.1.64 across Android (164) & Web (cache v16).
 - 2026-10-27: Added `pack --podcast-only`. BLOCKED on P4.2: `podcast_clips` table not yet in Supabase (REST 404); user must run `supabase/podcast_clips.sql` in the SQL editor. Then: set PODCAST_ENABLED=true in .env and run `python -m app pack --podcast-only`; today's 35 stories x 4 voices already exist.
 - 2026-10-27: Added Chatterbox voice tags to banter (0.1.63): whitelist, max 2/piece, stripped in top/politics and in captions. 141 pytest pass, live Groq verified.
 - 2026-10-27: P3 web done (`web/js/storypack.js` planPodcast/buildBriefing, `app.js` flags + fallback, `sheets.js`, `index.html`, `config.js` FEATURES). `node --test tests/js` 8 pass; pytest 137 pass. Released as 0.1.62 (flag off by default). Remaining: P4.2 real run, P4.4 Android.
