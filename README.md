@@ -40,17 +40,20 @@ No ads. No tracking. Zero doom-scrolling.
 
 ## 🖥️ Web PWA
 
-Works in any modern browser on desktop, tablet, and mobile with automatic light and dark themes.
+Works in modern browsers on desktop, tablet, and mobile with light and dark themes, background playback, and zero forced login.
 
 <div align="center">
 
-### Desktop View (Light & Dark)
+### Desktop View (Today's Briefing & Podcast Player)
+<img src="docs/screenshots/web-desktop-dark.png" alt="Hark Daily Web Desktop Dark Mode" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-bottom: 16px;" />
+
 <img src="docs/screenshots/web-desktop-light.png" alt="Hark Daily Web Desktop Light Mode" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-bottom: 16px;" />
 
-<img src="docs/screenshots/web-desktop-dark.png" alt="Hark Daily Web Desktop Dark Mode" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);" />
-
-### Mobile Web PWA
-<img src="docs/screenshots/web-mobile-light.png" alt="Hark Daily Web Mobile View" width="360" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-top: 12px;" />
+### Mobile PWA (Dark & Light)
+<p align="center">
+  <img src="docs/screenshots/web-mobile-dark.png" alt="Hark Daily Web Mobile Dark" width="340" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin: 8px;" />
+  <img src="docs/screenshots/web-mobile-light.png" alt="Hark Daily Web Mobile Light" width="340" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin: 8px;" />
+</p>
 
 </div>
 
@@ -64,9 +67,9 @@ Native Android application built with Jetpack Compose, Compose Material3 tokens,
 
 <div align="center">
 
-| Today's Briefing | Follow-Along Audio | Topics & Sources | Settings & Voices |
+| Active Playback (Dark) | Today's Briefing | Topics & Sources | Settings & Voices |
 | :---: | :---: | :---: | :---: |
-| <img src="docs/screenshots/android-today-light.png" width="220" alt="Android Today Light" /> | <img src="docs/screenshots/android-playing-dark.png" width="220" alt="Android Playing Dark" /> | <img src="docs/screenshots/android-sources-light.png" width="220" alt="Android Sources Light" /> | <img src="docs/screenshots/android-settings-light.png" width="220" alt="Android Settings Light" /> |
+| <img src="docs/screenshots/android-playing-dark.png" width="220" alt="Android Playing Dark" /> | <img src="docs/screenshots/android-today-light.png" width="220" alt="Android Today Light" /> | <img src="docs/screenshots/android-sources-light.png" width="220" alt="Android Sources Light" /> | <img src="docs/screenshots/android-settings-light.png" width="220" alt="Android Settings Light" /> |
 
 </div>
 
