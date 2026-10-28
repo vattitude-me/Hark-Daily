@@ -7,8 +7,8 @@ plugins {
 }
 
 // Release builds set these from the tag (android-v0.2.0 → 0.2.0); local builds use the defaults.
-val appVersionName = (findProperty("versionName") as String?) ?: "0.1.66"
-val appVersionCode = (findProperty("versionCode") as String?)?.toInt() ?: 166
+val appVersionName = (findProperty("versionName") as String?) ?: "0.1.67"
+val appVersionCode = (findProperty("versionCode") as String?)?.toInt() ?: 167
 
 android {
     namespace = "me.vattitude.morningbrief"
