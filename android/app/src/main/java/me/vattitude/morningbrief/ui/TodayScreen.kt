@@ -1,5 +1,6 @@
 package me.vattitude.morningbrief.ui
 
+import me.vattitude.morningbrief.R
 import android.content.Intent
 import android.net.Uri
 import android.os.SystemClock
@@ -330,8 +331,20 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
         }
 
         entry("hero") {
-            val cover = (current ?: b.cards.lastOrNull { mine && position >= it.start })?.image
-                ?: b.cards.firstOrNull { it.image != null }?.image
+            val isIntroOrBanter = current == null && chapter != null && (
+                chapter.id.startsWith("pod_open") ||
+                chapter.id.startsWith("pod_tease") ||
+                chapter.id.startsWith("greeting") ||
+                chapter.id.startsWith("pod_close") ||
+                chapter.id == "outro" ||
+                chapter.kind == "note"
+            )
+            val cover: Any? = if (isIntroOrBanter) {
+                R.drawable.ic_hark_logo
+            } else {
+                (current ?: b.cards.lastOrNull { mine && position >= it.start })?.image
+                    ?: b.cards.firstOrNull { it.image != null }?.image
+            }
             val section = (current?.section ?: chapter?.section)?.let { k -> b.sections.firstOrNull { it.key == k }?.title }
             val title = current?.headline ?: chapter?.title?.takeIf { mine && it.isNotBlank() } ?: b.title
             val isPodcast = briefingMode == "podcast" || b.isPodcast
@@ -673,7 +686,11 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
 
                     // Integrated Read Along Teleprompter Visor (Sleek collapsible)
                     var transcriptExpanded by remember { mutableStateOf(false) }
-                    val readText = current?.summary?.ifBlank { null } ?: current?.headline ?: chapter?.title?.ifBlank { null } ?: "Tap play to listen and read along."
+                    val readText = current?.summary?.ifBlank { null }
+                        ?: current?.headline
+                        ?: chapter?.text?.ifBlank { null }
+                        ?: chapter?.title?.ifBlank { null }
+                        ?: "Tap play to listen and read along."
 
                     Spacer(Modifier.height(8.dp))
 

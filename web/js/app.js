@@ -147,7 +147,7 @@ function renderHeader() {
     }
   }
   const heroNarrName = $('heroNarratorName');
-  if (heroNarrName) heroNarrName.textContent = activeVoice.name;
+  if (heroNarrName) heroNarrName.textContent = b?.voice?.name || activeVoice.name;
 
   // Avatar and Sign In controls for guest vs signed-in
   const isGuest = !state.profile;

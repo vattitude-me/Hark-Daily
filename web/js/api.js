@@ -85,6 +85,18 @@ export function deleteCustomVoice(id) {
  */
 export const voiceFor = (id) => {
   if (!id) return VOICES[0] || BUILTIN_VOICES[0];
+  if (typeof id === 'string' && id.includes('+')) {
+    const parts = id.split('+').filter(Boolean).map((h) => voiceFor(h).name);
+    return {
+      id,
+      name: parts.join(' & '),
+      gender: 'duo',
+      desc: 'Podcast co-hosts',
+      style: 'Two Hosts',
+      icon: 'mic',
+      builtin: true,
+    };
+  }
   const found = VOICES.find((v) => v.id === id);
   if (found) return found;
   const cleanName = id

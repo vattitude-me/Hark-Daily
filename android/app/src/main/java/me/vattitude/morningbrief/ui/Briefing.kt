@@ -4,7 +4,7 @@ import me.vattitude.morningbrief.data.stripHeadlineAndFiller
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class Chapter(val id: String, val kind: String, val title: String, val start: Double, val end: Double, val section: String?)
+data class Chapter(val id: String, val kind: String, val title: String, val start: Double, val end: Double, val section: String?, val text: String = "")
 
 data class Card(
     val id: String, val section: String, val headline: String, val summary: String, val url: String,
@@ -55,7 +55,7 @@ data class Briefing(
                 },
                 chapters = j.optJSONArray("chapters").objects().map {
                     Chapter(it.optString("id"), it.optString("kind"), it.optString("title"), it.optDouble("start"),
-                        it.optDouble("end"), it.optString("section").ifEmpty { null })
+                        it.optDouble("end"), it.optString("section").ifEmpty { null }, it.optString("text"))
                 },
                 cards = j.optJSONArray("stories").objects().map { c ->
                     val also = c.optJSONArray("also")
