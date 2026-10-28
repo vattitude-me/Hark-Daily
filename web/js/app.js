@@ -1,7 +1,7 @@
 import { api, fmtTime, h, icon, isAdmin, recordError, sb, store, timeAgo, toast, VOICES, voiceFor, SECTIONS, DEFAULT_VOICE_ID } from './api.js';
 import { Player } from './player.js';
 import { Landing } from './landing.js';
-import { WelcomeSheet, installMode, onInstallChange, promptInstall, pushSupported, wireSheet } from './sheets.js';
+import { WelcomeSheet, enablePush, installMode, onInstallChange, promptInstall, pushSupported, requestNotificationPermission, wireSheet } from './sheets.js';
 import { SourcesPage } from './pages/sources.js';
 import { SettingsPage } from './pages/settings.js';
 import { AdminPage } from './pages/admin.js';
@@ -149,6 +149,21 @@ function renderHeader() {
   const heroNarrName = $('heroNarratorName');
   if (heroNarrName) heroNarrName.textContent = activeVoice.name;
 
+  // Avatar and Sign In controls for guest vs signed-in
+  const isGuest = !state.profile;
+  const topbarSignInBtn = $('topbarSignInBtn');
+  if (topbarSignInBtn) {
+    topbarSignInBtn.classList.toggle('hidden', !isGuest);
+  }
+  const avatarBtn = $('avatarBtn');
+  if (avatarBtn) {
+    avatarBtn.classList.toggle('hidden', isGuest);
+  }
+  const syncLabel = $('syncLabel');
+  if (syncLabel) {
+    syncLabel.textContent = isGuest ? 'Guest mode' : 'Synced';
+  }
+
   // Avatar initial
   const avInitial = $('avatarInitial');
   if (avInitial) {
@@ -210,6 +225,67 @@ function renderNotice() {
     return;
   }
   box.replaceChildren();
+}
+
+/* ------------------------------------------------------------- guest & auth */
+function openSignIn(reason = 'default') {
+  const modal = $('signin');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  const errEl = $('loginError');
+  if (errEl) { errEl.textContent = ''; errEl.classList.add('hidden'); }
+  const title = $('signinTitle');
+  const hint = $('loginHint');
+  if (title) {
+    title.textContent = reason === 'push' ? 'Connect for notifications' : 'Sign in to Hark Daily';
+  }
+  if (hint) {
+    hint.textContent = reason === 'push'
+      ? 'Sign in once to receive your morning brief notification before sunrise.'
+      : 'Sign in to sync your preferences and sources across your devices and the Android app.';
+  }
+  $('providerStep')?.classList.remove('hidden');
+  $('emailForm')?.classList.add('hidden');
+  $('sentStep')?.classList.add('hidden');
+}
+
+function closeSignIn() {
+  const modal = $('signin');
+  if (modal) modal.classList.add('hidden');
+}
+window.openSignIn = openSignIn;
+window.closeSignIn = closeSignIn;
+
+function renderGuestBanner() {
+  const banner = $('guestBanner');
+  if (!banner) return;
+  const isGuest = !state.profile;
+  const dismissed = localStorage.getItem('mb-guest-banner-dismissed') === 'true';
+  if (!isGuest || dismissed) {
+    banner.classList.add('hidden');
+    return;
+  }
+  banner.classList.remove('hidden');
+
+  // Push status on banner button
+  const pushBtn = $('bannerPushBtn');
+  if (pushBtn) {
+    const granted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
+    const span = pushBtn.querySelector('span');
+    if (granted) {
+      if (span) span.textContent = 'Notifications enabled ✓';
+      pushBtn.classList.add('glass-btn');
+    } else {
+      if (span) span.textContent = 'Enable notifications';
+      pushBtn.classList.remove('glass-btn');
+    }
+  }
+
+  // Install button visibility
+  const installBtn = $('bannerInstallBtn');
+  if (installBtn) {
+    installBtn.classList.toggle('hidden', !installMode());
+  }
 }
 
 /* -------------------------------------------------------------------- hero */
@@ -754,6 +830,7 @@ function displayBriefing() {
   renderHeader();
   renderHero();
   renderNotice();
+  renderGuestBanner();
   renderPersonas();
   renderNextCard();
   renderLineupCard();
@@ -887,7 +964,16 @@ function bindEvents() {
   });
   $('installBtn')?.addEventListener('click', install);
   wireSheet($('installSheet'));
-  onInstallChange(syncInstallBtn);
+  onInstallChange(() => { syncInstallBtn(); renderGuestBanner(); });
+  $('topbarSignInBtn')?.addEventListener('click', () => openSignIn('topbar'));
+  $('bannerCloseBtn')?.addEventListener('click', () => {
+    localStorage.setItem('mb-guest-banner-dismissed', 'true');
+    $('guestBanner')?.classList.add('hidden');
+  });
+  $('bannerSignInBtn')?.addEventListener('click', () => openSignIn('banner'));
+  $('bannerInstallBtn')?.addEventListener('click', install);
+  $('bannerPushBtn')?.addEventListener('click', bannerSetupPush);
+  bindSignInModal();
   $('themeToggle')?.addEventListener('click', () => setTheme(currentTheme() === 'dark' ? 'light' : 'dark'));
   document.addEventListener('mb-theme', syncThemeIcon);
   $('reportSend')?.addEventListener('click', sendReport);
@@ -956,6 +1042,152 @@ function bindEvents() {
   });
 }
 
+/* ----------------------------------------------------------------- sign in modal */
+async function bannerSetupPush() {
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    toast('Notifications are already active on this device.');
+    return;
+  }
+  try {
+    const perm = await requestNotificationPermission();
+    if (perm === 'granted') {
+      toast('Notification permission allowed!');
+      renderGuestBanner();
+      if (!state.profile) {
+        openSignIn('push');
+        toast('Sign in to connect your morning brief dispatch.');
+      } else {
+        const status = state.status || await api.status().catch(() => ({}));
+        if (status?.vapid_public_key) {
+          await enablePush(status.vapid_public_key);
+          toast('Notifications active! You will be notified when your briefing is ready.');
+        }
+      }
+    } else {
+      toast(perm === 'denied' ? 'Notifications are blocked in browser settings.' : 'Permission was not granted.', { error: true });
+    }
+  } catch (err) {
+    toast(err.message || "Couldn't set up notifications.", { error: true });
+  }
+}
+
+function bindSignInModal() {
+  const modal = $('signin');
+  if (!modal) return;
+  $('signinClose')?.addEventListener('click', closeSignIn);
+  modal.addEventListener('click', (e) => { if (e.target.id === 'signin') closeSignIn(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeSignIn(); });
+
+  const busy = (btn, on, label) => { if (btn) { btn.disabled = on; btn.textContent = label; } };
+  const showErr = (msg) => {
+    const errEl = $('loginError');
+    if (errEl) {
+      errEl.textContent = msg || '';
+      errEl.classList.toggle('hidden', !msg);
+    }
+  };
+
+  $('googleBtn')?.addEventListener('click', async () => {
+    showErr();
+    const btn = $('googleBtn');
+    const lbl = $('googleLabel');
+    if (btn) btn.disabled = true;
+    if (lbl) lbl.textContent = 'Opening Google…';
+    try {
+      await api.signInWithGoogle();
+    } catch (ex) {
+      showErr(/provider is not enabled|unsupported provider/i.test(ex.message)
+        ? 'Google sign-in is not switched on yet. Use email instead.' : ex.message);
+      if (btn) btn.disabled = false;
+      if (lbl) lbl.textContent = 'Continue with Google';
+    }
+  });
+
+  $('useEmail')?.addEventListener('click', () => {
+    showErr();
+    $('providerStep')?.classList.add('hidden');
+    $('emailForm')?.classList.remove('hidden');
+    $('loginEmail')?.focus();
+  });
+
+  let waitingEmail = '';
+  let waitTimer = null;
+
+  $('emailForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    showErr();
+    waitingEmail = $('loginEmail')?.value.trim().toLowerCase() || '';
+    const btn = $('sendCodeBtn');
+    busy(btn, true, 'Sending…');
+    try {
+      await api.sendCode(waitingEmail);
+      $('emailForm')?.classList.add('hidden');
+      $('sentStep')?.classList.remove('hidden');
+      $('codeForm')?.classList.add('hidden');
+      $('signinTitle').textContent = 'Check your email';
+      $('loginHint').textContent = `We sent a sign-in link to ${waitingEmail}. Open it on this device to sign in.`;
+
+      clearInterval(waitTimer);
+      waitTimer = setInterval(async () => {
+        if (await api.session()) {
+          clearInterval(waitTimer);
+          closeSignIn();
+          await enterApp();
+        }
+      }, 3000);
+    } catch (ex) {
+      showErr(ex.message);
+    } finally {
+      busy(btn, false, 'Email me a sign-in link');
+    }
+  });
+
+  $('resendBtn')?.addEventListener('click', async () => {
+    showErr();
+    try {
+      await api.sendCode(waitingEmail);
+      toast('Sent a new link. Please check your inbox.');
+    } catch (ex) {
+      showErr(ex.message);
+    }
+  });
+
+  $('showCode')?.addEventListener('click', () => {
+    const cf = $('codeForm');
+    if (cf) {
+      cf.classList.toggle('hidden');
+      if (!cf.classList.contains('hidden')) $('loginCode')?.focus();
+    }
+  });
+
+  $('codeForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    showErr();
+    const code = $('loginCode')?.value.trim();
+    if (!code) return;
+    const btn = $('verifyBtn');
+    busy(btn, true, 'Signing in…');
+    try {
+      await api.verifyCode(waitingEmail, code);
+      clearInterval(waitTimer);
+      closeSignIn();
+      await enterApp();
+    } catch (ex) {
+      showErr(/expired|invalid/i.test(ex.message) ? 'That code is wrong or has expired.' : ex.message);
+    } finally {
+      busy(btn, false, 'Sign in with code');
+    }
+  });
+
+  $('changeEmail')?.addEventListener('click', () => {
+    clearInterval(waitTimer);
+    showErr();
+    $('sentStep')?.classList.add('hidden');
+    $('emailForm')?.classList.remove('hidden');
+    $('signinTitle').textContent = 'Sign in to Hark Daily';
+  });
+}
+
 /* ----------------------------------------------------------------- landing */
 let landing = null;
 let started = false;
@@ -963,7 +1195,7 @@ let started = false;
 async function showLanding() {
   document.body.classList.remove('booting');
   document.body.classList.add('signed-out');
-  $('login').classList.remove('hidden');
+  $('login')?.classList.remove('hidden');
   if (!landing) landing = new Landing({ onSignedIn: enterApp });
   await landing.show();
 }
@@ -971,9 +1203,22 @@ async function showLanding() {
 async function enterApp() {
   landing?.stop();
   document.body.classList.remove('booting', 'signed-out');
-  $('login').classList.add('hidden');
+  $('login')?.classList.add('hidden');
   if (location.hash.includes('access_token')) history.replaceState(null, '', location.pathname);
-  if (started) return;
+  if (started) {
+    try {
+      state.profile = await api.profile();
+      const guest = store.get('guest-settings', null);
+      if (guest && state.profile) {
+        await api.saveSettings(guest);
+        store.set('guest-settings', null);
+      }
+    } catch { /* guest */ }
+    syncAdminTab();
+    renderHeader();
+    renderGuestBanner();
+    return;
+  }
   started = true;
   await start();
   const voice = store.get('pending-voice', null);
@@ -986,12 +1231,14 @@ async function enterApp() {
   if (state.profile && !st.onboarded && !st.name) welcome.open(state.status);
   else if (state.profile && !st.push_offered && pushSupported() && Notification.permission === 'default') welcome.open(state.status, { askName: false });
 }
+window.enterApp = enterApp;
 
 /* -------------------------------------------------------------------- boot */
 async function start() {
-  document.body.classList.remove('booting');
+  document.body.classList.remove('booting', 'signed-out');
   state.briefingLoading = true;
   renderNotice();
+  renderGuestBanner();
   $('sections').replaceChildren(...Array.from({ length: 3 }, () => h('div', { class: 'skeleton' })));
   const today = new Date().toLocaleDateString('en-CA');
   try {
@@ -1001,6 +1248,7 @@ async function start() {
     syncAdminTab();
     applyPhotoMode(profile?.settings?.color_photos);
     renderHeader();
+    renderGuestBanner();
     renderPersonas();
     renderNextCard();
     renderLineupCard();
@@ -1028,12 +1276,13 @@ async function start() {
     } else {
       renderHeader();
       renderNotice();
+      renderGuestBanner();
       renderHero();
       renderSections();
       toast("Couldn't reach the briefing service. Please try again shortly.", { error: true, ms: 5000 });
     }
   } finally {
-    document.body.classList.remove('booting');
+    document.body.classList.remove('booting', 'signed-out');
   }
 }
 
@@ -1048,30 +1297,32 @@ async function init() {
   syncAdminTab();
   renderHeader();
   renderNotice();
+  renderGuestBanner();
   renderPersonas();
   renderNextCard();
   renderLineupCard();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-  sb.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_OUT') { started = false; state.profile = null; syncAdminTab(); showLanding(); }
-    else if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) setTimeout(enterApp, 0);
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_OUT') {
+      started = false;
+      state.profile = null;
+      syncAdminTab();
+      renderHeader();
+      renderGuestBanner();
+      toast('Signed out. Continuing in guest mode.');
+    } else if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
+      setTimeout(enterApp, 0);
+    }
   });
   try {
     let session = null;
     try { session = await api.session(); } catch { /* offline */ }
-    if (session) { await enterApp(); return; }
-    if (store.get('last-briefing', null) && !navigator.onLine) {
-      document.body.classList.remove('booting', 'signed-out');
-      started = true;
-      await start();
-      return;
-    }
-    await showLanding();
+    await enterApp();
   } catch (err) {
     recordError(err, 'app.init');
-    await showLanding();
+    await enterApp();
   } finally {
-    document.body.classList.remove('booting');
+    document.body.classList.remove('booting', 'signed-out');
   }
 }
 
