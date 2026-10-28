@@ -15,8 +15,7 @@ case "$TARGET" in
       WAKE_TIME="$(date -v+1d '+%m/%d/%y 17:58:00')"
     fi
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Scheduling Evening wake at $WAKE_TIME..."
-    if sudo -n true 2>/dev/null; then
-      sudo pmset schedule wake "$WAKE_TIME"
+    if sudo -n /usr/bin/pmset schedule wake "$WAKE_TIME" 2>/dev/null; then
       echo "✓ Evening wake event successfully scheduled."
     else
       echo "Notice: sudo pmset requires password or /etc/sudoers.d/hark_pmset rule."
@@ -32,8 +31,7 @@ case "$TARGET" in
       WAKE_TIME="$(date -v+1d '+%m/%d/%y 05:58:00')"
     fi
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Scheduling Morning wake at $WAKE_TIME..."
-    if sudo -n true 2>/dev/null; then
-      sudo pmset schedule wake "$WAKE_TIME"
+    if sudo -n /usr/bin/pmset schedule wake "$WAKE_TIME" 2>/dev/null; then
       echo "✓ Morning wake event successfully scheduled."
     else
       echo "Notice: sudo pmset requires password or /etc/sudoers.d/hark_pmset rule."
