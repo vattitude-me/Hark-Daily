@@ -298,7 +298,7 @@ export class SettingsPage {
     return GlassGroup(
       h('div', { class: 'voice-list' }, ...rows),
       Hairline(),
-      Hint('All four narrators read the same daily briefing, so switching only changes who you hear. Changes take effect on your next brief or switch on the Today screen.'),
+      Hint('All four narrators read the same daily briefing for the Full Brief edition. Podcast mode uses pre-selected co-hosts (Matthew & Kelly).'),
       Hairline(),
       ListRow({
         label: 'Playback speed',

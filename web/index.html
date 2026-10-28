@@ -386,15 +386,15 @@
             <section class="glass hero hidden" id="hero" aria-label="Audio briefing">
               <div class="brief-mode-bar" id="briefModeBar">
                 <div class="segmented mode-segmented" role="radiogroup" aria-label="Briefing edition">
-                  <button type="button" class="seg-opt on" id="modeFullBtn" role="radio" aria-checked="true">
-                    <svg class="mode-icon" aria-hidden="true"><use href="#i-sun"/></svg>
-                    <span>Full Brief</span>
-                    <span class="mode-meta" id="modeFullMeta">~10 min</span>
-                  </button>
-                  <button type="button" class="seg-opt hidden" id="modePodcastBtn" role="radio" aria-checked="false">
+                  <button type="button" class="seg-opt on" id="modePodcastBtn" role="radio" aria-checked="true">
                     <svg class="mode-icon" aria-hidden="true"><use href="#i-mic"/></svg>
                     <span>Podcast</span>
                     <span class="mode-meta" id="modePodcastMeta">Two hosts</span>
+                  </button>
+                  <button type="button" class="seg-opt" id="modeFullBtn" role="radio" aria-checked="false">
+                    <svg class="mode-icon" aria-hidden="true"><use href="#i-sun"/></svg>
+                    <span>Full Brief</span>
+                    <span class="mode-meta" id="modeFullMeta">~10 min</span>
                   </button>
                   <button type="button" class="seg-opt hidden" id="modeRapidBtn" role="radio" aria-checked="false">
                     <svg class="mode-icon icon-rapid" aria-hidden="true"><use href="#i-bolt"/></svg>
@@ -573,15 +573,15 @@
           <div class="setting-group" id="welcomeModeGroup">
             <h3>Preferred Edition</h3>
             <div class="segmented mode-segmented welcome-mode" role="radiogroup" aria-label="Default edition">
-              <button type="button" class="seg-opt on" id="welcomeModeFull" role="radio" aria-checked="true">
-                <svg class="mode-icon" aria-hidden="true"><use href="#i-sun"/></svg>
-                <span>Full Brief</span>
-                <span class="mode-meta">~10 min</span>
-              </button>
-              <button type="button" class="seg-opt hidden" id="welcomeModePodcast" role="radio" aria-checked="false">
+              <button type="button" class="seg-opt on" id="welcomeModePodcast" role="radio" aria-checked="true">
                 <svg class="mode-icon" aria-hidden="true"><use href="#i-mic"/></svg>
                 <span>Podcast</span>
                 <span class="mode-meta">Two hosts</span>
+              </button>
+              <button type="button" class="seg-opt" id="welcomeModeFull" role="radio" aria-checked="false">
+                <svg class="mode-icon" aria-hidden="true"><use href="#i-sun"/></svg>
+                <span>Full Brief</span>
+                <span class="mode-meta">~10 min</span>
               </button>
               <button type="button" class="seg-opt hidden" id="welcomeModeRapid" role="radio" aria-checked="false">
                 <svg class="mode-icon icon-rapid" aria-hidden="true"><use href="#i-bolt"/></svg>
@@ -726,7 +726,7 @@
       <button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button>
     </div>
     <div class="sheet-body">
-      <p class="hint">All four narrators read the same daily briefing. Pick who you'd like to hear.</p>
+      <p class="hint" id="narratorSheetHint">All four narrators read the daily briefing for the Full Brief edition. Pick who you'd like to hear.</p>
       <div class="persona-sheet-grid" id="personaRow"></div>
     </div>
     <div class="sheet-foot">

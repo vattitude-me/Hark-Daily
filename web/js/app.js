@@ -132,15 +132,18 @@ function renderHeader() {
   }
 
   // Active narrator chip & preview
+  const isPodcast = activeMode() === 'podcast';
   const activeVoiceId = b?.voice?.id || state.profile?.settings?.voice || DEFAULT_VOICE_ID;
   const activeVoice = voiceFor(activeVoiceId);
   const nName = $('narratorName');
-  if (nName) nName.textContent = activeVoice.name;
+  if (nName) nName.textContent = isPodcast && b?.voice?.name ? b.voice.name : activeVoice.name;
   const nDesc = $('narratorDesc');
-  if (nDesc) nDesc.textContent = activeVoice.style || activeVoice.desc;
+  if (nDesc) nDesc.textContent = isPodcast ? 'Podcast co-hosts' : (activeVoice.style || activeVoice.desc);
   const narrBy = $('narratedBy');
   if (narrBy) {
-    if (b?.voice?.isFallback && b?.voice?.requested) {
+    if (isPodcast) {
+      narrBy.textContent = `Voiced by ${b?.voice?.name || 'co-hosts'} · Daily podcast discussion`;
+    } else if (b?.voice?.isFallback && b?.voice?.requested) {
       narrBy.textContent = `Narrated by ${activeVoice.name} (${voiceName(b.voice.requested)} unrecorded) · ${activeVoice.style || activeVoice.desc}`;
     } else {
       narrBy.textContent = `Narrated by ${activeVoice.name} · ${activeVoice.style || activeVoice.desc}`;
@@ -148,6 +151,22 @@ function renderHeader() {
   }
   const heroNarrName = $('heroNarratorName');
   if (heroNarrName) heroNarrName.textContent = b?.voice?.name || activeVoice.name;
+
+  const heroNarrBtn = $('heroNarratorBtn');
+  const narrChip = $('narratorChip');
+  if (isPodcast) {
+    heroNarrBtn?.classList.add('is-podcast-locked');
+    heroNarrBtn?.setAttribute('aria-label', `${b?.voice?.name || 'Co-hosts'} (locked in Podcast mode)`);
+    heroNarrBtn?.setAttribute('title', 'Podcast mode uses pre-selected co-hosts. Switch to Full Brief to change narrator.');
+    narrChip?.classList.add('is-podcast-locked');
+    narrChip?.setAttribute('title', 'Podcast mode uses pre-selected co-hosts. Switch to Full Brief to change narrator.');
+  } else {
+    heroNarrBtn?.classList.remove('is-podcast-locked');
+    heroNarrBtn?.setAttribute('aria-label', 'Change narrator');
+    heroNarrBtn?.setAttribute('title', 'Change narrator');
+    narrChip?.classList.remove('is-podcast-locked');
+    narrChip?.setAttribute('title', 'Change narrator');
+  }
 
   // Avatar and Sign In controls for guest vs signed-in
   const isGuest = !state.profile;
@@ -294,11 +313,12 @@ function podcastOn() {
   return FEATURES.podcast && state.status?.podcast?.enabled !== false;
 }
 
-/** The edition to build: a stored choice that has since been switched off falls back to Full. */
+/** The edition to build: defaults to Podcast when available, falls back to Full. */
 function activeMode() {
-  if (state.mode === 'podcast') return podcastOn() ? 'podcast' : 'full';
+  if (state.mode === 'full') return 'full';
   if (state.mode === 'rapid') return FEATURES.rapid ? 'rapid' : 'full';
-  return 'full';
+  if (state.mode === 'podcast' || !state.mode) return podcastOn() ? 'podcast' : 'full';
+  return podcastOn() ? 'podcast' : 'full';
 }
 
 function syncModePicker() {
@@ -313,7 +333,7 @@ function syncModePicker() {
   podcastBtn?.classList.toggle('hidden', !podcastOn());
   // A single edition needs no switcher.
   $('briefModeBar')?.classList.toggle('hidden', !FEATURES.rapid && !podcastOn());
-  for (const [btn, key] of [[fullBtn, 'full'], [rapidBtn, 'rapid'], [podcastBtn, 'podcast']]) {
+  for (const [btn, key] of [[podcastBtn, 'podcast'], [fullBtn, 'full'], [rapidBtn, 'rapid']]) {
     if (!btn) continue;
     btn.classList.toggle('on', mode === key);
     btn.setAttribute('aria-checked', String(mode === key));
@@ -356,25 +376,37 @@ function renderHero() {
 function renderPersonas() {
   const row = $('personaRow');
   if (!row) return;
+  const isPodcast = activeMode() === 'podcast';
   const activeVoiceId = state.briefing?.voice?.id || state.profile?.settings?.voice || DEFAULT_VOICE_ID;
   const available = new Set(state.briefing?.availableVoices || []);
+  const hintEl = $('narratorSheetHint');
+  if (hintEl) {
+    hintEl.textContent = isPodcast
+      ? 'Podcast mode uses pre-selected co-hosts (Matthew & Kelly). Switch to Full Brief on the player to customize your narrator.'
+      : 'All four narrators read the daily briefing for the Full Brief edition. Pick who you\'d like to hear.';
+  }
   row.replaceChildren(...VOICES.map((v) => {
-    const on = v.id === activeVoiceId;
+    const on = !isPodcast && v.id === activeVoiceId;
     const isReady = available.size === 0 || available.has(v.id);
     const btn = h('button', {
       type: 'button',
-      class: 'persona' + (on ? ' on' : '') + (!isReady ? ' unready' : ''),
+      class: 'persona' + (on ? ' on' : '') + (!isReady ? ' unready' : '') + (isPodcast ? ' is-locked' : ''),
       'aria-pressed': String(on),
+      disabled: isPodcast,
       dataset: { voice: v.id },
     },
       h('span', { class: 'persona-avatar' }, icon(v.icon || 'mic')),
       h('span', { class: 'persona-text' },
         h('span', { class: 'persona-name' }, v.name),
-        h('span', { class: 'persona-desc' }, isReady ? (v.style || v.desc) : 'Pending for today')
+        h('span', { class: 'persona-desc' }, isPodcast ? 'Pre-selected for Full Brief only' : (isReady ? (v.style || v.desc) : 'Pending for today'))
       ),
-      isReady ? null : h('span', { class: 'persona-status' }, 'Pending')
+      isPodcast ? h('span', { class: 'persona-status' }, 'Locked') : (isReady ? null : h('span', { class: 'persona-status' }, 'Pending'))
     );
     btn.addEventListener('click', async () => {
+      if (isPodcast) {
+        toast('Podcast mode is voiced by co-hosts Matthew & Kelly. Switch to Full Brief to choose a narrator.');
+        return;
+      }
       if (v.id === activeVoiceId) {
         $('narratorSheet')?.close();
         return;
@@ -999,6 +1031,10 @@ function bindEvents() {
   const narrSheet = $('narratorSheet');
   if (narrSheet) wireSheet(narrSheet);
   const openNarratorSheet = () => {
+    if (activeMode() === 'podcast') {
+      toast('Podcast mode is voiced by co-hosts Matthew & Kelly. Switch to Full Brief to choose a narrator.');
+      return;
+    }
     renderPersonas();
     narrSheet?.showModal();
   };

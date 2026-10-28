@@ -734,6 +734,7 @@ body:not([data-tab="today"]) .search, body:not([data-tab="today"]) .status-chip 
   transition: border-color .2s, background-color .2s;
 }
 .narrator-chip:hover { border-color: var(--accent-line); background: var(--accent-soft); }
+.narrator-chip.is-podcast-locked:hover { border-color: var(--line); background: var(--well); cursor: default; }
 .narrator-glyph { display: grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: 50%; color: var(--accent-ink); background: var(--accent); }
 .narrator-glyph svg { width: 1rem; height: 1rem; }
 .narrator-text { display: flex; flex-direction: column; line-height: 1.15; }
@@ -1038,6 +1039,9 @@ main { flex: 1; }
 }
 .narrator-pill-btn svg { width: .9rem; height: .9rem; color: var(--accent-text); }
 .narrator-pill-btn:hover { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-text); transform: translateY(-1px); }
+.narrator-pill-btn.is-podcast-locked { cursor: default; }
+.narrator-pill-btn.is-podcast-locked:hover { background: rgba(15, 23, 42, .04); border-color: rgba(15, 23, 42, .08); color: var(--ink-2); transform: none; }
+:root[data-theme="dark"] .narrator-pill-btn.is-podcast-locked:hover { background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .1); color: var(--ink); }
 
 /* Recessed acoustic console deck (eliminates nested box borders) */
 .wave-panel {
@@ -1190,6 +1194,8 @@ main { flex: 1; }
   box-shadow: 0 8px 24px -14px rgba(245, 158, 11, .6);
 }
 .persona.busy { opacity: .7; pointer-events: none; }
+.persona.is-locked { opacity: .55; cursor: not-allowed; }
+.persona.is-locked:hover { transform: none; border-color: var(--line); background: var(--well); }
 .persona-avatar { display: grid; place-items: center; flex: none; width: 2.6rem; height: 2.6rem; border-radius: var(--r); color: var(--ink-2); background: var(--well-strong); }
 .persona-avatar svg { width: 1.25rem; height: 1.25rem; }
 .persona.on .persona-avatar { color: var(--accent-ink); background: var(--accent); }
