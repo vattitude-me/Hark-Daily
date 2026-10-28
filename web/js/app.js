@@ -16,7 +16,7 @@ const state = {
   status: null,
   archiveDates: [],
   reported: new Set(store.get('reported', [])),
-  mode: store.get('brief-mode', 'full'),
+  mode: store.get('brief-mode', 'podcast'),
   packContext: null,
 };
 

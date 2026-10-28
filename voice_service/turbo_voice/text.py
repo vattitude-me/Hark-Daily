@@ -69,6 +69,14 @@ def parse(text: str, *, beat: float = DEFAULT_BEAT) -> list[Say | Pause]:
     if not text:
         return []
 
+    # Em-dashes and en-dashes cause Chatterbox's punc_norm to convert them to
+    # hyphens, making the voice rush through without breathing. Replace them
+    # with a comma so the voice pauses naturally.
+    text = re.sub(r"\s*[—–]\s*", ", ", text)
+    text = re.sub(r"\s+-\s+", ", ", text)
+    text = re.sub(r",\s*,+", ",", text)
+    text = re.sub(r",\s*([.!?])", r"\1", text)
+
     # Unify every "pause here" spelling behind one sentinel, prefixed so a span
     # that happens to be all digits ("2026") is never mistaken for a duration.
     # A blank line is a paragraph break, which reads as a beat of its own.

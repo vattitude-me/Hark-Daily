@@ -1075,7 +1075,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         dates.value = emptyList()
         selected.value = null
         briefing.value = null
-        briefingMode.value = "full"
+        briefingMode.value = "podcast"
         invalidatePacks()
         currentPack = null
         packLoadingDate.value = null

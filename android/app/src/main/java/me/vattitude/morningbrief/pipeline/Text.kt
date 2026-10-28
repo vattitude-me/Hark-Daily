@@ -114,6 +114,7 @@ fun speakable(input: String): String {
     text = text.replace("&", " and ").replace("%", " percent").replace("…", ".")
     text = text.replace(Regex("[\u2010\u2011\u00ad]"), "-") // the hyphens models use that voices trip on
     text = text.replace(Regex("\\s*[—–]\\s*"), ", ")
+    text = text.replace(Regex("\\s+-\\s+"), ", ")
     text = MONEY.replace(text) { m ->
         val prefix = m.groupValues[1]
         val currency = when (prefix.uppercase()) {

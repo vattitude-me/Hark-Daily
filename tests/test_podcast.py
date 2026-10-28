@@ -219,3 +219,10 @@ def test_captions_have_no_tags_but_voice_gets_them(cfg, voice):
     run(podcast.build_podcast(_cfg(cfg), store, SCRIPTS, day="2026-10-27", base="http://v"))
     assert any("[" in line for _, line in voice)
     assert all("[" not in r["text"] for r in store.tables["podcast_clips"])
+
+
+def test_clean_replaces_emdashes_and_endashes():
+    assert podcast._clean("News today — AI is booming – and fast") == "News today, AI is booming, and fast"
+    assert podcast._clean("Ready —. Yes.") == "Ready. Yes."
+    turns = podcast.validate_turns([{"speaker": "a", "text": "Hello — how are you?"}], "open")
+    assert turns == [(0, "Hello, how are you?")]

@@ -188,8 +188,8 @@ export class WelcomeSheet {
     document.getElementById('welcomeInstallBtn').addEventListener('click', async () => {
       if (await promptInstall()) toast('Installed. Next time, open Hark Daily from your home screen.');
     });
-    // Edition switcher (Full Brief vs 90s Rapid Fire)
-    this.preferredMode = store.get('brief-mode', 'full');
+    // Edition switcher (Full Brief vs 90s Rapid Fire vs Podcast)
+    this.preferredMode = store.get('brief-mode', 'podcast');
     const fullBtn = document.getElementById('welcomeModeFull');
     const rapidBtn = document.getElementById('welcomeModeRapid');
     const podcastBtn = document.getElementById('welcomeModePodcast');
@@ -234,7 +234,7 @@ export class WelcomeSheet {
     this.steps = askName ? ['name', 'morning'] : ['morning'];
     this.disabled = null;
     this.added = 0;
-    this.preferredMode = store.get('brief-mode', 'full');
+    this.preferredMode = store.get('brief-mode', 'podcast');
     this.paintMode();
     const canPush = pushSupported() && Notification.permission !== 'denied';
     this.offeredPush = canPush;

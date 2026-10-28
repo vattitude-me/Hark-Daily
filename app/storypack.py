@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import platform
+import re
 import shutil
 import subprocess
 import tempfile
@@ -521,13 +522,19 @@ async def synthesise(client: httpx.AsyncClient, base: str, text: str, voice: str
     unreachable raises VoiceServiceDown, so the run stops at once and the GPU VM is shut down
     instead of timing out clip after clip; any other refusal is about this clip alone.
     """
+    # Remove em-dashes and en-dashes so TTS voices pause naturally instead of rushing
+    clean_text = re.sub(r"\s*[—–]\s*", ", ", text)
+    clean_text = re.sub(r"\s+-\s+", ", ", clean_text)
+    clean_text = re.sub(r",\s*,+", ",", clean_text)
+    clean_text = re.sub(r",\s*([.!?])", r"\1", clean_text)
+
     delay = 5
     last: Exception | None = None
     down = False
     for attempt in range(1, attempts + 1):
         try:
             resp = await client.post(f"{base}/synthesize", params={"format": "mp3"},
-                                     json={"text": text, "voice": voice})
+                                     json={"text": clean_text, "voice": voice})
         except httpx.HTTPError as exc:
             last, down = exc, True
         else:
