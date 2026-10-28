@@ -1,60 +1,36 @@
-# Morning Brief v2 — voice service
+# Hark Daily — Voice Service
 
-Server-side **Chatterbox-Turbo** voice for the Morning Brief briefing. It synthesizes
-the daily news stories using custom neural cloned narrators (Alice & Mike).
+Local **Chatterbox-Turbo** neural text-to-speech service running on Apple Silicon via PyTorch Metal Performance Shaders (MPS).
 
-## What this folder is
+## Overview
 
-The **voice service** component of the parent Morning Brief repo: the
-Chatterbox-Turbo API that turns a briefing script into audio. The web app / PWA,
-the Android app and the nightly worker live elsewhere in the repo (`web/`,
-`android/`, `app/`).
+A lightweight FastAPI service exposing endpoints to synthesize news stories and dialogue using zero-shot voice cloning. Reference voice clips reside in `data/voices/` (including `c3po_reference`, `matthew_reference`, and `kelly_reference`).
 
-Everything here is self-contained, with its own venv and dependencies, because
-Turbo needs PyTorch on Apple Silicon: the worker runs on the NAS and calls this
-service over the LAN instead of loading the model in its own Docker image.
-
-## Layout
+## Directory Layout
 
 ```text
-api/            FastAPI app and the built-in sample bulletin
-turbo_voice/    Chatterbox-Turbo engine and the script -> spans text layer
-data/voices/    reference clips; each filename becomes a selectable voice
-scripts/        smoke tests: engine-only (smoke.py) and over HTTP (api_smoke.py)
-tests/          unit tests for the text layer, no model required
-docs/postman/   the Postman collection for the HTTP API
+api/            FastAPI application and endpoints (:8090)
+turbo_voice/    Chatterbox-Turbo engine, span timing, and emotion tag parser
+data/voices/    Reference audio clips (.wav) and conditioned embeddings (.pt)
+scripts/        Smoke test scripts (smoke.py, api_smoke.py)
+tests/          Unit tests for the text processing layer
 ```
-
-The scripts write generated audio to `out/`, which is git-ignored.
-
-## Why a separate service
-
-Turbo is a PyTorch model that wants a GPU. MPS (Apple Silicon) is **not**
-available inside Docker on macOS, so this runs as a native venv, and the v1
-worker on the NAS calls it over HTTP. That keeps scheduling, fetching, the LLM
-script, push and Supabase on the NAS, and only text and audio cross the LAN.
 
 ## Requirements
 
-- Python 3.11 (Chatterbox's tested version)
-- Apple Silicon for `mps`, or any CPU (much slower)
-- A reference clip **longer than 5 seconds** — Turbo is zero-shot, it clones
+- Python 3.11
+- Apple Silicon Mac (`mps` acceleration enabled)
+- Reference voice clips (`.wav`, 10–15 seconds of clean speech)
 
-## Setup
+## Quickstart
 
-```sh
+```bash
+# Set up Python 3.11 environment
 uv venv --python 3.11 .venv
 uv pip install --python .venv/bin/python -e .
-mkdir -p data/voices && cp your_voice.wav data/voices/reference.wav
-```
 
-Put a clean single-speaker recording of the voice you want in
-`data/voices/reference.wav`. Around 10–15 seconds of natural speech works best.
-
-## Run
-
-```sh
-.venv/bin/uvicorn --app-dir . api.app:app --host 0.0.0.0 --port 8090
+# Run FastAPI server
+.venv/bin/uvicorn api.app:app --host 127.0.0.1 --port 8090
 ```
 
 Environment: `VOICE_DIR` (default `data/voices`), `VOICE_REFERENCE` (default
