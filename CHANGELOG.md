@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.66] - 2026-10-28
+
+### Fixed
+- **Audio Queue & Lineup Desynchronization on Story Count Changes**:
+  - `Briefing.mediaId` now incorporates a cryptographic fingerprint of the card lineup and voice (`$version-$hash`), ensuring ExoPlayer detects when story counts, section order, or narrators change.
+  - Previously, `Briefing.mediaId` was static (`$date-$mode@$version`), causing ExoPlayer to ignore lineup changes and continue playing stale audio clips (e.g. reading removed Politics stories while highlighting unrelated Tech stories on screen).
+  - Added double verification in `load()` checking both `mediaId` and `mediaItemCount` mismatch.
+  - Seamless resume: if the currently playing story remains in the modified lineup, playback seamlessly resumes at the exact second; if the story was removed by the user, playback cleanly resets and stops.
+  - Web PWA: updated `saveAll()` to immediately rebuild and reload `state.briefing` upon saving topic/source changes.
+- Bumped PWA service worker cache to `hark-daily-v18` and Android version to `0.1.66` (`166`).
+
+---
+
 ## [0.1.65] - 2026-10-27
 
 ### Added

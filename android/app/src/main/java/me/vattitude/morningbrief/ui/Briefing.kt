@@ -27,8 +27,13 @@ data class Briefing(
     val mode: String = "full",
     val podcastFallback: Boolean = false,
 ) {
-    /** Changes whenever the audio is recorded again, so the player knows to reload it. */
-    val mediaId: String get() = "$date-$mode@$version"
+    /** Changes whenever the audio lineup or recording changes, so the player knows to reload it. */
+    val mediaId: String get() {
+        val lineup = cards.joinToString(",") { it.id }
+        val v = if (voiceId.isNotEmpty()) voiceId else voiceName.replace(" ", "_")
+        val hash = (lineup + "|" + v).hashCode().toUInt().toString(16)
+        return "$date-$mode@$version-$hash"
+    }
     val isRapid: Boolean get() = mode == "rapid"
     val isPodcast: Boolean get() = mode == "podcast"
 

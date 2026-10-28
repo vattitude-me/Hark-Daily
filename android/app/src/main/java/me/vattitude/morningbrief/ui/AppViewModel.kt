@@ -108,8 +108,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val packs = mutableMapOf<String, Pack?>()
     /** The pack the player is on, so positions can be read across the whole playlist. */
     private var currentPack: Pack? = null
-    /** Where to carry on after the narrator changes: the second we were at, and whether it was playing. */
+    /** Where to carry on after settings/narrator change: position or specific card, and whether it was playing. */
     private var resumeAt: Double? = null
+    private var resumeCardId: String? = null
+    private var resumeCardOffset: Double = 0.0
     private var resumePlaying = false
 
     val sources = MutableStateFlow<List<Source>>(emptyList())
@@ -399,10 +401,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             BuildState.clearError()
             val c = load(packDate, briefingMode.value)
             tick()
-            // A narrator switch keeps the listener where they were.
-            resumeAt?.let { at ->
+            // If settings changed or narrator switched, resume gracefully without playing removed stories.
+            if (resumeCardId != null) {
+                val targetCard = activePack.briefing.cards.firstOrNull { it.id == resumeCardId }
+                if (c != null) {
+                    if (targetCard != null) {
+                        val seekTarget = (targetCard.start + resumeCardOffset).coerceIn(targetCard.start, targetCard.end)
+                        seekGlobal(c, seekTarget, play = resumePlaying)
+                    } else {
+                        // The story that was playing was removed by new story counts. Reset cleanly.
+                        c.stop()
+                        c.seekTo(0, 0L)
+                    }
+                }
+                resumeCardId = null
+                resumeCardOffset = 0.0
+                resumeAt = null
+                resumePlaying = false
+            } else if (resumeAt != null) {
+                val at = resumeAt!!
                 if (c != null) seekGlobal(c, at, play = resumePlaying)
                 resumeAt = null
+                resumePlaying = false
             }
         } else if (briefing.value == null) {
             repo.briefings.dates().firstOrNull()?.let { repo.briefings.load(it) }?.let {
@@ -626,7 +646,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val b = pack?.briefing ?: briefing.value?.takeIf { it.date == date }
             ?: repo.briefings.load(date)?.let { Briefing.from(it) }
         val id = b?.mediaId ?: "$date-$m"
-        if (c.currentMediaItem?.mediaId != id) {
+        val countMismatch = pack != null && pack.clips.isNotEmpty() && c.mediaItemCount != pack.clips.size
+        if (c.currentMediaItem?.mediaId != id || countMismatch) {
             if (pack != null && pack.clips.isNotEmpty()) {
                 // One MediaItem per clip: Media3 queues them, so a section's intro flows
                 // straight into its first story with no gap and no re-encoding. The breath
@@ -824,7 +845,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (old.voice != new.voice) {
                 switchNarrator()
             } else if (old.sectionOrder != new.sectionOrder || old.stories != new.stories) {
+                val c = controller
                 val date = selected.value ?: LocalDate.now().toString()
+                val currentCard = briefing.value?.cards?.firstOrNull { mine ->
+                    val pos = c?.let { globalPosition(it) } ?: 0.0
+                    pos >= mine.start && pos < mine.end
+                }
+                val cardOffset = if (currentCard != null && c != null) {
+                    (globalPosition(c) - currentCard.start).coerceAtLeast(0.0)
+                } else 0.0
+                val wasPlaying = c?.isPlaying == true
+                c?.pause()
+                resumeCardId = currentCard?.id
+                resumeCardOffset = cardOffset
+                resumePlaying = wasPlaying
                 invalidatePacks()
                 fetchPack(date)
             }
