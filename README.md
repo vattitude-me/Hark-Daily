@@ -32,7 +32,7 @@ No ads. No tracking. Zero doom-scrolling.
   * **Interactive Live Demo**: Audition all active narrators and switch voices seamlessly in the live web player at [**hark.vattitude.ca**](https://hark.vattitude.ca)—no sign-up required.
 * **Dual Listening Modes**:
   * **Full Briefing** — Immersive radio-style listening with spoken section intros and dynamic greetings.
-  * **Rapid Briefing** — Swift, continuous headline flow designed for listeners on the go.
+  * **Podcast** (feature-flagged) — The same news with two hosts chatting around it, adapting to the topics you follow.
 * **Time-Adaptive Audio**: Adapts greetings (`Good morning`, `Good afternoon`, `Good evening`) to your local timezone.
 * **Permanent Static Notes Architecture**: Greetings, section transitions, and sign-offs are voiced once and stored in a permanent static repository (`notes/static/`), verified before GPU shutdown to ensure $0 recurring compute costs.
 * **Interactive Follow-Along**: Story cards highlight and auto-scroll in sync with the audio. Tap any story card to seek directly to it.

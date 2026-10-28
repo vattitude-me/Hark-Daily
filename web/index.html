@@ -171,7 +171,7 @@
           <ul class="landing-points">
             <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Choose the topics you follow and their order</span></li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Four narrators: Alice, Mike, Jerry and C-3PO</span></li>
-            <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Full Edition or ⚡ Rapid Fire (top 5 stories @ 1.1x)</span></li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Full Brief, or a Podcast edition with two hosts chatting about your news</span></li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Free to listen, with no ads</span></li>
           </ul>
           <div class="landing-cta">
@@ -395,7 +395,12 @@
                     <span>Full Brief</span>
                     <span class="mode-meta" id="modeFullMeta">~10 min</span>
                   </button>
-                  <button type="button" class="seg-opt" id="modeRapidBtn" role="radio" aria-checked="false">
+                  <button type="button" class="seg-opt hidden" id="modePodcastBtn" role="radio" aria-checked="false">
+                    <svg class="mode-icon" aria-hidden="true"><use href="#i-mic"/></svg>
+                    <span>Podcast</span>
+                    <span class="mode-meta" id="modePodcastMeta">Two hosts</span>
+                  </button>
+                  <button type="button" class="seg-opt hidden" id="modeRapidBtn" role="radio" aria-checked="false">
                     <svg class="mode-icon icon-rapid" aria-hidden="true"><use href="#i-bolt"/></svg>
                     <span>Rapid Fire</span>
                     <span class="mode-meta badge-rapid" id="modeRapidMeta">⚡ Top 5 · 1.1x</span>
@@ -577,13 +582,18 @@
                 <span>Full Brief</span>
                 <span class="mode-meta">~10 min</span>
               </button>
-              <button type="button" class="seg-opt" id="welcomeModeRapid" role="radio" aria-checked="false">
+              <button type="button" class="seg-opt hidden" id="welcomeModePodcast" role="radio" aria-checked="false">
+                <svg class="mode-icon" aria-hidden="true"><use href="#i-mic"/></svg>
+                <span>Podcast</span>
+                <span class="mode-meta">Two hosts</span>
+              </button>
+              <button type="button" class="seg-opt hidden" id="welcomeModeRapid" role="radio" aria-checked="false">
                 <svg class="mode-icon icon-rapid" aria-hidden="true"><use href="#i-bolt"/></svg>
                 <span>Rapid Fire</span>
                 <span class="mode-meta badge-rapid">⚡ Top 5 · 1.1x</span>
               </button>
             </div>
-            <p class="hint">Full depth across all your topics, or the day's 5 top stories read at brisk 1.1x speed.</p>
+            <p class="hint">Full depth across all your topics, or Podcast: the same news with two hosts chatting around it.</p>
           </div>
           <div class="setting-group" id="welcomePushRow">
             <h3>Morning notification</h3>

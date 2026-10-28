@@ -22,6 +22,9 @@ export function splitSentences(text) {
   return parts.length ? parts : [clean];
 }
 
+/** Where a briefing's playback position is remembered: each edition has its own timeline. */
+const posKeyFor = (b) => (b?.mode && b.mode !== 'full' ? `pos-${b.date}-${b.mode}` : `pos-${b?.date}`);
+
 export class Player extends EventTarget {
   constructor() {
     super();
@@ -200,7 +203,7 @@ export class Player extends EventTarget {
       return;
     }
     this.setPlaying(false);
-    const posKey = this.briefing?.mode === 'rapid' ? `pos-${this.briefing?.date}-rapid` : `pos-${this.briefing?.date}`;
+    const posKey = posKeyFor(this.briefing);
     store.set(posKey, 0);
     this.el.state.textContent = 'Finished';
     this.el.title.textContent = "That's today's briefing. Have a great day!";
@@ -233,7 +236,7 @@ export class Player extends EventTarget {
     if (this.clips) this.loadClip(0);
     else this.audio.src = briefing.audio_url;
     this.buildSegments();
-    const posKey = briefing.mode === 'rapid' ? `pos-${briefing.date}-rapid` : `pos-${briefing.date}`;
+    const posKey = posKeyFor(briefing);
     const saved = store.get(posKey, 0);
     if (saved > 5 && (!briefing.duration || saved < briefing.duration - 5)) this.seekTo(saved);
     this.tick();
@@ -369,7 +372,7 @@ export class Player extends EventTarget {
     const dur = this.total || b.duration || 0;
     const t = this.position;
     if (t > 0 && Math.round(t) % 5 === 0) {
-      const posKey = b.mode === 'rapid' ? `pos-${b.date}-rapid` : `pos-${b.date}`;
+      const posKey = posKeyFor(b);
       store.set(posKey, t);
       this.syncPositionState();
     }

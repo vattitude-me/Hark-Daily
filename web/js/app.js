@@ -7,6 +7,7 @@ import { SettingsPage } from './pages/settings.js';
 import { AdminPage } from './pages/admin.js';
 import { buildBriefing as buildPackBriefing, READY_KEY } from './storypack.js';
 import { applyPhotoMode } from './design.js';
+import { FEATURES } from '../config.js';
 
 const state = {
   briefing: null,
@@ -212,19 +213,34 @@ function renderNotice() {
 }
 
 /* -------------------------------------------------------------------- hero */
+/** Podcast needs the front-end switch (config.js) and the server flag (app_status) both on. */
+function podcastOn() {
+  return FEATURES.podcast && Boolean(state.status?.podcast?.enabled);
+}
+
+/** The edition to build: a stored choice that has since been switched off falls back to Full. */
+function activeMode() {
+  if (state.mode === 'podcast') return podcastOn() ? 'podcast' : 'full';
+  if (state.mode === 'rapid') return FEATURES.rapid ? 'rapid' : 'full';
+  return 'full';
+}
+
 function syncModePicker() {
   const fullBtn = $('modeFullBtn');
   const rapidBtn = $('modeRapidBtn');
+  const podcastBtn = $('modePodcastBtn');
   const hero = $('hero');
-  const isRapid = state.mode === 'rapid';
+  const mode = activeMode();
+  const isRapid = mode === 'rapid';
 
-  if (fullBtn) {
-    fullBtn.classList.toggle('on', !isRapid);
-    fullBtn.setAttribute('aria-checked', String(!isRapid));
-  }
-  if (rapidBtn) {
-    rapidBtn.classList.toggle('on', isRapid);
-    rapidBtn.setAttribute('aria-checked', String(isRapid));
+  rapidBtn?.classList.toggle('hidden', !FEATURES.rapid);
+  podcastBtn?.classList.toggle('hidden', !podcastOn());
+  // A single edition needs no switcher.
+  $('briefModeBar')?.classList.toggle('hidden', !FEATURES.rapid && !podcastOn());
+  for (const [btn, key] of [[fullBtn, 'full'], [rapidBtn, 'rapid'], [podcastBtn, 'podcast']]) {
+    if (!btn) continue;
+    btn.classList.toggle('on', mode === key);
+    btn.setAttribute('aria-checked', String(mode === key));
   }
   if (hero) {
     hero.classList.toggle('is-rapid', isRapid);
@@ -238,8 +254,8 @@ function setBriefingMode(mode) {
   syncModePicker();
 
   if (state.packContext) {
-    const { rows, settings, date, notes, fresh } = state.packContext;
-    const briefing = buildPackBriefing(rows, settings, { date, voice: settings.voice, notes, mode });
+    const { rows, settings, date, notes, fresh, podcastClips } = state.packContext;
+    const briefing = buildPackBriefing(rows, settings, { date, voice: settings.voice, notes, mode: activeMode(), podcastClips });
     if (briefing) {
       briefing.fresh = fresh;
       const wasPlaying = player.isPlaying;
@@ -248,7 +264,9 @@ function setBriefingMode(mode) {
       if (wasPlaying) {
         player.audio.play().catch(() => {});
       }
-      toast(mode === 'rapid' ? 'Rapid Fire active · Top 5 stories @ 1.1x speed ⚡' : 'Full Edition active ☀️');
+      if (briefing.podcastFallback) toast("Podcast isn't ready today, so here's the full brief.");
+      else toast(mode === 'rapid' ? 'Rapid Fire active · Top 5 stories @ 1.1x speed ⚡'
+        : mode === 'podcast' ? 'Podcast active · two hosts, same news 🎙️' : 'Full Edition active ☀️');
     }
   }
 }
@@ -687,13 +705,15 @@ async function loadStoryPack(day) {
     }
     if (!rows.length) return null;
     const notes = await api.voiceNotes(date);
-    const briefing = buildPackBriefing(rows, settings, { date, voice: settings.voice, notes, mode: state.mode });
+    // Banter is optional extra; if it can't be fetched the brief is built without it.
+    const podcastClips = podcastOn() ? await api.podcastClips(date).catch(() => []) : [];
+    const briefing = buildPackBriefing(rows, settings, { date, voice: settings.voice, notes, mode: activeMode(), podcastClips });
     if (!briefing) return null;
     // A day is playable only once its narrator's clips and framing are all published. Without this
     // a pack that is mid-recording, or being re-recorded, plays two voices inside one brief.
     if (!notes.some((n) => n.note_key === READY_KEY && n.voice === briefing.voice.id)) return null;
     briefing.fresh = date === today;
-    state.packContext = { rows, settings, date, notes, fresh: briefing.fresh };
+    state.packContext = { rows, settings, date, notes, fresh: briefing.fresh, podcastClips };
     return briefing;
   } catch {
     return null;  // no pack that day, or the story_audio table isn't there yet
@@ -838,6 +858,7 @@ function bindEvents() {
   // Action buttons
   $('modeFullBtn')?.addEventListener('click', () => setBriefingMode('full'));
   $('modeRapidBtn')?.addEventListener('click', () => setBriefingMode('rapid'));
+  $('modePodcastBtn')?.addEventListener('click', () => setBriefingMode('podcast'));
   $('reorderBtn')?.addEventListener('click', () => switchTab('sources'));
   $('playAllBtn')?.addEventListener('click', () => {
     player.seekTo(0);
@@ -942,6 +963,7 @@ async function start() {
     // loadStoryPack falls back to the most recent one and renderNotice says so.
     state.briefing = await loadStoryPack(today);
     state.briefingLoading = false;
+    if (state.briefing?.podcastFallback) toast("Podcast isn't ready today, so here's the full brief.");
     displayBriefing();
   } catch (err) {
     state.briefingLoading = false;

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.62] - 2026-10-27
+
+### Added
+- **Podcast mode (web, feature-flagged)**: two configurable hosts (`PODCAST_HOSTS`, default Matthew and Kelly) chat around the day's news. Banter is written once a day by the existing Gemini/Groq chain with validated output and a built-in template fallback ([`app/podcast.py`](app/podcast.py)), voiced per host, and assembled client-side to match each listener's categories within a 90 s banter budget.
+- Kill switches on both sides: `PODCAST_ENABLED` (server, off by default, published via `app_status`) and `FEATURES.podcast` (`web/config.js`). Any failure leaves the Full Brief untouched.
+- `podcast_clips` table in `supabase/schema.sql` (run it before enabling the flag).
+
+### Changed
+- Rapid Fire is hidden (`FEATURES.rapid = false`), not removed. Android parity is next.
+- Bumped PWA cache to `hark-daily-v15`.
+
+---
+
 ## [0.1.61] - 2026-10-27
 
 ### Added

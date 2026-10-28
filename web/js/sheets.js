@@ -1,5 +1,6 @@
 // Install helpers, push notifications, welcome + delete-account sheets.
 import { SECTIONS, api, h, sectionLabel, toast, store } from './api.js';
+import { FEATURES } from '../config.js';
 
 export function wireSheet(dialog) {
   dialog.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => dialog.close()));
@@ -191,18 +192,33 @@ export class WelcomeSheet {
     this.preferredMode = store.get('brief-mode', 'full');
     const fullBtn = document.getElementById('welcomeModeFull');
     const rapidBtn = document.getElementById('welcomeModeRapid');
+    const podcastBtn = document.getElementById('welcomeModePodcast');
     const setMode = (mode) => {
       this.preferredMode = mode;
-      fullBtn?.classList.toggle('on', mode === 'full');
-      fullBtn?.setAttribute('aria-checked', String(mode === 'full'));
-      rapidBtn?.classList.toggle('on', mode === 'rapid');
-      rapidBtn?.setAttribute('aria-checked', String(mode === 'rapid'));
+      this.paintMode();
     };
     fullBtn?.addEventListener('click', () => setMode('full'));
     rapidBtn?.addEventListener('click', () => setMode('rapid'));
+    podcastBtn?.addEventListener('click', () => setMode('podcast'));
 
     // Chrome may only offer the install prompt after the sheet is already open.
     onInstallChange(() => { if (this.dialog.open) this.paintInstall(); });
+  }
+
+  /** Show only the editions that are switched on (config.js and the server flag), and mark the choice. */
+  paintMode() {
+    const offered = { full: true, rapid: FEATURES.rapid, podcast: FEATURES.podcast && Boolean(this.status?.podcast?.enabled) };
+    if (!offered[this.preferredMode]) this.preferredMode = 'full';
+    const ids = { full: 'welcomeModeFull', rapid: 'welcomeModeRapid', podcast: 'welcomeModePodcast' };
+    for (const [key, id] of Object.entries(ids)) {
+      const btn = document.getElementById(id);
+      if (!btn) continue;
+      if (key !== 'full') btn.classList.toggle('hidden', !offered[key]);
+      btn.classList.toggle('on', this.preferredMode === key);
+      btn.setAttribute('aria-checked', String(this.preferredMode === key));
+    }
+    // One edition needs no chooser.
+    document.getElementById('welcomeModeGroup')?.classList.toggle('hidden', !offered.rapid && !offered.podcast);
   }
 
   paintInstall() {
@@ -219,12 +235,7 @@ export class WelcomeSheet {
     this.disabled = null;
     this.added = 0;
     this.preferredMode = store.get('brief-mode', 'full');
-    const fullBtn = document.getElementById('welcomeModeFull');
-    const rapidBtn = document.getElementById('welcomeModeRapid');
-    fullBtn?.classList.toggle('on', this.preferredMode === 'full');
-    fullBtn?.setAttribute('aria-checked', String(this.preferredMode === 'full'));
-    rapidBtn?.classList.toggle('on', this.preferredMode === 'rapid');
-    rapidBtn?.setAttribute('aria-checked', String(this.preferredMode === 'rapid'));
+    this.paintMode();
     const canPush = pushSupported() && Notification.permission !== 'denied';
     this.offeredPush = canPush;
     document.getElementById('welcomePushRow').classList.toggle('hidden', !canPush);
