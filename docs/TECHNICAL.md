@@ -176,10 +176,9 @@ The TTS service in [`voice_service/`](file:///Users/vattitude/Coding/Morning_Bri
 
 #### `GET /voices`
 Lists available voice reference clips in `voice_service/data/voices/`:
-- `c3po_reference` — C-3PO (Polite protocol droid, flagship narrator)
-- `her_reference` — Alice (Warm British newsreader, alternate narrator)
-- `jerry_reference` — Jerry (Observational wit)
-- `him_reference` — Mike (Crisp American morning news)
+- `c3po_reference` — C-3PO (Polite protocol droid, permanent flagship anchor)
+- `matthew_reference` — Matthew (Calm American newsreader, modular neural narrator)
+- `kelly_reference` — Kelly (Engaging American newsreader, modular neural narrator)
 
 #### `POST /synthesize?format=mp3`
 ```http
@@ -249,7 +248,7 @@ Synthesized audio files are stored in Supabase Storage (`briefings` bucket) and 
 | `GCE_ZONE` | `us-central1-c` | Zone containing the GPU VM |
 | `GCE_INSTANCE` | `morning-brief-voice` | Compute Engine VM instance name |
 | `GCE_MANAGE_VM` | `true` | Enables automatic VM boot, dynamic IP resolution, and shutdown |
-| `STORY_VOICES` | `c3po_reference,her_reference` | Comma-separated voices to render during daily batch (C-3PO default, Alice alternate) |
+| `STORY_VOICES` | `c3po_reference,matthew_reference,kelly_reference` | Comma-separated voices to render during daily batch (C-3PO flagship, modular neural narrators) |
 | `BRIEFING_TIMEZONE` | `America/Toronto` | Primary timezone for schedule calculations |
 | `VAPID_PRIVATE_KEY` | `...` | Key for Web Push delivery |
 | `VAPID_PUBLIC_KEY` | `...` | Public key distributed to clients for push subscription |

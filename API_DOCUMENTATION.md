@@ -122,21 +122,15 @@ Lists all available voice reference clips located on disk (`data/voices/`), thei
       "usable": true
     },
     {
-      "name": "her_reference",
-      "file": "her_reference.wav",
-      "seconds": 15.22,
+      "name": "matthew_reference",
+      "file": "matthew_reference.wav",
+      "seconds": 7.49,
       "usable": true
     },
     {
-      "name": "him_reference",
-      "file": "him_reference.wav",
-      "seconds": 18.04,
-      "usable": true
-    },
-    {
-      "name": "jerry_reference",
-      "file": "jerry_reference.wav",
-      "seconds": 22.15,
+      "name": "kelly_reference",
+      "file": "kelly_reference.wav",
+      "seconds": 6.13,
       "usable": true
     }
   ]
@@ -225,7 +219,7 @@ import httpx
 
 payload = {
     "text": "Good morning. Here is the latest in science.",
-    "voice": "her_reference"
+    "voice": "matthew_reference"
 }
 with httpx.Client(timeout=120.0) as client:
     resp = client.post("http://127.0.0.1:8090/synthesize?format=mp3", json=payload)
@@ -297,7 +291,7 @@ Renders a structured sample bulletin with synchronized span timings for interact
 ```bash
 curl -X POST http://127.0.0.1:8090/news/sample \
   -H "Content-Type: application/json" \
-  -d '{"voice": "her_reference"}'
+  -d '{"voice": "matthew_reference"}'
 ```
 
 ---
@@ -317,7 +311,7 @@ Hark Daily publishes atomic briefing packs to Supabase. Web and mobile clients i
   * `date` (`text`): Briefing date in ISO format (`YYYY-MM-DD`).
   * `section` (`text`): Category (`top`, `ai`, `tech`, `politics`, `entertainment`, `science`, `sports`).
   * `rank` (`integer`): Story ranking within the section (`1` to `5`).
-  * `voice` (`text`): Reference voice ID (`c3po_reference`, `her_reference`).
+  * `voice` (`text`): Reference voice ID (`c3po_reference`, `matthew_reference`, `kelly_reference`, or custom neural persona).
   * `title` (`text`): Clean news headline.
   * `url` (`text`): Original article canonical URL.
   * `source` (`text`): Publisher attribution (e.g., `"ScienceDaily · Science"`).

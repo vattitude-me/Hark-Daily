@@ -80,7 +80,9 @@ class Config:
     # Every voice the pack renders each day. A listener hears the one they picked, and the
     # clips are shared, so the cost is stories × voices rather than × listeners.
     story_voices: tuple[str, ...] = tuple(
-        v.strip() for v in os.getenv("STORY_VOICES", "c3po_reference,her_reference").split(",") if v.strip()
+        v.strip()
+        for v in os.getenv("STORY_VOICES", "c3po_reference,matthew_reference,kelly_reference").split(",")
+        if v.strip()
     )
     stories_per_section: int = int(os.getenv("STORIES_PER_SECTION", "5"))
     # GCE VM automated lifecycle (Chatterbox-Turbo on-demand GPU VM)

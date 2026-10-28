@@ -5,7 +5,7 @@
 # 🎙️ Hark Daily
 
 **The news you hear, not just read.**  
-A concise daily audio briefing from **CBC News**, **TechCrunch**, and **BetaKit**, voiced by neural personas led by **C-3PO** and **Alice**.  
+A concise daily audio briefing from **CBC News**, **TechCrunch**, **ScienceDaily**, and **BetaKit**, voiced by neural personas anchored by flagship narrator **C-3PO** alongside modular neural voices.  
 No ads. No tracking. Zero doom-scrolling.
 
 [![Web PWA](https://img.shields.io/badge/Web-PWA_Ready-2f6fed?style=flat-square&logo=googlechrome&logoColor=white)](web/)
@@ -94,7 +94,7 @@ Native Android application built with Jetpack Compose, Compose Material3 tokens,
 ### Android
 1. Download the latest signed APK from [GitHub Releases](https://github.com/vattitude-me/Hark-Daily/releases).
 2. Install on any device running Android 10+ (API 29+).
-3. Select your preferred voice narrator (**C-3PO** or **Alice**) and start listening.
+3. Select your preferred voice narrator (flagship anchor **C-3PO** or modular neural narrators such as **Matthew** and **Kelly**) and start listening.
 
 ---
 
