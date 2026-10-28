@@ -215,7 +215,7 @@ function renderNotice() {
 /* -------------------------------------------------------------------- hero */
 /** Podcast needs the front-end switch (config.js) and the server flag (app_status) both on. */
 function podcastOn() {
-  return FEATURES.podcast && Boolean(state.status?.podcast?.enabled);
+  return FEATURES.podcast && state.status?.podcast?.enabled !== false;
 }
 
 /** The edition to build: a stored choice that has since been switched off falls back to Full. */
@@ -711,7 +711,20 @@ async function loadStoryPack(day) {
     if (!briefing) return null;
     // A day is playable only once its narrator's clips and framing are all published. Without this
     // a pack that is mid-recording, or being re-recorded, plays two voices inside one brief.
-    if (!notes.some((n) => n.note_key === READY_KEY && n.voice === briefing.voice.id)) return null;
+    const hasReadyMarkers = notes.some((n) => n.note_key === READY_KEY);
+    if (hasReadyMarkers) {
+      const hosts = (briefing.voice?.id || '').split('+').filter(Boolean);
+      const isReady = hosts.length > 0
+        ? hosts.every((h) => notes.some((n) => n.note_key === READY_KEY && n.voice === h))
+        : notes.some((n) => n.note_key === READY_KEY && n.voice === briefing.voice?.id);
+      if (!isReady) {
+        if (day === today) {
+          const latest = await api.latestStoryDate();
+          if (latest && latest !== today) return loadStoryPack(latest);
+        }
+        return null;
+      }
+    }
     briefing.fresh = date === today;
     state.packContext = { rows, settings, date, notes, fresh: briefing.fresh, podcastClips };
     return briefing;
@@ -995,6 +1008,12 @@ async function start() {
     // The shared pack *is* the briefing now. When today's hasn't been published yet,
     // loadStoryPack falls back to the most recent one and renderNotice says so.
     state.briefing = await loadStoryPack(today);
+    if (!state.briefing) {
+      const latest = await api.latestStoryDate();
+      if (latest && latest !== today) {
+        state.briefing = await loadStoryPack(latest);
+      }
+    }
     state.briefingLoading = false;
     if (state.briefing?.podcastFallback) toast("Podcast isn't ready today, so here's the full brief.");
     displayBriefing();

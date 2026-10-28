@@ -186,6 +186,42 @@ async function userId() {
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+let cachedPublicPack = null;
+let cachedPublicPackAt = 0;
+
+export async function publicPack(date = null) {
+  const now = Date.now();
+  if (cachedPublicPack && now - cachedPublicPackAt < 60000) {
+    const cachedDate = cachedPublicPack.date || cachedPublicPack.briefing?.date || '';
+    if (!date || !cachedDate || cachedDate === date) {
+      return cachedPublicPack;
+    }
+  }
+  const urls = [];
+  if (date) {
+    urls.push(`${SUPABASE_URL}/storage/v1/object/public/briefings/showcase/pack-${date}.json?t=${Math.floor(now / 60000)}`);
+  }
+  urls.push(`${SUPABASE_URL}/storage/v1/object/public/briefings/showcase/pack.json?t=${Math.floor(now / 60000)}`);
+  urls.push(`${SUPABASE_URL}/storage/v1/object/public/briefings/showcase/sample.json?t=${Math.floor(now / 60000)}`);
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const obj = await res.json();
+        if (obj && (obj.story_audio || obj.rows || obj.briefing)) {
+          cachedPublicPack = obj;
+          cachedPublicPackAt = now;
+          return obj;
+        }
+      }
+    } catch {
+      // Continue next URL
+    }
+  }
+  return null;
+}
+
 export const api = {
   // ------------------------------------------------------------------ auth
   session: async () => (await sb.auth.getSession()).data.session,
@@ -207,6 +243,7 @@ export const api = {
   },
 
   // ------------------------------------------------------------- briefings
+
   async latest() {
     const rows = check(await sb.from('briefings').select('data').order('date', { ascending: false }).limit(1));
     return { briefing: rows[0]?.data || null };
@@ -220,49 +257,93 @@ export const api = {
     const base = 'date,section,rank,voice,title,url,source';
     const rest = 'script,duration,audio_path';
     try {
-      return check(await sb.from('story_audio')
-        .select(`${base},image,${rest}`).eq('date', day)) || [];
+      const res = await sb.from('story_audio')
+        .select(`${base},image,${rest}`).eq('date', day);
+      const rows = check(res);
+      if (rows && rows.length > 0) return rows;
     } catch {
-      // The image column may not exist on an older schema; a brief without
-      // thumbnails still works, so fall back rather than losing the whole brief.
-      return check(await sb.from('story_audio')
-        .select(`${base},${rest}`).eq('date', day)) || [];
+      try {
+        const res = await sb.from('story_audio')
+          .select(`${base},${rest}`).eq('date', day);
+        const rows = check(res);
+        if (rows && rows.length > 0) return rows;
+      } catch {
+        // Fall back to storage CDN
+      }
     }
+    const pack = await publicPack(day);
+    if (!pack) return [];
+    const packDate = pack.date || pack.briefing?.date || '';
+    if (day && packDate && packDate !== day) return [];
+    return pack.story_audio || pack.rows || [];
   },
   async storyDates() {
-    const rows = check(await sb.from('story_audio').select('date').order('date', { ascending: false }).limit(120));
-    return [...new Set((rows || []).map((r) => r.date))];
+    try {
+      const rows = check(await sb.from('story_audio').select('date').order('date', { ascending: false }).limit(120));
+      if (rows && rows.length > 0) return [...new Set(rows.map((r) => r.date))];
+    } catch {
+      // Fall back
+    }
+    const latest = await this.latestStoryDate();
+    return latest ? [latest] : [];
   },
   /** The day's greeting and section intros (see app/storypack.py). */
   async voiceNotes(day) {
     try {
-      return check(await sb.from('voice_notes')
-        .select('voice,note_key,text,duration,audio_path').eq('date', day)) || [];
+      const rows = check(await sb.from('voice_notes')
+        .select('voice,note_key,text,duration,audio_path').eq('date', day));
+      if (rows && rows.length > 0) return rows;
     } catch {
-      return [];  // table not created yet — a brief without framing still works
+      // Fall back to storage CDN
     }
+    const pack = await publicPack(day);
+    if (!pack) return [];
+    const packDate = pack.date || pack.briefing?.date || '';
+    if (day && packDate && packDate !== day) return [];
+    return pack.voice_notes || pack.notes || [];
   },
   /** The day's podcast banter pieces (see app/podcast.py). Empty when the mode is off or not built. */
   async podcastClips(day) {
     try {
-      return check(await sb.from('podcast_clips')
-        .select('hosts,clip_key,text,duration,audio_path').eq('date', day)) || [];
+      const rows = check(await sb.from('podcast_clips')
+        .select('hosts,clip_key,text,duration,audio_path').eq('date', day));
+      if (rows && rows.length > 0) return rows;
     } catch {
-      return [];  // table not created yet: the full brief still works
+      // Fall back
     }
+    const pack = await publicPack(day);
+    if (!pack) return [];
+    const packDate = pack.date || pack.briefing?.date || '';
+    if (day && packDate && packDate !== day) return [];
+    return pack.podcast_clips || [];
   },
   /** The most recent date that has a pack — used when today's hasn't been published yet. */
   async latestStoryDate() {
-    const rows = check(await sb.from('story_audio').select('date').order('date', { ascending: false }).limit(1));
-    return rows[0]?.date || null;
+    try {
+      const rows = check(await sb.from('story_audio').select('date').order('date', { ascending: false }).limit(1));
+      if (rows && rows[0]?.date) return rows[0].date;
+    } catch {
+      // Fall back to storage CDN
+    }
+    const pack = await publicPack();
+    const packDate = pack?.date || pack?.briefing?.date || null;
+    return packDate || null;
   },
   async archive() {
-    const rows = check(await sb.from('briefings').select('date').order('date', { ascending: false }));
-    return { briefings: rows };
+    try {
+      const rows = check(await sb.from('briefings').select('date').order('date', { ascending: false }));
+      return { briefings: rows || [] };
+    } catch {
+      return { briefings: [] };
+    }
   },
   async status() {
-    const rows = check(await sb.from('app_status').select('data').eq('id', 1).limit(1));
-    return rows[0]?.data || {};
+    try {
+      const rows = check(await sb.from('app_status').select('data').eq('id', 1).limit(1));
+      return rows[0]?.data || {};
+    } catch {
+      return {};
+    }
   },
 
   // ------------------------------------------------------------------ admin
