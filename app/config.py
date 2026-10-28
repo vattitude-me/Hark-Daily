@@ -85,6 +85,14 @@ class Config:
         if v.strip()
     )
     stories_per_section: int = int(os.getenv("STORIES_PER_SECTION", "5"))
+    # Podcast mode: two hosts chat around the news. The flag is the kill switch (server side:
+    # nothing is generated and the app hides the mode); the hosts are any two voice ids.
+    podcast_enabled: bool = _bool("PODCAST_ENABLED")
+    podcast_hosts: tuple[str, ...] = tuple(
+        v.strip()
+        for v in os.getenv("PODCAST_HOSTS", "matthew_reference,kelly_reference").split(",")
+        if v.strip()
+    )[:2]
     # GCE VM automated lifecycle (Chatterbox-Turbo on-demand GPU VM)
     gcp_project: str = os.getenv("GCP_PROJECT", "project-67937e0a-4d2d-43ea-9ba")
     gce_zone: str = os.getenv("GCE_ZONE", "us-central1-c")

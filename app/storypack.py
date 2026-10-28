@@ -171,7 +171,7 @@ def prune_older(store, *, keep: str) -> list[str]:
     Static notes at STATIC_DATE and audio in notes/static/ are permanent and never deleted.
     """
     days: list[str] = []
-    for table in ("story_audio", "voice_notes"):
+    for table in ("story_audio", "voice_notes", "podcast_clips"):
         rows = store.select(table, {"date": f"lt.{keep}"})
         if table == "voice_notes":
             rows = [r for r in rows if str(r.get("date")) > STATIC_DATE]
@@ -821,6 +821,16 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
         rows += mine
 
     log.info("Published %d clips (%.1fs of audio)", len(rows), total_seconds(rows))
+
+    # Podcast banter is optional extra: whatever goes wrong here, the brief above is already published.
+    if cfg.podcast_enabled and finished:
+        from . import podcast
+        try:
+            clips = await podcast.build_podcast(cfg, store, scripts, day=day, base=base, force=force)
+            log.info("Published %d podcast pieces", len(clips))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Podcast not (fully) published: %s: %s", exc.__class__.__name__, exc)
+        tick("podcast")
     # The landing page's sample rides along with the pack, so it can't quietly go stale.
     try:
         for name in finished:

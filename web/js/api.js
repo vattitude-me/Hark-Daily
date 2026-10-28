@@ -242,6 +242,15 @@ export const api = {
       return [];  // table not created yet — a brief without framing still works
     }
   },
+  /** The day's podcast banter pieces (see app/podcast.py). Empty when the mode is off or not built. */
+  async podcastClips(day) {
+    try {
+      return check(await sb.from('podcast_clips')
+        .select('hosts,clip_key,text,duration,audio_path').eq('date', day)) || [];
+    } catch {
+      return [];  // table not created yet: the full brief still works
+    }
+  },
   /** The most recent date that has a pack — used when today's hasn't been published yet. */
   async latestStoryDate() {
     const rows = check(await sb.from('story_audio').select('date').order('date', { ascending: false }).limit(1));

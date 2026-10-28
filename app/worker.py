@@ -58,6 +58,7 @@ class Worker:
             "writer": "groq" if self.cfg.groq_api_key else "built-in",
             "vapid_public_key": push.load_keys(self.cfg)["public_key"],
             "voices": voices,
+            "podcast": {"enabled": self.cfg.podcast_enabled, "hosts": list(self.cfg.podcast_hosts)},
             "limits": {"max_custom_sources": self.cfg.max_custom_sources, "max_stories": 10},
         }
 

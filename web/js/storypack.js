@@ -111,6 +111,55 @@ export function greetingKey(hour = new Date().getHours()) {
   return 'greeting_evening';
 }
 
+/** The marker clip a host pair's day carries once its banter is published (app/podcast.py). */
+export const PODCAST_READY_KEY = 'podcast_ready';
+/** Total banter, in seconds, a podcast brief may add around the news: the news is the priority. */
+export const PODCAST_BUDGET = 90;
+/** Sections that get a teaser, so a six-section lineup doesn't open with a minute of chat. */
+const MAX_TEASERS = 3;
+
+function stableHash(text) {
+  let n = 0;
+  for (let i = 0; i < text.length; i += 1) n = (n * 31 + text.charCodeAt(i)) >>> 0;
+  return n;
+}
+
+/**
+ * Choose the banter for one listener's lineup, or null when the day has no usable podcast.
+ *
+ * `clips` are the day's podcast_clips rows. A day is usable only if a host pair published its ready
+ * marker and has an opening and a closing. After those, teasers (first sections first) and then
+ * section bridges are added while they fit the budget, so 3 categories get a short chat and 7 do
+ * not get a long one. Missing pieces are simply skipped: banter is never required for the news.
+ */
+export function planPodcast(clips, sections, seed = '') {
+  const rows = clips || [];
+  const hosts = rows.filter((c) => c.clip_key === PODCAST_READY_KEY).map((c) => c.hosts).sort()[0];
+  if (!hosts) return null;
+  const mine = rows.filter((c) => c.hosts === hosts && c.clip_key !== PODCAST_READY_KEY && c.audio_path);
+  const byKey = new Map(mine.map((c) => [c.clip_key, c]));
+  const variant = (kind) => {
+    const all = mine.filter((c) => c.clip_key.startsWith(`pod_${kind}_`)).sort((a, b) => a.clip_key.localeCompare(b.clip_key));
+    return all.length ? all[stableHash(`${seed}:${kind}`) % all.length] : null;
+  };
+  const open = variant('open');
+  const close = variant('close');
+  if (!open || !close) return null;
+  const length = (c) => Number(c.duration) || 0;
+  let used = length(open) + length(close);
+  const teasers = [];
+  for (const key of sections.slice(0, MAX_TEASERS)) {
+    const c = byKey.get(`pod_tease_${key}`);
+    if (c && used + length(c) <= PODCAST_BUDGET) { teasers.push(c); used += length(c); }
+  }
+  const bridges = new Map();
+  for (const key of sections) {
+    const c = byKey.get(`pod_bridge_${key}`);
+    if (c && used + length(c) <= PODCAST_BUDGET) { bridges.set(key, c); used += length(c); }
+  }
+  return { hosts, open, teasers, bridges, close, banter: used };
+}
+
 /**
  * Turn the day's shared rows into a briefing the existing UI and player understand.
  *
@@ -119,9 +168,13 @@ export function greetingKey(hour = new Date().getHours()) {
  * reads like a programme rather than a playlist. Notes become clusters on the same
  * timeline, so they are seekable and never overlap a story.
  *
+ * In `podcast` mode the two hosts' banter pieces (`podcastClips`) replace the greeting, section intros
+ * and sign-off. If the day has no usable podcast, the result is the normal full brief with
+ * `podcastFallback: true` so the UI can say so.
+ *
  * Returns `null` when the listener's lineup selects nothing (or the day has no pack).
  */
-export function buildBriefing(rows, settings, { date, voice, notes = [], hour, mode = 'full' } = {}) {
+export function buildBriefing(rows, settings, { date, voice, notes = [], hour, mode = 'full', podcastClips = [] } = {}) {
   const isRapid = mode === 'rapid';
   const id = pickVoice(rows, voice);
   const userOrder = (settings && Array.isArray(settings.section_order) && settings.section_order.length)
@@ -168,6 +221,12 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
     (notes || []).filter((n) => !id || n.voice === id).map((n) => [n.note_key, n]),
   );
 
+  const pod = mode === 'podcast'
+    ? planPodcast(podcastClips, order.filter((key) => chosen.some((r) => r.section === key && r.rank === 1)),
+      `${date}:${id || ''}`)
+    : null;
+  const isPodcast = Boolean(pod);
+
   const clips = [];
   const stories = [];
   const chapters = [];
@@ -197,13 +256,32 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
     cursor += duration;
   };
 
-  sayNote(greetingKey(hour));
+  /** A banter clip from the podcast hosts, placed on the timeline like a note. */
+  const sayBanter = (clip) => {
+    if (!clip) return;
+    breath();
+    const duration = Number(clip.duration) || 0;
+    const start = round(cursor);
+    const end = round(cursor + duration);
+    clips.push({ id: clip.clip_key, url: clipUrl(clip.audio_path), duration, section: null, rank: 0,
+      title: clip.text, start, end, note: true, banter: true });
+    chapters.push({ id: clip.clip_key, kind: 'note', title: clip.text, start, end });
+    cursor += duration;
+  };
+
+  if (isPodcast) {
+    sayBanter(pod.open);
+    pod.teasers.forEach(sayBanter);
+  } else {
+    sayNote(greetingKey(hour));
+  }
 
   let currentSection = null;
   for (const row of chosen) {
     // In rapid mode, skip section intros to deliver a swift, continuous headline flow
     if (!isRapid && row.section !== currentSection) {
-      sayNote(`intro_${row.section}`);
+      if (isPodcast) sayBanter(pod.bridges.get(row.section));
+      else sayNote(`intro_${row.section}`);
       currentSection = row.section;
     }
     breath();
@@ -228,7 +306,8 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
   }
 
   // The sign-off, after a breath, so the brief does not stop dead on the last story.
-  sayNote('outro');
+  if (isPodcast) sayBanter(pod.close);
+  else sayNote('outro');
 
   const sections = order
     .filter((key) => counts.has(key))
@@ -238,8 +317,9 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
 
   return {
     date,
-    title: isRapid ? 'Rapid Fire · Top 5 Stories' : 'Your briefing',
-    mode: isRapid ? 'rapid' : 'full',
+    title: isRapid ? 'Rapid Fire · Top 5 Stories' : isPodcast ? 'Your briefing · Podcast' : 'Your briefing',
+    mode: isRapid ? 'rapid' : isPodcast ? 'podcast' : 'full',
+    podcastFallback: mode === 'podcast' && !isPodcast,
     duration: round(cursor),
     generated_at: new Date().toISOString(),
     voice: {
