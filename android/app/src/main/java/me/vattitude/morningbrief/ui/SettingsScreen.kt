@@ -189,24 +189,6 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
             val isPodcast = briefingMode == "podcast"
             GlassGroup {
                 Row(
-                    Modifier.fillMaxWidth().clickable { vm.setBriefingMode("full") }.padding(vertical = 12.dp, horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        Modifier.size(38.dp).clip(CircleShape).background(if (!isPodcast) t.accent else t.track),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Outlined.WbSunny, null, Modifier.size(20.dp), tint = if (!isPodcast) t.accentInk else t.muted)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Standard Edition", style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = t.ink)
-                        Text("Full comprehensive morning brief (~10–15 min)", style = Type.tiny, color = t.muted)
-                    }
-                    CheckDot(!isPodcast)
-                }
-                Hairline()
-                Row(
                     Modifier.fillMaxWidth().clickable { vm.setBriefingMode("podcast") }.padding(vertical = 12.dp, horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -230,6 +212,24 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                         Text("Two hosts chatting around today's stories (~10 min)", style = Type.tiny, color = t.muted)
                     }
                     CheckDot(isPodcast)
+                }
+                Hairline()
+                Row(
+                    Modifier.fillMaxWidth().clickable { vm.setBriefingMode("full") }.padding(vertical = 12.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier.size(38.dp).clip(CircleShape).background(if (!isPodcast) t.accent else t.track),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.WbSunny, null, Modifier.size(20.dp), tint = if (!isPodcast) t.accentInk else t.muted)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Standard Edition", style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = t.ink)
+                        Text("Full comprehensive morning brief (~10–15 min)", style = Type.tiny, color = t.muted)
+                    }
+                    CheckDot(!isPodcast)
                 }
             }
 
@@ -374,7 +374,7 @@ private fun NarratorGroup(vm: AppViewModel) {
         }
         Hairline()
         Hint(
-            "All four voices are recorded each morning from the same stories, so switching only changes who you hear. It starts with your next brief.",
+            "All four voices are recorded each morning from the same stories for the Standard Edition, so switching only changes who you hear. Podcast Edition uses co-hosts.",
             Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
         )
         Hairline()

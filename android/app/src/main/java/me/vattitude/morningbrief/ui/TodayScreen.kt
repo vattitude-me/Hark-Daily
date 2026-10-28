@@ -392,7 +392,7 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     }
             ) {
                 Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
-                    // Briefing Edition Switcher: Full Brief vs Podcast (Clean single-line pills)
+                    // Briefing Edition Switcher: Podcast vs Full Brief (Clean single-line pills)
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -402,38 +402,6 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                             .padding(2.5.dp),
                         horizontalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
-                        val fullOn = !isPodcast && !isRapid
-                        Row(
-                            Modifier
-                                .weight(1f)
-                                .height(32.dp)
-                                .clip(CircleShape)
-                                .background(if (fullOn) t.accent else Color.Transparent)
-                                .clickable { vm.setBriefingMode("full") }
-                                .padding(horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                Icons.Outlined.WbSunny,
-                                contentDescription = null,
-                                modifier = Modifier.size(13.dp),
-                                tint = if (fullOn) t.accentInk else t.muted
-                            )
-                            Spacer(Modifier.width(5.dp))
-                            Text(
-                                "Full Brief",
-                                style = Type.value.copy(fontSize = 11.5.sp, fontWeight = if (fullOn) FontWeight.Bold else FontWeight.Medium),
-                                color = if (fullOn) t.accentInk else t.muted
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                "~10m",
-                                style = Type.tiny.copy(fontSize = 10.sp),
-                                color = if (fullOn) t.accentInk.copy(alpha = 0.8f) else t.muted.copy(alpha = 0.7f)
-                            )
-                        }
-
                         val podcastOn = isPodcast
                         Row(
                             Modifier
@@ -463,6 +431,38 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                                 "Two hosts",
                                 style = Type.tiny.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
                                 color = if (podcastOn) t.accentInk.copy(alpha = 0.9f) else t.muted
+                            )
+                        }
+
+                        val fullOn = !isPodcast && !isRapid
+                        Row(
+                            Modifier
+                                .weight(1f)
+                                .height(32.dp)
+                                .clip(CircleShape)
+                                .background(if (fullOn) t.accent else Color.Transparent)
+                                .clickable { vm.setBriefingMode("full") }
+                                .padding(horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                Icons.Outlined.WbSunny,
+                                contentDescription = null,
+                                modifier = Modifier.size(13.dp),
+                                tint = if (fullOn) t.accentInk else t.muted
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                "Full Brief",
+                                style = Type.value.copy(fontSize = 11.5.sp, fontWeight = if (fullOn) FontWeight.Bold else FontWeight.Medium),
+                                color = if (fullOn) t.accentInk else t.muted
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                "~10m",
+                                style = Type.tiny.copy(fontSize = 10.sp),
+                                color = if (fullOn) t.accentInk.copy(alpha = 0.8f) else t.muted.copy(alpha = 0.7f)
                             )
                         }
                     }

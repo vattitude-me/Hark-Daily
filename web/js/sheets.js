@@ -208,8 +208,8 @@ export class WelcomeSheet {
   /** Show only the editions that are switched on (config.js and the server flag), and mark the choice. */
   paintMode() {
     const offered = { full: true, rapid: FEATURES.rapid, podcast: FEATURES.podcast && Boolean(this.status?.podcast?.enabled) };
-    if (!offered[this.preferredMode]) this.preferredMode = 'full';
-    const ids = { full: 'welcomeModeFull', rapid: 'welcomeModeRapid', podcast: 'welcomeModePodcast' };
+    if (!offered[this.preferredMode]) this.preferredMode = offered.podcast ? 'podcast' : 'full';
+    const ids = { podcast: 'welcomeModePodcast', full: 'welcomeModeFull', rapid: 'welcomeModeRapid' };
     for (const [key, id] of Object.entries(ids)) {
       const btn = document.getElementById(id);
       if (!btn) continue;
