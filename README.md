@@ -31,14 +31,14 @@ No ads. No tracking. Zero doom-scrolling.
   * Anchored by permanent flagship narrator **C-3PO** alongside a modular, rotating roster of neural personas across conversational, broadcast, and character delivery styles.
   * **Interactive Live Demo**: Audition all active narrators and switch voices seamlessly in the live web player at [**hark.vattitude.ca**](https://hark.vattitude.ca)—no sign-up required.
 * **Dual Listening Modes**:
-  * **Full Briefing** — Immersive radio-style listening with spoken section intros and dynamic greetings.
-  * **Podcast** (feature-flagged) — The same news with two hosts chatting around it, adapting to the topics you follow.
+  * **Podcast (Default)** — Two dynamic co-hosts (**Matthew & Kelly**) banter and unpack the day's stories with natural cadence, expressive turns, and broadcast title framing, adapting to the topics you follow.
+  * **Full Briefing** — Immersive radio-style listening with individual story narration, spoken section intros, and dynamic greetings.
 * **Time-Adaptive Audio**: Adapts greetings (`Good morning`, `Good afternoon`, `Good evening`) to your local timezone.
-* **Permanent Static Notes Architecture**: Greetings, section transitions, and sign-offs are voiced once and stored in a permanent static repository (`notes/static/`), verified before GPU shutdown to ensure $0 recurring compute costs.
+* **Permanent Static Notes Architecture**: Greetings, section transitions, and sign-offs are voiced once and stored in a permanent static repository (`notes/static/`), verified before voice service exit to ensure $0 recurring compute costs.
 * **Interactive Follow-Along**: Story cards highlight and auto-scroll in sync with the audio. Tap any story card to seek directly to it.
 * **Pull-Down-to-Refresh**: Native Android gesture on `TodayScreen` to instantly re-check for the latest stories and audio updates.
 * **Custom Topic Ordering**: Drag and reorder topics to prioritize the sections you care about first.
-* **Cost-Efficient Cloud Infrastructure**: Fully automated Google Cloud Run orchestration that starts on-demand GCE L4 GPU VMs for batch synthesis and terminates them immediately to prevent idle cloud billing.
+* **Zero-Cost Local Hardware Acceleration**: Automated batch synthesis runs locally on Apple Silicon (M3 Pro) using PyTorch Metal Performance Shaders (MPS), with automated `launchd` daemons and a dual morning/evening power relay. Zero cloud GPU bills, zero external rental fees.
 * **Strict Privacy by Design**: No sponsored stories, no advertising networks, no tracking pixels, and no algorithmic rabbit holes.
 
 ---
@@ -100,7 +100,8 @@ Native Android application built with Jetpack Compose, Compose Material3 tokens,
 
 ## 🛠️ Developer Documentation
 
-- [**Technical & Architecture Guide (`docs/TECHNICAL.md`)**](docs/TECHNICAL.md) — Architecture diagrams, Supabase schema, Cloud Run jobs, and GCE GPU automation.
+- [**Technical & Architecture Guide (`docs/TECHNICAL.md`)**](docs/TECHNICAL.md) — Architecture diagrams, Supabase schema, Apple Silicon MPS pipeline, and dual-edition power relay.
+- [**Automated Daily Pack Run Guide (`docs/nightly.md`)**](docs/nightly.md) — macOS launchd automation, sleep/wake power management, and manual CLI operations.
 - [**Android App Guide (`android/README.md`)**](android/README.md) — Gradle build steps, Compose architecture, and release signing.
 - [**Voice Service Guide (`voice_service/README.md`)**](voice_service/README.md) — Chatterbox-Turbo TTS service, FastAPI endpoints, GPU acceleration, and voice reference clips.
 - [**Privacy Policy (`web/privacy.html`)**](web/privacy.html) — Clear statement on data minimization and privacy.
