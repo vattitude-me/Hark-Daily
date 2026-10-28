@@ -895,6 +895,113 @@ main { flex: 1; }
   .guest-banner-actions .pill-btn { white-space: nowrap; }
 }
 
+/* Guided Notice Banner (e.g. Podcast Voice Info) */
+.notice-banner {
+  position: relative;
+  padding: 1.15rem 1.3rem;
+  margin-bottom: 1.25rem;
+  border-radius: var(--r-xl);
+  background: color-mix(in oklab, var(--glass) 88%, var(--accent-soft));
+  border: 1px solid var(--accent-line);
+  box-shadow: var(--shadow-sm);
+  animation: fadeIn .3s var(--ease);
+}
+.notice-banner-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.notice-banner-icon {
+  flex: none;
+  width: 2.6rem;
+  height: 2.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border: 1px solid var(--accent-line);
+}
+:root[data-theme="dark"] .notice-banner-icon {
+  background: rgba(245, 158, 11, .15);
+  color: var(--accent);
+  border-color: rgba(245, 158, 11, .3);
+}
+.notice-banner-content {
+  flex: 1;
+  min-width: 0;
+}
+.notice-banner-header {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  margin-bottom: .25rem;
+}
+.notice-banner-title {
+  font-family: var(--font-head);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  margin: 0;
+  color: var(--ink);
+}
+.notice-banner-desc {
+  color: var(--muted);
+  font-size: .875rem;
+  line-height: 1.45;
+  margin: 0 0 .85rem;
+}
+.notice-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+}
+.notice-banner-actions .pill-btn {
+  font-size: .8125rem;
+}
+.notice-banner-close {
+  flex: none;
+  opacity: .6;
+  transition: opacity .2s var(--ease);
+}
+.notice-banner-close:hover {
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .notice-banner {
+    padding: .85rem 1rem;
+    margin-bottom: .85rem;
+    border-radius: var(--r-lg);
+  }
+  .notice-banner-main {
+    gap: .75rem;
+  }
+  .notice-banner-icon {
+    width: 2.2rem;
+    height: 2.2rem;
+  }
+  .notice-banner-icon svg {
+    width: 1rem;
+    height: 1rem;
+  }
+  .notice-banner-title {
+    font-size: .95rem;
+  }
+  .notice-banner-desc {
+    font-size: .8125rem;
+    margin-bottom: .65rem;
+    line-height: 1.4;
+  }
+  .notice-banner-actions {
+    gap: .4rem;
+  }
+  .notice-banner-actions .pill-btn {
+    font-size: .78rem;
+  }
+}
+
 /* =============================================================== HERO AUDIO CONSOLE */
 .hero {
   position: relative;
@@ -1500,18 +1607,40 @@ body:has(.save-bar:not(.hidden)) .mini-player { bottom: 5.25rem; }
 
 /* =================================================================== TOAST */
 .toast {
-  position: fixed; z-index: 120; left: 50%; top: 1.25rem; transform: translate(-50%, -150%);
-  display: flex; align-items: center; gap: .65rem; max-width: min(32rem, calc(100vw - 2rem));
-  padding: .75rem 1.1rem; border-radius: var(--r-full);
-  background: var(--glass-solid); border: 1px solid var(--line-2); box-shadow: var(--shadow-lg);
-  font-size: .875rem; font-weight: 500; opacity: 0; pointer-events: none;
+  position: fixed; z-index: 120; left: 50%; top: calc(1.25rem + env(safe-area-inset-top, 0px));
+  transform: translate(-50%, -150%);
+  display: flex; align-items: flex-start; gap: .75rem;
+  width: auto; max-width: min(30rem, calc(100vw - 2rem));
+  padding: .75rem 1.15rem; border-radius: var(--r-xl);
+  background: var(--glass-solid); border: 1px solid var(--line-2);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, .4), var(--shadow-sm);
+  font-size: .875rem; font-weight: 500; line-height: 1.45; opacity: 0; pointer-events: none;
   transition: transform .35s var(--ease), opacity .3s;
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
 }
-.toast.show { transform: translate(-50%, 0); opacity: 1; }
-.toast-dot { width: .55rem; height: .55rem; border-radius: 50%; background: var(--info); flex: none; }
+.toast.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+.toast-dot { width: .55rem; height: .55rem; border-radius: 50%; background: var(--info); flex: none; margin-top: .35rem; }
 .toast-success .toast-dot { background: var(--ok); }
 .toast-error { border-color: color-mix(in oklab, var(--err) 40%, transparent); }
 .toast-error .toast-dot { background: var(--err); }
+.toast-text { flex: 1; color: var(--ink); }
+
+@media (max-width: 768px) {
+  /* Clean bottom-anchored floating snackbar on mobile */
+  .toast {
+    top: auto;
+    bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+    transform: translate(-50%, 150%);
+    width: calc(100vw - 2rem);
+    max-width: 26rem;
+    border-radius: var(--r-lg);
+    padding: .75rem 1rem;
+    font-size: .8125rem;
+  }
+  .toast.show {
+    transform: translate(-50%, 0);
+  }
+}
 
 /* ================================================================== SHEETS */
 dialog.sheet {

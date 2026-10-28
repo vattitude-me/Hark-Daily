@@ -382,6 +382,34 @@
               </div>
             </section>
 
+            <!-- Podcast Narrator Guided Banner -->
+            <section class="glass notice-banner podcast-voice-banner hidden" id="podcastVoiceBanner" aria-label="Podcast co-hosts note">
+              <div class="notice-banner-main">
+                <div class="notice-banner-icon" aria-hidden="true">
+                  <svg width="20" height="20"><use href="#i-mic"/></svg>
+                </div>
+                <div class="notice-banner-content">
+                  <div class="notice-banner-header">
+                    <span class="badge badge-accent"><span class="badge-dot" aria-hidden="true"></span>Podcast Edition</span>
+                    <h2 class="notice-banner-title">Voiced by co-hosts</h2>
+                  </div>
+                  <p class="notice-banner-desc">Matthew &amp; Kelly co-host this edition together. To choose an individual narrator (Kelly, Matthew, Jerry, or C-3PO), switch to Full Brief.</p>
+                  <div class="notice-banner-actions">
+                    <button class="pill-btn sm" type="button" id="bannerSwitchFullBtn">
+                      <svg aria-hidden="true" width="14" height="14"><use href="#i-sun"/></svg>
+                      <span>Switch to Full Brief</span>
+                    </button>
+                    <button class="pill-btn glass-btn sm" type="button" id="bannerDismissVoiceBtn">
+                      <span>Keep Podcast</span>
+                    </button>
+                  </div>
+                </div>
+                <button class="icon-btn notice-banner-close" type="button" id="bannerCloseVoiceBtn" aria-label="Dismiss banner" title="Dismiss banner">
+                  <svg><use href="#i-close"/></svg>
+                </button>
+              </div>
+            </section>
+
             <!-- Hero player card -->
             <section class="glass hero hidden" id="hero" aria-label="Audio briefing">
               <div class="brief-mode-bar" id="briefModeBar">
