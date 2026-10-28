@@ -285,4 +285,30 @@ class StoryPackTest {
         assertTrue(fallbackPack.briefing.podcastFallback)
         assertEquals(0, fallbackPack.clips.count { it.banter })
     }
+
+    @Test
+    fun mediaIdChangesWhenStoryCountsOrSectionsChange() {
+        val rows = sampleRows("c3po_reference")
+        val notes = sampleNotes("c3po_reference")
+        val pack1 = StoryPack.assemble(
+            day = "2026-10-22", every = rows, noteRows = notes,
+            stories = mapOf("top" to 3, "politics" to 2),
+            voice = "c3po_reference", mode = "full",
+        )
+        val pack2 = StoryPack.assemble(
+            day = "2026-10-22", every = rows, noteRows = notes,
+            stories = mapOf("top" to 1, "politics" to 2),
+            voice = "c3po_reference", mode = "full",
+        )
+        val pack3 = StoryPack.assemble(
+            day = "2026-10-22", every = rows, noteRows = notes,
+            stories = mapOf("top" to 3, "politics" to 2),
+            voice = "matthew_reference", mode = "full",
+        )
+        assertNotNull(pack1)
+        assertNotNull(pack2)
+        assertNotNull(pack3)
+        assertTrue(pack1!!.briefing.mediaId != pack2!!.briefing.mediaId)
+        assertTrue(pack1.briefing.mediaId != pack3!!.briefing.mediaId)
+    }
 }

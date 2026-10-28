@@ -813,9 +813,29 @@ function syncSaveBar() {
 
 async function saveAll() {
   try {
-    if (sourcesPage?.isDirty()) await sourcesPage.save();
+    let storiesChanged = false;
+    if (sourcesPage?.isDirty()) {
+      await sourcesPage.save();
+      storiesChanged = true;
+    }
     if (settingsPage?.isDirty()) await settingsPage.save();
     toast('Saved.');
+    if (storiesChanged && state.packContext) {
+      if (sourcesPage?.draft?.stories) {
+        state.packContext.settings = {
+          ...state.packContext.settings,
+          stories: sourcesPage.draft.stories,
+          section_order: sourcesPage.draft.section_order,
+        };
+      }
+      const { rows, settings, date, notes, fresh, podcastClips } = state.packContext;
+      const briefing = buildPackBriefing(rows, settings, { date, voice: settings.voice, notes, mode: activeMode(), podcastClips });
+      if (briefing) {
+        briefing.fresh = fresh;
+        state.briefing = briefing;
+        displayBriefing();
+      }
+    }
   } catch (err) {
     toast(err.message, { error: true });
   }
