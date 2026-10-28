@@ -188,6 +188,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             packs.remove(date)
             packs.remove("$date-full")
+            packs.remove("$date-podcast")
             packs.remove("$date-rapid")
         }
     }
@@ -314,7 +315,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         controller?.let { c ->
             val loaded = c.currentMediaItem?.mediaId ?: return@let
             val beforeAt = loaded.substringBefore('@')
-            val date = beforeAt.removeSuffix("-full").removeSuffix("-rapid")
+            val date = beforeAt.removeSuffix("-full").removeSuffix("-podcast").removeSuffix("-rapid")
             val now = packs["$date-${briefingMode.value}"]?.briefing?.mediaId
                 ?: packs[date]?.briefing?.mediaId
                 ?: repo.briefings.load(date)?.let { Briefing.from(it).mediaId }
@@ -360,22 +361,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      */
     private suspend fun doFetchPack(date: String) {
         val st = _settings.value
-        val (fetchedFull, fetchedRapid) = runCatching {
-            StoryPack.fetchBoth(repo.supabase, date, st.stories, st.voice, st.sectionOrder)
-        }.getOrDefault(null to null)
-        var fullPack = fetchedFull
-        var rapidPack = fetchedRapid
-        if (fullPack == null && rapidPack == null) {
+        val packSet = runCatching {
+            StoryPack.fetchAll(repo.supabase, date, st.stories, st.voice, st.sectionOrder)
+        }.getOrDefault(StoryPack.PackSet(null, null, null))
+        var fullPack = packSet.full
+        var podcastPack = packSet.podcast
+        var rapidPack = packSet.rapid
+        if (fullPack == null && podcastPack == null && rapidPack == null) {
             fullPack = StoryPack.fetchShowcase(st.voice, st.stories, st.sectionOrder, mode = "full")
+            podcastPack = StoryPack.fetchShowcase(st.voice, st.stories, st.sectionOrder, mode = "podcast")
             rapidPack = StoryPack.fetchShowcase(st.voice, st.stories, st.sectionOrder, mode = "rapid")
         }
-        val activePack = if (briefingMode.value == "rapid") rapidPack ?: fullPack else fullPack ?: rapidPack
+        val activePack = when (briefingMode.value) {
+            "podcast" -> podcastPack ?: fullPack
+            "rapid" -> rapidPack ?: fullPack
+            else -> fullPack ?: podcastPack ?: rapidPack
+        }
         val packDate = activePack?.briefing?.date ?: date
         if (fullPack != null) {
             packs["$packDate-full"] = fullPack
             packs[packDate] = fullPack
             packs["$date-full"] = fullPack
             packs[date] = fullPack
+        }
+        if (podcastPack != null) {
+            packs["$packDate-podcast"] = podcastPack
+            packs["$date-podcast"] = podcastPack
         }
         if (rapidPack != null) {
             packs["$packDate-rapid"] = rapidPack
@@ -402,7 +413,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun fetchPack(date: String) {
-        if (packs.containsKey("$date-full") && packs.containsKey("$date-rapid")) return
+        if (packs.containsKey("$date-full") && (packs.containsKey("$date-podcast") || packs.containsKey("$date-rapid"))) return
         if (selected.value == date && briefing.value == null) packLoadingDate.value = date
         viewModelScope.launch {
             try {
@@ -458,8 +469,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             } else {
                 val id = c.currentMediaItem?.mediaId
                 val beforeAt = id?.substringBefore('@')
-                val d = beforeAt?.removeSuffix("-full")?.removeSuffix("-rapid")
-                val m = if (id?.contains("-rapid") == true) "rapid" else "full"
+                val d = beforeAt?.removeSuffix("-full")?.removeSuffix("-podcast")?.removeSuffix("-rapid")
+                val m = when {
+                    id?.contains("-podcast") == true -> "podcast"
+                    id?.contains("-rapid") == true -> "rapid"
+                    else -> "full"
+                }
                 if (d != null && currentPack == null) {
                     currentPack = packs["$d-$m"] ?: packs[d]
                 }
@@ -478,8 +493,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val c = controller ?: return
         val id = c.currentMediaItem?.mediaId
         val beforeAt = id?.substringBefore('@')
-        val date = beforeAt?.removeSuffix("-full")?.removeSuffix("-rapid")
-        val m = if (id?.contains("-rapid") == true) "rapid" else "full"
+        val date = beforeAt?.removeSuffix("-full")?.removeSuffix("-podcast")?.removeSuffix("-rapid")
+        val m = when {
+            id?.contains("-podcast") == true -> "podcast"
+            id?.contains("-rapid") == true -> "rapid"
+            else -> "full"
+        }
         if (nowPlaying.value?.mediaId != id && nowPlayingTried != id) {
             nowPlayingTried = id
             nowPlaying.value = date?.let { d ->
@@ -516,7 +535,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             briefing.value = briefing.value?.copy(
                 mode = newMode,
-                title = if (newMode == "rapid") "Rapid Fire · Top 5 Stories" else "Your briefing",
+                title = when (newMode) {
+                    "rapid" -> "Rapid Fire · Top 5 Stories"
+                    "podcast" -> "Your briefing · Podcast"
+                    else -> "Your briefing"
+                },
             )
             invalidatePacks(d)
             fetchPack(d)

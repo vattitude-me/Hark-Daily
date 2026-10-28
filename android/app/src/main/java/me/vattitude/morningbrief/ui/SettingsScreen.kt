@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.FlashOn
 import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.WbSunny
@@ -185,50 +186,50 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
 
             SectionLabel("Edition")
             val briefingMode by vm.briefingMode.collectAsState()
-            val isRapid = briefingMode == "rapid"
+            val isPodcast = briefingMode == "podcast"
             GlassGroup {
                 Row(
                     Modifier.fillMaxWidth().clickable { vm.setBriefingMode("full") }.padding(vertical = 12.dp, horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
-                        Modifier.size(38.dp).clip(CircleShape).background(if (!isRapid) t.accent else t.track),
+                        Modifier.size(38.dp).clip(CircleShape).background(if (!isPodcast) t.accent else t.track),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Outlined.WbSunny, null, Modifier.size(20.dp), tint = if (!isRapid) t.accentInk else t.muted)
+                        Icon(Icons.Outlined.WbSunny, null, Modifier.size(20.dp), tint = if (!isPodcast) t.accentInk else t.muted)
                     }
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text("Standard Edition", style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = t.ink)
                         Text("Full comprehensive morning brief (~10–15 min)", style = Type.tiny, color = t.muted)
                     }
-                    CheckDot(!isRapid)
+                    CheckDot(!isPodcast)
                 }
                 Hairline()
                 Row(
-                    Modifier.fillMaxWidth().clickable { vm.setBriefingMode("rapid") }.padding(vertical = 12.dp, horizontal = 4.dp),
+                    Modifier.fillMaxWidth().clickable { vm.setBriefingMode("podcast") }.padding(vertical = 12.dp, horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
-                        Modifier.size(38.dp).clip(CircleShape).background(if (isRapid) t.accent else t.track),
+                        Modifier.size(38.dp).clip(CircleShape).background(if (isPodcast) t.accent else t.track),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Outlined.FlashOn, null, Modifier.size(20.dp), tint = if (isRapid) t.accentInk else t.muted)
+                        Icon(Icons.Outlined.Mic, null, Modifier.size(20.dp), tint = if (isPodcast) t.accentInk else t.muted)
                     }
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Rapid Fire Edition", style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = t.ink)
+                            Text("Podcast Edition", style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = t.ink)
                             Spacer(Modifier.width(6.dp))
                             Box(
-                                Modifier.clip(CircleShape).background(Color(0xFFFEF3C7)).padding(horizontal = 6.dp, vertical = 2.dp)
+                                Modifier.clip(CircleShape).background(Color(0xFFEDE9FE)).padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
-                                Text("⚡ 1.1× SPEED", style = Type.tiny.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold), color = Color(0xFFB45309))
+                                Text("🎙 TWO HOSTS", style = Type.tiny.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold), color = Color(0xFF6D28D9))
                             }
                         }
-                        Text("Fast-paced morning headline recap (~5 min)", style = Type.tiny, color = t.muted)
+                        Text("Two hosts chatting around today's stories (~10 min)", style = Type.tiny, color = t.muted)
                     }
-                    CheckDot(isRapid)
+                    CheckDot(isPodcast)
                 }
             }
 
