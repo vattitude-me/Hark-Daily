@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.63] - 2026-10-27
+
+### Added
+- **Chatterbox voice tags in podcast banter**: hosts can now `[laugh]`, `[chuckle]`, `[sigh]`, `[gasp]` and so on, performed natively by the voice. Tags are whitelisted, capped at 2 per piece, stripped from the Top stories and Politics banter, and removed from captions. Any other bracketed text rejects the piece.
+
+---
+
 ## [0.1.62] - 2026-10-27
 
 ### Added

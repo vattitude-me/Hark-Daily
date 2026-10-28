@@ -189,3 +189,33 @@ def test_bad_host_config_is_reported_not_crashing(cfg, voice):
     c = dataclasses.replace(cfg, podcast_enabled=True, podcast_hosts=("only_one",))
     with pytest.raises(podcast.PodcastIncomplete):
         run(podcast.build_podcast(c, FakeStore(), SCRIPTS, day="2026-10-27", base="http://v"))
+
+
+# ------------------------------------------------------------------ voice tags
+def _t(text, who="a"):
+    return [{"speaker": who, "text": text}]
+
+
+def test_known_voice_tags_are_kept_and_unknown_brackets_rejected():
+    assert podcast.validate_turns(_t("[Chuckle] Fair point."), "tease", "ai") == [(0, "[chuckle] Fair point.")]
+    assert podcast.validate_turns(_t("[shout] Fair point."), "tease", "ai") is None
+    assert podcast.validate_turns(_t("[[pause:2]] hi"), "open") is None
+
+
+def test_too_many_tags_rejected_and_tags_dont_count_as_words():
+    assert podcast.validate_turns(_t("[laugh] a [sigh] b [gasp] c"), "open") is None
+    just_fits = " ".join(["word"] * podcast.MAX_WORDS["bridge"])
+    assert podcast.validate_turns(_t(f"[chuckle] {just_fits}"), "bridge", "ai") is not None
+
+
+def test_tags_removed_in_sober_sections():
+    assert podcast.validate_turns(_t("[laugh] Big floods today."), "tease", "top") == [(0, "Big floods today.")]
+    assert podcast.validate_turns(_t("[sigh] Tough vote."), "bridge", "politics") == [(0, "Tough vote.")]
+    assert podcast.validate_turns(_t("[laugh] Good morning!"), "open") == [(0, "[laugh] Good morning!")]
+
+
+def test_captions_have_no_tags_but_voice_gets_them(cfg, voice):
+    store = FakeStore()
+    run(podcast.build_podcast(_cfg(cfg), store, SCRIPTS, day="2026-10-27", base="http://v"))
+    assert any("[" in line for _, line in voice)
+    assert all("[" not in r["text"] for r in store.tables["podcast_clips"])

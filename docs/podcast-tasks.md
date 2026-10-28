@@ -38,6 +38,7 @@ Hand-off log: add one line per session at the bottom.
 - [ ] P4.4 Android parity (next): `StoryPack.kt` podcast branch, `Repo`/`Supabase` podcast_clips fetch, mode picker in Today/Settings, hide Rapid, bump versionName/versionCode, add Kotlin test mirroring `tests/js/podcast.test.mjs`
 
 ## Hand-off log
+- 2026-10-27: Added Chatterbox voice tags to banter (0.1.63): whitelist, max 2/piece, stripped in top/politics and in captions. 141 pytest pass, live Groq verified.
 - 2026-10-27: P3 web done (`web/js/storypack.js` planPodcast/buildBriefing, `app.js` flags + fallback, `sheets.js`, `index.html`, `config.js` FEATURES). `node --test tests/js` 8 pass; pytest 137 pass. Released as 0.1.62 (flag off by default). Remaining: P4.2 real run, P4.4 Android.
 - 2026-10-27: P1+P2 done in `app/podcast.py` (+`tests/test_podcast.py`, 137 tests pass; live Groq banter verified). Hooked into `storypack.build()` (isolated). Next: P3 frontend. FE note: keep total banter ≤90 s by adding pieces in priority order (open, teasers for top 3 sections, close, then bridges) until the budget is used; clip rows carry `duration`.
 - 2026-10-27: Decisions: hide Rapid Fire (keep code); host pair is config (`PODCAST_HOSTS`); banter 60–90 s; web first then Android APK; Groq (not Grok). P0 done (pending tests).

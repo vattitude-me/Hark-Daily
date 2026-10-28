@@ -52,7 +52,16 @@ TONE = {
     "sports": "energetic",
 }
 
-Turn = tuple[int, str]  # (0 or 1 for host A or B, text)
+# Chatterbox performs these itself when they appear in the text, which sounds far more human than
+# punctuation can (voice_service/turbo_voice/text.py lists the same set). Anything else in square
+# brackets is rejected so a typo never gets read aloud.
+TAGS = ("laugh", "chuckle", "sigh", "cough", "gasp", "groan", "sniffle", "yawn")
+MAX_TAGS = 2
+# Sections where a laugh or a sigh would be in poor taste: tags are stripped from their banter.
+SOBER_SECTIONS = frozenset({"top", "politics"})
+_TAG = re.compile(r"\[(" + "|".join(TAGS) + r")\]", re.I)
+
+Turn = tuple[int, str]  # (0 or 1 for host A or B, text, which may carry [tags])
 
 
 @dataclass
@@ -101,10 +110,10 @@ def _clean(text: str) -> str:
 # {a} and {b} are the hosts' first names, {h} the headline, {s} the section's title.
 OPEN_TEMPLATES: list[list[Turn]] = [
     [(0, "Good morning, {b}! How are you doing this morning?"),
-     (1, "Doing great, {a}, coffee in hand. Ready to dig into the news?"),
+     (1, "[chuckle] Doing great, {a}, coffee in hand. Ready to dig into the news?"),
      (0, "Always. Let's get into it.")],
     [(0, "Hey {b}, welcome back. Did you sleep okay?"),
-     (1, "Better than most mornings, {a}. And there's plenty to talk about today."),
+     (1, "[sigh] Better than most mornings, {a}. And there's plenty to talk about today."),
      (0, "There is. Let's jump right in.")],
     [(0, "Morning, {b}! Hope you're ready, it's a busy one."),
      (1, "Ready as I'll ever be, {a}. Let's see what's been happening."),
@@ -114,13 +123,13 @@ CLOSE_TEMPLATES: list[list[Turn]] = [
     [(1, "And that's the brief. Thanks for listening."),
      (0, "Have a great day, everyone. See you tomorrow!")],
     [(0, "That's all for this morning."),
-     (1, "Take care out there, and we'll be back tomorrow.")],
+     (1, "[chuckle] Take care out there, and we'll be back tomorrow.")],
 ]
 TEASE_TEMPLATES: dict[str, list[list[Turn]]] = {
     "serious": [[(0, "There's a story today that caught my eye: {h}."), (1, "Yes, that one matters. We'll get into it.")]],
     "warm": [[(0, "First up, {h}."), (1, "A lot to unpack there, so let's start.")]],
     "excited": [[(0, "Some exciting news in {s} today: {h}."), (1, "I've been looking forward to this one.")]],
-    "light": [[(0, "Okay, this one is fun: {h}."), (1, "Ha, I love it. Let's talk about it.")]],
+    "light": [[(0, "Okay, this one is fun: {h}."), (1, "[laugh] I love it. Let's talk about it.")]],
     "energetic": [[(0, "Big news in {s}: {h}."), (1, "Sports fans, this one's for you.")]],
     "curious": [[(0, "Here's one that made me wonder: {h}."), (1, "Same here. Let's see what it says.")]],
 }
@@ -144,7 +153,8 @@ def _fill(turns: list[Turn], hosts: tuple[str, str], piece: Piece) -> list[Turn]
     headline = piece.headline.rstrip(".")
     if len(headline) > 110:
         headline = headline[:107].rsplit(" ", 1)[0] + "..."
-    return [(who, text.format(a=hosts[0], b=hosts[1], h=headline, s=title)) for who, text in turns]
+    filled = [(who, text.format(a=hosts[0], b=hosts[1], h=headline, s=title)) for who, text in turns]
+    return [(who, strip_tags(text)) for who, text in filled] if piece.section in SOBER_SECTIONS else filled
 
 
 def template_piece(piece: Piece, hosts: tuple[str, str]) -> Written:
@@ -167,22 +177,35 @@ def template_piece(piece: Piece, hosts: tuple[str, str]) -> Written:
 _BAD = re.compile(r"https?://|www\.|[*_#`<>\[\]{}]|\bhttp", re.I)
 
 
-def validate_turns(raw, kind: str) -> list[Turn] | None:
-    """Turn the AI's JSON for one piece into clean turns, or None if any rule is broken."""
+def strip_tags(text: str) -> str:
+    """The words alone, for captions, word counts and sober sections."""
+    return _clean(_TAG.sub(" ", text))
+
+
+def validate_turns(raw, kind: str, section: str | None = None) -> list[Turn] | None:
+    """Turn the AI's JSON for one piece into clean turns, or None if any rule is broken.
+
+    Known Chatterbox tags are kept (at most MAX_TAGS a piece), except in sober sections where
+    they are removed; any other bracketed text rejects the piece."""
     if not isinstance(raw, list) or not 1 <= len(raw) <= MAX_TURNS[kind]:
         return None
     turns: list[Turn] = []
-    words = 0
+    words = tags = 0
     for item in raw:
         if not isinstance(item, dict):
             return None
         who = str(item.get("speaker", "")).strip().lower()
         text = _clean(item.get("text", ""))
-        if who not in ("a", "b") or not text or _BAD.search(text):
+        text = _clean(_TAG.sub(lambda m: f"[{m.group(1).lower()}]", text))
+        words_only = strip_tags(text)
+        if who not in ("a", "b") or not words_only or _BAD.search(words_only):
             return None
-        words += len(text.split())
+        tags += len(_TAG.findall(text))
+        if section in SOBER_SECTIONS:
+            text = words_only
+        words += len(words_only.split())
         turns.append((0 if who == "a" else 1, text))
-    if words > MAX_WORDS[kind]:
+    if words > MAX_WORDS[kind] or tags > MAX_TAGS:
         return None
     return turns
 
@@ -203,6 +226,7 @@ Rules:
 - tease: for each section, react to its headline in a way that fits its tone ("exciting news on AI today", "this one is a little scary"). Use only what the headline and summary say; never add facts.
 - bridge: one short line leading into that section's stories, in the section's tone.
 - Limits per piece: open <= {w_open} words and 4 turns, tease <= {w_tease} words and 3 turns, bridge <= {w_bridge} words and 2 turns, close <= {w_close} words and 3 turns.
+- You may use these voice tags, which the hosts perform as real sounds: [laugh] [chuckle] [sigh] [cough] [gasp] [groan] [sniffle] [yawn]. Put one at the start of a turn, only where a person would genuinely react (a [chuckle] at a light moment, a [gasp] at a surprise), at most {max_tags} per piece, and many pieces should have none. Never use them for the "top" or "politics" sections or for any sad, violent or tragic story. Use no other square brackets.
 - No URLs, emoji, lists, markdown or stage directions. Do not read the headline out word for word every time; paraphrase.
 - The tone of each section is guidance for how you sound; never say the tone words themselves ("curious", "serious", "energetic").
 - Stay respectful on sensitive stories: no jokes about tragedies."""
@@ -211,7 +235,7 @@ Rules:
 def _prompt(hosts: tuple[str, str], weekday: str) -> str:
     return SYSTEM_PROMPT.format(
         a=hosts[0], b=hosts[1], weekday=weekday, open_n=OPEN_VARIANTS, close_n=CLOSE_VARIANTS,
-        w_open=MAX_WORDS["open"], w_tease=MAX_WORDS["tease"], w_bridge=MAX_WORDS["bridge"], w_close=MAX_WORDS["close"])
+        w_open=MAX_WORDS["open"], w_tease=MAX_WORDS["tease"], w_bridge=MAX_WORDS["bridge"], w_close=MAX_WORDS["close"], max_tags=MAX_TAGS)
 
 
 def ask_ai(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
@@ -271,7 +295,7 @@ def _collect(data: dict, pieces: list[Piece], model: str) -> dict[str, Written]:
         else:
             group = data.get(p.kind)
             raw = group.get(p.section) if isinstance(group, dict) else None
-        turns = validate_turns(raw, p.kind)
+        turns = validate_turns(raw, p.kind, p.section)
         if turns:
             out[p.key] = Written(turns, model)
     return out
@@ -300,7 +324,7 @@ def host_pair(cfg) -> tuple[str, str] | None:
 
 
 def transcript(turns: list[Turn]) -> str:
-    return "\n".join(text for _, text in turns)
+    return "\n".join(strip_tags(text) for _, text in turns)
 
 
 async def build_podcast(cfg, store, scripts: list[dict], *, day: str, base: str,
