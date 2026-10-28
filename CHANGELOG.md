@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.68] - 2026-10-28
+
+### Fixed
+- **Web PWA Public Storage Fallback & Multi-Host Ready Check**:
+  - Implemented CDN public storage fallback in `web/js/api.js` (`publicPack`) matching Android's `Supabase.kt`. Web now automatically falls back to fetching `showcase/pack-$date.json` or `showcase/pack.json` from Supabase Storage CDN if PostgREST queries fail or tables lack anon read permissions.
+  - Fixed multi-host ready check in `web/js/app.js` (`loadStoryPack`): handles concatenated host voice IDs in Podcast mode (e.g. `matthew_reference+kelly_reference`) by splitting hosts and validating each narrator against `pack_ready` notes.
+  - Added older news fallback in `web/js/app.js`: if today's pack is unavailable or mid-recording, the web app automatically falls back to `latestStoryDate` instead of rendering "Not published yet".
+  - Fixed story count reload in Android (`AppViewModel.kt`): added `force = true` reload when story counts or briefing editions change, preventing ExoPlayer from continuing to play previous queued media items.
+- Bumped PWA service worker cache to `hark-daily-v20` and Android version to `0.1.68` (`168`).
+
+---
+
 ## [0.1.67] - 2026-10-28
 
 ### Fixed

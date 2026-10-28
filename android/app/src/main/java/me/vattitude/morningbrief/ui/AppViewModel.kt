@@ -402,6 +402,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             BuildState.clearError()
             var startIdx = 0
             var startOffsetMs = 0L
+            val shouldForce = resumeCardId != null || resumeAt != null
             if (resumeCardId != null) {
                 val targetCard = activePack.briefing.cards.firstOrNull { it.id == resumeCardId }
                 if (targetCard != null) {
@@ -419,7 +420,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 startOffsetMs = offMs
                 resumeAt = null
             }
-            val (c, reloaded) = load(packDate, briefingMode.value, startIndex = startIdx, startPositionMs = startOffsetMs)
+            val (c, reloaded) = load(packDate, briefingMode.value, startIndex = startIdx, startPositionMs = startOffsetMs, force = shouldForce)
             if (!reloaded && c != null && (startIdx > 0 || startOffsetMs > 0)) {
                 c.seekTo(startIdx, startOffsetMs)
             }
@@ -552,7 +553,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (c != null) {
                 val targetSpeed = if (newMode == "rapid") 1.1f else _settings.value.speed.coerceIn(0.8f, 1.3f)
                 val wasPlaying = c.isPlaying
-                load(pack.briefing.date, newMode)
+                load(pack.briefing.date, newMode, force = true)
                 c.setPlaybackSpeed(targetSpeed)
                 if (wasPlaying) c.play()
             }
@@ -663,6 +664,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         m: String = briefingMode.value,
         startIndex: Int = 0,
         startPositionMs: Long = 0L,
+        force: Boolean = false,
     ): Pair<MediaController?, Boolean> {
         val c = controller ?: return null to false
         val pack = packs["$date-$m"] ?: packs[date]
@@ -671,7 +673,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val id = b?.mediaId ?: "$date-$m"
         val countMismatch = pack != null && pack.clips.isNotEmpty() && c.mediaItemCount != pack.clips.size
         var reloaded = false
-        if (c.currentMediaItem?.mediaId != id || countMismatch) {
+        if (force || c.currentMediaItem?.mediaId != id || countMismatch) {
             reloaded = true
             if (pack != null && pack.clips.isNotEmpty()) {
                 currentPack = pack

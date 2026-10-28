@@ -9,9 +9,9 @@ A concise daily audio briefing from **CBC News**, **TechCrunch**, **ScienceDaily
 No ads. No tracking. Zero doom-scrolling.
 
 [![Web PWA](https://img.shields.io/badge/Web-Live_Demo-2f6fed?style=flat-square&logo=googlechrome&logoColor=white)](https://hark.vattitude.ca)
-[![Android App](https://img.shields.io/badge/Android-APK_v0.1.67-1a9b5b?style=flat-square&logo=android&logoColor=white)](https://github.com/vattitude-me/Hark-Daily/releases/tag/android-v0.1.67)
+[![Android App](https://img.shields.io/badge/Android-APK_v0.1.68-1a9b5b?style=flat-square&logo=android&logoColor=white)](https://github.com/vattitude-me/Hark-Daily/releases/tag/android-v0.1.68)
 [![Neural Voice](https://img.shields.io/badge/Voice-Chatterbox--Turbo-6a4cf5?style=flat-square)](voice_service/)
-[![Changelog](https://img.shields.io/badge/Changelog-v0.1.67-orange?style=flat-square)](CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/Changelog-v0.1.68-orange?style=flat-square)](CHANGELOG.md)
 [![Privacy First](https://img.shields.io/badge/Privacy-No_Ads_%7C_No_Tracking-0D0D0D?style=flat-square)](web/privacy.html)
 
 [**Web PWA**](#-web-pwa) · [**Android App**](#-android-app) · [**Features**](#-features) · [**Privacy**](web/privacy.html) · [**Terms**](web/terms.html) · [**Changelog**](CHANGELOG.md) · [**Technical Guide**](docs/TECHNICAL.md)
