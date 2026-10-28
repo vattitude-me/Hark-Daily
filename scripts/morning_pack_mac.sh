@@ -83,4 +83,10 @@ log "Running briefing pack generation (voicing stories & podcast on M3 Pro, push
 "$ROOT/.venv/bin/python" -m app pack --notify "$@" >> "$LOG_FILE" 2>&1
 
 log "✓ Morning Edition successfully published to Supabase!"
+
+# Option B Relay: Queue today's evening edition wake event (17:58)
+if [ -x "$ROOT/scripts/schedule_wake.sh" ]; then
+  "$ROOT/scripts/schedule_wake.sh" evening 2>&1 | tee -a "$LOG_FILE" || true
+fi
+
 log "============================================================"
