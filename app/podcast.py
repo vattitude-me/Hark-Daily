@@ -314,6 +314,18 @@ def write_pieces(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
     return written, problems
 
 
+def scripts_from_pack(store, day: str) -> list[dict]:
+    """The day's already-published stories as pack scripts, so banter can be (re)built on its own.
+
+    Every narrator voices the same stories, so one set of rows per (section, rank) is enough."""
+    seen: dict[tuple[str, int], dict] = {}
+    for r in sorted(store.select("story_audio", {"date": f"eq.{day}"}), key=lambda r: (r["section"], r["rank"])):
+        seen.setdefault((r["section"], r["rank"]), {
+            "section": r["section"], "rank": r["rank"], "title": r.get("title", ""),
+            "summary": _clean(r.get("script", ""))[:300]})
+    return list(seen.values())
+
+
 # ------------------------------------------------------------------ audio
 class PodcastIncomplete(Exception):
     """Some pieces could not be published. The brief itself is unaffected."""

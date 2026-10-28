@@ -323,6 +323,31 @@ def cmd_pack(args) -> int:
             print(f"✓ Published the landing sample: {len(brief['clips'])} clips, "
                   f"{brief['duration']:.1f}s ({len(brief['stories'])} stories)")
             return 0
+        if getattr(args, "podcast_only", False):
+            # Banter for the stories already published today: no news fetch, no story clips.
+            from . import podcast
+
+            if not cfg.podcast_enabled:
+                print("✗ PODCAST_ENABLED is not true; nothing to do.")
+                return 1
+            day = _day(cfg, args)
+            store = _store(cfg)
+            scripts = podcast.scripts_from_pack(store, day)
+            if not scripts:
+                print(f"✗ No published stories for {day}; run the pack first.")
+                return 1
+            problem = None
+            with pack_lease(store), voice_vm_session(cfg) as active_url:
+                try:
+                    clips = asyncio.run(podcast.build_podcast(cfg, store, scripts, day=day, base=active_url,
+                                                              force=getattr(args, "force", False)))
+                except podcast.PodcastIncomplete as exc:
+                    problem, clips = exc, []
+            published = store.select("podcast_clips", {"date": f"eq.{day}"})
+            print(f"✓ Podcast for {day}: {len(published)} rows" + (f" (with problems: {problem})" if problem else ""))
+            for row in sorted(published, key=lambda r: r["clip_key"]):
+                print(f"  {row['clip_key']:24} {row['duration']:5.1f}s  {row['writer']}")
+            return 1 if problem else 0
         if getattr(args, "notes_only", False):
             with voice_vm_session(cfg) as active_url:
                 notes = asyncio.run(build_notes(cfg, _store(cfg), day=args.day, voice=args.voice, voice_url=active_url))
@@ -413,6 +438,8 @@ def main() -> None:
     pack.add_argument("--sections", help="comma-separated subset (default: all seven)")
     pack.add_argument("--notes-only", action="store_true", dest="notes_only",
                       help="only re-voice the greeting and section intros")
+    pack.add_argument("--podcast-only", action="store_true", dest="podcast_only",
+                      help="only write and voice the podcast banter for the stories already published today")
     pack.add_argument("--showcase-only", action="store_true", dest="showcase_only",
                       help="only republish the landing page's sample of the day's pack")
     pack.add_argument("--sample-bundle", nargs="?", const="web/sample", metavar="DIR",
