@@ -788,8 +788,8 @@ body.playing .eq i:nth-child(2) { animation-delay: -.3s; } body.playing .eq i:nt
 .topbar {
   position: sticky; top: 0; z-index: 25;
   display: flex; align-items: center; gap: .75rem;
-  min-height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
-  padding: calc(.75rem + env(safe-area-inset-top, 0px)) calc(var(--gutter) + env(safe-area-inset-right, 0px)) .75rem calc(var(--gutter) + env(safe-area-inset-left, 0px));
+  min-height: calc(var(--topbar-h) + max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px)));
+  padding: calc(.75rem + max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px))) calc(var(--gutter) + env(safe-area-inset-right, 0px)) .75rem calc(var(--gutter) + env(safe-area-inset-left, 0px));
   background: color-mix(in oklab, var(--bg) 72%, transparent);
   border-bottom: 1px solid var(--line);
   -webkit-backdrop-filter: var(--blur);
@@ -1132,14 +1132,6 @@ main { flex: 1; }
     min-height: 2.4rem;
   }
   .notice-banner-title { line-height: 1.2; }
-}
-
-/* Android shell: the native layout already pads below the status bar. */
-.native-shell .topbar {
-  min-height: var(--topbar-h);
-  padding-top: .45rem;
-  padding-right: var(--gutter);
-  padding-left: var(--gutter);
 }
 
 /* Shared Story Arrival Banner */
@@ -2409,8 +2401,8 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   
   .topbar {
     gap: .4rem;
-    min-height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
-    padding: calc(.45rem + env(safe-area-inset-top, 0px)) calc(var(--gutter) + env(safe-area-inset-right, 0px)) .45rem calc(var(--gutter) + env(safe-area-inset-left, 0px));
+    min-height: calc(var(--topbar-h) + max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px)));
+    padding: calc(.45rem + max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px))) calc(var(--gutter) + env(safe-area-inset-right, 0px)) .45rem calc(var(--gutter) + env(safe-area-inset-left, 0px));
   }
   .topbar .spacer { display: none; }
   .brand-compact { display: inline-flex; }
@@ -2477,12 +2469,13 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   .mode-segmented { width: 100%; }
   .mode-segmented .seg-opt { flex: 1; justify-content: center; padding: 0 .5rem; font-size: .75rem; min-height: 2rem; }
   .mode-meta { font-size: .68rem; padding: .08rem .35rem; white-space: nowrap; }
-  .hero-top { align-items: center; gap: .75rem; }
+  .hero-top { align-items: center; gap: .75rem; flex-wrap: wrap; }
+  .hero-heading { flex: 1 1 0; }
   .hero-art { width: 3.1rem; height: 3.1rem; min-width: 3.1rem; min-height: 3.1rem; border-radius: var(--r); }
   .hero-art-icon { width: 1.4rem; height: 1.4rem; }
   .hero-title { font-size: 1.0625rem; line-height: 1.25; font-weight: 600; }
   .hero-article { display: none; }
-  .hero-top-actions { margin-left: auto; }
+  .hero-top-actions { flex: 1 0 100%; margin-left: 0; flex-wrap: wrap; align-self: stretch; }
   .narrator-pill-btn { padding: .28rem .65rem; font-size: .75rem; }
   
   .wave-panel { padding: .75rem .85rem; margin-top: .75rem; border-radius: var(--r); }
@@ -2531,26 +2524,18 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   .list-head { margin-bottom: .65rem; }
   .list-head h2 { font-size: 1.15rem; }
   .list-actions .pill-btn span { display: none; }
-  .story-main { padding: .85rem .95rem; gap: .75rem; align-items: flex-start; }
-  .story-main .cat-tile {
-    width: 2.2rem !important; height: 2.2rem !important;
-    min-width: 2.2rem !important; min-height: 2.2rem !important;
-    aspect-ratio: 1 / 1 !important; flex: 0 0 auto !important;
+  /* Headline gets the full left column; thumbnail and play button stack on the right. */
+  .story-main {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: .85rem; row-gap: .5rem;
+    padding: .85rem .95rem; align-items: start;
   }
-  .story-thumb {
-    display: block;
-    width: 3.75rem;
-    height: 3.75rem;
-    border-radius: var(--r-sm);
-  }
-  .story-row.current .story-thumb {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 16 / 9;
-    max-height: 200px;
-    border-radius: var(--r);
-    order: 10;
-    margin-top: .65rem;
+  .story-main .cat-tile { display: none !important; }
+  .story-main .story-text { grid-column: 1; grid-row: 1 / span 2; }
+  .story-main .story-thumb { grid-column: 2; grid-row: 1; display: block; width: 4.25rem; height: 4.25rem; border-radius: var(--r-sm); }
+  .story-main .play-dot { grid-column: 2; grid-row: 2; justify-self: center; align-self: end; }
+  .story-row.current .story-main .story-thumb {
+    grid-column: 1 / -1; grid-row: 3; width: 100%; height: auto;
+    aspect-ratio: 16 / 9; max-height: 200px; border-radius: var(--r); margin-top: .15rem;
   }
   .play-dot span { display: none; }
   .play-dot {

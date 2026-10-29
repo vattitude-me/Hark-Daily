@@ -15,6 +15,9 @@
     "backgroundColor": "#0d0d0d"
   },
   "plugins": {
+    "SystemBars": {
+      "initialViewportFitValueHint": "cover"
+    },
     "LocalNotifications": {
       "smallIcon": "ic_notification",
       "iconColor": "#F59E0B"

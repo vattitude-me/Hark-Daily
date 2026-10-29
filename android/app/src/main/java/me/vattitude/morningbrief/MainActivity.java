@@ -7,19 +7,14 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
-import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.BridgeActivity;
 import java.lang.ref.WeakReference;
 
@@ -32,26 +27,9 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        configureWindowInsets();
         initNotificationChannels();
         requestNotificationPermissionIfNeeded();
         configureSmartShell();
-    }
-
-    private void configureWindowInsets() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-            getWindow().setStatusBarColor(Color.parseColor("#0D0D0D"));
-            getWindow().setNavigationBarColor(Color.parseColor("#0D0D0D"));
-        }
-
-        androidx.core.view.WindowInsetsControllerCompat insetsController =
-            androidx.core.view.WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
-        if (insetsController != null) {
-            insetsController.setAppearanceLightStatusBars(false);
-        }
-        // Insets are applied once, by android:fitsSystemWindows on the layout root (activity_main.xml).
     }
 
     @Override
