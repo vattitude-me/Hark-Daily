@@ -312,7 +312,12 @@ function renderGuestBanner() {
   if (!banner) return;
   const isGuest = !state.profile;
   const dismissed = localStorage.getItem('mb-guest-banner-dismissed') === 'true';
-  if (!isGuest || dismissed) {
+
+  const nativeGranted = window.HarkNative && window.HarkNative.hasNotificationPermission();
+  const webGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
+  const granted = Boolean(nativeGranted || webGranted);
+
+  if (!isGuest || dismissed || granted) {
     banner.classList.add('hidden');
     return;
   }
@@ -321,17 +326,9 @@ function renderGuestBanner() {
   // Push status on banner button
   const pushBtn = $('bannerPushBtn');
   if (pushBtn) {
-    const nativeGranted = window.HarkNative && window.HarkNative.hasNotificationPermission();
-    const webGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
-    const granted = Boolean(nativeGranted || webGranted);
     const span = pushBtn.querySelector('span');
-    if (granted) {
-      if (span) span.textContent = 'Notifications enabled ✓';
-      pushBtn.classList.add('glass-btn');
-    } else {
-      if (span) span.textContent = 'Enable notifications';
-      pushBtn.classList.remove('glass-btn');
-    }
+    if (span) span.textContent = 'Enable notifications';
+    pushBtn.classList.remove('glass-btn');
   }
 
   // Install button visibility
@@ -692,8 +689,8 @@ function storyRow(story) {
       h('div', { class: 'story-meta' },
         h('span', { class: `badge badge-cat cat-${secKey}` }, sec.title),
         h('span', { class: 'dur' }, icon('clock'), audioLen(story)),
-        h('span', {}, '·'),
-        h('span', {}, story.source || 'The Guardian'),
+        story.source ? h('span', {}, '·') : null,
+        story.source ? h('span', {}, story.source) : null,
         story.also?.length ? h('span', {}, `· +${story.also.length} source${story.also.length === 1 ? '' : 's'}`) : null,
         h('button', {
           class: 'story-quick-share',
@@ -1288,16 +1285,8 @@ async function loadStoryPack(day) {
 /* ----------------------------------------------------------------- loading */
 /** One honest line under the brief: where it came from, and who read it. */
 function setFootnote() {
-  const b = state.briefing;
-  if (!b) {
-    $('footnote').textContent = '';
-    return;
-  }
-  if (b.voice?.isFallback && b.voice?.requested) {
-    $('footnote').textContent = `The Guardian · read by ${b.voice.name} (${voiceName(b.voice.requested)} unavailable today)`;
-  } else {
-    $('footnote').textContent = `The Guardian · read by ${b.voice?.name || 'the narrator'}`;
-  }
+  const el = $('footnote');
+  if (el) el.textContent = '';
 }
 
 function displayBriefing() {
@@ -1585,11 +1574,35 @@ function bindEvents() {
 }
 
 /* ----------------------------------------------------------------- sign in modal */
+function dismissGuestBannerSoon() {
+  localStorage.setItem('mb-guest-banner-dismissed', 'true');
+  const pushBtn = $('bannerPushBtn');
+  if (pushBtn) {
+    const span = pushBtn.querySelector('span');
+    if (span) span.textContent = 'Notifications enabled ✓';
+    pushBtn.classList.add('glass-btn');
+  }
+  setTimeout(() => {
+    const banner = $('guestBanner');
+    if (banner && !banner.classList.contains('hidden')) {
+      banner.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+      banner.style.opacity = '0';
+      banner.style.transform = 'translateY(-8px)';
+      setTimeout(() => {
+        banner.classList.add('hidden');
+        banner.style.removeProperty('transition');
+        banner.style.removeProperty('opacity');
+        banner.style.removeProperty('transform');
+      }, 400);
+    }
+  }, 2200);
+}
+
 async function bannerSetupPush() {
   if (window.HarkNative) {
     if (window.HarkNative.hasNotificationPermission()) {
       toast('Notifications are already active on this device.');
-      renderGuestBanner();
+      dismissGuestBannerSoon();
       return;
     }
     try {
@@ -1599,7 +1612,7 @@ async function bannerSetupPush() {
         try {
           window.HarkNative.postNotification('Hark Daily', 'Daily briefing alerts are now enabled.');
         } catch (_) {}
-        renderGuestBanner();
+        dismissGuestBannerSoon();
       } else {
         toast('Notification permission was not granted.', { error: true });
       }
@@ -1611,13 +1624,14 @@ async function bannerSetupPush() {
 
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     toast('Notifications are already active on this device.');
+    dismissGuestBannerSoon();
     return;
   }
   try {
     const perm = await requestNotificationPermission();
     if (perm === 'granted') {
       toast('Notification permission allowed!');
-      renderGuestBanner();
+      dismissGuestBannerSoon();
       if (!state.profile) {
         openSignIn('push');
         toast('Sign in to connect your morning brief dispatch.');

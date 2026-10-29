@@ -265,8 +265,7 @@ html.bw-photos .hero-cover, html.bw-photos .story-thumb, html.bw-photos .mini-co
 .hint { color: var(--muted); font-size: .875rem; line-height: 1.55; }
 .meta { color: var(--muted); font-size: .8125rem; }
 .tiny { color: var(--muted); font-size: .75rem; }
-.footnote { color: var(--faint); font-size: .8125rem; text-align: center; margin: 2rem 0 0; }
-.footnote a { color: var(--muted); }
+.footnote { display: none !important; }
 
 .landing-social {
   display: flex;
@@ -2391,6 +2390,7 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
 @media (max-width: 768px) {
   :root { --sidebar-w: 0px; --gutter: 1rem; --topbar-h: 56px; }
   .app-shell { display: block; }
+  .col-side { display: none !important; }
   .sidebar { position: static; height: auto; padding: 0; border: 0; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
   .sidebar > :not(.tabbar) { display: none; }
   .tabbar {
