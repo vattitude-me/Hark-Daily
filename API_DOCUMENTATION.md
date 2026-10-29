@@ -309,12 +309,16 @@ Hark Daily publishes atomic briefing packs to Supabase. Web and mobile clients i
 * **Endpoint**: `GET /rest/v1/story_audio?date=eq.{YYYY-MM-DD}&voice=eq.{VOICE}&order=section.asc,rank.asc`
 * **Schema**:
   * `date` (`text`): Briefing date in ISO format (`YYYY-MM-DD`).
-  * `section` (`text`): Category (`top`, `ai`, `tech`, `politics`, `entertainment`, `science`, `sports`).
+  * `section` (`text`): Category and regional edition identifier:
+    * **Universal (All Editions)**: `ai`, `tech`, `science`.
+    * **Canada (`ca`)**: `top`, `politics`, `entertainment`, `sports`.
+    * **United States (`us`)**: `top_us`, `politics_us`, `entertainment_us`, `sports_us`.
+    * **India (`in`)**: `top_in`, `politics_in`, `entertainment_in`, `sports_in`.
   * `rank` (`integer`): Story ranking within the section (`1` to `5`).
   * `voice` (`text`): Reference voice ID (`c3po_reference`, `matthew_reference`, `kelly_reference`, or custom neural persona).
   * `title` (`text`): Clean news headline.
   * `url` (`text`): Original article canonical URL.
-  * `source` (`text`): Publisher attribution (e.g., `"ScienceDaily · Science"`).
+  * `source` (`text`): Publisher attribution (e.g., `"The New York Times · Top stories"`, `"The Hindu · Top stories"`).
   * `image` (`text`): Hero image URL extracted from the article.
   * `script` (`text`): Spoken text voiced by the neural model.
   * `duration` (`real`): Clip audio duration in seconds.

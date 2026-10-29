@@ -5,8 +5,8 @@
 # 🎙️ Hark Daily
 
 **The news you hear, not just read.**  
-A concise daily audio briefing from **CBC News**, **TechCrunch**, **ScienceDaily**, and **BetaKit**, voiced by neural personas anchored by flagship narrator **C-3PO** alongside modular neural voices.  
-No ads. Fast audio briefings. Zero doom-scrolling.
+A concise daily audio briefing covering **Canada**, the **United States**, and **India** from **CBC News**, **The New York Times**, **NPR**, **The Hindu**, **The Indian Express**, **TechCrunch**, **ScienceDaily**, and **ESPNcricinfo**, voiced by neural personas anchored by flagship narrator **C-3PO** alongside modular neural voices.  
+No ads. Fast audio briefings. Zero doom-scrolling. 24-hour listening.
 
 [![Web PWA](https://img.shields.io/badge/Web-Live_Demo-2f6fed?style=flat-square&logo=googlechrome&logoColor=white)](https://hark.vattitude.ca)
 [![Android App](https://img.shields.io/badge/Android-APK_v0.1.69-1a9b5b?style=flat-square&logo=android&logoColor=white)](https://github.com/vattitude-me/Hark-Daily/releases/tag/android-v0.1.69)
@@ -22,13 +22,23 @@ No ads. Fast audio briefings. Zero doom-scrolling.
 
 ## ☕ Features
 
-* **Curated News Sources**: Verified reporting from CBC News, ScienceDaily, TechCrunch, and BetaKit across 7 categories (Top, AI, Tech, Politics, Entertainment, Science, Sports).
-* **Neural Voices**: Voiced by C-3PO alongside co-hosts Matthew & Kelly via local Chatterbox-Turbo TTS.
+* **Multi-Country Editions (🇨🇦 Canada, 🇺🇸 US, 🇮🇳 India)**: Verified regional reporting coupled with shared global tech and science:
+  * 🇨🇦 **Canada** — CBC News (Top, Politics, Arts, Sports) & BetaKit (Tech).
+  * 🇺🇸 **United States** — The New York Times (Top), NPR Politics, Variety (Entertainment), CBS Sports.
+  * 🇮🇳 **India** — The Hindu (Top/National), The Indian Express (Politics, Arts), ESPNcricinfo (Cricket/Sports).
+  * 🌐 **Global Universals** — TechCrunch (AI), BetaKit/Verge (Tech), ScienceDaily (Science). Voiced once and shared across all countries.
+* **Instant Edition Switcher**: Auto-detects local edition from the user's timezone with a 0ms topbar switcher (`🇨🇦 CA ▾`, `🇺🇸 US ▾`, `🇮🇳 IN ▾`) and fallback resilience.
+* **Time-Neutral 24-Hour Listening**: Clean, day-neutral broadcast scripts and podcast banter. Listen at 7:00 AM, 3:00 PM, or 10:00 PM without hearing time-locked "Good morning" or "morning coffee" phrases.
+* **Deep-Link Story Sharing**: Share any story card via Web Share API or direct link (`?story={section}-{rank}&date={YYYY-MM-DD}`). Receivers land directly on the shared audio clip even if it falls outside their default lineup.
+* **Neural Voices**: Voiced by C-3PO alongside co-hosts Matthew & Kelly via local Chatterbox-Turbo TTS on Apple Silicon MPS.
 * **Instant Playback**: Listen immediately on the web at [hark.vattitude.ca](https://hark.vattitude.ca) without sign-up.
 * **Two Listening Modes**:
   * **Podcast (Default)** — Duo-host conversation with Matthew & Kelly tailored to your selected topics, with natural cadence, pauses, and broadcast titles.
   * **Full Brief** — Continuous radio-style narration across all chosen stories.
-* **Time-Adaptive Greetings**: Adapts greeting audio (`Good morning`, `Good afternoon`, `Good evening`) to your local clock.
+* **Two-Tier Timezone Scheduling**:
+  * **Morning Batch (~6:00 AM EDT)**: Synthesizes Canada & US local sections + universal AI, Tech, Science.
+  * **Evening Batch (~6:00 PM EDT / 3:30 AM IST)**: Synthesizes India local sections ahead of Indian morning wake-up (~6:00 AM IST) while reusing today's universal AI, Tech, and Science audio.
+* **Privacy-Respecting Analytics**: Optional Google Analytics 4 integration with a lightweight cookie consent banner (Accept / Reject) for tracking story reach, shared link visits, and edition engagement without tracking across sites or advertising.
 * **Cached Static Audio**: Reusable intros and sign-offs are stored permanently in Supabase, saving synthesis time on each batch.
 * **Read-Along Teleprompter**: Subtitles and story cards follow the narrator in real time. Tap any card to seek to it.
 * **Pull-to-Refresh**: Native pull gesture on Android to check for fresh editions on demand.
@@ -86,13 +96,33 @@ Native Android application built with Jetpack Compose, Compose Material3 tokens,
 ### Web
 1. Open the live web app at [**hark.vattitude.ca**](https://hark.vattitude.ca) (or local [web/](web/)).
 2. Click **Play** on today’s edition—no account or sign-up required.
-3. Tap the voice chips in the player to audition and switch narrators on the fly.
-4. Sign in with Google or magic link if you wish to sync custom topic preferences across devices.
+3. Switch your country edition anytime via the topbar flag chip (`🇨🇦 CA`, `🇺🇸 US`, `🇮🇳 IN`).
+4. Tap the voice chips in the player to audition and switch narrators on the fly.
+5. Sign in with Google or magic link if you wish to sync custom topic preferences across devices.
 
 ### Android
 1. Download the latest signed APK from [GitHub Releases](https://github.com/vattitude-me/Hark-Daily/releases).
 2. Install on any device running Android 10+ (API 29+).
-3. Select your preferred voice narrator in Settings and start listening.
+3. Select your preferred country edition and voice narrator in Settings, then start listening.
+
+### Command-Line CLI Operations
+```bash
+# Set up Python virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Voice today's briefing pack for specific country editions
+python -m app pack --edition ca,us       # Morning batch (Canada + US)
+python -m app pack --edition in          # Evening batch (India morning peak)
+python -m app pack --edition ca,us,in    # All three editions simultaneously
+
+# Check completeness of today's pack across all voices
+python -m app pack --check
+
+# Dry-run / showcase landing sample only
+python -m app pack --showcase-only
+```
 
 ---
 
