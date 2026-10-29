@@ -35,8 +35,8 @@ export function clipUrl(path) {
 }
 
 const CONNECTORS = [
-  'Here are the details:', "Here's what you need to know:", 'Taking a closer look:',
-  "Here's what's happening:", 'According to the reporting:', 'In the details:', 'Behind the headline:',
+  'Here are the details.', "Here's what you need to know.", 'Taking a closer look.',
+  "Here's what's happening.", 'According to the reporting.', 'In the details.', 'Behind the headline.',
 ];
 
 const LABEL_PREFIX = /^(?:the news|why it matters|what to know|what happened|the big picture|from the source|between the lines|catch up quick|by the numbers|what they(?:'re| are) saying|what's next|the backstory|yes, but|details|context|zoom in|zoom out|what to watch|state of play):\s*/i;
@@ -74,7 +74,7 @@ export function stripHeadlineAndFiller(headline, scriptOrSummary) {
     const esc = cleanTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     text = text.replace(new RegExp('^' + esc + '[.!?]?\\s*', 'i'), '').trim();
   }
-  const connPattern = new RegExp('^(?:' + CONNECTORS.map((c) => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\s*', 'i');
+  const connPattern = new RegExp('^(?:' + CONNECTORS.map((c) => c.replace(/[.:]+$/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')[.:…—]?\\s*', 'i');
   text = text.replace(connPattern, '').trim();
   text = text.replace(LABEL_PREFIX, '').trim();
   if (text && text[0] === text[0].toLowerCase()) {
@@ -469,7 +469,7 @@ export function buildBriefing(rows, settings, {
     const end = round(cursor + duration);
     const id = storyRow.syntheticId || `${storyRow.section}-${storyRow.rank}`;
     stories.push({
-      id, section: storyRow.section, source: storyRow.source || 'The Guardian',
+      id, section: storyRow.section, source: storyRow.source || '',
       headline: storyRow.title,
       summary: storyRow.summary || stripHeadlineAndFiller(storyRow.title, storyRow.script || ''),
       url: storyRow.url || null,

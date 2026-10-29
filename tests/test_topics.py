@@ -113,6 +113,15 @@ def test_clean_sentence_strips_editorial_label_prefixes():
     assert "Taking a closer look:" not in clean
     assert "The news:" not in clean
 
+    script_with_period = (
+        "Canadian Startup Capital Association names new interim executive director. "
+        "Here are the details. On Thursday, the CSCA announced that Tara June Misra "
+        "had stepped into the executive director role."
+    )
+    clean_period = strip_headline_and_filler(title, script_with_period)
+    assert clean_period.startswith("On Thursday, the CSCA announced")
+    assert "Here are the details" not in clean_period
+
 
 def test_top_n_backfills_when_fresh_count_is_low():
     from datetime import datetime, timedelta, timezone

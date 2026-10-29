@@ -19,13 +19,13 @@ BOILERPLATE = re.compile(
 )
 
 CONNECTORS: list[str] = [
-    "Here are the details:",
-    "Here's what you need to know:",
-    "Taking a closer look:",
-    "Here's what's happening:",
-    "According to the reporting:",
-    "In the details:",
-    "Behind the headline:",
+    "Here are the details.",
+    "Here's what you need to know.",
+    "Taking a closer look.",
+    "Here's what's happening.",
+    "According to the reporting.",
+    "In the details.",
+    "Behind the headline.",
 ]
 
 
@@ -62,7 +62,10 @@ def format_script(title: str, summary: str, rank: int = 1, connector: str | None
         return summary.strip()
 
     if chosen_conn:
-        return f"{clean_title} {chosen_conn} {summary.strip()}"
+        clean_conn = chosen_conn.strip().rstrip(":")
+        if clean_conn and not re.search(r"[.!?…]$", clean_conn):
+            clean_conn = f"{clean_conn}."
+        return f"{clean_title} {clean_conn} {summary.strip()}"
     return f"{clean_title} {summary.strip()}"
 
 
@@ -95,7 +98,7 @@ def strip_headline_and_filler(title: str, script: str) -> str:
         pattern = r"^" + re.escape(clean_title) + r"[.!?]?\s*"
         text = re.sub(pattern, "", text, flags=re.I).strip()
 
-    conn_pattern = r"^(?:" + "|".join(re.escape(c) for c in CONNECTORS) + r")\s*"
+    conn_pattern = r"^(?:" + "|".join(re.escape(c.rstrip(".:")) for c in CONNECTORS) + r")[.:…—]?\s*"
     text = re.sub(conn_pattern, "", text, flags=re.I).strip()
     text = clean_sentence(text)
     return text.strip() or script.strip()

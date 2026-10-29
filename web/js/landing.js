@@ -222,7 +222,7 @@ export class Landing {
         h('div', { class: 'story-text' },
           h('h3', {}, s.headline),
           h('div', { class: 'story-meta' },
-            h('span', {}, s.source || 'The Guardian'),
+            s.source ? h('span', {}, s.source) : null,
             h('button', {
               class: 'story-quick-share',
               type: 'button',

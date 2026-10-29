@@ -120,6 +120,7 @@ def test_deadline_stops_synthesis(cfg, store, monkeypatch):
 
 def test_voice_vm_session_stops_vm_on_exit_even_if_already_running(cfg, monkeypatch):
     stopped = []
+    monkeypatch.setattr(gce, "instance_status", lambda proj, zone, inst, tok: "RUNNING")
     monkeypatch.setattr(gce, "get_instance_ip", lambda proj, zone, inst, tok: "10.0.0.1")
     monkeypatch.setattr(gce, "is_service_healthy", lambda url: True)
     monkeypatch.setattr(gce, "get_access_token", lambda: "mock_tok")
