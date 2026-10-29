@@ -2,21 +2,26 @@ name: android
 on:
   push:
     branches: [main]
-    paths: ["android/**", ".github/workflows/android.yml"]
+    paths: ["android/**", ".github/workflows/android.yml", "package.json", "package-lock.json", "capacitor.config.json"]
     tags: ["android-v*"]
   pull_request:
-    paths: ["android/**", ".github/workflows/android.yml"]
+    paths: ["android/**", ".github/workflows/android.yml", "package.json", "package-lock.json", "capacitor.config.json"]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    defaults:
-      run:
-        working-directory: android
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -24,12 +29,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Unit tests
+        working-directory: android
         run: ./gradlew --no-daemon testDebugUnitTest
 
-      # A tag like android-v0.2.0 builds a signed APK (to sideload) and app bundle (for Google Play)
+      # A tag like android-v1.0.0 builds a signed APK (to sideload) and app bundle (for Google Play)
       # and attaches both to a GitHub release.
       - name: Signed release APK and bundle
         if: startsWith(github.ref, 'refs/tags/android-v')
+        working-directory: android
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -57,5 +64,5 @@ jobs:
             gh release upload "$GITHUB_REF_NAME" "$APK" "$AAB" --clobber
           else
             gh release create "$GITHUB_REF_NAME" "$APK" "$AAB" --title "Android ${GITHUB_REF_NAME#android-v}" \
-              --notes "Install the APK on an Android 10+ phone (allow installs from this source when asked). The .aab is for Google Play."
+              --notes "Install the APK on an Android phone (allow installs from this source when asked). The .aab is for Google Play."
           fi

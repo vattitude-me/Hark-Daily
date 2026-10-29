@@ -1,11 +1,21 @@
-# Readability4J logs through SLF4J, which isn't bundled.
--dontwarn org.slf4j.**
-# jsoup's optional re2j regex engine.
--dontwarn com.google.re2j.**
-# sherpa-onnx's JNI code reads its config classes' fields by name.
--keep class com.k2fsa.sherpa.onnx.** { *; }
-# commons-compress optional codecs (only bzip2 and tar are used).
--dontwarn org.tukaani.xz.**
--dontwarn com.github.luben.zstd.**
--dontwarn org.brotli.dec.**
--dontwarn org.objectweb.asm.**
+# Add project specific ProGuard rules here.
+# You can control the set of applied configuration files using the
+# proguardFiles setting in build.gradle.
+#
+# For more details, see
+#   http://developer.android.com/guide/developing/tools/proguard.html
+
+# If your project uses WebView with JS, uncomment the following
+# and specify the fully qualified class name to the JavaScript interface
+# class:
+#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
+#   public *;
+#}
+
+# Uncomment this to preserve the line number information for
+# debugging stack traces.
+#-keepattributes SourceFile,LineNumberTable
+
+# If you keep the line number information, uncomment this to
+# hide the original source file name.
+#-renamesourcefileattribute SourceFile

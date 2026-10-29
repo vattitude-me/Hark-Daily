@@ -1,0 +1,109 @@
+apply plugin: 'com.android.application'
+
+def appVersionName = project.findProperty("versionName") ?: "1.0.0"
+def appVersionCode = project.findProperty("versionCode") ? project.findProperty("versionCode").toInteger() : 10000
+
+android {
+    namespace "me.vattitude.morningbrief"
+    compileSdk rootProject.ext.compileSdkVersion
+
+    defaultConfig {
+        applicationId "me.vattitude.morningbrief"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode appVersionCode
+        versionName appVersionName
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+
+    base.archivesName = "morning-brief"
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            def suffix = variant.buildType.name == "release" ? "" : "-${variant.buildType.name}"
+            outputFileName = "morning-brief-${appVersionName}${suffix}.apk"
+        }
+    }
+
+    def signingProps = new Properties()
+    def keystoreFile = rootProject.file("keystore.properties")
+    if (keystoreFile.exists()) {
+        keystoreFile.withInputStream { signingProps.load(it) }
+    }
+    if (System.getenv("ANDROID_KEYSTORE")) {
+        signingProps.setProperty("storeFile", System.getenv("ANDROID_KEYSTORE"))
+    }
+    if (System.getenv("ANDROID_KEYSTORE_PASSWORD")) {
+        signingProps.setProperty("storePassword", System.getenv("ANDROID_KEYSTORE_PASSWORD"))
+    }
+    if (System.getenv("ANDROID_KEY_ALIAS")) {
+        signingProps.setProperty("keyAlias", System.getenv("ANDROID_KEY_ALIAS"))
+    }
+    if (System.getenv("ANDROID_KEY_PASSWORD")) {
+        signingProps.setProperty("keyPassword", System.getenv("ANDROID_KEY_PASSWORD"))
+    }
+
+    def canSign = signingProps.getProperty("storeFile") != null
+
+    signingConfigs {
+        release {
+            if (canSign) {
+                storeFile file(signingProps.getProperty("storeFile"))
+                storePassword signingProps.getProperty("storePassword")
+                keyAlias signingProps.getProperty("keyAlias")
+                keyPassword signingProps.getProperty("keyPassword")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (canSign) {
+                signingConfig signingConfigs.release
+            }
+        }
+        debug {
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

@@ -377,6 +377,16 @@ export class Player extends EventTarget {
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = on ? 'playing' : 'paused';
     const liveStatus = document.getElementById('liveStatus');
     if (liveStatus) liveStatus.textContent = on ? 'Playing' : 'Paused';
+    if (window.HarkNative) {
+      try {
+        window.HarkNative.setKeepScreenOn(on);
+        const story = this.briefing?.stories?.[this.storyIndex];
+        const ch = this.currentChapter;
+        const title = ch?.title || story?.headline || this.briefing?.title || 'Hark Daily';
+        const artist = 'Hark Daily \u2022 ' + (this.briefing?.title || 'Briefing');
+        window.HarkNative.notifyPlaybackState(on, title, artist);
+      } catch {}
+    }
     this.dispatchEvent(new CustomEvent('state', { detail: { playing: on } }));
   }
 
@@ -588,6 +598,13 @@ export class Player extends EventTarget {
   }
 
   updateMediaSession(ch, story) {
+    if (window.HarkNative && this.isPlaying) {
+      try {
+        const title = ch?.title || story?.headline || this.briefing?.title || 'Hark Daily';
+        const artist = 'Hark Daily \u2022 ' + (this.briefing?.title || 'Briefing');
+        window.HarkNative.notifyPlaybackState(true, title, artist);
+      } catch {}
+    }
     if (!('mediaSession' in navigator)) return;
     const art = story?.image ? [{ src: story.image, sizes: '512x512' }] : [];
     navigator.mediaSession.metadata = new MediaMetadata({
