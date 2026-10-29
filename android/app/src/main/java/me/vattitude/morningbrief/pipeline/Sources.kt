@@ -49,7 +49,7 @@ val SECTIONS: LinkedHashMap<String, Section> = linkedMapOf(
 )
 
 /**
- * What a brand-new phone starts with: every section on, at three stories — the same
+ * What a brand-new phone starts with: every section on, at five stories — the same
  * default as the web app, so a first brief covers all seven out of the box.
  */
 val DEFAULT_STORIES: Map<String, Int> get() = SECTIONS.mapValues { DEFAULT_PER_SECTION }
@@ -62,7 +62,7 @@ val QUICK_MIX: Map<String, Int> = SECTIONS.mapValues { DEFAULT_PER_SECTION }
  * weather and sign-off about half a minute more.
  */
 const val MAX_PER_SECTION = 5
-const val DEFAULT_PER_SECTION = 3
+const val DEFAULT_PER_SECTION = 5
 private const val SECONDS_PER_STORY = 22
 private const val SECONDS_AROUND = 30
 

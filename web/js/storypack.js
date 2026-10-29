@@ -10,13 +10,14 @@ import { SUPABASE_URL } from '../config.js';
 export const SECTION_ORDER = ['top', 'ai', 'tech', 'politics', 'entertainment', 'science', 'sports'];
 export const MAX_PER_SECTION = 5;
 
-/** The per-section story counts a user asked for (0 = off), clamped to 0..MAX. */
+/** The per-section story counts a user asked for (0 = off), clamped to 0..MAX. Defaults to MAX_PER_SECTION. */
 export function lineup(settings) {
   const chosen = (settings && settings.stories) || {};
   const out = {};
   for (const key of SECTION_ORDER) {
-    const n = Number.parseInt(chosen[key], 10);
-    out[key] = Number.isFinite(n) ? Math.max(0, Math.min(n, MAX_PER_SECTION)) : 0;
+    const raw = chosen[key];
+    const n = raw !== undefined ? Number.parseInt(raw, 10) : MAX_PER_SECTION;
+    out[key] = Number.isFinite(n) ? Math.max(0, Math.min(n, MAX_PER_SECTION)) : MAX_PER_SECTION;
   }
   return out;
 }
@@ -209,7 +210,7 @@ export function noteTitle(noteKey) {
  *
  * Returns `null` when the listener's lineup selects nothing (or the day has no pack).
  */
-export function buildBriefing(rows, settings, { date, voice, notes = [], hour, mode = 'full', podcastClips = [] } = {}) {
+export function buildBriefing(rows, settings, { date, voice, notes = [], hour, mode = 'full', podcastClips = [], targetStory = null } = {}) {
   const isRapid = mode === 'rapid';
   const id = pickVoice(rows, voice);
   const userOrder = (settings && Array.isArray(settings.section_order) && settings.section_order.length)
@@ -219,6 +220,21 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
 
   // In Rapid Fire mode, select the 5 top stories of the day
   let wanted = lineup(settings);
+
+  // If a specific story is requested via deep link (?story=sec-rank), guarantee its section is enabled & high enough
+  let targetSec = null;
+  let targetRank = null;
+  if (targetStory) {
+    const parts = String(targetStory).split('-');
+    if (parts.length >= 2) {
+      targetSec = parts[0];
+      targetRank = Number.parseInt(parts[parts.length - 1], 10);
+      if (SECTION_ORDER.includes(targetSec) && Number.isFinite(targetRank) && targetRank > 0) {
+        wanted[targetSec] = Math.max(wanted[targetSec] || 0, Math.min(targetRank, MAX_PER_SECTION));
+      }
+    }
+  }
+
   if (isRapid) {
     const rapidWanted = {};
     for (const key of SECTION_ORDER) rapidWanted[key] = 0;
@@ -246,11 +262,34 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
     if (!Object.values(rapidWanted).some((v) => v > 0)) {
       rapidWanted['top'] = 5;
     }
+    // If a targetStory was deep-linked in rapid mode, make sure its section is also included
+    if (targetSec && targetRank && SECTION_ORDER.includes(targetSec)) {
+      rapidWanted[targetSec] = Math.max(rapidWanted[targetSec] || 0, Math.min(targetRank, MAX_PER_SECTION));
+    }
     wanted = rapidWanted;
   }
 
   const chosen = clipsFor(rows, wanted, id, order);
   if (!chosen.length) return null;
+
+  // Resilient deep-link check: if targetStory is specified, make sure it is in chosen
+  if (targetStory) {
+    const hasTarget = chosen.some((r) => `${r.section}-${r.rank}` === targetStory || r.id === targetStory);
+    if (!hasTarget) {
+      const match = (rows || []).find((r) =>
+        (!id || r.voice === id) && (`${r.section}-${r.rank}` === targetStory || r.id === targetStory)
+      ) || (rows || []).find((r) => `${r.section}-${r.rank}` === targetStory || r.id === targetStory);
+      if (match) {
+        chosen.push(match);
+        chosen.sort((a, b) => {
+          const secA = order.indexOf(a.section);
+          const secB = order.indexOf(b.section);
+          if (secA !== secB) return (secA === -1 ? 999 : secA) - (secB === -1 ? 999 : secB);
+          return (a.rank || 0) - (b.rank || 0);
+        });
+      }
+    }
+  }
 
   const byKey = new Map(
     (notes || []).filter((n) => !id || n.voice === id).map((n) => [n.note_key, n]),

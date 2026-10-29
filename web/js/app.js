@@ -363,7 +363,7 @@ function setBriefingMode(mode) {
 
   if (state.packContext) {
     const { rows, settings, date, notes, fresh, podcastClips } = state.packContext;
-    const briefing = buildPackBriefing(rows, settings, { date, voice: settings.voice, notes, mode: activeMode(), podcastClips });
+    const briefing = buildPackBriefing(rows, settings, { date, voice: settings.voice, notes, mode: activeMode(), podcastClips, targetStory: getTargetStory() });
     if (briefing) {
       briefing.fresh = fresh;
       const wasPlaying = player.isPlaying;
@@ -776,6 +776,12 @@ function showShareSheet(story, shareUrl, shareData) {
   sheet.showModal();
 }
 
+function getTargetStory() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  return urlParams.get('story') || hashParams.get('story') || null;
+}
+
 let lastDeepLinkedStory = null;
 function handleStoryDeepLink(storyId) {
   if (!storyId || !state.briefing?.stories?.length) return;
@@ -1047,7 +1053,14 @@ async function loadStoryPack(day) {
     }
     if (!actualRows.length) return null;
 
-    const briefing = buildPackBriefing(actualRows, settings, { date, voice: settings.voice, notes: actualNotes, mode: activeMode(), podcastClips: actualPodcast });
+    const briefing = buildPackBriefing(actualRows, settings, {
+      date,
+      voice: settings.voice,
+      notes: actualNotes,
+      mode: activeMode(),
+      podcastClips: actualPodcast,
+      targetStory: getTargetStory(),
+    });
     if (!briefing) return null;
     // A day is playable only once its narrator's clips and framing are all published. Without this
     // a pack that is mid-recording, or being re-recorded, plays two voices inside one brief.
@@ -1103,8 +1116,7 @@ function displayBriefing() {
   renderLineupCard();
   renderDateChips();
   renderSections();
-  const urlParams = new URLSearchParams(window.location.search);
-  const storyParam = urlParams.get('story') || new URLSearchParams(window.location.hash.slice(1)).get('story');
+  const storyParam = getTargetStory();
   if (storyParam) handleStoryDeepLink(storyParam);
 }
 window.displayBriefing = displayBriefing;
@@ -1190,7 +1202,7 @@ async function saveAll() {
         };
       }
       const { rows, settings, date, notes, fresh, podcastClips } = state.packContext;
-      const briefing = buildPackBriefing(rows, settings, { date, voice: settings.voice, notes, mode: activeMode(), podcastClips });
+      const briefing = buildPackBriefing(rows, settings, { date, voice: settings.voice, notes, mode: activeMode(), podcastClips, targetStory: getTargetStory() });
       if (briefing) {
         briefing.fresh = fresh;
         const curStory = player.storyFor(player.currentChapter());
@@ -1539,9 +1551,11 @@ async function start() {
   const targetDate = urlParams.get('date') || today;
 
   // 1. Instant optimistic paint from cached briefing (0 ms!)
+  const storyParam = getTargetStory();
   if (!state.briefing) {
     const cached = store.get('last-briefing', null);
-    if (cached && (cached.stories?.length || cached.clips?.length)) {
+    const canUseCache = cached && (!urlParams.get('date') || cached.date === targetDate) && (!storyParam || cached.stories?.some((s) => s.id === storyParam));
+    if (canUseCache && (cached.stories?.length || cached.clips?.length)) {
       state.briefing = cached;
       state.briefingLoading = false;
       displayBriefing();
