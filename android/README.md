@@ -1,28 +1,50 @@
-# Hark Daily for Android
+# Hark Daily — Android Smart Native Shell
 
-Native Android client built with Jetpack Compose, Material3 tokens, and Media3 background playback. Plays daily editions streamed from Supabase Storage with optional on-device offline synthesis.
+Hark Daily's Android application uses a **Smart Native Shell** architecture powered by [Capacitor](https://capacitorjs.com/) and native Android system services.
 
-| Today | Following along | Sources | Settings |
-| :---: | :---: | :---: | :---: |
-| ![](../docs/screenshots/android-today-light.png) | ![](../docs/screenshots/android-playing-dark.png) | ![](../docs/screenshots/android-sources-light.png) | ![](../docs/screenshots/android-settings-light.png) |
+## Why Hybrid Smart Shell?
 
-- **Listening Modes**: Supports **Podcast** (default two-host conversation) and **Full Brief**.
-- **Follow-Along Visor**: Highlights the active story in real time with synchronized playback and inline read-along transcripts.
-- **Background Audio**: Android Media3 notification and lock-screen playback controls with scrubber.
-- **Pull-to-Refresh**: Native pull gesture on TodayScreen to check for updated editions.
-- **Offline Fallback**: Optional on-device Kokoro TTS offline engine via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx).
-- **Custom Lineup**: Reorder categories and toggle story counts per section.
+1. **Instant Updates & Over-The-Air Parity**: Points directly to `https://hark.vattitude.ca` with local offline web asset bundling as a seamless fallback. Web UI updates, new edition rollouts, and design improvements are reflected instantly on user devices without requiring store approvals or new binary installs.
+2. **Native Media Session & Unbroken Background Playback**:
+   - `HarkMediaService` runs as an Android Foreground Service with type `mediaPlayback`.
+   - CPU `PARTIAL_WAKE_LOCK` prevents OS battery-saver suspension and thread freezing when the screen turns off or when the user switches to other apps.
+   - Synchronizes with standard `navigator.mediaSession` for system lockscreen controls, notification transport actions, and Bluetooth metadata.
+3. **Hardware Keep-Screen-On**:
+   - `FLAG_KEEP_SCREEN_ON` is dynamically enabled whenever audio is actively playing, preventing the phone display from sleeping while reading along with the briefing teleprompter.
+   - Automatically releases when audio is paused or completed to preserve battery life.
+4. **Branded Native Notifications**:
+   - High-priority Android notification channel (`hark_daily_briefing`) with app branding and custom icon (`ic_notification`), avoiding generic browser notification banners that users typically dismiss.
 
-Requires Android 10+ (API 29+). Download signed APKs from [GitHub Releases](https://github.com/vattitude-me/Hark-Daily/releases). Store assets are in [`docs/play-store`](../docs/play-store).
+## Architecture
 
-## Build
+- **Application ID**: `me.vattitude.morningbrief`
+- **Main Activity**: `me.vattitude.morningbrief.MainActivity`
+- **Playback Service**: `me.vattitude.morningbrief.HarkMediaService`
+- **Bridge Interface**: `window.HarkNative` exposed directly into WebView:
+  - `setKeepScreenOn(boolean keepOn)`
+  - `notifyPlaybackState(boolean isPlaying, String title, String artist)`
+  - `postNotification(String title, String body)`
+  - `isNativeShell()`
 
+## Building Locally
+
+### Prerequisites
+- JDK 21
+- Android SDK (API 35/36)
+
+### Running Unit Tests
 ```bash
-cd android
-./gradlew testDebugUnitTest assembleDebug     # needs JDK 21 and the Android SDK
+./gradlew testDebugUnitTest
 ```
 
-Release builds are signed from `keystore.properties` (gitignored) or the `ANDROID_KEYSTORE*` environment variables.
-Google sign-in returns to `<applicationId>://auth`, so add `me.vattitude.morningbrief://auth` (and the `.debug` one)
-to Supabase → Authentication → URL Configuration → Redirect URLs.
-Pushing a tag like `android-v0.2.0` makes CI build a signed APK and attach it to a GitHub release.
+### Assembling Release APK
+```bash
+./gradlew assembleRelease -PversionName=1.0.0 -PversionCode=10000
+```
+Output: `app/build/outputs/apk/release/morning-brief-1.0.0.apk`
+
+### Assembling Release App Bundle (Google Play)
+```bash
+./gradlew bundleRelease -PversionName=1.0.0 -PversionCode=10000
+```
+Output: `app/build/outputs/bundle/release/morning-brief-release.aab`

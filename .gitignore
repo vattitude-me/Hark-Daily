@@ -37,3 +37,11 @@ Thumbs.db
 .idea/
 *.swp
 cleanup_google_background.sh
+
+# Node / JS
+node_modules/
+
+# Android Keystore
+keystore.properties
+*.jks
+

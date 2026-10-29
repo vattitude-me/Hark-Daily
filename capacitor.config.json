@@ -1,0 +1,26 @@
+{
+  "appId": "me.vattitude.morningbrief",
+  "appName": "Hark Daily",
+  "webDir": "web",
+  "server": {
+    "url": "https://hark.vattitude.ca",
+    "cleartext": false,
+    "allowNavigation": [
+      "hark.vattitude.ca",
+      "*.supabase.co"
+    ]
+  },
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#0d0d0d"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_notification",
+      "iconColor": "#F59E0B"
+    },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
+}
