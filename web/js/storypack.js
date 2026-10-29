@@ -476,6 +476,7 @@ export function buildBriefing(rows, settings, {
       image: storyRow.image || null, start, end, rapid: isRapid,
       audio_path: storyRow.audio_path,
       isSharedBonus: Boolean(storyRow.isSharedBonus),
+      script: storyRow.script || storyRow.summary || '',
     });
     chapters.push({ id, kind: 'story', title: storyRow.title, start, end, section: storyRow.section });
     clips.push({

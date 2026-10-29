@@ -222,10 +222,21 @@ function renderHeader() {
     if (raw.trim()) avInitial.textContent = raw.trim()[0].toUpperCase();
   }
 
+  const bTitle = $('briefTitle');
+  if (bTitle) {
+    bTitle.textContent = isPodcast ? 'Daily Podcast Newsreader' : 'Daily Spoken Newsreader';
+  }
+
   const sub = $('screenSubtitle');
   if (sub) {
-    const baseSummary = b ? summaryLine(b) : 'Your news, read aloud each morning.';
-    sub.textContent = b ? `${baseSummary} · Read by ${activeVoice.name}` : baseSummary;
+    if (isPodcast) {
+      const storyCount = b?.stories?.length || 35;
+      const mins = Math.max(1, Math.round((b?.duration || 840) / 60));
+      sub.textContent = `${storyCount} stories, ${mins} min · Voiced by Matthew & Kelly · Listen anywhere`;
+    } else {
+      const baseSummary = b ? summaryLine(b) : 'Your news, read aloud each morning.';
+      sub.textContent = b ? `${baseSummary} · Read by ${activeVoice.name}` : baseSummary;
+    }
   }
 
   const tag = $('freshnessTag');
@@ -611,8 +622,16 @@ function storyRow(story) {
 
   dot.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (player.current === story.id) player.toggle();
-    else player.playChapter(story.id);
+    if (player.current === story.id) {
+      player.toggle();
+    } else {
+      player.playChapter(story.id);
+      $('lineupSheet')?.close();
+    }
+  });
+  row.addEventListener('click', () => {
+    player.playChapter(story.id);
+    $('lineupSheet')?.close();
   });
 
   const catTile = h('div', { class: `story-tile cat-tile cat-${secKey}` },
@@ -1399,6 +1418,21 @@ function bindEvents() {
   wireSheet($('reportSheet'));
   const shareSheet = $('shareSheet');
   if (shareSheet) wireSheet(shareSheet);
+
+  // Lineup sheet modal
+  const openLineup = () => {
+    const sheet = $('lineupSheet');
+    if (sheet) {
+      if (typeof sheet.showModal === 'function') sheet.showModal();
+      else sheet.classList.remove('hidden');
+    }
+  };
+  window.openLineup = openLineup;
+  $('openLineupBtn')?.addEventListener('click', openLineup);
+  $('readerQueueBtn')?.addEventListener('click', openLineup);
+  const lineupSheet = $('lineupSheet');
+  if (lineupSheet) wireSheet(lineupSheet);
+  $('lineupSearchInput')?.addEventListener('input', (e) => applySearch(e.target.value));
 
   // Search input & keyboard shortcut
   $('searchInput')?.addEventListener('input', (e) => applySearch(e.target.value));
