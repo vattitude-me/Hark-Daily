@@ -239,7 +239,7 @@ export class SettingsPage {
         ListRow({
           label: 'News Country',
           detail: 'National top stories, politics, and sports tailored for your country. AI, Tech, and Science are shared universally.',
-          end: Tag(EDITIONS[window.state?.edition]?.flag ? `${EDITIONS[window.state.edition].flag} ${EDITIONS[window.state.edition].name.toUpperCase()}` : '🇨🇦 CANADA'),
+          end: Tag(EDITIONS[window.state?.edition] ? `${(EDITIONS[window.state.edition].code || 'CA').toUpperCase()} · ${EDITIONS[window.state.edition].name.toUpperCase()}` : 'CA · CANADA'),
           caret: true,
           onClick: () => {
             const current = window.state?.edition || 'ca';

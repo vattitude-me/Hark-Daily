@@ -11,7 +11,13 @@ const dir = mkdtempSync(join(tmpdir(), 'storypack-'));
 const src = readFileSync(new URL('../../web/js/storypack.js', import.meta.url), 'utf8')
   .replace("'./api.js'", "'./api.mjs'").replace("'../config.js'", "'./config.mjs'");
 writeFileSync(join(dir, 'storypack.mjs'), src);
-writeFileSync(join(dir, 'api.mjs'), "export const SECTIONS = { top: { title: 'Top' }, ai: { title: 'AI' }, tech: { title: 'Tech' }, sports: { title: 'Sports' } }; export const voiceName = (v) => v;");
+writeFileSync(join(dir, 'api.mjs'), `export const SECTIONS = {
+  top: { title: 'Top stories' }, top_us: { title: 'Top stories' }, top_in: { title: 'Top stories' },
+  ai: { title: 'AI' }, tech: { title: 'Tech' }, science: { title: 'Science' },
+  politics: { title: 'Politics' }, politics_us: { title: 'Politics' }, politics_in: { title: 'Politics' },
+  entertainment: { title: 'Entertainment' }, entertainment_us: { title: 'Entertainment' }, entertainment_in: { title: 'Entertainment' },
+  sports: { title: 'Sports' }, sports_us: { title: 'Sports' }, sports_in: { title: 'Cricket & Sports' }
+}; export const voiceName = (v) => v;`);
 writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x';");
 const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor } = await import(join(dir, 'storypack.mjs'));
 
@@ -128,5 +134,53 @@ test('clipsFor selects edition-specific clips and falls back to base if unavaila
   assert.equal(inClips.length, 2);
   assert.equal(inClips[0].title, 'CA Top');
   assert.equal(inClips[1].title, 'Global AI');
+});
+
+test('buildBriefing preserves all 7 sections for US, India, and Canada editions', () => {
+  const multiEdRows = [
+    // US sections
+    { section: 'top_us', rank: 1, voice: 'v', title: 'US Top', duration: 10, audio_path: 's/top_us.mp3' },
+    { section: 'politics_us', rank: 1, voice: 'v', title: 'US Politics', duration: 10, audio_path: 's/pol_us.mp3' },
+    { section: 'entertainment_us', rank: 1, voice: 'v', title: 'US Ent', duration: 10, audio_path: 's/ent_us.mp3' },
+    { section: 'sports_us', rank: 1, voice: 'v', title: 'US Sports', duration: 10, audio_path: 's/spo_us.mp3' },
+
+    // India sections
+    { section: 'top_in', rank: 1, voice: 'v', title: 'IN Top', duration: 10, audio_path: 's/top_in.mp3' },
+    { section: 'politics_in', rank: 1, voice: 'v', title: 'IN Politics', duration: 10, audio_path: 's/pol_in.mp3' },
+    { section: 'entertainment_in', rank: 1, voice: 'v', title: 'IN Ent', duration: 10, audio_path: 's/ent_in.mp3' },
+    { section: 'sports_in', rank: 1, voice: 'v', title: 'IN Cricket', duration: 10, audio_path: 's/spo_in.mp3' },
+
+    // Canada sections
+    { section: 'top', rank: 1, voice: 'v', title: 'CA Top', duration: 10, audio_path: 's/top_ca.mp3' },
+    { section: 'politics', rank: 1, voice: 'v', title: 'CA Politics', duration: 10, audio_path: 's/pol_ca.mp3' },
+    { section: 'entertainment', rank: 1, voice: 'v', title: 'CA Ent', duration: 10, audio_path: 's/ent_ca.mp3' },
+    { section: 'sports', rank: 1, voice: 'v', title: 'CA Sports', duration: 10, audio_path: 's/spo_ca.mp3' },
+
+    // Shared global sections
+    { section: 'ai', rank: 1, voice: 'v', title: 'Global AI', duration: 10, audio_path: 's/ai.mp3' },
+    { section: 'tech', rank: 1, voice: 'v', title: 'Global Tech', duration: 10, audio_path: 's/tech.mp3' },
+    { section: 'science', rank: 1, voice: 'v', title: 'Global Science', duration: 10, audio_path: 's/sci.mp3' },
+  ];
+
+  // 1. US edition
+  const usBrief = buildBriefing(multiEdRows, {}, { edition: 'us', voice: 'v' });
+  assert.equal(usBrief.sections.length, 7, 'US edition must contain all 7 sections');
+  const usKeys = usBrief.sections.map((s) => s.key);
+  assert.deepEqual(usKeys, ['top_us', 'ai', 'tech', 'politics_us', 'entertainment_us', 'science', 'sports_us']);
+  assert.equal(usBrief.stories.length, 7);
+
+  // 2. India edition
+  const inBrief = buildBriefing(multiEdRows, {}, { edition: 'in', voice: 'v' });
+  assert.equal(inBrief.sections.length, 7, 'India edition must contain all 7 sections');
+  const inKeys = inBrief.sections.map((s) => s.key);
+  assert.deepEqual(inKeys, ['top_in', 'ai', 'tech', 'politics_in', 'entertainment_in', 'science', 'sports_in']);
+  assert.equal(inBrief.stories.length, 7);
+
+  // 3. Canada edition
+  const caBrief = buildBriefing(multiEdRows, {}, { edition: 'ca', voice: 'v' });
+  assert.equal(caBrief.sections.length, 7, 'Canada edition must contain all 7 sections');
+  const caKeys = caBrief.sections.map((s) => s.key);
+  assert.deepEqual(caKeys, ['top', 'ai', 'tech', 'politics', 'entertainment', 'science', 'sports']);
+  assert.equal(caBrief.stories.length, 7);
 });
 

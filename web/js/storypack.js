@@ -180,12 +180,14 @@ export function planPodcast(clips, sections, seed = '') {
   let used = length(open) + length(close);
   const teasers = [];
   for (const key of sections.slice(0, MAX_TEASERS)) {
-    const c = byKey.get(`pod_tease_${key}`);
+    const baseKey = key.replace(/_(us|in|ca)$/, '');
+    const c = byKey.get(`pod_tease_${key}`) || byKey.get(`pod_tease_${baseKey}`);
     if (c && used + length(c) <= PODCAST_BUDGET) { teasers.push(c); used += length(c); }
   }
   const bridges = new Map();
   for (const key of sections) {
-    const c = byKey.get(`pod_bridge_${key}`);
+    const baseKey = key.replace(/_(us|in|ca)$/, '');
+    const c = byKey.get(`pod_bridge_${key}`) || byKey.get(`pod_bridge_${baseKey}`);
     if (c && used + length(c) <= PODCAST_BUDGET) { bridges.set(key, c); used += length(c); }
   }
   return { hosts, open, teasers, bridges, close, banter: used };
@@ -198,12 +200,12 @@ export function banterTitle(clipKey, sectionKey = null) {
   }
   if (clipKey.startsWith('pod_tease')) {
     const sec = sectionKey || clipKey.replace(/^pod_tease_/, '');
-    const secName = SECTIONS[sec]?.title || sec;
+    const secName = SECTIONS[sec]?.title || SECTIONS[sec.replace(/_(us|in|ca)$/, '')]?.title || sec;
     return `Coming up · ${secName}`;
   }
   if (clipKey.startsWith('pod_bridge')) {
     const sec = sectionKey || clipKey.replace(/^pod_bridge_/, '');
-    const secName = SECTIONS[sec]?.title || sec;
+    const secName = SECTIONS[sec]?.title || SECTIONS[sec.replace(/_(us|in|ca)$/, '')]?.title || sec;
     return `Up next · ${secName}`;
   }
   if (clipKey.startsWith('pod_close')) {
@@ -379,8 +381,14 @@ export function buildBriefing(rows, settings, {
     (notes || []).filter((n) => !id || n.voice === id).map((n) => [n.note_key, n]),
   );
 
+  const chosenSections = new Set(chosen.map((r) => r.section));
+  const targetSections = order.map((key) => {
+    const edKey = editionSectionKey(key, edition);
+    return chosenSections.has(edKey) ? edKey : (chosenSections.has(key) ? key : null);
+  }).filter(Boolean);
+
   const pod = mode === 'podcast'
-    ? planPodcast(podcastClips, order.filter((key) => chosen.some((r) => r.section === key && r.rank === 1)),
+    ? planPodcast(podcastClips, targetSections.filter((key) => chosen.some((r) => (r.section === key || r.section === editionSectionKey(key, edition)) && r.rank === 1)),
       `${date}:${id || ''}`)
     : null;
   const isPodcast = Boolean(pod);
@@ -483,8 +491,31 @@ export function buildBriefing(rows, settings, {
   else sayNote('outro');
 
   const sections = order
-    .filter((key) => counts.has(key))
-    .map((key) => ({ key, title: SECTIONS[key].title, count: counts.get(key) }));
+    .map((key) => {
+      const edKey = editionSectionKey(key, edition);
+      const actualKey = counts.has(edKey) ? edKey : (counts.has(key) ? key : null);
+      if (!actualKey) return null;
+      return {
+        key: actualKey,
+        logicalKey: key,
+        title: (SECTIONS[actualKey] || SECTIONS[key] || {}).title || key,
+        count: counts.get(actualKey),
+      };
+    })
+    .filter(Boolean);
+
+  const seenSecKeys = new Set(sections.map((s) => s.key));
+  for (const [secKey, count] of counts.entries()) {
+    if (!seenSecKeys.has(secKey)) {
+      sections.push({
+        key: secKey,
+        logicalKey: secKey.replace(/_(us|in|ca)$/, ''),
+        title: (SECTIONS[secKey] || {}).title || secKey,
+        count,
+      });
+      seenSecKeys.add(secKey);
+    }
+  }
 
   const availableVoices = [...new Set((rows || []).map((r) => r.voice).filter(Boolean))];
 

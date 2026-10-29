@@ -283,7 +283,9 @@ export class WelcomeSheet {
   }
 
   paintSources() {
-    const topics = Object.entries(SECTIONS).filter(([k]) => k !== 'custom');
+    const topics = ['top', 'ai', 'tech', 'politics', 'entertainment', 'science', 'sports']
+      .map((k) => [k, SECTIONS[k]])
+      .filter(([, info]) => Boolean(info));
     document.getElementById('welcomeSources').replaceChildren(
       h('div', { class: 'chip-row', style: 'display:flex;flex-wrap:wrap;gap:8px;margin:12px 0;' },
         ...topics.map(([key, info]) => {

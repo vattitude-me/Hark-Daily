@@ -1,4 +1,4 @@
-import { api, fmtTime, h, icon, isAdmin, recordError, sb, store, timeAgo, toast, VOICES, voiceFor, SECTIONS, DEFAULT_VOICE_ID, EDITIONS, defaultEdition } from './api.js';
+import { api, fmtTime, h, icon, isAdmin, recordError, sb, store, timeAgo, toast, VOICES, voiceFor, SECTIONS, DEFAULT_VOICE_ID, EDITIONS, defaultEdition, detectEditionFromIp } from './api.js';
 import { Player } from './player.js';
 import { Landing } from './landing.js';
 import { WelcomeSheet, enablePush, installMode, onInstallChange, promptInstall, pushSupported, requestNotificationPermission, wireSheet } from './sheets.js';
@@ -398,7 +398,14 @@ function syncEditionPicker() {
   const sel = $('editionSelect');
   if (sel) sel.value = state.edition;
   const flag = $('editionFlag');
-  if (flag) flag.textContent = EDITIONS[state.edition]?.flag || '🇨🇦';
+  if (flag) {
+    const ed = EDITIONS[state.edition] || EDITIONS.ca;
+    if (ed.flagSvg) {
+      flag.innerHTML = ed.flagSvg;
+    } else {
+      flag.textContent = ed.flag || '🇨🇦';
+    }
+  }
   const label = $('editionLabel');
   if (label) label.textContent = (EDITIONS[state.edition]?.code || state.edition || 'ca').toUpperCase();
 }
@@ -1273,7 +1280,7 @@ function setFootnote() {
 function displayBriefing() {
   if (state.briefing) {
     player.load(state.briefing);
-    try { store.set('last-briefing', state.briefing); } catch { /* ignore storage error */ }
+    try { store.set('last-briefing', { ...state.briefing, edition: state.edition }); } catch { /* ignore storage error */ }
   }
   setFootnote();
   renderHeader();
@@ -1757,6 +1764,7 @@ async function start() {
   if (!state.briefing) {
     const cached = store.get('last-briefing', null);
     const canUseCache = cached && (!urlParams.get('date') || cached.date === targetDate)
+      && (!cached.edition || cached.edition === state.edition)
       && (!targetInfo.title || cached.stories?.some((s) => titlesMatch(s.headline, targetInfo.title)))
       && (!targetInfo.story || cached.stories?.some((s) => s.id === targetInfo.story));
     if (canUseCache && (cached.stories?.length || cached.clips?.length)) {
@@ -1878,6 +1886,13 @@ async function init() {
   syncInstallBtn();
   syncAdminTab();
   syncEditionPicker();
+  if (!store.get('edition', null)) {
+    detectEditionFromIp().then((ipEd) => {
+      if (ipEd && ipEd !== state.edition && !store.get('edition', null)) {
+        setEdition(ipEd);
+      }
+    }).catch(() => {});
+  }
   initConsentPopup();
   renderHeader();
   renderNotice();
