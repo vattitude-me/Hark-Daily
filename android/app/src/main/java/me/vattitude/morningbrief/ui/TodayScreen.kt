@@ -799,12 +799,21 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                             onPlay = { vm.seekTo(card.start) },
                             onOpen = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(card.url))) },
                             onShare = {
-                                val shareUrl = "https://hark.vattitude.ca/?story=${card.id}&date=${b.date}"
+                                val dur = (card.end - card.start).toInt().coerceAtLeast(1)
+                                val params = listOfNotNull(
+                                    "story=${card.id}",
+                                    "date=${b.date}",
+                                    "title=" + Uri.encode(card.headline),
+                                    if (card.audioPath.isNotEmpty()) "audio=" + Uri.encode(card.audioPath) else null,
+                                    if (card.source.isNotEmpty()) "src=" + Uri.encode(card.source) else null,
+                                    "dur=$dur"
+                                ).joinToString("&")
+                                val shareUrl = "https://hark.vattitude.ca/?$params"
                                 val sendIntent = Intent().apply {
                                     action = Intent.ACTION_SEND
                                     putExtra(
                                         Intent.EXTRA_TEXT,
-                                        "\"${card.headline}\"\n\nListen to the 20-second summary on Hark Daily (no login required):\n$shareUrl"
+                                        "\"${card.headline}\"\n\nListen to this $dur-second summary on Hark Daily (no login required):\n$shareUrl"
                                     )
                                     putExtra(Intent.EXTRA_TITLE, card.headline)
                                     type = "text/plain"

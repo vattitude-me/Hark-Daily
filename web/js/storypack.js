@@ -35,6 +35,27 @@ const CONNECTORS = [
 const LABEL_PREFIX = /^(?:the news|why it matters|what to know|what happened|the big picture|from the source|between the lines|catch up quick|by the numbers|what they(?:'re| are) saying|what's next|the backstory|yes, but|details|context|zoom in|zoom out|what to watch|state of play):\s*/i;
 
 /**
+ * Clean headline matcher: returns true if two titles match, ignoring punctuation, case,
+ * or minor publisher word variations using Dice word similarity (threshold >= 0.65).
+ */
+export function titlesMatch(a, b) {
+  if (!a || !b) return false;
+  const clean = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+  const ca = clean(a);
+  const cb = clean(b);
+  if (!ca || !cb) return false;
+  if (ca === cb) return true;
+  if (ca.startsWith(cb) || cb.startsWith(ca)) return true;
+  const wordsA = ca.split(' ').filter((w) => w.length > 2);
+  const wordsB = cb.split(' ').filter((w) => w.length > 2);
+  if (!wordsA.length || !wordsB.length) return false;
+  const setB = new Set(wordsB);
+  const common = wordsA.filter((w) => setB.has(w)).length;
+  const similarity = (2 * common) / (wordsA.length + wordsB.length);
+  return similarity >= 0.65;
+}
+
+/**
  * Extract clean body summary from broadcast script by stripping repeated headline,
  * podcast banter connectors, and editorial section prefixes (e.g. "The news:").
  */
@@ -210,7 +231,10 @@ export function noteTitle(noteKey) {
  *
  * Returns `null` when the listener's lineup selects nothing (or the day has no pack).
  */
-export function buildBriefing(rows, settings, { date, voice, notes = [], hour, mode = 'full', podcastClips = [], targetStory = null } = {}) {
+export function buildBriefing(rows, settings, {
+  date, voice, notes = [], hour, mode = 'full', podcastClips = [],
+  targetStory = null, targetTitle = null, targetAudio = null, targetSource = null, targetDur = 20
+} = {}) {
   const isRapid = mode === 'rapid';
   const id = pickVoice(rows, voice);
   const userOrder = (settings && Array.isArray(settings.section_order) && settings.section_order.length)
@@ -221,18 +245,31 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
   // In Rapid Fire mode, select the 5 top stories of the day
   let wanted = lineup(settings);
 
-  // If a specific story is requested via deep link (?story=sec-rank), guarantee its section is enabled & high enough
+  // If a specific story is requested via deep link:
+  // 1. Try matching by headline title first (resilient against morning/evening batch rank shifts)
   let targetSec = null;
   let targetRank = null;
-  if (targetStory) {
+  let matchedRow = null;
+
+  if (targetTitle) {
+    matchedRow = (rows || []).find((r) => (!id || r.voice === id) && titlesMatch(r.title, targetTitle))
+      || (rows || []).find((r) => titlesMatch(r.title, targetTitle));
+  }
+
+  if (matchedRow) {
+    // Found the story in the active pack! Use its actual current section and rank
+    targetSec = matchedRow.section;
+    targetRank = matchedRow.rank;
+  } else if (targetStory) {
     const parts = String(targetStory).split('-');
     if (parts.length >= 2) {
       targetSec = parts[0];
       targetRank = Number.parseInt(parts[parts.length - 1], 10);
-      if (SECTION_ORDER.includes(targetSec) && Number.isFinite(targetRank) && targetRank > 0) {
-        wanted[targetSec] = Math.max(wanted[targetSec] || 0, Math.min(targetRank, MAX_PER_SECTION));
-      }
     }
+  }
+
+  if (targetSec && SECTION_ORDER.includes(targetSec) && Number.isFinite(targetRank) && targetRank > 0) {
+    wanted[targetSec] = Math.max(wanted[targetSec] || 0, Math.min(targetRank, MAX_PER_SECTION));
   }
 
   if (isRapid) {
@@ -270,10 +307,19 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
   }
 
   const chosen = clipsFor(rows, wanted, id, order);
-  if (!chosen.length) return null;
+  if (!chosen.length && !targetAudio) return null;
 
-  // Resilient deep-link check: if targetStory is specified, make sure it is in chosen
-  if (targetStory) {
+  // Resilient deep-link check:
+  // 1. If matchedRow was found in rows but was not in chosen, insert it
+  if (matchedRow && !chosen.some((r) => r === matchedRow || (r.section === matchedRow.section && r.rank === matchedRow.rank))) {
+    chosen.push(matchedRow);
+    chosen.sort((a, b) => {
+      const secA = order.indexOf(a.section);
+      const secB = order.indexOf(b.section);
+      if (secA !== secB) return (secA === -1 ? 999 : secA) - (secB === -1 ? 999 : secB);
+      return (a.rank || 0) - (b.rank || 0);
+    });
+  } else if (targetStory && !matchedRow) {
     const hasTarget = chosen.some((r) => `${r.section}-${r.rank}` === targetStory || r.id === targetStory);
     if (!hasTarget) {
       const match = (rows || []).find((r) =>
@@ -289,6 +335,34 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
         });
       }
     }
+  }
+
+  // 2. If the story was voiced in an earlier batch (e.g. morning) and replaced in the evening batch,
+  // the audio file remains permanent in Supabase Storage. Inject it as a shared story!
+  if (targetAudio && !chosen.some((r) => (targetTitle && titlesMatch(r.title, targetTitle)) || r.audio_path === targetAudio)) {
+    const sec = (targetSec && SECTION_ORDER.includes(targetSec)) ? targetSec : 'top';
+    const cleanHash = targetAudio.replace(/[^a-zA-Z0-9]/g, '').slice(-8);
+    const archivedId = targetStory || `shared-${sec}-${cleanHash}`;
+    const syntheticRow = {
+      section: sec,
+      rank: 0,
+      title: targetTitle || 'Shared Story',
+      summary: targetTitle || 'Shared Story',
+      source: targetSource || 'The news',
+      url: null,
+      image: null,
+      duration: targetDur || 20,
+      audio_path: targetAudio,
+      isSharedBonus: true,
+      syntheticId: archivedId,
+    };
+    chosen.unshift(syntheticRow);
+    chosen.sort((a, b) => {
+      const secA = order.indexOf(a.section);
+      const secB = order.indexOf(b.section);
+      if (secA !== secB) return (secA === -1 ? 999 : secA) - (secB === -1 ? 999 : secB);
+      return (a.rank || 0) - (b.rank || 0);
+    });
   }
 
   const byKey = new Map(
@@ -374,13 +448,15 @@ export function buildBriefing(rows, settings, { date, voice, notes = [], hour, m
     const duration = Number(storyRow.duration) || 0;
     const start = round(cursor);
     const end = round(cursor + duration);
-    const id = `${storyRow.section}-${storyRow.rank}`;
+    const id = storyRow.syntheticId || `${storyRow.section}-${storyRow.rank}`;
     stories.push({
       id, section: storyRow.section, source: storyRow.source || 'The Guardian',
       headline: storyRow.title,
       summary: storyRow.summary || stripHeadlineAndFiller(storyRow.title, storyRow.script || ''),
       url: storyRow.url || null,
       image: storyRow.image || null, start, end, rapid: isRapid,
+      audio_path: storyRow.audio_path,
+      isSharedBonus: Boolean(storyRow.isSharedBonus),
     });
     chapters.push({ id, kind: 'story', title: storyRow.title, start, end, section: storyRow.section });
     clips.push({

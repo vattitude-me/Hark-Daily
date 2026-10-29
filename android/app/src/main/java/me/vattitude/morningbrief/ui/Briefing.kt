@@ -11,6 +11,7 @@ data class Card(
     val source: String, val also: List<String>, val image: String?, val start: Double, val end: Double,
     /** Who wrote the summary: an AI model's name, or "built-in". */
     val writer: String = "",
+    val audioPath: String = "",
 )
 
 data class Weather(val city: String, val now: Int, val high: Int, val conditions: String, val code: Int)
