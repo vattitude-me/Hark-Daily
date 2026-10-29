@@ -6,13 +6,23 @@
   <title>Privacy · Hark Daily</title>
   <meta name="description" content="What Hark Daily collects, why, and how to delete it.">
   <link rel="canonical" href="https://hark.vattitude.ca/privacy">
+  <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml">
+
+  <!-- Google Analytics (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-8LV7D5TDT2"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-8LV7D5TDT2');
+  </script>
 
   <!-- OpenGraph / Social Sharing -->
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://hark.vattitude.ca/privacy">
   <meta property="og:site_name" content="Hark Daily">
   <meta property="og:title" content="Privacy Policy · Hark Daily">
-  <meta property="og:description" content="What Hark Daily collects, why, and how to delete it. Plain language, no ads, no trackers.">
+  <meta property="og:description" content="What Hark Daily collects, why, and how to delete it. Plain language, no ads.">
   <meta property="og:image" content="https://hark.vattitude.ca/icons/icon-512.png">
 
   <!-- Twitter / X -->
@@ -43,9 +53,9 @@
   <main class="legal">
     <a class="legal-top" href="/"><img src="/icons/icon.svg" alt="" width="32" height="32"> Hark Daily</a>
     <h1>Privacy</h1>
-    <p class="updated">Last updated October 24, 2026</p>
+    <p class="updated">Last updated October 28, 2026</p>
     <p>Hark Daily turns curated and custom news into a short, focused spoken briefing. It collects as little as it can to do that.
-      There are zero ads, zero tracking scripts, and zero analytics trackers. Nothing is ever sold, leased, or shared with marketers.</p>
+      There are zero commercial ads. We use Google Analytics to understand live aggregate usage, search topics, and audio playback engagement so we can continuously improve the briefing experience. Nothing is ever sold, leased, or shared with marketers.</p>
 
     <h2>What's stored with your account</h2>
     <p>You don't need an account to use the Android app or listen to the daily showcase on the web. If you sign in (on the web, or in the app to sync), we store:</p>
@@ -65,6 +75,7 @@
       <li><b>News sources (CBC News, TechCrunch, BetaKit, and custom feeds)</b> receive ordinary HTTP GET requests when our pipeline reads public headlines and summary articles.</li>
       <li><b>Open-Meteo</b> receives city coordinates to return temperature and forecast conditions. No personal identifiers are sent.</li>
       <li><b>Summarization & Voice AI:</b> Daily news scripts are summarized via Groq or Google Gemini API. Spoken briefings are synthesized once globally on our private cloud voice server running Chatterbox-Turbo / Kokoro. Audio clips are saved to static storage and shared across all listeners. Individual listeners never have their identity or playback activity sent to voice models.</li>
+      <li><b>Google Analytics:</b> Measures aggregate website traffic, search queries, and audio playback engagement on the web app (measurement ID G-8LV7D5TDT2) to help us improve performance and feature relevance. Analytics data is anonymized and never sold.</li>
       <li><b>Google</b> handles authentication when you explicitly click "Continue with Google".</li>
       <li><b>GitHub</b> hosts public release APKs and source code repositories.</li>
     </ul>
@@ -88,7 +99,7 @@
     <h2>Changes and contact</h2>
     <p>If this policy changes, the date above changes with it. Questions or requests:
       <a href="https://github.com/vattitude-me/Hark-Daily/issues">open an issue on GitHub</a>.</p>
-    <p class="legal-foot"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/">Hark Daily</a></p>
+    <p class="legal-foot">Created and managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/">Hark Daily</a></p>
   </main>
 </body>
 </html>

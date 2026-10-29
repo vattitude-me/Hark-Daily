@@ -6,13 +6,13 @@
 
 **The news you hear, not just read.**  
 A concise daily audio briefing from **CBC News**, **TechCrunch**, **ScienceDaily**, and **BetaKit**, voiced by neural personas anchored by flagship narrator **C-3PO** alongside modular neural voices.  
-No ads. No tracking. Zero doom-scrolling.
+No ads. Fast audio briefings. Zero doom-scrolling.
 
 [![Web PWA](https://img.shields.io/badge/Web-Live_Demo-2f6fed?style=flat-square&logo=googlechrome&logoColor=white)](https://hark.vattitude.ca)
 [![Android App](https://img.shields.io/badge/Android-APK_v0.1.69-1a9b5b?style=flat-square&logo=android&logoColor=white)](https://github.com/vattitude-me/Hark-Daily/releases/tag/android-v0.1.69)
 [![Neural Voice](https://img.shields.io/badge/Voice-Chatterbox--Turbo-6a4cf5?style=flat-square)](voice_service/)
 [![Changelog](https://img.shields.io/badge/Changelog-v0.1.69-orange?style=flat-square)](CHANGELOG.md)
-[![Privacy First](https://img.shields.io/badge/Privacy-No_Ads_%7C_No_Tracking-0D0D0D?style=flat-square)](web/privacy.html)
+[![Privacy First](https://img.shields.io/badge/Privacy-No_Ads_%7C_Privacy_First-0D0D0D?style=flat-square)](web/privacy.html)
 
 [**Web PWA**](#-web-pwa) · [**Android App**](#-android-app) · [**Features**](#-features) · [**Privacy**](web/privacy.html) · [**Terms**](web/terms.html) · [**Changelog**](CHANGELOG.md) · [**Technical Guide**](docs/TECHNICAL.md)
 
@@ -34,7 +34,7 @@ No ads. No tracking. Zero doom-scrolling.
 * **Pull-to-Refresh**: Native pull gesture on Android to check for fresh editions on demand.
 * **Custom Lineup**: Reorder topics and toggle categories to build your personal lineup.
 * **Local Apple Silicon Synthesis**: Runs locally on macOS with PyTorch Metal Performance Shaders (MPS) and automated `launchd` scheduling. Zero cloud GPU costs.
-* **No Ads or Tracking**: No sponsored stories, tracking pixels, or algorithmic feeds.
+* **No Ads or Sponsored Feeds**: No sponsored stories, third-party advertising, or algorithmic feeds.
 
 ---
 
@@ -110,6 +110,6 @@ Native Android application built with Jetpack Compose, Compose Material3 tokens,
 
 <div align="center">
 
-Free · Open Source · No ads · No tracking
+Free · Open Source · No ads · Privacy First
 
 </div>

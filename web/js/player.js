@@ -275,8 +275,15 @@ export class Player extends EventTarget {
 
   toggle() {
     if (!this.briefing) return;
-    if (this.isPlaying) this.audio.pause();
-    else this.audio.play().catch(() => {});
+    if (this.isPlaying) {
+      this.audio.pause();
+    } else {
+      window.trackEvent?.('play_briefing', {
+        mode: this.briefing.mode || 'podcast',
+        title: this.briefing.title,
+      });
+      this.audio.play().catch(() => {});
+    }
   }
 
   skip(sec) {
@@ -287,6 +294,11 @@ export class Player extends EventTarget {
   playChapter(id) {
     const ch = this.chapters.find((c) => c.id === id);
     if (!ch) return;
+    window.trackEvent?.('play_story', {
+      story_id: id,
+      title: ch.title,
+      section: ch.section,
+    });
     this.seekTo(ch.start);
     this.audio.play().catch(() => {});
   }

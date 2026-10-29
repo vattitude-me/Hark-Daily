@@ -30,7 +30,7 @@ Hark Daily gathers the stories you care about from trusted sources (CBC News, Te
 • Every story links directly to the full article from its publisher
 
 **Private by design**
-• No ads, no tracking pixels, no algorithmic feeds
+• No ads, no commercial tracking pixels, no algorithmic feeds
 • Signing in is optional and only syncs your preferences
 
 **Smarter summaries, if you want them**

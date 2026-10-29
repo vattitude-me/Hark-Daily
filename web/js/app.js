@@ -21,6 +21,16 @@ const state = {
 };
 
 const $ = (id) => document.getElementById(id);
+
+export function trackEvent(name, params = {}) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
+      window.gtag('event', name, params);
+    }
+  } catch { /* ignore analytics errors */ }
+}
+window.trackEvent = trackEvent;
+
 const player = new Player();
 window.player = player;
 window.state = state;
@@ -349,6 +359,7 @@ function setBriefingMode(mode) {
   store.set('brief-mode', mode);
   syncModePicker();
   $('podcastVoiceBanner')?.classList.add('hidden');
+  trackEvent('select_content', { content_type: 'briefing_mode', item_id: mode });
 
   if (state.packContext) {
     const { rows, settings, date, notes, fresh, podcastClips } = state.packContext;
@@ -666,6 +677,13 @@ export async function openShareModal(story) {
     url: shareUrl,
   };
 
+  trackEvent('share', {
+    method: (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) ? 'web_share_api' : 'share_modal',
+    content_type: 'story',
+    item_id: story.id,
+    item_name: story.headline,
+  });
+
   if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
     try {
       await navigator.share(shareData);
@@ -872,6 +890,15 @@ function renderSections() {
 }
 
 /* ----------------------------------------------------------- search & text size */
+let searchDebounceTimer = null;
+function trackSearchQuery(q, matchCount) {
+  clearTimeout(searchDebounceTimer);
+  if (!q || q.length < 2) return;
+  searchDebounceTimer = setTimeout(() => {
+    trackEvent('search', { search_term: q, matches_found: matchCount });
+  }, 800);
+}
+
 function applySearch(query) {
   const q = (query || '').trim().toLowerCase();
   const rows = document.querySelectorAll('.story-row');
@@ -901,6 +928,7 @@ function applySearch(query) {
   } else if (empty) {
     empty.remove();
   }
+  trackSearchQuery(q, matchCount);
 }
 
 function setTextSize(size) {
@@ -1096,6 +1124,7 @@ async function loadArchive() {
 async function switchTab(tab) {
   if (tab === 'admin' && !isAdmin(state.profile)) return;
   currentTab = tab;
+  trackEvent('screen_view', { screen_name: tab });
   document.querySelectorAll('#tabbar .tab').forEach((t) => {
     const on = t.dataset.tab === tab;
     t.classList.toggle('active', on);

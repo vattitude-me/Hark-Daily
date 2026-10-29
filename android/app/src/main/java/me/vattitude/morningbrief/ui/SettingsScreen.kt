@@ -275,6 +275,7 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     Text(" · v${BuildConfig.VERSION_NAME}", style = Type.meta, color = t.muted)
                 }
                 Text("The news you hear, not just read.", Modifier.padding(top = 4.dp), style = Type.tiny, color = t.muted)
+                Text("Created and managed by vattitude.ca", Modifier.padding(top = 2.dp), style = Type.tiny, color = t.muted)
                 Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     TextButton(onClick = { openPage(context, PRIVACY_URL) }) { Text("Privacy Policy", style = Type.meta, color = t.ink) }
                     TextButton(onClick = { openPage(context, TERMS_URL) }) { Text("Terms of Service", style = Type.meta, color = t.ink) }
