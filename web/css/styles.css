@@ -421,13 +421,13 @@ kbd { font-family: var(--font-head); font-size: .7rem; padding: .05rem .4rem; bo
 .cat-tile svg { width: 1.2rem; height: 1.2rem; }
 .cat-tile.sm { width: 2rem; height: 2rem; border-radius: var(--r-sm); }
 .cat-tile.sm svg { width: 1rem; height: 1rem; }
-.cat-top { --cat: var(--c-top); }
+.cat-top, .cat-top_us, .cat-top_in { --cat: var(--c-top); }
 .cat-ai { --cat: var(--c-ai); }
 .cat-tech { --cat: var(--c-tech); }
-.cat-politics { --cat: var(--c-politics); }
-.cat-entertainment { --cat: var(--c-entertainment); }
+.cat-politics, .cat-politics_us, .cat-politics_in { --cat: var(--c-politics); }
+.cat-entertainment, .cat-entertainment_us, .cat-entertainment_in { --cat: var(--c-entertainment); }
 .cat-science { --cat: var(--c-science); }
-.cat-sports { --cat: var(--c-sports); }
+.cat-sports, .cat-sports_us, .cat-sports_in { --cat: var(--c-sports); }
 .cat-custom { --cat: var(--c-custom); }
 .cat-neutral { --cat: var(--c-neutral); }
 
@@ -832,7 +832,13 @@ body:not([data-tab="today"]) .search, body:not([data-tab="today"]) .status-chip 
   cursor: pointer;
 }
 .edition-chip:hover { border-color: var(--accent-line); background: var(--accent-soft); }
-.edition-flag { font-size: 1.15rem; line-height: 1; display: inline-block; flex-shrink: 0; }
+.edition-flag {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; line-height: 1;
+}
+.edition-flag .flag-icon {
+  display: block; width: 18px; height: 12px; flex-shrink: 0;
+}
 .edition-code {
   font-family: var(--font-head); font-weight: 600;
   font-size: .8125rem; color: var(--ink); letter-spacing: .02em;
@@ -2399,6 +2405,7 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
     gap: .25rem !important;
   }
   .edition-flag { font-size: 1rem !important; }
+  .edition-flag .flag-icon { width: 16px !important; height: 11px !important; }
   .edition-code { font-size: .75rem !important; }
   .edition-arrow { display: none !important; }
 

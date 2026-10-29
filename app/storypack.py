@@ -395,7 +395,7 @@ def showcase_payload(rows: list[dict], notes: list[dict], url_for, *, day: str,
             "clips": clips,
             "chapters": chapters,
             "stories": stories,
-            "sections": [{"key": k, "title": topics.SECTIONS[k]["title"], "count": n}
+            "sections": [{"key": k, "title": topics.ALL_SECTIONS[k]["title"], "count": n}
                          for k, n in counts.items()],
         },
     }
@@ -691,7 +691,7 @@ def backfill_from_existing(scripts: list[dict], store, day: str, per_section: in
     """If a fresh scan returned fewer than per_section stories for a category,
     backfill remaining slots using unexpired stories from earlier today's run.
     """
-    target_sections = sections or list(topics.SECTIONS)
+    target_sections = sections or list(topics.ALL_SECTIONS)
     current_by_sec: dict[str, list[dict]] = {sec: [] for sec in target_sections}
     for s in scripts:
         if s.get("section") in current_by_sec:

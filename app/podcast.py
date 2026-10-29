@@ -92,7 +92,7 @@ def plan_pieces(scripts: list[dict]) -> list[Piece]:
     top: dict[str, dict] = {}
     for s in scripts:
         sec = s.get("section")
-        if sec in topics.SECTIONS and (sec not in top or s.get("rank", 99) < top[sec].get("rank", 99)):
+        if sec in topics.ALL_SECTIONS and (sec not in top or s.get("rank", 99) < top[sec].get("rank", 99)):
             top[sec] = s
     for sec, story in top.items():
         pieces.append(Piece(piece_key("tease", sec), "tease", sec,
@@ -149,17 +149,19 @@ BRIDGE_TEMPLATES: dict[str, list[Turn]] = {
 
 
 def _tone_family(section: str | None) -> str:
+    base = (section or "").replace("_us", "").replace("_in", "").replace("_ca", "")
     return {"top": "warm", "politics": "serious", "ai": "excited", "tech": "excited",
-            "entertainment": "light", "science": "curious", "sports": "energetic"}.get(section or "", "warm")
+            "entertainment": "light", "science": "curious", "sports": "energetic"}.get(base, "warm")
 
 
 def _fill(turns: list[Turn], hosts: tuple[str, str], piece: Piece) -> list[Turn]:
-    title = topics.SECTIONS.get(piece.section or "", {}).get("title", "the news")
+    title = topics.ALL_SECTIONS.get(piece.section or "", {}).get("title", "the news")
     headline = piece.headline.rstrip(".")
     if len(headline) > 110:
         headline = headline[:107].rsplit(" ", 1)[0] + "..."
     filled = [(who, text.format(a=hosts[0], b=hosts[1], h=headline, s=title)) for who, text in turns]
-    return [(who, strip_tags(text)) for who, text in filled] if piece.section in SOBER_SECTIONS else filled
+    base_sec = (piece.section or "").replace("_us", "").replace("_in", "").replace("_ca", "")
+    return [(who, strip_tags(text)) for who, text in filled] if base_sec in SOBER_SECTIONS else filled
 
 
 def template_piece(piece: Piece, hosts: tuple[str, str]) -> Written:
@@ -206,7 +208,8 @@ def validate_turns(raw, kind: str, section: str | None = None) -> list[Turn] | N
         if who not in ("a", "b") or not words_only or _BAD.search(words_only):
             return None
         tags += len(_TAG.findall(text))
-        if section in SOBER_SECTIONS:
+        base_sec = (section or "").replace("_us", "").replace("_in", "").replace("_ca", "")
+        if base_sec in SOBER_SECTIONS:
             text = words_only
         words += len(words_only.split())
         turns.append((0 if who == "a" else 1, text))
@@ -264,7 +267,8 @@ def ask_ai(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
     if not models:
         return {}, ["no AI key configured"]
 
-    sections = {p.section: {"title": topics.SECTIONS[p.section]["title"], "tone": TONE.get(p.section, "neutral"),
+    sections = {p.section: {"title": topics.ALL_SECTIONS[p.section]["title"],
+                            "tone": TONE.get((p.section or "").replace("_us", "").replace("_in", "").replace("_ca", ""), "neutral"),
                             "headline": p.headline, "summary": p.summary}
                 for p in pieces if p.kind == "tease"}
     weekday = _date.fromisoformat(day).strftime("%A")

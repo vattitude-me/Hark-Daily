@@ -39,19 +39,100 @@ export const SECTIONS = {
 };
 
 export const EDITIONS = {
-  ca: { code: 'ca', name: 'Canada', flag: '🇨🇦', label: '🇨🇦 Canada' },
-  us: { code: 'us', name: 'United States', flag: '🇺🇸', label: '🇺🇸 United States' },
-  in: { code: 'in', name: 'India', flag: '🇮🇳', label: '🇮🇳 India' },
+  ca: {
+    code: 'ca',
+    name: 'Canada',
+    flag: '🇨🇦',
+    flagSvg: '<svg class="flag-icon" viewBox="0 0 24 16" width="18" height="12" aria-hidden="true" style="border-radius:2px;overflow:hidden;box-shadow:0 0 1px rgba(0,0,0,0.4);"><rect width="6" height="16" fill="#e01a22"/><rect x="6" width="12" height="16" fill="#ffffff"/><rect x="18" width="6" height="16" fill="#e01a22"/><path d="M12 3.2l.7 2.1 1.7-.8-.5 1.9 2.1.4-1.5 1.4.6 2.1-1.9-1.2-1.2 2.2V9.8l-1.2-2.2-1.9 1.2.6-2.1-1.5-1.4 2.1-.4-.5-1.9 1.7.8z" fill="#e01a22"/></svg>',
+    label: 'Canada (CA)',
+  },
+  us: {
+    code: 'us',
+    name: 'United States',
+    flag: '🇺🇸',
+    flagSvg: '<svg class="flag-icon" viewBox="0 0 24 16" width="18" height="12" aria-hidden="true" style="border-radius:2px;overflow:hidden;box-shadow:0 0 1px rgba(0,0,0,0.4);"><rect width="24" height="16" fill="#ffffff"/><rect width="24" height="2.46" y="0" fill="#b22234"/><rect width="24" height="2.46" y="4.92" fill="#b22234"/><rect width="24" height="2.46" y="9.84" fill="#b22234"/><rect width="24" height="2.46" y="14.76" fill="#b22234"/><rect width="10" height="8.6" fill="#3c3b6e"/><circle cx="2.5" cy="2.5" r=".7" fill="#fff"/><circle cx="7.5" cy="2.5" r=".7" fill="#fff"/><circle cx="5" cy="4.3" r=".7" fill="#fff"/><circle cx="2.5" cy="6.1" r=".7" fill="#fff"/><circle cx="7.5" cy="6.1" r=".7" fill="#fff"/></svg>',
+    label: 'United States (US)',
+  },
+  in: {
+    code: 'in',
+    name: 'India',
+    flag: '🇮🇳',
+    flagSvg: '<svg class="flag-icon" viewBox="0 0 24 16" width="18" height="12" aria-hidden="true" style="border-radius:2px;overflow:hidden;box-shadow:0 0 1px rgba(0,0,0,0.4);"><rect width="24" height="5.33" fill="#ff9933"/><rect y="5.33" width="24" height="5.34" fill="#ffffff"/><rect y="10.67" width="24" height="5.33" fill="#138808"/><circle cx="12" cy="8" r="2.2" fill="none" stroke="#000080" stroke-width="0.8"/><circle cx="12" cy="8" r="0.6" fill="#000080"/></svg>',
+    label: 'India (IN)',
+  },
 };
 
 export function defaultEdition() {
   try {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    // 1. Language & locale check (e.g. 'en-CA', 'fr-CA', 'en-IN', 'hi-IN', 'en-US')
+    const nav = typeof navigator !== 'undefined' ? navigator : null;
+    const langs = (nav?.languages && nav.languages.length) ? nav.languages : [nav?.language || ''];
+    for (const lang of langs) {
+      if (!lang) continue;
+      const lower = lang.toLowerCase();
+      if (lower === 'ca' || lower.endsWith('-ca') || lower.endsWith('_ca')) return 'ca';
+      if (lower === 'in' || lower.endsWith('-in') || lower.endsWith('_in')) return 'in';
+      if (lower === 'us' || lower.endsWith('-us') || lower.endsWith('_us')) return 'us';
+      if (/^(hi|ta|te|mr|bn|gu|kn|ml|pa)([-_]|$)/i.test(lower)) return 'in';
+    }
+
+    // 2. Timezone check
+    const tz = (typeof Intl !== 'undefined' && Intl.DateTimeFormat)
+      ? (Intl.DateTimeFormat().resolvedOptions().timeZone || '')
+      : '';
     if (tz.includes('Calcutta') || tz.includes('Kolkata') || tz.includes('India')) return 'in';
-    if (tz.includes('New_York') || tz.includes('Chicago') || tz.includes('Los_Angeles') || tz.includes('Denver') || tz.includes('Phoenix')) return 'us';
-    if (tz.includes('Toronto') || tz.includes('Vancouver') || tz.includes('Edmonton') || tz.includes('Winnipeg') || tz.includes('Halifax') || tz.includes('Montreal')) return 'ca';
+
+    // Canadian timezones
+    const canadaTz = [
+      'Toronto', 'Vancouver', 'Montreal', 'Edmonton', 'Winnipeg', 'Halifax',
+      'St_Johns', 'Regina', 'Yellowknife', 'Iqaluit', 'Whitehorse', 'Moncton',
+      'Glace_Bay', 'Goose_Bay', 'Rankin_Inlet', 'Resolute', 'Swift_Current',
+      'Dawson', 'Fort_Nelson', 'Cambridge_Bay', 'Inuvik', 'Pangnirtung'
+    ];
+    if (canadaTz.some((c) => tz.includes(c))) return 'ca';
+
+    // US timezones
+    const usTz = [
+      'New_York', 'Chicago', 'Los_Angeles', 'Denver', 'Phoenix', 'Detroit',
+      'Boise', 'Anchorage', 'Adak', 'Honolulu', 'Juneau', 'Metlakatla',
+      'Nome', 'Sitka', 'Yakutat', 'Menominee', 'Indiana', 'Kentucky', 'North_Dakota'
+    ];
+    if (usTz.some((u) => tz.includes(u))) return 'us';
   } catch {}
+  // Default for users outside CA, US, and IN (or unknown): default to Canada or US (default: 'ca')
   return 'ca';
+}
+
+/**
+ * Detects visitor country from IP geolocation (via edge headers at /api/geo, with fallback).
+ * Returns 'ca', 'us', or 'in'. Users outside these countries default to 'ca' or 'us'.
+ */
+export async function detectEditionFromIp() {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
+    let res = await fetch('/api/geo', { signal: controller.signal }).catch(() => null);
+    let data = res && res.ok ? await res.json().catch(() => null) : null;
+    clearTimeout(timer);
+
+    let country = data?.country?.toUpperCase?.();
+    if (!country) {
+      const c2 = new AbortController();
+      const t2 = setTimeout(() => c2.abort(), 2000);
+      res = await fetch('https://api.country.is/', { signal: c2.signal }).catch(() => null);
+      data = res && res.ok ? await res.json().catch(() => null) : null;
+      clearTimeout(t2);
+      country = data?.country?.toUpperCase?.();
+    }
+
+    if (country === 'IN') return 'in';
+    if (country === 'US') return 'us';
+    if (country === 'CA') return 'ca';
+    // Outside these 3 countries: default to US or Canada
+    return 'ca';
+  } catch {
+    return 'ca';
+  }
 }
 
 export const sectionLabel = (key) => { const s = SECTIONS[key] || SECTIONS.top; return `${s.emoji} ${s.title}`; };
