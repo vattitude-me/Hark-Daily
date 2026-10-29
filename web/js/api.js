@@ -135,8 +135,8 @@ export const DEFAULT_SETTINGS = {
   voice: DEFAULT_VOICE_ID,
   speed: 1.0,
   daily: true,
-  // Every section starts on, at three stories, so a first brief covers all seven.
-  stories: { top: 3, ai: 3, tech: 3, politics: 3, entertainment: 3, science: 3, sports: 3 },
+  // Every section starts on, at five stories (the full daily pack), and listeners can dial it down.
+  stories: { top: 5, ai: 5, tech: 5, politics: 5, entertainment: 5, science: 5, sports: 5 },
   color_photos: true,
   disabled_sources: [],
 };
