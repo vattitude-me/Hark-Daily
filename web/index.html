@@ -547,49 +547,60 @@
                 </div>
               </div>
 
-              <!-- Integrated Read Along live pane -->
-              <div class="hero-transcript" id="transcript">
-                <div class="transcript-head">
-                  <div class="transcript-live">
-                    <span class="live-dot" aria-hidden="true"></span>
-                    <span class="overline">Read along</span>
-                    <span class="tiny">Follows narrator</span>
+              <!-- Expanded Active News Story Reader -->
+              <article class="hero-article-reader" id="transcript" aria-label="Currently voiced story">
+                <header class="reader-head">
+                  <div class="reader-kicker">
+                    <span class="reader-live-dot" aria-hidden="true"></span>
+                    <span class="badge badge-cat cat-top" id="readerSectionBadge">TOP STORIES</span>
+                    <span class="reader-source" id="readerSource">CBC News</span>
+                    <span class="reader-sep" aria-hidden="true">·</span>
+                    <span class="reader-count" id="readerStoryCount">Story 1 of 35</span>
                   </div>
-                  <button class="pill-btn glass-btn xs transcript-expand-btn" id="transcriptExpandBtn" type="button" aria-expanded="false" title="Toggle full story view">
-                    <svg aria-hidden="true" class="expand-icon"><use href="#i-chev-d"/></svg>
-                    <span id="transcriptExpandLabel">Full text</span>
+                  <button class="pill-btn glass-btn xs open-lineup-btn" type="button" id="openLineupBtn" aria-label="View all stories in this brief" title="View episode lineup">
+                    <svg aria-hidden="true" width="13" height="13"><use href="#i-playlist"/></svg>
+                    <span>Episode lineup</span>
                   </button>
+                </header>
+
+                <h2 class="reader-headline" id="readerHeadline">Welcome to Hark Daily</h2>
+
+                <div class="reader-body" id="transcriptBody">
+                  <p class="reader-text" id="transcriptText">Tap play to listen and read along.</p>
                 </div>
-                <div class="transcript-body" id="transcriptBody">
-                  <p class="transcript-text" id="transcriptText">Tap play to listen and read along.</p>
-                </div>
-              </div>
+
+                <footer class="reader-footer">
+                  <div class="reader-source-link">
+                    <a class="pill-btn glass-btn sm hidden" id="readerArticleLink" target="_blank" rel="noopener noreferrer">
+                      <span>Full coverage on original source</span>
+                      <svg aria-hidden="true" width="13" height="13"><use href="#i-external"/></svg>
+                    </a>
+                  </div>
+                  <div class="reader-actions">
+                    <button class="pill-btn glass-btn sm" type="button" id="readerShareBtn" aria-label="Share this story">
+                      <svg aria-hidden="true" width="14" height="14"><use href="#i-share"/></svg>
+                      <span>Share</span>
+                    </button>
+                    <button class="pill-btn glass-btn sm" type="button" id="readerQueueBtn" aria-label="View lineup of all stories">
+                      <svg aria-hidden="true" width="14" height="14"><use href="#i-list"/></svg>
+                      <span id="readerQueueLabel">All 35 stories</span>
+                    </button>
+                  </div>
+                </footer>
+              </article>
 
               <audio id="audio" preload="metadata"></audio>
             </section>
 
-            <div class="today-cols">
-              <div class="col-main">
-                <div class="list-head hidden" id="listHead">
-                  <h2><svg aria-hidden="true"><use href="#i-list"/></svg>Today's stories <span class="badge badge-muted" id="storyCount"></span></h2>
-                  <div class="list-actions">
-                    <button class="pill-btn glass-btn sm" type="button" id="reorderBtn"><svg aria-hidden="true"><use href="#i-reorder"/></svg><span>Reorder topics</span></button>
-                    <button class="pill-btn sm" type="button" id="playAllBtn"><svg aria-hidden="true"><use href="#i-playlist"/></svg><span>Play from top</span></button>
-                  </div>
-                </div>
-                <div class="archive-list hidden" id="dateChips" role="group" aria-label="Past briefings"></div>
-                <div id="sections"></div>
-                <footer class="app-footer" role="contentinfo">
-                  <div class="app-footer-line">
-                    <span>Created and managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
-                    <span class="footer-sep" aria-hidden="true">·</span>
-                    <a href="/privacy" target="_blank" rel="noopener">Privacy</a>
-                    <span class="footer-sep" aria-hidden="true">·</span>
-                    <a href="/terms" target="_blank" rel="noopener">Terms</a>
-                  </div>
-                </footer>
+            <footer class="app-footer" role="contentinfo">
+              <div class="app-footer-line">
+                <span>Created and managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
+                <span class="footer-sep" aria-hidden="true">·</span>
+                <a href="/privacy" target="_blank" rel="noopener">Privacy</a>
+                <span class="footer-sep" aria-hidden="true">·</span>
+                <a href="/terms" target="_blank" rel="noopener">Terms</a>
               </div>
-            </div>
+            </footer>
           </div>
         </section>
         <section class="page hidden" id="page-sources" aria-label="Sources"><div class="screen"></div></section>
@@ -875,6 +886,34 @@
     </div>
     <div class="sheet-foot">
       <button class="btn btn-ghost" data-close>Done</button>
+    </div>
+  </dialog>
+
+  <!-- Episode Lineup / Chapter Sheet -->
+  <dialog class="sheet lineup-sheet" id="lineupSheet" aria-labelledby="lineupSheetTitle">
+    <div class="sheet-head">
+      <div class="sheet-title-group">
+        <span class="badge badge-accent"><span class="badge-dot" aria-hidden="true"></span>Today's Brief</span>
+        <h2 id="lineupSheetTitle">Episode Lineup</h2>
+      </div>
+      <button class="icon-btn" data-close aria-label="Close lineup" title="Close"><svg><use href="#i-close"/></svg></button>
+    </div>
+    <div class="lineup-sheet-controls">
+      <div class="lineup-search-wrap">
+        <svg class="lineup-search-icon" aria-hidden="true"><use href="#i-search"/></svg>
+        <input type="search" id="lineupSearchInput" class="lineup-search-input" placeholder="Search stories in today's brief..." autocomplete="off">
+      </div>
+      <div class="lineup-quick-actions">
+        <button class="pill-btn sm" type="button" id="playAllBtn"><svg aria-hidden="true"><use href="#i-playlist"/></svg><span>Play from top</span></button>
+        <button class="pill-btn glass-btn sm" type="button" id="reorderBtn"><svg aria-hidden="true"><use href="#i-reorder"/></svg><span>Reorder topics</span></button>
+      </div>
+    </div>
+    <div class="sheet-body lineup-sheet-body">
+      <div class="archive-list hidden" id="dateChips" role="group" aria-label="Past briefings"></div>
+      <div id="sections"></div>
+    </div>
+    <div class="sheet-foot">
+      <button class="btn btn-primary" data-close>Close Lineup</button>
     </div>
   </dialog>
 

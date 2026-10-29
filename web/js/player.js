@@ -478,12 +478,55 @@ export class Player extends EventTarget {
     const liveStatus = document.getElementById('liveStatus');
     if (liveStatus) liveStatus.textContent = this.isPlaying ? 'Playing' : (t > 0 ? 'Paused' : 'Ready');
 
-    // Synchronized transcript
+    // Synchronized expanded story reader & transcript
     const transBox = document.getElementById('transcript');
     const transText = document.getElementById('transcriptText');
     const transBody = document.getElementById('transcriptBody');
+
+    // Update expanded reader header & footer
+    const readerBadge = document.getElementById('readerSectionBadge');
+    if (readerBadge) {
+      const secKey = story?.section || 'top';
+      readerBadge.textContent = (section || story?.section || 'TOP STORIES').toUpperCase();
+      readerBadge.className = `badge badge-cat cat-${secKey}`;
+    }
+    const readerSource = document.getElementById('readerSource');
+    if (readerSource) readerSource.textContent = story?.source || 'Daily News';
+    const readerCount = document.getElementById('readerStoryCount');
+    if (readerCount) {
+      const idx = story ? b.stories.indexOf(story) + 1 : 0;
+      readerCount.textContent = idx ? `Story ${idx} of ${b.stories.length}` : `${b.stories.length} stories`;
+    }
+    const readerHeadline = document.getElementById('readerHeadline');
+    if (readerHeadline) {
+      readerHeadline.textContent = story?.headline || ch?.title || b.title;
+    }
+    const readerArticleLink = document.getElementById('readerArticleLink');
+    if (readerArticleLink) {
+      if (story?.url) {
+        readerArticleLink.href = story.url;
+        const srcName = story?.source ? story.source.split('·')[0].trim() : 'original source';
+        const span = readerArticleLink.querySelector('span');
+        if (span) span.textContent = `Full story on ${srcName}`;
+        readerArticleLink.classList.remove('hidden');
+      } else {
+        readerArticleLink.classList.add('hidden');
+      }
+    }
+    const readerShareBtn = document.getElementById('readerShareBtn');
+    if (readerShareBtn && story) {
+      readerShareBtn.onclick = (e) => {
+        e.stopPropagation();
+        window.openShareModal?.(story);
+      };
+    }
+    const readerQueueLabel = document.getElementById('readerQueueLabel');
+    if (readerQueueLabel) {
+      readerQueueLabel.textContent = `All ${b.stories.length} stories`;
+    }
+
     if (transBox && transText && transBody) {
-      const text = story?.summary || story?.headline || ch?.text || ch?.title || '';
+      const text = story?.script || story?.summary || story?.headline || ch?.text || ch?.title || '';
       if (text) {
         transBox.classList.remove('hidden');
         const currentId = story?.id || ch?.id || '';
