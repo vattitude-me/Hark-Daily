@@ -9,9 +9,9 @@ A concise daily audio briefing covering **Canada**, the **United States**, and *
 No ads. Fast audio briefings. Zero doom-scrolling. 24-hour listening.
 
 [![Web PWA](https://img.shields.io/badge/Web-Live_Demo-2f6fed?style=flat-square&logo=googlechrome&logoColor=white)](https://hark.vattitude.ca)
-[![Android App](https://img.shields.io/badge/Android-APK_v0.1.69-1a9b5b?style=flat-square&logo=android&logoColor=white)](https://github.com/vattitude-me/Hark-Daily/releases/tag/android-v0.1.69)
+[![Android App](https://img.shields.io/badge/Android-APK_v1.0.0-1a9b5b?style=flat-square&logo=android&logoColor=white)](https://github.com/vattitude-me/Hark-Daily/releases/tag/android-v1.0.0)
 [![Neural Voice](https://img.shields.io/badge/Voice-Chatterbox--Turbo-6a4cf5?style=flat-square)](voice_service/)
-[![Changelog](https://img.shields.io/badge/Changelog-v0.1.69-orange?style=flat-square)](CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/Changelog-v1.0.0-orange?style=flat-square)](CHANGELOG.md)
 [![Privacy First](https://img.shields.io/badge/Privacy-No_Ads_%7C_Privacy_First-0D0D0D?style=flat-square)](web/privacy.html)
 
 [**Web PWA**](#-web-pwa) · [**Android App**](#-android-app) · [**Features**](#-features) · [**Privacy**](web/privacy.html) · [**Terms**](web/terms.html) · [**Changelog**](CHANGELOG.md) · [**Technical Guide**](docs/TECHNICAL.md)

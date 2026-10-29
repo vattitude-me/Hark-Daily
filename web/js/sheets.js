@@ -29,7 +29,10 @@ export async function promptInstall() {
   return outcome === 'accepted';
 }
 
-export const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && window.isSecureContext;
+export const pushSupported = () => Boolean(
+  window.HarkNative ||
+  ('serviceWorker' in navigator && 'PushManager' in window && window.isSecureContext)
+);
 
 // The key a subscription was made with, written the way the server publishes it, so the two can be
 // compared as strings.
@@ -41,6 +44,27 @@ export const subscribedWith = (sub) => {
 };
 
 export async function requestNotificationPermission() {
+  if (window.HarkNative) {
+    if (window.HarkNative.hasNotificationPermission()) return 'granted';
+    window.HarkNative.requestNotificationPermission();
+    return new Promise((resolve) => {
+      let resolved = false;
+      const onPerm = (e) => {
+        if (resolved) return;
+        resolved = true;
+        window.removeEventListener('hark-native-notification-permission', onPerm);
+        resolve(e.detail?.granted ? 'granted' : 'denied');
+      };
+      window.addEventListener('hark-native-notification-permission', onPerm);
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          window.removeEventListener('hark-native-notification-permission', onPerm);
+          resolve(window.HarkNative.hasNotificationPermission() ? 'granted' : 'prompt');
+        }
+      }, 3000);
+    });
+  }
   if (typeof Notification === 'undefined') return 'denied';
   if (Notification.permission === 'granted') return 'granted';
   if (Notification.permission === 'denied') return 'denied';
@@ -61,8 +85,18 @@ export async function requestNotificationPermission() {
 
 // Asks permission and registers this device. Must be called from a tap. Throws a readable message on failure.
 export async function enablePush(publicKey) {
+  if (window.HarkNative) {
+    if (!window.HarkNative.hasNotificationPermission()) {
+      const perm = await requestNotificationPermission();
+      if (perm !== 'granted') {
+        throw new Error('Notification permission was not granted.');
+      }
+    }
+    return;
+  }
   if (!publicKey) throw new Error("The server hasn't published its notification key yet. Try again later.");
-  if (Notification.permission !== 'granted') {
+  const hasGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
+  if (!hasGranted) {
     const perm = await requestNotificationPermission();
     if (perm !== 'granted') {
       throw new Error(perm === 'denied' ? 'Notifications are blocked in your browser settings.' : 'Permission was not granted.');
@@ -236,7 +270,8 @@ export class WelcomeSheet {
     this.added = 0;
     this.preferredMode = store.get('brief-mode', 'podcast');
     this.paintMode();
-    const canPush = pushSupported() && Notification.permission !== 'denied';
+    const notDenied = window.HarkNative || (typeof Notification !== 'undefined' && Notification.permission !== 'denied');
+    const canPush = pushSupported() && notDenied;
     this.offeredPush = canPush;
     document.getElementById('welcomePushRow').classList.toggle('hidden', !canPush);
     document.getElementById('welcomePushOn').checked = canPush;

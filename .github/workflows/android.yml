@@ -52,9 +52,9 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
           export ANDROID_KEYSTORE="$RUNNER_TEMP/release.jks"
           ./gradlew --no-daemon assembleRelease bundleRelease -PversionName="$version" -PversionCode="$code"
-          aab="app/build/outputs/bundle/release/morning-brief-$version.aab"
-          cp app/build/outputs/bundle/release/*.aab "$aab.tmp" && mv "$aab.tmp" "$aab"
-          echo "APK=android/app/build/outputs/apk/release/morning-brief-$version.apk" >> "$GITHUB_ENV"
+          aab="app/build/outputs/bundle/release/hark-daily-$version.aab"
+          cp app/build/outputs/bundle/release/hark-daily-release.aab "$aab" || cp app/build/outputs/bundle/release/*release.aab "$aab"
+          echo "APK=android/app/build/outputs/apk/release/hark-daily-$version.apk" >> "$GITHUB_ENV"
           echo "AAB=android/$aab" >> "$GITHUB_ENV"
 
       - name: Publish release

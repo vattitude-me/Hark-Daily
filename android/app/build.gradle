@@ -19,12 +19,12 @@ android {
         }
     }
 
-    base.archivesName = "morning-brief"
+    base.archivesName = "hark-daily"
 
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
             def suffix = variant.buildType.name == "release" ? "" : "-${variant.buildType.name}"
-            outputFileName = "morning-brief-${appVersionName}${suffix}.apk"
+            outputFileName = "hark-daily-${appVersionName}${suffix}.apk"
         }
     }
 
