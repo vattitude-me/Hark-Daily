@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.3] - 2026-10-29
+
+### Fixed
+- **Continuous background audio playback when minimizing**:
+  - Integrated active `android.media.session.MediaSession` and `Notification.MediaStyle` transport controls (Play/Pause, Next, Previous) in `HarkMediaService` to satisfy Android 14+ background audio policies.
+  - Added a 3-second shutdown debounce on `handlePlaybackState(false)` in `MainActivity` so sequential clip transitions (which momentarily fire HTML5 `pause` events) never destroy the foreground service or trigger Android's `HardeningEnforcer` audio focus denial.
+  - Added transition race guard (`isTransitioningClip`) in `player.js` across sequential audio chapters.
+- **Android top bar safe area and status bar overlap**:
+  - Added dynamic window inset detection in `MainActivity` querying `WindowInsetsCompat.Type.statusBars()` and `displayCutout()` and injecting `--safe-area-inset-top` directly to the WebView.
+  - Exposed `HarkNative.getSafeAreaTop()` and `getSafeAreaBottom()` for instant synchronous layout on cold boot.
+  - Ensured edge-to-edge transparent background behind status bar icons with no black letterboxing and no overlapping icons.
+- **Player headline squeezing and story card layout**:
+  - Switched player card top area to CSS grid with dedicated `actions` row (`art`, `heading`, `actions`), guaranteeing narrator and Share buttons wrap below headlines and never truncate titles.
+  - Refined story list card layout to give headlines and summaries full width on mobile while neatly positioning thumbnails and action dots.
+
 ## [1.0.2] - 2026-10-29
 
 ### Fixed

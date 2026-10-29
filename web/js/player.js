@@ -105,7 +105,10 @@ export class Player extends EventTarget {
       this.setPlaying(true);
       this.preloadNext();
     });
-    this.audio.addEventListener('pause', () => this.setPlaying(false));
+    this.audio.addEventListener('pause', () => {
+      if (this.isTransitioningClip) return;
+      this.setPlaying(false);
+    });
     this.audio.addEventListener('ended', () => this.onEnded());
     // A cover that fails to load hides itself instead of showing a broken icon.
     el.cover.addEventListener('error', () => el.cover.classList.add('hidden'));
@@ -192,6 +195,7 @@ export class Player extends EventTarget {
   /** A clip finished: transition seamlessly on the same active in-DOM audio element. */
   onEnded() {
     if (this.clips && this.index + 1 < this.clips.length) {
+      this.isTransitioningClip = true;
       this.index += 1;
       const clip = this.clips[this.index];
       this.audio.dataset.clip = String(this.index);
@@ -199,8 +203,17 @@ export class Player extends EventTarget {
       this.audio.playbackRate = this.speed;
       const p = this.audio.play();
       if (p && typeof p.catch === 'function') {
-        p.catch((err) => console.warn('[player] clip transition error:', err));
+        p.catch((err) => {
+          this.isTransitioningClip = false;
+          console.warn('[player] clip transition error:', err);
+        });
       }
+      const onPlaying = () => {
+        this.isTransitioningClip = false;
+        this.audio.removeEventListener('playing', onPlaying);
+      };
+      this.audio.addEventListener('playing', onPlaying, { once: true });
+      setTimeout(() => { this.isTransitioningClip = false; }, 3000);
       this.preloadNext();
       this.tick();
       return;
