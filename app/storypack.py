@@ -752,7 +752,8 @@ def backfill_from_existing(scripts: list[dict], store, day: str, per_section: in
 
 
 async def build(cfg, store, *, day: str | None = None, per_section: int | None = None,
-                sections: list[str] | None = None, voice: str | None = None,
+                sections: list[str] | None = None, edition: str | list[str] | None = None,
+                voice: str | None = None,
                 voice_url: str | None = None, notes: bool = True,
                 force: bool = False, deadline: float | None = None,
                 on_step: Callable[[str, float], None] | None = None) -> list[dict]:
@@ -783,7 +784,12 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
     per_section = per_section or cfg.stories_per_section
     voices = [voice] if voice else list(cfg.story_voices or (DEFAULT_VOICE,))
 
-    scripts = await topics.build_pack(per_section=per_section, sections=sections)
+    if not sections and edition:
+        sections = topics.sections_for_editions(edition)
+    if edition is not None:
+        scripts = await topics.build_pack(per_section=per_section, sections=sections, edition=edition)
+    else:
+        scripts = await topics.build_pack(per_section=per_section, sections=sections)
     scripts = backfill_from_existing(scripts, store, day=day, per_section=per_section, sections=sections)
     log.info("Voicing %d stories for %s as %s", len(scripts), day, ", ".join(voices))
 

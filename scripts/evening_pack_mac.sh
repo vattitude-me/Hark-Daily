@@ -75,9 +75,10 @@ if [ "$HEALTHY" -ne 1 ]; then
 fi
 
 # Run the storypack generation pipeline and push to Supabase
+# Evening edition voices India (timed for IST morning), reusing today's shared AI, Tech, and Science
 cd "$ROOT"
-log "Running briefing pack generation (voicing on M3 Pro, pushing to Supabase)..."
-"$ROOT/.venv/bin/python" -m app pack --notify "${@:---force}" >> "$LOG_FILE" 2>&1
+log "Running briefing pack generation for India edition (voicing on M3 Pro, pushing to Supabase)..."
+"$ROOT/.venv/bin/python" -m app pack --edition in --notify "${@:---force}" >> "$LOG_FILE" 2>&1
 
 log "✓ Evening Edition successfully published to Supabase!"
 

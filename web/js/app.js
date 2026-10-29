@@ -1,4 +1,4 @@
-import { api, fmtTime, h, icon, isAdmin, recordError, sb, store, timeAgo, toast, VOICES, voiceFor, SECTIONS, DEFAULT_VOICE_ID } from './api.js';
+import { api, fmtTime, h, icon, isAdmin, recordError, sb, store, timeAgo, toast, VOICES, voiceFor, SECTIONS, DEFAULT_VOICE_ID, EDITIONS, defaultEdition } from './api.js';
 import { Player } from './player.js';
 import { Landing } from './landing.js';
 import { WelcomeSheet, enablePush, installMode, onInstallChange, promptInstall, pushSupported, requestNotificationPermission, wireSheet } from './sheets.js';
@@ -17,6 +17,7 @@ const state = {
   archiveDates: [],
   reported: new Set(store.get('reported', [])),
   mode: store.get('brief-mode', 'podcast'),
+  edition: store.get('edition', defaultEdition()),
   packContext: null,
 };
 
@@ -375,6 +376,7 @@ function setBriefingMode(mode) {
       targetAudio: targetInfo.audio,
       targetSource: targetInfo.source,
       targetDur: targetInfo.dur,
+      edition: state.edition,
     });
     if (briefing) {
       briefing.fresh = fresh;
@@ -391,6 +393,51 @@ function setBriefingMode(mode) {
   }
 }
 window.setBriefingMode = setBriefingMode;
+
+function syncEditionPicker() {
+  const sel = $('editionSelect');
+  if (sel) sel.value = state.edition;
+  const flag = $('editionFlag');
+  if (flag) flag.textContent = EDITIONS[state.edition]?.flag || '🇨🇦';
+}
+
+export function setEdition(edition) {
+  if (!EDITIONS[edition]) return;
+  state.edition = edition;
+  store.set('edition', edition);
+  syncEditionPicker();
+  trackEvent('select_content', { content_type: 'edition', item_id: edition });
+
+  if (state.packContext) {
+    const { rows, settings, date, notes, fresh, podcastClips } = state.packContext;
+    const targetInfo = getTargetStoryInfo();
+    const briefing = buildPackBriefing(rows, settings, {
+      date,
+      voice: settings.voice,
+      notes,
+      mode: activeMode(),
+      podcastClips,
+      targetStory: targetInfo.story,
+      targetTitle: targetInfo.title,
+      targetAudio: targetInfo.audio,
+      targetSource: targetInfo.source,
+      targetDur: targetInfo.dur,
+      edition: state.edition,
+    });
+    if (briefing) {
+      briefing.fresh = fresh;
+      const wasPlaying = player.isPlaying;
+      state.briefing = briefing;
+      displayBriefing();
+      if (wasPlaying) {
+        player.audio.play().catch(() => {});
+      }
+      const ed = EDITIONS[edition];
+      toast(`Switched to ${ed?.name || edition} ${ed?.flag || ''}`);
+    }
+  }
+}
+window.setEdition = setEdition;
 
 function renderHero() {
   $('hero').classList.toggle('hidden', !state.briefing);
@@ -1179,6 +1226,7 @@ async function loadStoryPack(day) {
       targetAudio: targetInfo.audio,
       targetSource: targetInfo.source,
       targetDur: targetInfo.dur,
+      edition: state.edition,
     });
     if (!briefing) return null;
     // A day is playable only once its narrator's clips and framing are all published. Without this
@@ -1333,6 +1381,7 @@ async function saveAll() {
       targetAudio: targetInfo.audio,
       targetSource: targetInfo.source,
       targetDur: targetInfo.dur,
+      edition: state.edition,
     });
       if (briefing) {
         briefing.fresh = fresh;
@@ -1404,6 +1453,7 @@ function bindEvents() {
   });
 
   // Action buttons
+  $('editionSelect')?.addEventListener('change', (e) => setEdition(e.target.value));
   $('modeFullBtn')?.addEventListener('click', () => setBriefingMode('full'));
   $('modeRapidBtn')?.addEventListener('click', () => setBriefingMode('rapid'));
   $('modePodcastBtn')?.addEventListener('click', () => setBriefingMode('podcast'));
@@ -1825,6 +1875,7 @@ async function init() {
   bindEvents();
   syncInstallBtn();
   syncAdminTab();
+  syncEditionPicker();
   initConsentPopup();
   renderHeader();
   renderNotice();

@@ -6,9 +6,16 @@
 import { SECTIONS, voiceName } from './api.js';
 import { SUPABASE_URL } from '../config.js';
 
-/** Reading order — the same seven categories the worker publishes (app/topics.py). */
-export const SECTION_ORDER = ['top', 'ai', 'tech', 'politics', 'entertainment', 'science', 'sports'];
+export const LOGICAL_SECTIONS = ['top', 'ai', 'tech', 'politics', 'entertainment', 'science', 'sports'];
+export const SECTION_ORDER = LOGICAL_SECTIONS;
 export const MAX_PER_SECTION = 5;
+
+export function editionSectionKey(logicalKey, edition = 'ca') {
+  if (['ai', 'tech', 'science'].includes(logicalKey)) return logicalKey;
+  if (edition === 'us') return `${logicalKey}_us`;
+  if (edition === 'in') return `${logicalKey}_in`;
+  return logicalKey;
+}
 
 /** The per-section story counts a user asked for (0 = off), clamped to 0..MAX. Defaults to MAX_PER_SECTION. */
 export function lineup(settings) {
@@ -90,7 +97,7 @@ export function pickVoice(rows, chosen) {
 }
 
 /** Order one listener's clips: their voice, then section order, then rank. */
-export function clipsFor(rows, wanted, voice, sectionOrder = SECTION_ORDER) {
+export function clipsFor(rows, wanted, voice, sectionOrder = SECTION_ORDER, edition = 'ca') {
   const bySection = new Map();
   for (const row of rows || []) {
     if (voice && row.voice !== voice) continue;
@@ -104,7 +111,9 @@ export function clipsFor(rows, wanted, voice, sectionOrder = SECTION_ORDER) {
   for (const key of order) {
     const count = wanted[key] || 0;
     if (count <= 0) continue;
-    const picked = (bySection.get(key) || []).slice().sort((a, b) => (a.rank || 0) - (b.rank || 0)).slice(0, count);
+    const edKey = editionSectionKey(key, edition);
+    const pool = bySection.has(edKey) && bySection.get(edKey).length ? bySection.get(edKey) : (bySection.get(key) || []);
+    const picked = pool.slice().sort((a, b) => (a.rank || 0) - (b.rank || 0)).slice(0, count);
     ordered.push(...picked);
   }
   return ordered;
@@ -233,7 +242,8 @@ export function noteTitle(noteKey) {
  */
 export function buildBriefing(rows, settings, {
   date, voice, notes = [], hour, mode = 'full', podcastClips = [],
-  targetStory = null, targetTitle = null, targetAudio = null, targetSource = null, targetDur = 20
+  targetStory = null, targetTitle = null, targetAudio = null, targetSource = null, targetDur = 20,
+  edition = 'ca',
 } = {}) {
   const isRapid = mode === 'rapid';
   const id = pickVoice(rows, voice);
@@ -306,7 +316,7 @@ export function buildBriefing(rows, settings, {
     wanted = rapidWanted;
   }
 
-  const chosen = clipsFor(rows, wanted, id, order);
+  const chosen = clipsFor(rows, wanted, id, order, edition);
   if (!chosen.length && !targetAudio) return null;
 
   // Resilient deep-link check:
@@ -432,8 +442,9 @@ export function buildBriefing(rows, settings, {
   for (const row of chosen) {
     // In rapid mode, skip section intros to deliver a swift, continuous headline flow
     if (!isRapid && row.section !== currentSection) {
-      if (isPodcast) sayBanter(pod.bridges.get(row.section), row.section);
-      else sayNote(`intro_${row.section}`);
+      const baseSec = (row.section || '').replace(/_(us|in|ca)$/, '');
+      if (isPodcast) sayBanter(pod.bridges.get(row.section) || pod.bridges.get(baseSec), row.section);
+      else sayNote(byKey.has(`intro_${row.section}`) ? `intro_${row.section}` : `intro_${baseSec}`);
       currentSection = row.section;
     }
     breath();

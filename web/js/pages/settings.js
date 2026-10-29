@@ -1,7 +1,7 @@
 // Settings tab: a full page mirroring the Android SettingsScreen.
 // What's left is what still does something: the daily brief, the narrator, appearance and
 // the account. The BYOK voice list and the AI-key panel went with the builder they served.
-import { api, h, icon, toast, VOICES, voiceFor } from '../api.js';
+import { api, h, icon, toast, VOICES, voiceFor, EDITIONS } from '../api.js';
 import { clipUrl } from '../storypack.js';
 import {
   GlassGroup, Hairline, Hint, ListRow, Overline, PillButton, PillStepper,
@@ -231,6 +231,23 @@ export class SettingsPage {
           value: total ? `${total} stories` : 'None yet',
           caret: true,
           onClick: () => this.goSources(),
+        }),
+      ),
+
+      SectionLabel('Regional Edition'),
+      GlassGroup(
+        ListRow({
+          label: 'News Country',
+          detail: 'National top stories, politics, and sports tailored for your country. AI, Tech, and Science are shared universally.',
+          end: Tag(EDITIONS[window.state?.edition]?.flag ? `${EDITIONS[window.state.edition].flag} ${EDITIONS[window.state.edition].name.toUpperCase()}` : '🇨🇦 CANADA'),
+          caret: true,
+          onClick: () => {
+            const current = window.state?.edition || 'ca';
+            const order = ['ca', 'us', 'in'];
+            const next = order[(order.indexOf(current) + 1) % order.length];
+            window.setEdition?.(next);
+            this.render();
+          },
         }),
       ),
 
