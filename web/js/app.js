@@ -399,6 +399,8 @@ function syncEditionPicker() {
   if (sel) sel.value = state.edition;
   const flag = $('editionFlag');
   if (flag) flag.textContent = EDITIONS[state.edition]?.flag || '🇨🇦';
+  const label = $('editionLabel');
+  if (label) label.textContent = (EDITIONS[state.edition]?.code || state.edition || 'ca').toUpperCase();
 }
 
 export function setEdition(edition) {

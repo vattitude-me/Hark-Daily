@@ -350,11 +350,15 @@
         <span class="spacer"></span>
         <div class="edition-chip" id="editionChip" title="Change country edition">
           <span class="edition-flag" id="editionFlag" aria-hidden="true">🇨🇦</span>
+          <span class="edition-code" id="editionLabel">CA</span>
+          <svg class="edition-arrow" aria-hidden="true" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M4.5 6l3.5 3.5L11.5 6z"/>
+          </svg>
           <label for="editionSelect" class="sr-only">Choose news edition</label>
           <select id="editionSelect" aria-label="News edition">
-            <option value="ca">Canada</option>
-            <option value="us">United States</option>
-            <option value="in">India</option>
+            <option value="ca">🇨🇦 Canada (CA)</option>
+            <option value="us">🇺🇸 United States (US)</option>
+            <option value="in">🇮🇳 India (IN)</option>
           </select>
         </div>
         <button class="narrator-chip" id="narratorChip" type="button" aria-label="Change narrator">
