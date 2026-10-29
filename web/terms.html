@@ -8,14 +8,23 @@
   <link rel="canonical" href="https://hark.vattitude.ca/terms">
   <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml">
 
-  <!-- Google Analytics (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-8LV7D5TDT2"></script>
+  <!-- Google Analytics (gtag.js) with Consent Mode v2 -->
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
+    const savedConsent = (() => {
+      try { return localStorage.getItem('hark-consent'); } catch (e) { return null; }
+    })();
+    gtag('consent', 'default', {
+      'analytics_storage': savedConsent === 'granted' ? 'granted' : 'denied',
+      'ad_storage': 'denied',
+      'ad_user_data': 'denied',
+      'ad_personalization': 'denied'
+    });
     gtag('js', new Date());
-    gtag('config', 'G-8LV7D5TDT2');
+    gtag('config', 'G-8LV7D5TDT2', { anonymize_ip: true });
   </script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-8LV7D5TDT2"></script>
 
   <!-- OpenGraph / Social Sharing -->
   <meta property="og:type" content="article">

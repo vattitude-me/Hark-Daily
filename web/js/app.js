@@ -1678,6 +1678,40 @@ async function start() {
   }
 }
 
+function initConsentPopup() {
+  const popup = $('consentPopup');
+  if (!popup) return;
+
+  const current = (() => {
+    try { return localStorage.getItem('hark-consent'); } catch (e) { return null; }
+  })();
+
+  // If already decided, don't show popup
+  if (current === 'granted' || current === 'denied') return;
+
+  // Gently reveal after a short delay so page paint is instantaneous
+  setTimeout(() => {
+    popup.classList.remove('hidden');
+    requestAnimationFrame(() => popup.classList.add('show'));
+  }, 1200);
+
+  $('consentAccept')?.addEventListener('click', () => {
+    try { localStorage.setItem('hark-consent', 'granted'); } catch (e) {}
+    window.gtag?.('consent', 'update', { 'analytics_storage': 'granted' });
+    popup.classList.remove('show');
+    setTimeout(() => popup.classList.add('hidden'), 350);
+    toast('Analytics cookies accepted ✓');
+  });
+
+  $('consentReject')?.addEventListener('click', () => {
+    try { localStorage.setItem('hark-consent', 'denied'); } catch (e) {}
+    window.gtag?.('consent', 'update', { 'analytics_storage': 'denied' });
+    popup.classList.remove('show');
+    setTimeout(() => popup.classList.add('hidden'), 350);
+    toast('Analytics cookies rejected');
+  });
+}
+
 async function init() {
   window.addEventListener('error', (e) => { recordError(e.error || e.message, 'window.onerror'); });
   window.addEventListener('unhandledrejection', (e) => { recordError(e.reason, 'window.unhandledrejection'); });
@@ -1687,6 +1721,7 @@ async function init() {
   bindEvents();
   syncInstallBtn();
   syncAdminTab();
+  initConsentPopup();
   renderHeader();
   renderNotice();
   renderGuestBanner();
