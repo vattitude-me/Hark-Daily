@@ -261,8 +261,13 @@ export class SettingsPage {
       !this.email ? h('p', { class: 'hint' }, 'Sign in free with Google or email to sync your preferences and sources with the Android app.') : null,
 
       h('div', { class: 'legal-row' },
-        h('span', { class: 'hint' }, 'Hark Daily for web'),
+        h('span', { class: 'footer-attribution' },
+          'Created and managed by ',
+          h('a', { href: 'https://vattitude.ca', target: '_blank', rel: 'noopener' }, 'vattitude.ca')
+        ),
+        h('span', { class: 'footer-sep', 'aria-hidden': 'true' }, '·'),
         h('a', { href: '/privacy', target: '_blank', rel: 'noopener' }, 'Privacy'),
+        h('span', { class: 'footer-sep', 'aria-hidden': 'true' }, '·'),
         h('a', { href: '/terms', target: '_blank', rel: 'noopener' }, 'Terms')),
     );
     // Push test row visibility depends on push state.

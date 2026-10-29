@@ -59,6 +59,16 @@
   }
   </script>
 
+  <!-- Google Analytics (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-8LV7D5TDT2"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-8LV7D5TDT2');
+  </script>
+  <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml">
+
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#f3f2ee" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0b0f17" media="(prefers-color-scheme: dark)">
@@ -243,25 +253,36 @@
         <div id="sampleStories"></div>
       </details>
 
-      <div class="landing-social" aria-label="Share Hark Daily">
-        <span class="social-label">Share Hark Daily:</span>
-        <div class="social-links">
-          <button class="social-chip" id="shareNativeBtn" type="button" aria-label="Share via device">
-            <svg aria-hidden="true"><use href="#i-share"/></svg>
-            <span>Share</span>
-          </button>
-          <a class="social-chip" href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fhark.vattitude.ca%2F" target="_blank" rel="noopener" aria-label="Share on LinkedIn">
-            <svg aria-hidden="true"><use href="#i-linkedin"/></svg>
-            <span>LinkedIn</span>
-          </a>
-          <a class="social-chip" href="https://twitter.com/intent/tweet?text=The%20news%20you%20hear%2C%20not%20just%20read.%20Listen%20to%20Hark%20Daily%3A&url=https%3A%2F%2Fhark.vattitude.ca%2F" target="_blank" rel="noopener" aria-label="Share on X">
-            <svg aria-hidden="true"><use href="#i-x"/></svg>
-            <span>Post</span>
-          </a>
+      <footer class="landing-footer" role="contentinfo">
+        <div class="landing-social" aria-label="Share Hark Daily">
+          <span class="social-label">Share Hark Daily</span>
+          <div class="social-links">
+            <button class="social-chip" id="shareNativeBtn" type="button" aria-label="Share via device">
+              <svg aria-hidden="true"><use href="#i-share"/></svg>
+              <span>Share</span>
+            </button>
+            <a class="social-chip" href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fhark.vattitude.ca%2F" target="_blank" rel="noopener" aria-label="Share on LinkedIn">
+              <svg aria-hidden="true"><use href="#i-linkedin"/></svg>
+              <span>LinkedIn</span>
+            </a>
+            <a class="social-chip" href="https://twitter.com/intent/tweet?text=The%20news%20you%20hear%2C%20not%20just%20read.%20Listen%20to%20Hark%20Daily%3A&url=https%3A%2F%2Fhark.vattitude.ca%2F" target="_blank" rel="noopener" aria-label="Share on X">
+              <svg aria-hidden="true"><use href="#i-x"/></svg>
+              <span>Post</span>
+            </a>
+          </div>
         </div>
-      </div>
 
-      <p class="footnote"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
+        <div class="landing-footer-bottom">
+          <div class="footer-attribution">
+            <span>Created and managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
+          </div>
+          <nav class="footer-legal-links" aria-label="Legal links">
+            <a href="/privacy">Privacy</a>
+            <span class="footer-sep" aria-hidden="true">·</span>
+            <a href="/terms">Terms</a>
+          </nav>
+        </div>
+      </footer>
     </div>
   </div>
 
@@ -536,6 +557,15 @@
                 </div>
                 <div id="sections"></div>
                 <p class="footnote" id="footnote"></p>
+                <footer class="app-footer" role="contentinfo">
+                  <div class="app-footer-line">
+                    <span>Created and managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
+                    <span class="footer-sep" aria-hidden="true">·</span>
+                    <a href="/privacy" target="_blank" rel="noopener">Privacy</a>
+                    <span class="footer-sep" aria-hidden="true">·</span>
+                    <a href="/terms" target="_blank" rel="noopener">Terms</a>
+                  </div>
+                </footer>
               </div>
 
               <aside class="col-side" aria-label="Your schedule">

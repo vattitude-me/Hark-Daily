@@ -1,13 +1,14 @@
 // Offline shell: stale-while-revalidate for static shell assets, network-first for HTML.
 // Supabase (data, audio) and CDN requests are cross-origin and go straight to the network.
-const CACHE = 'hark-daily-v24';
+const CACHE = 'hark-daily-v25';
 const SHELL = [
   '/', '/config.js', '/css/styles.css', '/manifest.webmanifest', '/audio/gap.mp3',
   '/fonts/plus-jakarta-sans.woff2', '/fonts/space-grotesk.woff2',
   '/icons/icon.svg', '/icons/icon-96.png', '/icons/icon-192.png', '/icons/icon-512.png',
   '/js/vendor/supabase.min.js',
   '/js/app.js', '/js/api.js', '/js/storypack.js', '/js/player.js', '/js/sheets.js', '/js/landing.js',
-  '/js/design.js', '/js/audio-processor.js', '/js/pages/sources.js', '/js/pages/settings.js', '/js/pages/admin.js'
+  '/js/design.js', '/js/audio-processor.js', '/js/pages/sources.js', '/js/pages/settings.js', '/js/pages/admin.js',
+  '/sitemap.xml', '/robots.txt'
 ];
 
 self.addEventListener('install', (e) => {
