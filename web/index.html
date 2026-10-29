@@ -59,14 +59,23 @@
   }
   </script>
 
-  <!-- Google Analytics (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-8LV7D5TDT2"></script>
+  <!-- Google Analytics (gtag.js) with Consent Mode v2 -->
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
+    const savedConsent = (() => {
+      try { return localStorage.getItem('hark-consent'); } catch (e) { return null; }
+    })();
+    gtag('consent', 'default', {
+      'analytics_storage': savedConsent === 'granted' ? 'granted' : 'denied',
+      'ad_storage': 'denied',
+      'ad_user_data': 'denied',
+      'ad_personalization': 'denied'
+    });
     gtag('js', new Date());
-    gtag('config', 'G-8LV7D5TDT2');
+    gtag('config', 'G-8LV7D5TDT2', { anonymize_ip: true });
   </script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-8LV7D5TDT2"></script>
   <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml">
 
   <meta name="color-scheme" content="light dark">
@@ -906,6 +915,23 @@
       <p class="error hidden" id="loginError" role="alert"></p>
     </div>
   </div>
+
+  <!-- Analytics & Cookie Consent Popup -->
+  <aside class="consent-popup hidden" id="consentPopup" role="region" aria-label="Privacy and analytics consent">
+    <div class="consent-card">
+      <div class="consent-header">
+        <svg class="consent-icon" aria-hidden="true"><use href="#i-shield"/></svg>
+        <span class="consent-title">Privacy & Analytics</span>
+      </div>
+      <p class="consent-text">
+        We use privacy-friendly analytics to measure search topics and listenership. Allow analytics cookies? <a href="/privacy" target="_blank" rel="noopener">Learn more</a>
+      </p>
+      <div class="consent-actions">
+        <button class="btn btn-ghost btn-sm" type="button" id="consentReject">Reject</button>
+        <button class="btn btn-primary btn-sm" type="button" id="consentAccept">Accept</button>
+      </div>
+    </div>
+  </aside>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 

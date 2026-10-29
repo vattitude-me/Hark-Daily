@@ -1831,6 +1831,85 @@ body.playing .mini-eq i:nth-child(2) { animation-delay: -.4s; } body.playing .mi
 @keyframes rise { from { opacity: 0; transform: translate(-50%, 1rem); } to { opacity: 1; transform: translate(-50%, 0); } }
 body:has(.save-bar:not(.hidden)) .mini-player { bottom: 5.25rem; }
 
+/* =================================================================== CONSENT POPUP */
+.consent-popup {
+  position: fixed;
+  z-index: 115;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: min(24rem, calc(100vw - 2rem));
+  opacity: 0;
+  transform: translateY(1.25rem);
+  transition: opacity .3s var(--ease), transform .3s var(--ease);
+  pointer-events: none;
+}
+.consent-popup.show {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.consent-card {
+  padding: 1.1rem 1.25rem;
+  background: var(--glass-solid);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-xl);
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, .45), var(--shadow-sm);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+.consent-header {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .45rem;
+}
+.consent-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.consent-title {
+  font-family: var(--font-head);
+  font-size: .875rem;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -.01em;
+}
+.consent-text {
+  font-size: .8125rem;
+  line-height: 1.45;
+  color: var(--ink-2);
+  margin: 0 0 .85rem;
+}
+.consent-text a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.consent-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .6rem;
+}
+.consent-actions .btn-sm {
+  padding: .4rem .9rem;
+  font-size: .8125rem;
+  min-height: 2rem;
+}
+
+@media (max-width: 768px) {
+  .consent-popup {
+    bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+    left: 1rem;
+    right: 1rem;
+    margin: 0 auto;
+    width: auto;
+    max-width: 26rem;
+  }
+}
+
 /* =================================================================== TOAST */
 .toast {
   position: fixed; z-index: 120; left: 50%; top: calc(1.25rem + env(safe-area-inset-top, 0px));

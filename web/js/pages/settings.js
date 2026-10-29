@@ -243,6 +243,28 @@ export class SettingsPage {
       SectionLabel('Upcoming Features', { detail: 'In active development for future updates' }),
       this.upcomingFeaturesGroup(),
 
+      SectionLabel('Privacy & Analytics'),
+      GlassGroup(
+        ListRow({
+          label: 'Analytics Cookies',
+          detail: 'Anonymous search queries and playback telemetry used to improve daily briefings.',
+          end: Tag((() => {
+            try { return localStorage.getItem('hark-consent') === 'granted' ? 'ACCEPTED' : 'REJECTED'; } catch (e) { return 'REJECTED'; }
+          })()),
+          caret: true,
+          onClick: () => {
+            const current = (() => {
+              try { return localStorage.getItem('hark-consent') === 'granted'; } catch (e) { return false; }
+            })();
+            const next = current ? 'denied' : 'granted';
+            try { localStorage.setItem('hark-consent', next); } catch (e) {}
+            window.gtag?.('consent', 'update', { 'analytics_storage': next });
+            toast(next === 'granted' ? 'Analytics cookies accepted ✓' : 'Analytics cookies rejected');
+            this.render();
+          },
+        }),
+      ),
+
       SectionLabel('Account'),
       this.email ? GlassGroup(
         ListRow({ label: this.email, end: Tag('SYNCED') }),
