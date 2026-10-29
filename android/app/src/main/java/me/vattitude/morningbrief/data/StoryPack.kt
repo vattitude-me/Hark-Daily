@@ -397,6 +397,7 @@ object StoryPack {
                     url = storyRow.optString("url"), source = storyRow.optString("source").ifEmpty { "The Guardian" },
                     also = emptyList(), image = storyRow.optString("image").takeIf { it.startsWith("http") },
                     start = start, end = end,
+                    audioPath = storyRow.optString("audio_path"),
                 )
                 chapters += Chapter(id, "story", title, start, end, key)
                 counts[key] = (counts[key] ?: 0) + 1

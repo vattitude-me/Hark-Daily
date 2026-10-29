@@ -5,7 +5,7 @@ import { WelcomeSheet, enablePush, installMode, onInstallChange, promptInstall, 
 import { SourcesPage } from './pages/sources.js';
 import { SettingsPage } from './pages/settings.js';
 import { AdminPage } from './pages/admin.js';
-import { buildBriefing as buildPackBriefing, READY_KEY } from './storypack.js';
+import { buildBriefing as buildPackBriefing, READY_KEY, titlesMatch } from './storypack.js';
 import { applyPhotoMode } from './design.js';
 import { FEATURES } from '../config.js';
 
@@ -363,7 +363,19 @@ function setBriefingMode(mode) {
 
   if (state.packContext) {
     const { rows, settings, date, notes, fresh, podcastClips } = state.packContext;
-    const briefing = buildPackBriefing(rows, settings, { date, voice: settings.voice, notes, mode: activeMode(), podcastClips, targetStory: getTargetStory() });
+    const targetInfo = getTargetStoryInfo();
+    const briefing = buildPackBriefing(rows, settings, {
+      date,
+      voice: settings.voice,
+      notes,
+      mode: activeMode(),
+      podcastClips,
+      targetStory: targetInfo.story,
+      targetTitle: targetInfo.title,
+      targetAudio: targetInfo.audio,
+      targetSource: targetInfo.source,
+      targetDur: targetInfo.dur,
+    });
     if (briefing) {
       briefing.fresh = fresh;
       const wasPlaying = player.isPlaying;
@@ -669,11 +681,16 @@ export async function openShareModal(story) {
   const params = new URLSearchParams();
   params.set('story', story.id);
   if (date) params.set('date', date);
+  if (story.headline) params.set('title', story.headline);
+  if (story.audio_path) params.set('audio', story.audio_path);
+  if (story.source) params.set('src', story.source);
+  const duration = Math.round((story.end - story.start) || story.duration || 20);
+  if (duration > 0) params.set('dur', String(duration));
   const shareUrl = `${origin}/?${params.toString()}`;
 
   const shareData = {
     title: `${story.headline} — Hark Daily`,
-    text: `"${story.headline}" · Listen to this 20-second summary on Hark Daily (no login required):`,
+    text: `"${story.headline}" · Listen to this ${duration}-second summary on Hark Daily (no login required):`,
     url: shareUrl,
   };
 
@@ -776,16 +793,28 @@ function showShareSheet(story, shareUrl, shareData) {
   sheet.showModal();
 }
 
-function getTargetStory() {
+function getTargetStoryInfo() {
   const urlParams = new URLSearchParams(window.location.search);
   const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-  return urlParams.get('story') || hashParams.get('story') || null;
+  const story = urlParams.get('story') || hashParams.get('story') || null;
+  const title = urlParams.get('title') || urlParams.get('t') || hashParams.get('title') || null;
+  const audio = urlParams.get('audio') || urlParams.get('a') || hashParams.get('audio') || null;
+  const dur = Number.parseInt(urlParams.get('dur') || hashParams.get('dur') || '20', 10);
+  const source = urlParams.get('src') || urlParams.get('source') || hashParams.get('src') || null;
+  return { story, title, audio, dur, source };
 }
 
 let lastDeepLinkedStory = null;
-function handleStoryDeepLink(storyId) {
-  if (!storyId || !state.briefing?.stories?.length) return;
-  const story = state.briefing.stories.find((s) => s.id === storyId);
+function handleStoryDeepLink(storyInfo) {
+  if (!storyInfo || !state.briefing?.stories?.length) return;
+  const { story: storyId, title, audio } = typeof storyInfo === 'string' ? { story: storyInfo } : storyInfo;
+
+  // 1. Match by title first (resilient against morning/evening batch rank shifts!)
+  let story = title ? state.briefing.stories.find((s) => titlesMatch(s.headline, title)) : null;
+  // 2. Match by exact audio path (handles dropped/archived morning clips)
+  if (!story && audio) story = state.briefing.stories.find((s) => s.audio_path === audio);
+  // 3. Fallback to ID (science-5)
+  if (!story && storyId) story = state.briefing.stories.find((s) => s.id === storyId);
   if (!story) return;
 
   document.title = `${story.headline} — Hark Daily`;
@@ -801,13 +830,13 @@ function handleStoryDeepLink(storyId) {
     if (meta && !meta.querySelector('.badge-shared')) {
       const badge = h('span', { class: 'badge badge-cat badge-shared' },
         h('span', { class: 'live-dot', 'aria-hidden': 'true' }),
-        'Shared with you'
+        story.isSharedBonus ? 'Shared (earlier edition)' : 'Shared with you'
       );
       meta.prepend(badge);
     }
 
-    if (lastDeepLinkedStory !== storyId) {
-      lastDeepLinkedStory = storyId;
+    if (lastDeepLinkedStory !== story.id) {
+      lastDeepLinkedStory = story.id;
       setTimeout(() => {
         row.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 400);
@@ -820,8 +849,8 @@ function handleStoryDeepLink(storyId) {
     if (hl) hl.textContent = story.headline;
     const sub = $('sharedStorySubtitle');
     if (sub) {
-      const dur = Math.round(story.end - story.start);
-      sub.textContent = `${story.source || 'The news'} · ~${dur}s audio · No account required`;
+      const dur = Math.round(story.end - story.start) || 20;
+      sub.textContent = `${story.source || 'The news'} · ~${dur}s audio · ${story.isSharedBonus ? "From today's earlier edition · " : ''}No account required`;
     }
     const playBtn = $('sharedStoryPlayBtn');
     if (playBtn) {
@@ -1053,13 +1082,18 @@ async function loadStoryPack(day) {
     }
     if (!actualRows.length) return null;
 
+    const targetInfo = getTargetStoryInfo();
     const briefing = buildPackBriefing(actualRows, settings, {
       date,
       voice: settings.voice,
       notes: actualNotes,
       mode: activeMode(),
       podcastClips: actualPodcast,
-      targetStory: getTargetStory(),
+      targetStory: targetInfo.story,
+      targetTitle: targetInfo.title,
+      targetAudio: targetInfo.audio,
+      targetSource: targetInfo.source,
+      targetDur: targetInfo.dur,
     });
     if (!briefing) return null;
     // A day is playable only once its narrator's clips and framing are all published. Without this
@@ -1116,8 +1150,8 @@ function displayBriefing() {
   renderLineupCard();
   renderDateChips();
   renderSections();
-  const storyParam = getTargetStory();
-  if (storyParam) handleStoryDeepLink(storyParam);
+  const storyInfo = getTargetStoryInfo();
+  if (storyInfo.story || storyInfo.title || storyInfo.audio) handleStoryDeepLink(storyInfo);
 }
 window.displayBriefing = displayBriefing;
 
@@ -1202,7 +1236,19 @@ async function saveAll() {
         };
       }
       const { rows, settings, date, notes, fresh, podcastClips } = state.packContext;
-      const briefing = buildPackBriefing(rows, settings, { date, voice: settings.voice, notes, mode: activeMode(), podcastClips, targetStory: getTargetStory() });
+      const targetInfo = getTargetStoryInfo();
+    const briefing = buildPackBriefing(rows, settings, {
+      date,
+      voice: settings.voice,
+      notes,
+      mode: activeMode(),
+      podcastClips,
+      targetStory: targetInfo.story,
+      targetTitle: targetInfo.title,
+      targetAudio: targetInfo.audio,
+      targetSource: targetInfo.source,
+      targetDur: targetInfo.dur,
+    });
       if (briefing) {
         briefing.fresh = fresh;
         const curStory = player.storyFor(player.currentChapter());
@@ -1551,10 +1597,12 @@ async function start() {
   const targetDate = urlParams.get('date') || today;
 
   // 1. Instant optimistic paint from cached briefing (0 ms!)
-  const storyParam = getTargetStory();
+  const targetInfo = getTargetStoryInfo();
   if (!state.briefing) {
     const cached = store.get('last-briefing', null);
-    const canUseCache = cached && (!urlParams.get('date') || cached.date === targetDate) && (!storyParam || cached.stories?.some((s) => s.id === storyParam));
+    const canUseCache = cached && (!urlParams.get('date') || cached.date === targetDate)
+      && (!targetInfo.title || cached.stories?.some((s) => titlesMatch(s.headline, targetInfo.title)))
+      && (!targetInfo.story || cached.stories?.some((s) => s.id === targetInfo.story));
     if (canUseCache && (cached.stories?.length || cached.clips?.length)) {
       state.briefing = cached;
       state.briefingLoading = false;
