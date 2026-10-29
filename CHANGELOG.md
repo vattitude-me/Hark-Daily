@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.1] - 2026-10-29
+
+### Fixed
+- **Android oversized top bar**: system-bar insets were applied three times (theme, layout, and a native listener) plus once more by CSS. Now applied once by the native layout, and the web topbar skips `env(safe-area-inset-*)` inside the native shell (`.native-shell`).
+- **Notice banner layout**: badge now stacks above the title, and action buttons share the row evenly instead of wrapping unevenly.
+
 ## [1.0.0] - 2026-10-29
 
 ### Added

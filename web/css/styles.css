@@ -1058,9 +1058,10 @@ main { flex: 1; }
 }
 .notice-banner-header {
   display: flex;
-  align-items: center;
-  gap: .65rem;
-  margin-bottom: .25rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .4rem;
+  margin-bottom: .45rem;
 }
 .notice-banner-title {
   font-family: var(--font-head);
@@ -1079,11 +1080,14 @@ main { flex: 1; }
 .notice-banner-actions {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: stretch;
   gap: .5rem;
 }
 .notice-banner-actions .pill-btn {
   font-size: .8125rem;
+  flex: 1 1 auto;
+  justify-content: center;
+  white-space: nowrap;
 }
 .notice-banner-close {
   flex: none;
@@ -1124,7 +1128,18 @@ main { flex: 1; }
   }
   .notice-banner-actions .pill-btn {
     font-size: .78rem;
+    flex: 1 1 0;
+    min-height: 2.4rem;
   }
+  .notice-banner-title { line-height: 1.2; }
+}
+
+/* Android shell: the native layout already pads below the status bar. */
+.native-shell .topbar {
+  min-height: var(--topbar-h);
+  padding-top: .45rem;
+  padding-right: var(--gutter);
+  padding-left: var(--gutter);
 }
 
 /* Shared Story Arrival Banner */

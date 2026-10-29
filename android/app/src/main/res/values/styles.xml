@@ -16,7 +16,6 @@
         <item name="android:statusBarColor">#0D0D0D</item>
         <item name="android:navigationBarColor">#0D0D0D</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:fitsSystemWindows">true</item>
     </style>
 
 

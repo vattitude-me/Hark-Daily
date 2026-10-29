@@ -51,17 +51,7 @@ public class MainActivity extends BridgeActivity {
         if (insetsController != null) {
             insetsController.setAppearanceLightStatusBars(false);
         }
-
-        View content = findViewById(android.R.id.content);
-        if (content != null) {
-            ViewCompat.setOnApplyWindowInsetsListener(content, (v, windowInsets) -> {
-                Insets insets = windowInsets.getInsets(
-                    WindowInsetsCompat.Type.statusBars() | WindowInsetsCompat.Type.displayCutout()
-                );
-                v.setPadding(insets.left, insets.top, insets.right, 0);
-                return windowInsets;
-            });
-        }
+        // Insets are applied once, by android:fitsSystemWindows on the layout root (activity_main.xml).
     }
 
     @Override
