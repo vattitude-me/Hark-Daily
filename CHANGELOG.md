@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.70] - 2026-10-29
+
+### Added
+- **Multi-Country Editions (Canada, United States, India)**:
+  - Added dedicated feeds for the **United States (`us`)** (The New York Times, NPR Politics, Variety, CBS Sports) and **India (`in`)** (The Hindu, The Indian Express Politics & Entertainment, ESPNcricinfo) alongside **Canada (`ca`)** (CBC News, BetaKit).
+  - Implemented shared global technology and science sections (`ai`, `tech`, `science`) voiced once and reused across all country editions.
+  - Added `--edition` CLI flag (`ca`, `us`, `in`, or combinations like `ca,us`) to `python -m app pack`.
+  - Added two-tier batch scheduling: morning batch (~6:00 AM EDT) renders Canada & US editions; evening batch (~6:00 PM EDT / 3:30 AM IST) renders India editions for their morning commute while reusing today's global tech and science audio.
+  - Zero database schema migration: country editions are indexed cleanly under `story_audio` composite keys (`top_us`, `top_in`, etc.) preserving 100% backward compatibility.
+- **Client Edition Switcher & Auto-Detection**:
+  - Web and Android clients automatically detect user country edition from timezone (`Asia/Kolkata` -> `in`, US zones -> `us`, Canadian zones -> `ca`).
+  - Added sleek, responsive flag-code chip (`🇨🇦 CA ▾`, `🇺🇸 US ▾`, `🇮🇳 IN ▾`) in topbar and Settings sheet with instantaneous 0ms audio switching.
+  - Implemented resilient fallback: missing regional clips cleanly fallback to base section audio without playback interruption.
+- **Story Sharing & Deep-Linking Router**:
+  - Added 1-click native Web Share and clipboard sharing triggers on every story card.
+  - Supported URL deep-linking: `?story={section}-{rank}&date={YYYY-MM-DD}`.
+  - Built-in lineup expansion guarantees shared links load and play the exact targeted story even if it exceeds the user's default story count.
+- **Privacy-Respecting Analytics & Cookie Consent**:
+  - Integrated Google Analytics 4 (`G-8LV7D5TDT2`) with lightweight, non-intrusive consent banner (Accept / Reject).
+  - Custom event telemetry for story sharing (`share`), shared link opens (`shared_link_open`), edition switching (`select_content`), and outbound footer links.
+  - Added `sitemap.xml` and `robots.txt` for search engine discovery.
+
+### Changed
+- **Time-Neutral 24-Hour Listening**:
+  - Neutralized all broadcast scripts, podcast banter prompts, and outro framing to remove morning-locked phrasing (*"Good morning"*, *"morning coffee"*, *"morning brief"*, *"see you tomorrow morning"*).
+  - Outro note and banter title updated to *"Welcome · Today's preview"* and *"That's today's brief · Signing off"*.
+- **Topbar Responsive Layout Fix**:
+  - Prevented greeting / wishes text from collapsing by applying `flex-shrink: 0;` on desktop and flexible truncation on mobile.
+  - Redesigned edition chip to compact 56px pill on mobile and 83px on desktop, preventing header crowding across all viewports from 360px to 4K.
+  - Bumped PWA service worker cache to `hark-daily-v33`.
+
+---
+
 ## [0.1.69] - 2026-10-28
 
 ### Added
