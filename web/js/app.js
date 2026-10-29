@@ -592,7 +592,17 @@ function storyRow(story) {
         h('span', { class: 'dur' }, icon('clock'), audioLen(story)),
         h('span', {}, '·'),
         h('span', {}, story.source || 'The Guardian'),
-        story.also?.length ? h('span', {}, `· +${story.also.length} source${story.also.length === 1 ? '' : 's'}`) : null
+        story.also?.length ? h('span', {}, `· +${story.also.length} source${story.also.length === 1 ? '' : 's'}`) : null,
+        h('button', {
+          class: 'story-quick-share',
+          type: 'button',
+          'aria-label': `Share "${story.headline}"`,
+          title: 'Share article',
+          onclick: (e) => {
+            e.stopPropagation();
+            openShareModal(story);
+          },
+        }, icon('share'))
       ),
       h('h3', {}, story.headline),
       story.summary ? h('p', { class: 'story-snippet' }, story.summary) : null
@@ -609,7 +619,16 @@ function storyRow(story) {
     story.also?.length ? h('p', { class: 'also' }, `Also covered by ${story.also.join(', ')}`) : null,
     h('div', { class: 'story-actions' },
       h('button', { class: 'pill-btn sm', type: 'button', onclick: () => player.playChapter(story.id) }, icon('play'), 'Play from here'),
-      story.url ? h('a', { class: 'pill-btn glass-btn sm', href: story.url, target: '_blank', rel: 'noopener noreferrer' }, 'Read article', icon('external')) : null
+      story.url ? h('a', { class: 'pill-btn glass-btn sm', href: story.url, target: '_blank', rel: 'noopener noreferrer' }, 'Read article', icon('external')) : null,
+      h('button', {
+        class: 'pill-btn glass-btn sm story-share-btn',
+        type: 'button',
+        'aria-label': `Share "${story.headline}"`,
+        onclick: (e) => {
+          e.stopPropagation();
+          openShareModal(story);
+        },
+      }, icon('share'), 'Share')
     ),
     reportRow(story)
   );
@@ -628,6 +647,177 @@ function reportRow(story) {
     icon('flag'), reported ? 'Reported. Thanks' : 'Report this summary');
   if (!reported) btn.addEventListener('click', (e) => { e.stopPropagation(); openReport(story, btn); });
   return btn;
+}
+
+/* ------------------------------------------------------------- story sharing */
+export async function openShareModal(story) {
+  if (!story) return;
+  const briefing = state.briefing;
+  const date = briefing?.date || '';
+  const origin = window.location.origin;
+  const params = new URLSearchParams();
+  params.set('story', story.id);
+  if (date) params.set('date', date);
+  const shareUrl = `${origin}/?${params.toString()}`;
+
+  const shareData = {
+    title: `${story.headline} — Hark Daily`,
+    text: `"${story.headline}" · Listen to this 20-second summary on Hark Daily (no login required):`,
+    url: shareUrl,
+  };
+
+  if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+    try {
+      await navigator.share(shareData);
+      return;
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+    }
+  }
+
+  showShareSheet(story, shareUrl, shareData);
+}
+window.openShareModal = openShareModal;
+
+function showShareSheet(story, shareUrl, shareData) {
+  const sheet = $('shareSheet');
+  if (!sheet) return;
+
+  const sec = SECTIONS[story.section] || SECTIONS.top;
+  const catEl = $('sharePreviewCat');
+  if (catEl) {
+    catEl.textContent = sec.title;
+    catEl.className = `badge badge-cat cat-${story.section || 'top'}`;
+  }
+
+  const durEl = $('sharePreviewDurText');
+  if (durEl) durEl.textContent = audioLen(story);
+
+  const titleEl = $('sharePreviewTitle');
+  if (titleEl) titleEl.textContent = story.headline;
+
+  const summaryEl = $('sharePreviewSummary');
+  if (summaryEl) summaryEl.textContent = story.summary || '';
+
+  const inputEl = $('shareLinkInput');
+  if (inputEl) inputEl.value = shareUrl;
+
+  const copyBtn = $('shareCopyBtn');
+  const copyText = $('shareCopyBtnText');
+  const doCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      if (copyText) copyText.textContent = 'Copied! ✓';
+      toast('Story link copied to clipboard!');
+      setTimeout(() => { if (copyText) copyText.textContent = 'Copy Link'; }, 2000);
+    } catch {
+      inputEl?.select();
+      document.execCommand('copy');
+      if (copyText) copyText.textContent = 'Copied! ✓';
+      toast('Story link copied to clipboard!');
+      setTimeout(() => { if (copyText) copyText.textContent = 'Copy Link'; }, 2000);
+    }
+  };
+
+  if (copyBtn) copyBtn.onclick = doCopy;
+
+  const xBtn = $('shareXBtn');
+  if (xBtn) {
+    xBtn.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(`"${story.headline}" · Listen on Hark Daily:`)}&url=${encodeURIComponent(shareUrl)}`;
+  }
+
+  const linkedInBtn = $('shareLinkedInBtn');
+  if (linkedInBtn) {
+    linkedInBtn.href = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`;
+  }
+
+  const whatsAppBtn = $('shareWhatsAppBtn');
+  if (whatsAppBtn) {
+    whatsAppBtn.href = `https://api.whatsapp.com/send?text=${encodeURIComponent(`"${story.headline}"\n\nListen on Hark Daily: ${shareUrl}`)}`;
+  }
+
+  const nativeBtn = $('shareNativeAction');
+  if (nativeBtn) {
+    if (navigator.share) {
+      nativeBtn.classList.remove('hidden');
+      nativeBtn.onclick = async () => {
+        try {
+          await navigator.share(shareData);
+          sheet.close();
+        } catch { /* cancelled */ }
+      };
+    } else {
+      nativeBtn.classList.add('hidden');
+    }
+  }
+
+  navigator.clipboard?.writeText(shareUrl).then(() => {
+    toast('Link copied to clipboard! Share it with friends.');
+  }).catch(() => {});
+
+  sheet.showModal();
+}
+
+let lastDeepLinkedStory = null;
+function handleStoryDeepLink(storyId) {
+  if (!storyId || !state.briefing?.stories?.length) return;
+  const story = state.briefing.stories.find((s) => s.id === storyId);
+  if (!story) return;
+
+  document.title = `${story.headline} — Hark Daily`;
+  player.seekTo(story.start || 0);
+
+  const row = document.querySelector(`.story-row[data-id="${story.id}"]`);
+  if (row) {
+    row.classList.add('expanded', 'story-shared-target');
+    const detail = row.querySelector('.story-detail');
+    if (detail) detail.classList.remove('hidden');
+
+    const meta = row.querySelector('.story-meta');
+    if (meta && !meta.querySelector('.badge-shared')) {
+      const badge = h('span', { class: 'badge badge-cat badge-shared' },
+        h('span', { class: 'live-dot', 'aria-hidden': 'true' }),
+        'Shared with you'
+      );
+      meta.prepend(badge);
+    }
+
+    if (lastDeepLinkedStory !== storyId) {
+      lastDeepLinkedStory = storyId;
+      setTimeout(() => {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 400);
+    }
+  }
+
+  const banner = $('sharedStoryBanner');
+  if (banner) {
+    const hl = $('sharedStoryHeadline');
+    if (hl) hl.textContent = story.headline;
+    const sub = $('sharedStorySubtitle');
+    if (sub) {
+      const dur = Math.round(story.end - story.start);
+      sub.textContent = `${story.source || 'The news'} · ~${dur}s audio · No account required`;
+    }
+    const playBtn = $('sharedStoryPlayBtn');
+    if (playBtn) {
+      playBtn.onclick = () => {
+        player.playChapter(story.id);
+        banner.classList.add('hidden');
+      };
+    }
+    const browseBtn = $('sharedStoryBrowseBtn');
+    if (browseBtn) {
+      browseBtn.onclick = () => {
+        banner.classList.add('hidden');
+        row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      };
+    }
+    $('sharedStoryCloseBtn')?.addEventListener('click', () => {
+      banner.classList.add('hidden');
+    });
+    banner.classList.remove('hidden');
+  }
 }
 
 function renderSections() {
@@ -804,29 +994,41 @@ async function sendReport() {
 async function loadStoryPack(day) {
   const today = new Date().toLocaleDateString('en-CA');
   try {
-    const { settings } = await api.settings();
+    // Parallelize settings and day queries concurrently
+    const [{ settings }, rows, notes, podcastClips] = await Promise.all([
+      api.settings(),
+      api.storyAudio(day),
+      api.voiceNotes(day),
+      podcastOn() ? api.podcastClips(day).catch(() => []) : Promise.resolve([])
+    ]);
+
     let date = day;
-    let rows = await api.storyAudio(day);
-    if (!rows.length && day === today) {
+    let actualRows = rows;
+    let actualNotes = notes;
+    let actualPodcast = podcastClips;
+
+    if (!actualRows.length && day === today) {
       const latest = await api.latestStoryDate();
       if (!latest) return null;
       date = latest;
-      rows = await api.storyAudio(date);
+      [actualRows, actualNotes, actualPodcast] = await Promise.all([
+        api.storyAudio(date),
+        api.voiceNotes(date),
+        podcastOn() ? api.podcastClips(date).catch(() => []) : Promise.resolve([])
+      ]);
     }
-    if (!rows.length) return null;
-    const notes = await api.voiceNotes(date);
-    // Banter is optional extra; if it can't be fetched the brief is built without it.
-    const podcastClips = podcastOn() ? await api.podcastClips(date).catch(() => []) : [];
-    const briefing = buildPackBriefing(rows, settings, { date, voice: settings.voice, notes, mode: activeMode(), podcastClips });
+    if (!actualRows.length) return null;
+
+    const briefing = buildPackBriefing(actualRows, settings, { date, voice: settings.voice, notes: actualNotes, mode: activeMode(), podcastClips: actualPodcast });
     if (!briefing) return null;
     // A day is playable only once its narrator's clips and framing are all published. Without this
     // a pack that is mid-recording, or being re-recorded, plays two voices inside one brief.
-    const hasReadyMarkers = notes.some((n) => n.note_key === READY_KEY);
+    const hasReadyMarkers = actualNotes.some((n) => n.note_key === READY_KEY);
     if (hasReadyMarkers) {
       const hosts = (briefing.voice?.id || '').split('+').filter(Boolean);
       const isReady = hosts.length > 0
-        ? hosts.every((h) => notes.some((n) => n.note_key === READY_KEY && n.voice === h))
-        : notes.some((n) => n.note_key === READY_KEY && n.voice === briefing.voice?.id);
+        ? hosts.every((h) => actualNotes.some((n) => n.note_key === READY_KEY && n.voice === h))
+        : actualNotes.some((n) => n.note_key === READY_KEY && n.voice === briefing.voice?.id);
       if (!isReady) {
         if (day === today) {
           const latest = await api.latestStoryDate();
@@ -836,7 +1038,7 @@ async function loadStoryPack(day) {
       }
     }
     briefing.fresh = date === today;
-    state.packContext = { rows, settings, date, notes, fresh: briefing.fresh, podcastClips };
+    state.packContext = { rows: actualRows, settings, date, notes: actualNotes, fresh: briefing.fresh, podcastClips: actualPodcast };
     return briefing;
   } catch {
     return null;  // no pack that day, or the story_audio table isn't there yet
@@ -859,7 +1061,10 @@ function setFootnote() {
 }
 
 function displayBriefing() {
-  if (state.briefing) player.load(state.briefing);
+  if (state.briefing) {
+    player.load(state.briefing);
+    try { store.set('last-briefing', state.briefing); } catch { /* ignore storage error */ }
+  }
   setFootnote();
   renderHeader();
   renderHero();
@@ -870,6 +1075,9 @@ function displayBriefing() {
   renderLineupCard();
   renderDateChips();
   renderSections();
+  const urlParams = new URLSearchParams(window.location.search);
+  const storyParam = urlParams.get('story') || new URLSearchParams(window.location.hash.slice(1)).get('story');
+  if (storyParam) handleStoryDeepLink(storyParam);
 }
 window.displayBriefing = displayBriefing;
 
@@ -1012,6 +1220,8 @@ function bindEvents() {
   document.addEventListener('mb-theme', syncThemeIcon);
   $('reportSend')?.addEventListener('click', sendReport);
   wireSheet($('reportSheet'));
+  const shareSheet = $('shareSheet');
+  if (shareSheet) wireSheet(shareSheet);
 
   // Search input & keyboard shortcut
   $('searchInput')?.addEventListener('input', (e) => applySearch(e.target.value));
@@ -1295,13 +1505,32 @@ window.enterApp = enterApp;
 /* -------------------------------------------------------------------- boot */
 async function start() {
   document.body.classList.remove('booting', 'signed-out');
-  state.briefingLoading = true;
-  renderNotice();
-  renderGuestBanner();
-  $('sections').replaceChildren(...Array.from({ length: 3 }, () => h('div', { class: 'skeleton' })));
   const today = new Date().toLocaleDateString('en-CA');
+  const urlParams = new URLSearchParams(window.location.search);
+  const targetDate = urlParams.get('date') || today;
+
+  // 1. Instant optimistic paint from cached briefing (0 ms!)
+  if (!state.briefing) {
+    const cached = store.get('last-briefing', null);
+    if (cached && (cached.stories?.length || cached.clips?.length)) {
+      state.briefing = cached;
+      state.briefingLoading = false;
+      displayBriefing();
+    } else {
+      state.briefingLoading = true;
+      renderNotice();
+      renderGuestBanner();
+      $('sections').replaceChildren(...Array.from({ length: 3 }, () => h('div', { class: 'skeleton' })));
+    }
+  }
+
   try {
-    const [status, profile] = await Promise.all([api.status(), api.profile()]);
+    // 2. Fetch status, profile, AND requested date's pack in parallel
+    const [status, profile, freshBriefing] = await Promise.all([
+      api.status().catch(() => ({})),
+      api.profile().catch(() => null),
+      loadStoryPack(targetDate)
+    ]);
     state.status = status;
     state.profile = profile;
     syncAdminTab();
@@ -1311,24 +1540,37 @@ async function start() {
     renderPersonas();
     renderNextCard();
     renderLineupCard();
-    await loadArchive();
-    // The shared pack *is* the briefing now. When today's hasn't been published yet,
-    // loadStoryPack falls back to the most recent one and renderNotice says so.
-    state.briefing = await loadStoryPack(today);
-    if (!state.briefing) {
+
+    // 3. Fallback to today / latest date if target date is not ready
+    let briefing = freshBriefing;
+    if (!briefing && targetDate !== today) {
+      briefing = await loadStoryPack(today);
+    }
+    if (!briefing) {
       const latest = await api.latestStoryDate();
       if (latest && latest !== today) {
-        state.briefing = await loadStoryPack(latest);
+        briefing = await loadStoryPack(latest);
       }
     }
+
     state.briefingLoading = false;
-    if (state.briefing?.podcastFallback) toast("Podcast isn't ready today, so here's the full brief.");
-    displayBriefing();
+    if (briefing) {
+      state.briefing = briefing;
+      if (state.briefing?.podcastFallback) toast("Podcast isn't ready today, so here's the full brief.");
+      displayBriefing();
+    }
+
+    // 4. Defer archive loading to background idle time (non-blocking!)
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => loadArchive().catch(() => {}));
+    } else {
+      setTimeout(() => loadArchive().catch(() => {}), 150);
+    }
   } catch (err) {
     state.briefingLoading = false;
     recordError(err, 'loadBriefing');
     const cached = store.get('last-briefing', null);
-    if (cached?.audio_url?.startsWith('http')) {
+    if (cached && (cached.audio_url?.startsWith('http') || cached.stories?.length)) {
       state.briefing = cached;
       displayBriefing();
       toast('Offline mode active. Showing your saved briefing.', { error: true, ms: 5000 });

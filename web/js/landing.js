@@ -221,7 +221,24 @@ export class Landing {
         h('div', { class: 'play-col' }, dot, h('span', { class: 't' }, fmtTime(s.start || 0))),
         h('div', { class: 'story-text' },
           h('h3', {}, s.headline),
-          h('p', { class: 'story-meta' }, s.source || 'The Guardian')),
+          h('div', { class: 'story-meta' },
+            h('span', {}, s.source || 'The Guardian'),
+            h('button', {
+              class: 'story-quick-share',
+              type: 'button',
+              'aria-label': `Share "${s.headline}"`,
+              title: 'Share article',
+              onclick: (e) => {
+                e.stopPropagation();
+                if (window.openShareModal) {
+                  window.openShareModal(s);
+                } else {
+                  const url = `${window.location.origin}/?story=${encodeURIComponent(s.id)}`;
+                  navigator.clipboard?.writeText(url).then(() => toast('Link copied to clipboard!'));
+                }
+              },
+            }, icon('share'))
+          )),
         s.image ? h('img', {
           class: 'story-thumb', src: s.image, alt: '', loading: 'lazy', decoding: 'async',
           referrerpolicy: 'no-referrer', onerror: (e) => e.target.remove(),

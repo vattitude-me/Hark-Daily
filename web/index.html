@@ -62,9 +62,8 @@
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#f3f2ee" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0b0f17" media="(prefers-color-scheme: dark)">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="preload" href="/fonts/plus-jakarta-sans.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/css/styles.css">
   <script>
     try {
@@ -133,6 +132,8 @@
       <symbol id="i-chev-u" viewBox="0 0 24 24"><path d="M5 15l7-7 7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-logout" viewBox="0 0 24 24"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l-4-4 4-4M6 12h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3.5 13.8 9a2 2 0 0 0 1.2 1.2l5.5 1.8-5.5 1.8a2 2 0 0 0-1.2 1.2L12 20.5 10.2 15A2 2 0 0 0 9 13.8L3.5 12 9 10.2A2 2 0 0 0 10.2 9L12 3.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-whatsapp" viewBox="0 0 24 24"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c4.55 0 8.25 3.7 8.25 8.24 0 2.2-.86 4.28-2.42 5.84-1.56 1.56-3.64 2.41-5.84 2.41-1.46 0-2.9-.39-4.16-1.14l-.3-.18-3.1 1.02.83-3.02-.19-.31A8.17 8.17 0 0 1 3.8 11.91c0-4.54 3.7-8.24 8.25-8.24m4.53 11.64c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.02-1.25-.75-.67-1.26-1.5-1.41-1.75-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.13-.14.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43h-.48c-.17 0-.44.06-.67.31-.23.25-.87.85-.87 2.08s.89 2.42 1.01 2.59c.13.17 1.75 2.67 4.24 3.74.59.26 1.05.41 1.41.52.59.19 1.13.16 1.56.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.17-.48-.29" fill="currentColor"/></symbol>
       <!-- Section glyphs -->
       <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.5 5.2 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.2-3.5-8.5S9.6 5.9 12 3.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
       <symbol id="i-chip" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="10" y="10" width="4" height="4" rx=".8" fill="currentColor"/><path d="M10 3.5v3M14 3.5v3M10 17.5v3M14 17.5v3M3.5 10h3M3.5 14h3M17.5 10h3M17.5 14h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
@@ -348,6 +349,29 @@
 
             <div id="notice"></div>
 
+            <!-- Shared Story Arrival Banner -->
+            <section class="glass shared-story-banner hidden" id="sharedStoryBanner" aria-label="Shared story briefing">
+              <div class="shared-story-content">
+                <div class="shared-story-badge-row">
+                  <span class="shared-story-pill"><svg class="inline-icon" aria-hidden="true"><use href="#i-share"/></svg>Shared story</span>
+                  <span class="shared-story-meta" id="sharedStorySubtitle">Voiced on Hark Daily · 20s audio</span>
+                </div>
+                <h2 class="shared-story-headline" id="sharedStoryHeadline">Story headline</h2>
+              </div>
+              <div class="shared-story-actions">
+                <button class="pill-btn sm" type="button" id="sharedStoryPlayBtn">
+                  <svg class="i-play" aria-hidden="true"><use href="#i-play"/></svg>
+                  <span>Listen now</span>
+                </button>
+                <button class="pill-btn glass-btn sm" type="button" id="sharedStoryBrowseBtn">
+                  <span>See full brief</span>
+                </button>
+                <button class="icon-btn notice-banner-close" type="button" id="sharedStoryCloseBtn" aria-label="Dismiss banner" title="Dismiss banner">
+                  <svg><use href="#i-close"/></svg>
+                </button>
+              </div>
+            </section>
+
             <!-- Optional Guest Action Banner: Notifications, Install, Sign in -->
             <section class="glass guest-banner hidden" id="guestBanner" aria-label="Welcome to Hark Daily">
               <div class="guest-banner-main">
@@ -450,6 +474,10 @@
                     <span id="heroNarratorName">Narrator</span>
                   </button>
                   <a class="pill-btn glass-btn sm hero-article hidden" id="heroArticle" target="_blank" rel="noopener noreferrer"><span>Read article</span><svg aria-hidden="true"><use href="#i-external"/></svg></a>
+                  <button class="pill-btn glass-btn sm hero-share hidden" id="heroShare" type="button" aria-label="Share current story" title="Share current story">
+                    <svg aria-hidden="true"><use href="#i-share"/></svg>
+                    <span>Share</span>
+                  </button>
                 </div>
               </div>
 
@@ -762,6 +790,54 @@
     </div>
   </dialog>
 
+  <!-- Share story modal sheet -->
+  <dialog class="sheet" id="shareSheet" aria-labelledby="shareSheetTitle">
+    <div class="sheet-head">
+      <h2 id="shareSheetTitle"><svg aria-hidden="true"><use href="#i-share"/></svg>Share this story</h2>
+      <button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <div class="share-preview glass">
+        <div class="share-preview-meta">
+          <span class="badge badge-cat" id="sharePreviewCat">Top stories</span>
+          <span class="dur"><svg aria-hidden="true"><use href="#i-clock"/></svg><span id="sharePreviewDurText">25s</span></span>
+        </div>
+        <h3 class="share-preview-title" id="sharePreviewTitle">Headline</h3>
+        <p class="share-preview-summary" id="sharePreviewSummary">Summary text</p>
+      </div>
+
+      <div class="share-link-box">
+        <input type="text" class="text-input" id="shareLinkInput" readonly aria-label="Shareable story link">
+        <button class="pill-btn sm" type="button" id="shareCopyBtn">
+          <svg aria-hidden="true"><use href="#i-link"/></svg>
+          <span id="shareCopyBtnText">Copy Link</span>
+        </button>
+      </div>
+
+      <div class="share-social-grid" role="group" aria-label="Social sharing options">
+        <button class="social-chip" id="shareNativeAction" type="button" aria-label="Share via device">
+          <svg aria-hidden="true"><use href="#i-share"/></svg>
+          <span>Share via apps...</span>
+        </button>
+        <a class="social-chip" id="shareWhatsAppBtn" target="_blank" rel="noopener noreferrer" aria-label="Share on WhatsApp">
+          <svg aria-hidden="true"><use href="#i-whatsapp"/></svg>
+          <span>WhatsApp</span>
+        </a>
+        <a class="social-chip" id="shareXBtn" target="_blank" rel="noopener noreferrer" aria-label="Share on X">
+          <svg aria-hidden="true"><use href="#i-x"/></svg>
+          <span>Post to X</span>
+        </a>
+        <a class="social-chip" id="shareLinkedInBtn" target="_blank" rel="noopener noreferrer" aria-label="Share on LinkedIn">
+          <svg aria-hidden="true"><use href="#i-linkedin"/></svg>
+          <span>LinkedIn</span>
+        </a>
+      </div>
+    </div>
+    <div class="sheet-foot">
+      <button class="btn btn-ghost" data-close>Done</button>
+    </div>
+  </dialog>
+
   <!-- Sign in modal dialog: accessible globally from guest banner, topbar, and settings -->
   <div class="signin hidden" id="signin" role="dialog" aria-modal="true" aria-labelledby="signinTitle">
     <div class="login-card">
@@ -803,6 +879,7 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script src="/js/vendor/supabase.min.js"></script>
   <script type="module" src="/js/app.js"></script>
 </body>
 </html>
