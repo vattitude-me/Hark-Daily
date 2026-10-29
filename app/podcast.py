@@ -114,25 +114,25 @@ def _clean(text: str) -> str:
 # ------------------------------------------------------------------ templates
 # {a} and {b} are the hosts' first names, {h} the headline, {s} the section's title.
 OPEN_TEMPLATES: list[list[Turn]] = [
-    [(0, "Good morning, {b}! How's that morning coffee treating you?"),
-     (1, "[chuckle] It's working wonders, {a}... and we're going to need it today! Lots going on."),
+    [(0, "Hey {b}, welcome back! How are things looking out there?"),
+     (1, "[chuckle] Fast-moving, {a}... we've got a lot of ground to cover today! Lots going on."),
      (0, "Oh, absolutely. Let's get right into it.")],
     [(0, "Hey {b}, welcome back! Are you ready for today's rundown?"),
      (1, "Ready as I'll ever be, {a}! We've got some fascinating stories lined up today."),
      (0, "We really do... let's jump straight in.")],
-    [(0, "Morning everyone, and morning {b}! Busy morning across the board."),
-     (1, "[sigh] It really is, {a}... from tech breakthroughs to world news, it's packed."),
+    [(0, "Welcome everyone, and hey {b}! Big headlines moving across the board."),
+     (1, "[sigh] It really is packed, {a}... from tech breakthroughs to world news."),
      (0, "Alright, let's see what's happening.")],
 ]
 CLOSE_TEMPLATES: list[list[Turn]] = [
-    [(1, "And that's your morning brief! Thanks for spending your morning with us."),
-     (0, "Have a wonderful day, everyone. We'll catch you tomorrow!")],
-    [(0, "And that wraps up today's headlines."),
-     (1, "[chuckle] Take care out there, stay curious, and we'll see you tomorrow morning.")],
+    [(1, "And that wraps up today's briefing! Thanks for tuning in with us."),
+     (0, "Stay curious, everyone. We'll catch you on the next update!")],
+    [(0, "And that covers the headlines for today."),
+     (1, "[chuckle] Take care out there, stay informed, and we'll see you next time.")],
 ]
 TEASE_TEMPLATES: dict[str, list[list[Turn]]] = {
     "serious": [[(0, "Now here's a developing story we're watching closely: {h}."), (1, "Yeah, this one has huge implications... let's break it down.")]],
-    "warm": [[(0, "First up this morning, {h}."), (1, "There's quite a lot to unpack here... let's get into the details.")]],
+    "warm": [[(0, "Topping the news today, {h}."), (1, "There's quite a lot to unpack here... let's get into the details.")]],
     "excited": [[(0, "Oh wow, check this out in {s}: {h}."), (1, "[chuckle] I couldn't believe this headline! Let's hear the full story.")]],
     "light": [[(0, "Okay, you have to hear this one: {h}."), (1, "[laugh] That is fantastic! Let's hear what happened.")]],
     "energetic": [[(0, "Big developments in {s} today: {h}."), (1, "Oh yeah, definitely one to keep an eye on. Here's the rundown.")]],
@@ -216,10 +216,10 @@ def validate_turns(raw, kind: str, section: str | None = None) -> list[Turn] | N
 
 
 # ------------------------------------------------------------------ AI writer
-SYSTEM_PROMPT = """You write the lively, animated banter for a two-host morning news podcast. The hosts introduce and react to the day's news; a separate narrator reads the stories in full, so you never read the news yourself.
+SYSTEM_PROMPT = """You write the lively, animated banter for a two-host news podcast. The hosts introduce and react to the day's news; a separate narrator reads the stories in full, so you never read the news yourself.
 
 Hosts: "a" is {a} and "b" is {b}.
-Vibe: Warm, spontaneous, enthusiastic, and conversational—like two charismatic morning show co-hosts who have great chemistry and banter. Avoid sounding robotic, monotone, stiff, or overly formal.
+Vibe: Warm, spontaneous, enthusiastic, and conversational—like two charismatic podcast co-hosts who have great chemistry and banter. Avoid sounding robotic, monotone, stiff, or overly formal.
 
 Expressiveness & Pacing:
 - Speak naturally with punchy spoken phrasing, contractions, energetic interjections ("Oh wow!", "No way", "Honestly...", "Can you believe that?"), and genuine curiosity.
@@ -233,9 +233,9 @@ Return ONLY JSON of this shape:
 where turns is a list of {{"speaker": "a" or "b", "text": "..."}}.
 
 Rules:
-- open: an upbeat greeting chat to kick off the morning ("Good morning {b}! Ready for a wild news day?"). Today is {weekday}. No news yet. Make the {open_n} variants clearly distinct and playful.
-- close: an energetic, friendly sign-off ("That's a wrap for this morning! Have a great day everyone."). Make variants distinct.
-- tease: react with genuine human emotion to the top headline of that section ("Wait till you hear this one in AI...", "Okay, this sports finish was insane...").
+- open: an upbeat, time-neutral greeting chat ("Hey {b}! Ready for a wild news day?", "Welcome back, {b}! Quite a news cycle today."). Today is {weekday}. No news yet. Make the {open_n} variants clearly distinct and playful. IMPORTANT: Do NOT use time-of-day locked words like "morning", "afternoon", "evening", or "morning coffee" so the audio stays natural whenever a listener opens the app.
+- close: an energetic, friendly sign-off ("That's a wrap on today's headlines! Thanks for listening everyone.", "Stay curious, stay informed, and we'll catch you on the next update."). Make variants distinct. Do NOT say "tomorrow morning" or "morning brief".
+- tease: react with genuine human emotion to the top headline of that section ("Wait till you hear this one in AI...", "Okay, this sports finish was insane..."). Do NOT say "this morning".
 - bridge: a quick, punchy 1-line handoff into that section ("Alright, let's dive into tech.", "Over to politics...").
 - Limits per piece: open <= {w_open} words and 4 turns, tease <= {w_tease} words and 3 turns, bridge <= {w_bridge} words and 2 turns, close <= {w_close} words and 3 turns.
 - No URLs, emoji, lists, markdown or stage directions. Do not read the headline out word for word every time; paraphrase.

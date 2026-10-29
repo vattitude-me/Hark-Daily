@@ -300,7 +300,7 @@ object StoryPack {
         }
 
         fun banterTitle(clipKey: String, sectionKey: String? = null): String {
-            if (clipKey.startsWith("pod_open")) return "Good morning · Today's preview"
+            if (clipKey.startsWith("pod_open")) return "Welcome · Today's preview"
             if (clipKey.startsWith("pod_tease")) {
                 val sec = sectionKey ?: clipKey.removePrefix("pod_tease_")
                 val secName = SECTIONS[sec]?.title ?: sec
@@ -324,7 +324,7 @@ object StoryPack {
                 val secName = SECTIONS[sec]?.title ?: sec
                 return "Here are the ${secName.lowercase()} stories"
             }
-            if (noteKey == "outro") return "That's the morning brief"
+            if (noteKey == "outro") return "That's today's brief"
             return "Today's Briefing"
         }
 

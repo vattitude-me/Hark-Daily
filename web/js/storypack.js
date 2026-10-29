@@ -185,7 +185,7 @@ export function planPodcast(clips, sections, seed = '') {
 export function banterTitle(clipKey, sectionKey = null) {
   if (!clipKey) return "Today's Briefing";
   if (clipKey.startsWith('pod_open')) {
-    return "Good morning · Today's preview";
+    return "Welcome · Today's preview";
   }
   if (clipKey.startsWith('pod_tease')) {
     const sec = sectionKey || clipKey.replace(/^pod_tease_/, '');
@@ -213,7 +213,7 @@ export function noteTitle(noteKey) {
     const secName = SECTIONS[sec]?.title || sec;
     return `Here are the ${secName.toLowerCase()} stories`;
   }
-  if (noteKey === 'outro') return "That's the morning brief";
+  if (noteKey === 'outro') return "That's today's brief";
   return "Today's Briefing";
 }
 
