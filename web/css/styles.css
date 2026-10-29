@@ -1531,9 +1531,9 @@ main { flex: 1; }
 .persona-status { font-family: var(--font-head); font-size: .72rem; font-weight: 600; color: var(--muted); padding: .2rem .55rem; border-radius: var(--r-full); background: var(--well-strong); }
 .persona.on .persona-status { color: var(--accent-text); background: var(--accent-soft); }
 
-/* Two-column body */
-.today-cols { display: grid; grid-template-columns: minmax(0, 1fr) 21rem; gap: 1.75rem; align-items: start; }
-.col-side { display: grid; gap: 1.1rem; position: sticky; top: calc(var(--topbar-h) + 1.25rem); }
+/* Body layout: clean, focused single-column stream */
+.today-cols { display: block; max-width: 54rem; margin: 0 auto; width: 100%; }
+.col-side { display: none !important; }
 
 .list-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
 .list-head h2 { display: inline-flex; align-items: center; gap: .6rem; font-size: 1.35rem; }
@@ -2364,8 +2364,8 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
 }
 
 @media (max-width: 1180px) {
-  .today-cols { grid-template-columns: 1fr; }
-  .col-side { position: static; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
+  .today-cols { display: block; }
+  .col-side { display: none !important; }
   .sources-layout { grid-template-columns: 1fr; }
   .sources-layout > aside { position: static; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
   .text-size { display: none; }
