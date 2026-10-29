@@ -7,29 +7,76 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.BridgeActivity;
 import java.lang.ref.WeakReference;
 
 public class MainActivity extends BridgeActivity {
     public static final String BRIEFING_CHANNEL_ID = "hark_daily_briefing";
-    private static final int NOTIFICATION_PERMISSION_REQUEST = 1001;
-    private static final int BRIEFING_NOTIFICATION_ID = 3001;
+    public static final int NOTIFICATION_PERMISSION_REQUEST = 1001;
+    public static final int BRIEFING_NOTIFICATION_ID = 3001;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        configureWindowInsets();
         initNotificationChannels();
         requestNotificationPermissionIfNeeded();
         configureSmartShell();
+    }
+
+    private void configureWindowInsets() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+            getWindow().setStatusBarColor(Color.parseColor("#0D0D0D"));
+            getWindow().setNavigationBarColor(Color.parseColor("#0D0D0D"));
+        }
+
+        androidx.core.view.WindowInsetsControllerCompat insetsController =
+            androidx.core.view.WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (insetsController != null) {
+            insetsController.setAppearanceLightStatusBars(false);
+        }
+
+        View content = findViewById(android.R.id.content);
+        if (content != null) {
+            ViewCompat.setOnApplyWindowInsetsListener(content, (v, windowInsets) -> {
+                Insets insets = windowInsets.getInsets(
+                    WindowInsetsCompat.Type.statusBars() | WindowInsetsCompat.Type.displayCutout()
+                );
+                v.setPadding(insets.left, insets.top, insets.right, 0);
+                return windowInsets;
+            });
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST) {
+            boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+            if (webView != null) {
+                webView.post(() -> webView.evaluateJavascript(
+                    "window.dispatchEvent(new CustomEvent('hark-native-notification-permission', { detail: { granted: " + granted + " } }));",
+                    null
+                ));
+            }
+        }
     }
 
     private void initNotificationChannels() {
@@ -50,7 +97,7 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    private void requestNotificationPermissionIfNeeded() {
+    public void requestNotificationPermissionIfNeeded() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
@@ -130,6 +177,24 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public boolean isNativeShell() {
             return true;
+        }
+
+        @JavascriptInterface
+        public boolean hasNotificationPermission() {
+            MainActivity act = activityRef.get();
+            if (act == null) return false;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                return act.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+            }
+            return NotificationManagerCompat.from(act).areNotificationsEnabled();
+        }
+
+        @JavascriptInterface
+        public void requestNotificationPermission() {
+            MainActivity act = activityRef.get();
+            if (act != null) {
+                act.runOnUiThread(act::requestNotificationPermissionIfNeeded);
+            }
         }
 
         @JavascriptInterface

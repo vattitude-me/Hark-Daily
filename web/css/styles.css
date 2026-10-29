@@ -788,7 +788,8 @@ body.playing .eq i:nth-child(2) { animation-delay: -.3s; } body.playing .eq i:nt
 .topbar {
   position: sticky; top: 0; z-index: 25;
   display: flex; align-items: center; gap: .75rem;
-  min-height: var(--topbar-h); padding: .75rem var(--gutter);
+  min-height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
+  padding: calc(.75rem + env(safe-area-inset-top, 0px)) calc(var(--gutter) + env(safe-area-inset-right, 0px)) .75rem calc(var(--gutter) + env(safe-area-inset-left, 0px));
   background: color-mix(in oklab, var(--bg) 72%, transparent);
   border-bottom: 1px solid var(--line);
   -webkit-backdrop-filter: var(--blur);
@@ -2391,7 +2392,11 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   .tab.active { background: transparent; }
   .tab.active::before { left: 30%; right: 30%; top: 0; bottom: auto; width: auto; height: 3px; border-radius: 0 0 3px 3px; }
   
-  .topbar { gap: .4rem; padding: .45rem var(--gutter); }
+  .topbar {
+    gap: .4rem;
+    min-height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
+    padding: calc(.45rem + env(safe-area-inset-top, 0px)) calc(var(--gutter) + env(safe-area-inset-right, 0px)) .45rem calc(var(--gutter) + env(safe-area-inset-left, 0px));
+  }
   .topbar .spacer { display: none; }
   .brand-compact { display: inline-flex; }
   .brand-compact img { flex: 0 0 auto !important; aspect-ratio: 1 / 1 !important; }

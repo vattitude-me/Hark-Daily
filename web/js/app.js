@@ -300,7 +300,9 @@ function renderGuestBanner() {
   // Push status on banner button
   const pushBtn = $('bannerPushBtn');
   if (pushBtn) {
-    const granted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
+    const nativeGranted = window.HarkNative && window.HarkNative.hasNotificationPermission();
+    const webGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
+    const granted = Boolean(nativeGranted || webGranted);
     const span = pushBtn.querySelector('span');
     if (granted) {
       if (span) span.textContent = 'Notifications enabled ✓';
@@ -314,7 +316,7 @@ function renderGuestBanner() {
   // Install button visibility
   const installBtn = $('bannerInstallBtn');
   if (installBtn) {
-    installBtn.classList.toggle('hidden', !installMode());
+    installBtn.classList.toggle('hidden', Boolean(window.HarkNative) || !installMode());
   }
 }
 
@@ -1563,6 +1565,29 @@ function bindEvents() {
 
 /* ----------------------------------------------------------------- sign in modal */
 async function bannerSetupPush() {
+  if (window.HarkNative) {
+    if (window.HarkNative.hasNotificationPermission()) {
+      toast('Notifications are already active on this device.');
+      renderGuestBanner();
+      return;
+    }
+    try {
+      const perm = await requestNotificationPermission();
+      if (perm === 'granted' || window.HarkNative.hasNotificationPermission()) {
+        toast('Notifications enabled! Daily briefings will alert your phone.');
+        try {
+          window.HarkNative.postNotification('Hark Daily', 'Daily briefing alerts are now enabled.');
+        } catch (_) {}
+        renderGuestBanner();
+      } else {
+        toast('Notification permission was not granted.', { error: true });
+      }
+    } catch (err) {
+      toast(err.message || "Couldn't set up notifications.", { error: true });
+    }
+    return;
+  }
+
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     toast('Notifications are already active on this device.');
     return;
@@ -1748,7 +1773,7 @@ async function enterApp() {
   syncAdminTab();
   const st = state.profile?.settings || {};
   if (state.profile && !st.onboarded && !st.name) welcome.open(state.status);
-  else if (state.profile && !st.push_offered && pushSupported() && Notification.permission === 'default') welcome.open(state.status, { askName: false });
+  else if (state.profile && !st.push_offered && pushSupported() && (window.HarkNative ? !window.HarkNative.hasNotificationPermission() : (typeof Notification !== 'undefined' && Notification.permission === 'default'))) welcome.open(state.status, { askName: false });
 }
 window.enterApp = enterApp;
 

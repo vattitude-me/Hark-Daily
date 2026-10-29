@@ -74,6 +74,14 @@ export class SettingsPage {
 
   /* ------------------------------------------------------------------ push */
   async refreshPush() {
+    if (window.HarkNative) {
+      this.pushOn = window.HarkNative.hasNotificationPermission();
+      this.pushHint = this.pushOn
+        ? 'Notifications are active for daily morning briefings.'
+        : 'Enable notifications to receive daily morning alerts.';
+      this.render();
+      return;
+    }
     const supported = pushSupported();
     if (!supported) {
       if (isIOS() && !isInstalled()) {
@@ -88,7 +96,7 @@ export class SettingsPage {
     try {
       const reg = await navigator.serviceWorker.ready;
       let sub = await reg.pushManager.getSubscription();
-      const granted = Notification.permission === 'granted';
+      const granted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
       if (granted && sub) {
         const status = await api.status().catch(() => ({}));
         if (status?.vapid_public_key) {
@@ -101,7 +109,8 @@ export class SettingsPage {
       }
       this.pushOn = !!sub && granted;
     } catch { this.pushOn = false; }
-    if (Notification.permission === 'denied') {
+    const permDenied = typeof Notification !== 'undefined' && Notification.permission === 'denied';
+    if (permDenied) {
       this.pushHint = 'Notifications are blocked in this browser\u2019s site settings.';
     } else if (this.pushOn) {
       this.pushHint = 'You will be notified when your briefing is ready.';
@@ -112,6 +121,31 @@ export class SettingsPage {
   }
 
   async setPush(on) {
+    if (window.HarkNative) {
+      if (on) {
+        window.HarkNative.requestNotificationPermission();
+        setTimeout(() => {
+          this.pushOn = window.HarkNative.hasNotificationPermission();
+          this.pushHint = this.pushOn
+            ? 'Notifications are active for daily morning briefings.'
+            : 'Notification permission was not granted.';
+          this.render();
+          if (this.pushOn) {
+            toast('Notifications enabled! Daily briefings will alert your phone.');
+            try {
+              window.HarkNative.postNotification('Hark Daily', 'Daily briefing alerts are now enabled.');
+            } catch (_) {}
+          }
+        }, 1200);
+      } else {
+        this.pushOn = false;
+        this.pushHint = 'Turn off notifications in Android System Settings.';
+        this.render();
+        toast('To revoke notifications, update Hark Daily in Android App Settings.');
+      }
+      return;
+    }
+
     if (!pushSupported()) {
       if (isIOS() && !isInstalled()) {
         document.getElementById('installSheet')?.showModal();
@@ -123,7 +157,8 @@ export class SettingsPage {
       return;
     }
 
-    if (on && Notification.permission === 'denied') {
+    const isDenied = typeof Notification !== 'undefined' && Notification.permission === 'denied';
+    if (on && isDenied) {
       this.pushHint = 'Notifications are blocked in this browser. Click the lock/tune icon in your address bar to allow them.';
       this.pushOn = false;
       this.render();
@@ -144,7 +179,8 @@ export class SettingsPage {
       }
 
       // Step 1: Request permission IMMEDIATELY while user tap gesture is active (critical for Safari/Chrome)
-      if (Notification.permission !== 'granted') {
+      const hasGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
+      if (!hasGranted) {
         const perm = await requestNotificationPermission();
         if (perm !== 'granted') {
           this.pushOn = false;
@@ -192,6 +228,20 @@ export class SettingsPage {
     this.pushHint = 'Sending a test…';
     const hint = document.getElementById('pushHint');
     if (hint) hint.textContent = this.pushHint;
+    if (window.HarkNative) {
+      try {
+        window.HarkNative.postNotification('Hark Daily Briefing', 'Test notification: Your morning brief is ready to listen!');
+        this.pushHint = 'Test notification sent to device!';
+        if (hint) hint.textContent = this.pushHint;
+        toast('Test notification sent!');
+      } catch (e) {
+        this.pushHint = e.message;
+        if (hint) hint.textContent = this.pushHint;
+      } finally {
+        btn.disabled = false;
+      }
+      return;
+    }
     try {
       const r = await api.pushTest();
       this.pushHint = r.message || 'Sent.';

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.0] - 2026-10-29
+
+### Added
+- **Smart Native Android Hybrid Shell (Capacitor 8 + PWA Architecture)**:
+  - Revamped Android build to smart native shell connecting to live production PWA with zero-latency updates and bundled offline fallback.
+  - Seamless background audio playback via `HarkMediaService` (Android foreground service with `mediaPlayback` type and partial wake lock).
+  - Teleprompter / Read-Along hardware wake lock (`FLAG_KEEP_SCREEN_ON`) via native `HarkNative` bridge to keep display awake during audio reading.
+  - Full native Android notification integration via `POST_NOTIFICATIONS` runtime permission and `NotificationManagerCompat` on `hark_daily_briefing` channel.
+  - Native notification bridge handles banner prompt, Settings toggle, and test dispatch directly in Android without failing or requiring desktop Web Push VAPID in WebView.
+
+### Changed
+- **Branding, App Icon & Artifact Renaming**:
+  - Official release APK renamed from `morning-brief-*` to `hark-daily-1.0.0.apk` and Play Store bundle to `hark-daily-1.0.0.aab`.
+  - Replaced generic Android robot icon across all densities and Android 7+ / 8+ adaptive launchers with official Hark Daily logo (`ic_launcher`, `ic_launcher_round`, `ic_launcher_foreground`).
+  - Darkened launcher background to `#0B1019` and updated all 11 splash screens across all screen densities.
+- **Android Status Bar & Safe Area Inset Fix**:
+  - Fixed topbar overlap with Android status bar icons (clock, LTE, battery).
+  - Configured native window insets in `MainActivity` with `#0D0D0D` status bar color, light status bar icons, and `fitsSystemWindows="true"` layout padding.
+  - Updated mobile topbar CSS to strictly respect `env(safe-area-inset-top, 0px)`.
+
+---
+
 ## [0.1.70] - 2026-10-29
 
 ### Added
