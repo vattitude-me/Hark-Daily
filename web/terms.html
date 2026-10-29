@@ -23,6 +23,25 @@
     });
     gtag('js', new Date());
     gtag('config', 'G-8LV7D5TDT2', { anonymize_ip: true });
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a');
+      if (!link) return;
+      var href = link.getAttribute('href') || link.href || '';
+      if ((href.indexOf('vattitude.ca') !== -1 || href.indexOf('vattitude.me') !== -1) && href.indexOf('hark.vattitude.ca') === -1) {
+        if (typeof gtag === 'function') {
+          gtag('event', 'click_vattitude_footer', {
+            link_url: href,
+            link_text: (link.textContent || '').trim(),
+            location: window.location.pathname || '/terms'
+          });
+          gtag('event', 'click', {
+            link_url: href,
+            link_domain: 'vattitude.ca',
+            outbound: true
+          });
+        }
+      }
+    });
   </script>
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-8LV7D5TDT2"></script>
 

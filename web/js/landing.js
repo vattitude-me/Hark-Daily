@@ -478,6 +478,11 @@ export class Landing {
     const shareBtn = $('shareNativeBtn');
     if (shareBtn) {
       shareBtn.addEventListener('click', async () => {
+        window.trackEvent?.('share', {
+          method: (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) ? 'web_share_api' : 'copy_link',
+          content_type: 'app_landing',
+          item_id: 'hark_daily',
+        });
         const shareData = {
           title: 'Hark Daily',
           text: 'The news you hear, not just read. Listen to today’s Hark Daily briefing:',
@@ -498,6 +503,17 @@ export class Landing {
         }
       });
     }
+
+    document.querySelectorAll('.landing-social a.social-chip').forEach((a) => {
+      a.addEventListener('click', () => {
+        const isX = a.href.includes('twitter.com') || a.href.includes('x.com');
+        window.trackEvent?.('share', {
+          method: isX ? 'x_twitter' : 'linkedin',
+          content_type: 'app_landing',
+          item_id: 'hark_daily',
+        });
+      });
+    });
     const busy = (btn, on, label) => { btn.disabled = on; btn.textContent = label; };
 
     const INTRO = "Enter your email and we'll send you a link. New here? That creates your account.";
