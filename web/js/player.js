@@ -101,7 +101,10 @@ export class Player extends EventTarget {
       this.audio.playbackRate = this.speed;
       this.tick();
     });
-    this.audio.addEventListener('play', () => this.setPlaying(true));
+    this.audio.addEventListener('play', () => {
+      this.setPlaying(true);
+      this.preloadNext();
+    });
     this.audio.addEventListener('pause', () => this.setPlaying(false));
     this.audio.addEventListener('ended', () => this.onEnded());
     // A cover that fails to load hides itself instead of showing a broken icon.
@@ -176,7 +179,7 @@ export class Player extends EventTarget {
 
   /** Buffer the following clip into the preloader so it is cached in memory. */
   preloadNext() {
-    if (!this.clips) return;
+    if (!this.clips || !this.isPlaying) return;
     const next = this.clips[this.index + 1];
     if (!next || !next.url) return;
     if (this.preloader.dataset.clip !== String(this.index + 1)) {
@@ -417,6 +420,18 @@ export class Player extends EventTarget {
         heroArticle.classList.remove('hidden');
       } else {
         heroArticle.classList.add('hidden');
+      }
+    }
+    const heroShare = document.getElementById('heroShare');
+    if (heroShare) {
+      if (story) {
+        heroShare.classList.remove('hidden');
+        heroShare.onclick = (e) => {
+          e.stopPropagation();
+          window.openShareModal?.(story);
+        };
+      } else {
+        heroShare.classList.add('hidden');
       }
     }
 

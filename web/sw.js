@@ -1,9 +1,14 @@
-// Offline shell: our static files network-first with a cache fallback.
+// Offline shell: stale-while-revalidate for static shell assets, network-first for HTML.
 // Supabase (data, audio) and CDN requests are cross-origin and go straight to the network.
-const CACHE = 'hark-daily-v22';
-const SHELL = ['/', '/config.js', '/css/styles.css', '/js/app.js', '/js/api.js', '/js/storypack.js', '/js/player.js', '/js/sheets.js', '/js/landing.js',
-  '/js/design.js', '/js/audio-processor.js', '/js/pages/sources.js', '/js/pages/settings.js', '/js/pages/admin.js',
-  '/icons/icon.svg', '/manifest.webmanifest', '/audio/gap.mp3'];
+const CACHE = 'hark-daily-v24';
+const SHELL = [
+  '/', '/config.js', '/css/styles.css', '/manifest.webmanifest', '/audio/gap.mp3',
+  '/fonts/plus-jakarta-sans.woff2', '/fonts/space-grotesk.woff2',
+  '/icons/icon.svg', '/icons/icon-96.png', '/icons/icon-192.png', '/icons/icon-512.png',
+  '/js/vendor/supabase.min.js',
+  '/js/app.js', '/js/api.js', '/js/storypack.js', '/js/player.js', '/js/sheets.js', '/js/landing.js',
+  '/js/design.js', '/js/audio-processor.js', '/js/pages/sources.js', '/js/pages/settings.js', '/js/pages/admin.js'
+];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -19,10 +24,40 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   // Audio streams with range requests; let the browser handle it directly.
   if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.endsWith('.mp3')) return;
-  e.respondWith(fetch(e.request).then((res) => {
-    if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
-    return res;
-  }).catch(() => caches.match(e.request).then((r) => r || caches.match('/'))));
+
+  // Stale-while-revalidate for static assets (instant load from local device cache)
+  const isStatic = url.pathname.startsWith('/fonts/') ||
+                   url.pathname.startsWith('/js/') ||
+                   url.pathname.startsWith('/css/') ||
+                   url.pathname.startsWith('/icons/') ||
+                   url.pathname === '/manifest.webmanifest';
+
+  if (isStatic) {
+    e.respondWith(
+      caches.match(e.request).then((cached) => {
+        const fetchPromise = fetch(e.request).then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, copy));
+          }
+          return res;
+        }).catch(() => null);
+        return cached || fetchPromise;
+      })
+    );
+    return;
+  }
+
+  // Network-first for HTML shell so latest deploy is picked up immediately
+  e.respondWith(
+    fetch(e.request).then((res) => {
+      if (res.ok) {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(e.request, copy));
+      }
+      return res;
+    }).catch(() => caches.match(e.request).then((r) => r || caches.match('/')))
+  );
 });
 
 self.addEventListener('push', (e) => {

@@ -1,10 +1,13 @@
 // Data access: Supabase (auth, tables) with row-level security keeping each user to their own rows.
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '../config.js';
 
-export const sb = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+// Pre-bundled client served from same-origin vendor bundle (0 cascading CDN network hops)
+const createClient = (typeof window !== 'undefined' && window.supabase?.createClient)
+  || (typeof globalThis !== 'undefined' && globalThis.supabase?.createClient);
+
+export const sb = createClient ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
-});
+}) : null;
 
 /** Briefing sections in reading order — the seven pack categories (app/topics.py). */
 export const SECTIONS = {

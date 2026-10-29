@@ -71,6 +71,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.RecordVoiceOver
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -797,6 +798,19 @@ fun TodayScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                             colorPhotos = saved.colorPhotos,
                             onPlay = { vm.seekTo(card.start) },
                             onOpen = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(card.url))) },
+                            onShare = {
+                                val shareUrl = "https://hark.vattitude.ca/?story=${card.id}&date=${b.date}"
+                                val sendIntent = Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    putExtra(
+                                        Intent.EXTRA_TEXT,
+                                        "\"${card.headline}\"\n\nListen to the 20-second summary on Hark Daily (no login required):\n$shareUrl"
+                                    )
+                                    putExtra(Intent.EXTRA_TITLE, card.headline)
+                                    type = "text/plain"
+                                }
+                                context.startActivity(Intent.createChooser(sendIntent, "Share story"))
+                            },
                             reported = card.id in reported,
                             onReport = { reporting = card to b.date },
                         )
@@ -932,6 +946,7 @@ private fun StoryRow(
     modifier: Modifier = Modifier,
     onPlay: () -> Unit,
     onOpen: () -> Unit,
+    onShare: () -> Unit = {},
     reported: Boolean = false,
     onReport: () -> Unit = {},
 ) {
@@ -1121,6 +1136,7 @@ private fun StoryRow(
                     Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (!current) PillButton("Play from here", icon = Icons.Filled.PlayArrow, onClick = onPlay)
                         PillButton("Article", filled = false, icon = Icons.AutoMirrored.Outlined.OpenInNew, onClick = onOpen)
+                        PillButton("Share", filled = false, icon = Icons.Outlined.Share, onClick = onShare)
                     }
                     // Report summary link
                     Row(
