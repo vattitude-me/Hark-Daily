@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.2] - 2026-10-29
+
+### Fixed
+- **Android top bar overlapping the status bar** (regression from 1.0.1): Capacitor's `SystemBars` already manages insets and hands them to the page through `env(safe-area-inset-top)` and `--safe-area-inset-top`. Removed our own native inset code so there is exactly one source, and the topbar uses whichever the WebView provides.
+- **Headline squeezed on phones**: story cards hide the redundant category tile and stack thumbnail and play button on the right, so the title uses the full left column. The player card's narrator/Share row now wraps below the title instead of squeezing it.
+
 ## [1.0.1] - 2026-10-29
 
 ### Fixed

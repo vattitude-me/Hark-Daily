@@ -8,8 +8,6 @@ import { AdminPage } from './pages/admin.js';
 import { buildBriefing as buildPackBriefing, READY_KEY, titlesMatch } from './storypack.js';
 import { applyPhotoMode } from './design.js';
 
-// The Android shell pads the WebView below the system bars itself; stop CSS from doing it twice.
-if (window.HarkNative || window.Capacitor?.isNativePlatform?.()) document.documentElement.classList.add('native-shell');
 import { FEATURES } from '../config.js';
 
 const state = {
