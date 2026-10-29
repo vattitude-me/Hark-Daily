@@ -39,6 +39,8 @@
   --topbar-h: 68px;
   --ease: cubic-bezier(.2, .7, .2, 1);
   --blur: blur(20px) saturate(150%);
+  --safe-area-inset-top: 0px;
+  --safe-area-inset-bottom: 0px;
 
   /* Light — warm paper, white glass */
   --bg: #f3f2ee;
@@ -137,6 +139,11 @@
   --c-sports: #a7d898;
   --c-custom: #aab0ff;
   --c-neutral: #94a3b8;
+}
+
+/* Fallback minimum for native Android shell when status bar insets are active */
+html.native-shell {
+  --safe-area-inset-top: 36px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -2469,13 +2476,29 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   .mode-segmented { width: 100%; }
   .mode-segmented .seg-opt { flex: 1; justify-content: center; padding: 0 .5rem; font-size: .75rem; min-height: 2rem; }
   .mode-meta { font-size: .68rem; padding: .08rem .35rem; white-space: nowrap; }
-  .hero-top { align-items: center; gap: .75rem; flex-wrap: wrap; }
-  .hero-heading { flex: 1 1 0; }
-  .hero-art { width: 3.1rem; height: 3.1rem; min-width: 3.1rem; min-height: 3.1rem; border-radius: var(--r); }
+  .hero-top {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "art heading"
+      "actions actions";
+    gap: .65rem .75rem;
+    align-items: center;
+  }
+  .hero-art { grid-area: art; width: 3.1rem; height: 3.1rem; min-width: 3.1rem; min-height: 3.1rem; border-radius: var(--r); }
   .hero-art-icon { width: 1.4rem; height: 1.4rem; }
+  .hero-heading { grid-area: heading; min-width: 0; }
   .hero-title { font-size: 1.0625rem; line-height: 1.25; font-weight: 600; }
   .hero-article { display: none; }
-  .hero-top-actions { flex: 1 0 100%; margin-left: 0; flex-wrap: wrap; align-self: stretch; }
+  .hero-top-actions {
+    grid-area: actions;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+    width: 100%;
+    margin-top: .15rem;
+  }
   .narrator-pill-btn { padding: .28rem .65rem; font-size: .75rem; }
   
   .wave-panel { padding: .75rem .85rem; margin-top: .75rem; border-radius: var(--r); }
@@ -2533,6 +2556,7 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   .story-main .story-text { grid-column: 1; grid-row: 1 / span 2; }
   .story-main .story-thumb { grid-column: 2; grid-row: 1; display: block; width: 4.25rem; height: 4.25rem; border-radius: var(--r-sm); }
   .story-main .play-dot { grid-column: 2; grid-row: 2; justify-self: center; align-self: end; }
+  .story-main:not(:has(.story-thumb)) .play-dot { grid-row: 1 / span 2; align-self: center; }
   .story-row.current .story-main .story-thumb {
     grid-column: 1 / -1; grid-row: 3; width: 100%; height: auto;
     aspect-ratio: 16 / 9; max-height: 200px; border-radius: var(--r); margin-top: .15rem;

@@ -10,6 +10,25 @@ import { applyPhotoMode } from './design.js';
 
 import { FEATURES } from '../config.js';
 
+// Native Android / Capacitor shell safe-area and status bar initialization
+if (window.HarkNative || window.Capacitor?.isNativePlatform?.()) {
+  document.documentElement.classList.add('native-shell');
+  try {
+    const top = window.HarkNative?.getSafeAreaTop?.();
+    if (typeof top === 'number' && top > 0) {
+      document.documentElement.style.setProperty('--safe-area-inset-top', `${top}px`);
+    }
+    const bottom = window.HarkNative?.getSafeAreaBottom?.();
+    if (typeof bottom === 'number' && bottom > 0) {
+      document.documentElement.style.setProperty('--safe-area-inset-bottom', `${bottom}px`);
+    }
+    const curTh = document.documentElement.dataset.theme || localStorage.getItem('mb-theme') || 'light';
+    window.HarkNative?.setStatusBarTheme?.(curTh);
+  } catch (e) {
+    console.warn('[app] error reading native safe areas:', e);
+  }
+}
+
 const state = {
   briefing: null,
   briefingLoading: true,
@@ -69,6 +88,7 @@ function syncThemeIcon() {
 function setTheme(theme) {
   document.documentElement.dataset.theme = theme;
   try { localStorage.setItem('mb-theme', theme); } catch { /* ignore */ }
+  try { window.HarkNative?.setStatusBarTheme?.(theme); } catch { /* ignore */ }
   syncThemeIcon();
 }
 
