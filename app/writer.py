@@ -120,7 +120,7 @@ def compose(picked: dict[str, list[Story]], copies: dict[str, StoryCopy], when: 
         intro=intro,
         section_leads=section_leads(list(picked), city),
         stories=stories,
-        outro=f"That's your briefing for this {when:%A}. Have a wonderful day, and I'll talk to you tomorrow morning.",
+        outro=f"That's your briefing for this {when:%A}. Have a wonderful day, and I'll talk to you on the next update.",
         writer=writer,
     )
 

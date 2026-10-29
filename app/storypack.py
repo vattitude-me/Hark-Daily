@@ -122,7 +122,7 @@ INTROS = {
 
 # The sign-off. Without it a brief stops dead on the last story's final word.
 OUTRO_KEY = "outro"
-OUTRO = "That's the morning brief. Have a good day."
+OUTRO = "That's today's briefing. Have a great day, and stay informed."
 
 NOTES: dict[str, str] = {**GREETINGS, **INTROS, OUTRO_KEY: OUTRO}
 
