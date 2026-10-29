@@ -694,21 +694,28 @@ export async function openShareModal(story) {
     url: shareUrl,
   };
 
-  trackEvent('share', {
-    method: (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) ? 'web_share_api' : 'share_modal',
-    content_type: 'story',
-    item_id: story.id,
-    item_name: story.headline,
-  });
-
   if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
     try {
+      trackEvent('share', {
+        method: 'web_share_api',
+        content_type: 'story',
+        item_id: story.id,
+        item_name: story.headline,
+        section: story.section || 'top',
+      });
       await navigator.share(shareData);
       return;
     } catch (err) {
       if (err.name === 'AbortError') return;
     }
   }
+
+  trackEvent('share_modal_open', {
+    content_type: 'story',
+    item_id: story.id,
+    item_name: story.headline,
+    section: story.section || 'top',
+  });
 
   showShareSheet(story, shareUrl, shareData);
 }
@@ -740,6 +747,13 @@ function showShareSheet(story, shareUrl, shareData) {
   const copyBtn = $('shareCopyBtn');
   const copyText = $('shareCopyBtnText');
   const doCopy = async () => {
+    trackEvent('share', {
+      method: 'copy_link',
+      content_type: 'story',
+      item_id: story.id,
+      item_name: story.headline,
+      section: story.section || 'top',
+    });
     try {
       await navigator.clipboard.writeText(shareUrl);
       if (copyText) copyText.textContent = 'Copied! ✓';
@@ -759,16 +773,43 @@ function showShareSheet(story, shareUrl, shareData) {
   const xBtn = $('shareXBtn');
   if (xBtn) {
     xBtn.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(`"${story.headline}" · Listen on Hark Daily:`)}&url=${encodeURIComponent(shareUrl)}`;
+    xBtn.onclick = () => {
+      trackEvent('share', {
+        method: 'x_twitter',
+        content_type: 'story',
+        item_id: story.id,
+        item_name: story.headline,
+        section: story.section || 'top',
+      });
+    };
   }
 
   const linkedInBtn = $('shareLinkedInBtn');
   if (linkedInBtn) {
     linkedInBtn.href = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`;
+    linkedInBtn.onclick = () => {
+      trackEvent('share', {
+        method: 'linkedin',
+        content_type: 'story',
+        item_id: story.id,
+        item_name: story.headline,
+        section: story.section || 'top',
+      });
+    };
   }
 
   const whatsAppBtn = $('shareWhatsAppBtn');
   if (whatsAppBtn) {
     whatsAppBtn.href = `https://api.whatsapp.com/send?text=${encodeURIComponent(`"${story.headline}"\n\nListen on Hark Daily: ${shareUrl}`)}`;
+    whatsAppBtn.onclick = () => {
+      trackEvent('share', {
+        method: 'whatsapp',
+        content_type: 'story',
+        item_id: story.id,
+        item_name: story.headline,
+        section: story.section || 'top',
+      });
+    };
   }
 
   const nativeBtn = $('shareNativeAction');
@@ -776,6 +817,13 @@ function showShareSheet(story, shareUrl, shareData) {
     if (navigator.share) {
       nativeBtn.classList.remove('hidden');
       nativeBtn.onclick = async () => {
+        trackEvent('share', {
+          method: 'web_share_api',
+          content_type: 'story',
+          item_id: story.id,
+          item_name: story.headline,
+          section: story.section || 'top',
+        });
         try {
           await navigator.share(shareData);
           sheet.close();
@@ -815,7 +863,34 @@ function handleStoryDeepLink(storyInfo) {
   if (!story && audio) story = state.briefing.stories.find((s) => s.audio_path === audio);
   // 3. Fallback to ID (science-5)
   if (!story && storyId) story = state.briefing.stories.find((s) => s.id === storyId);
-  if (!story) return;
+
+  if (!story) {
+    if (storyId || title) {
+      trackEvent('shared_story_not_found', {
+        requested_story: storyId || '',
+        requested_title: title || '',
+      });
+    }
+    return;
+  }
+
+  if (lastDeepLinkedStory !== story.id) {
+    lastDeepLinkedStory = story.id;
+    trackEvent('shared_story_opened', {
+      story_id: story.id,
+      story_title: story.headline,
+      section: story.section || 'top',
+      is_bonus: Boolean(story.isSharedBonus),
+      share_param_story: storyId || '',
+      share_param_date: new URLSearchParams(window.location.search).get('date') || '',
+    });
+    trackEvent('view_item', {
+      content_type: 'shared_story',
+      item_id: story.id,
+      item_name: story.headline,
+      item_category: story.section || 'top',
+    });
+  }
 
   document.title = `${story.headline} — Hark Daily`;
   player.seekTo(story.start || 0);
@@ -835,12 +910,9 @@ function handleStoryDeepLink(storyInfo) {
       meta.prepend(badge);
     }
 
-    if (lastDeepLinkedStory !== story.id) {
-      lastDeepLinkedStory = story.id;
-      setTimeout(() => {
-        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 400);
-    }
+    setTimeout(() => {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 400);
   }
 
   const banner = $('sharedStoryBanner');
@@ -855,6 +927,12 @@ function handleStoryDeepLink(storyInfo) {
     const playBtn = $('sharedStoryPlayBtn');
     if (playBtn) {
       playBtn.onclick = () => {
+        trackEvent('shared_story_play', {
+          story_id: story.id,
+          story_title: story.headline,
+          section: story.section || 'top',
+          is_bonus: Boolean(story.isSharedBonus),
+        });
         player.playChapter(story.id);
         banner.classList.add('hidden');
       };
@@ -862,11 +940,18 @@ function handleStoryDeepLink(storyInfo) {
     const browseBtn = $('sharedStoryBrowseBtn');
     if (browseBtn) {
       browseBtn.onclick = () => {
+        trackEvent('shared_story_browse', {
+          story_id: story.id,
+          story_title: story.headline,
+        });
         banner.classList.add('hidden');
         row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       };
     }
     $('sharedStoryCloseBtn')?.addEventListener('click', () => {
+      trackEvent('shared_story_dismiss', {
+        story_id: story.id,
+      });
       banner.classList.add('hidden');
     });
     banner.classList.remove('hidden');
@@ -1395,6 +1480,25 @@ function bindEvents() {
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') renderHeader();
+  });
+
+  // Track clicks on external attribution & creator links (e.g. vattitude.ca in footers and legal sections)
+  document.addEventListener('click', (e) => {
+    const link = e.target.closest('a');
+    if (!link) return;
+    const href = link.getAttribute('href') || link.href || '';
+    if ((href.includes('vattitude.ca') || href.includes('vattitude.me')) && !href.includes('hark.vattitude.ca')) {
+      trackEvent('click_vattitude_footer', {
+        link_url: href,
+        link_text: (link.textContent || '').trim(),
+        location: window.location.pathname || '/',
+      });
+      trackEvent('click', {
+        link_url: href,
+        link_domain: 'vattitude.ca',
+        outbound: true,
+      });
+    }
   });
 }
 
