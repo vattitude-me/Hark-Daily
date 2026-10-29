@@ -545,69 +545,6 @@ function renderPersonas() {
   }));
 }
 
-/* -------------------------------------------------------------- side widgets */
-function renderNextCard() {
-  const card = $('nextCard');
-  if (!card) return;
-  const time = state.profile?.settings?.delivery_time || '06:30';
-  const [hStr, mStr] = time.split(':');
-  const hNum = parseInt(hStr, 10) || 6;
-  const ampm = hNum >= 12 ? 'PM' : 'AM';
-  const displayH = hNum % 12 || 12;
-  const displayTime = `${displayH}:${mStr || '30'}`;
-
-  card.replaceChildren(
-    h('header', { class: 'side-card-head' },
-      h('span', { class: 'cat-tile cat-neutral' }, icon('clock')),
-      h('h3', {}, "Tomorrow's Brief"),
-      h('span', { class: 'live-dot', 'aria-hidden': 'true' })
-    ),
-    h('div', { class: 'next-time' }, displayTime, h('small', {}, ampm)),
-    h('p', { class: 'hint' }, 'Freshly curated and voiced before you wake.'),
-    h('button', {
-      type: 'button',
-      class: 'side-toggle',
-      onclick: () => switchTab('settings'),
-      'aria-label': 'Adjust delivery schedule in settings',
-    },
-      icon('bell'),
-      h('span', {}, 'Delivery & push settings'),
-      icon('chev-r')
-    ),
-    h('div', { class: 'side-foot' },
-      h('span', {}, icon('refresh'), 'Automated daily at sunrise'),
-      h('span', {}, '7 topics')
-    )
-  );
-}
-
-function renderLineupCard() {
-  const card = $('lineupCard');
-  if (!card) return;
-  const b = state.briefing;
-  if (!b || !b.sections?.length) {
-    card.classList.add('hidden');
-    return;
-  }
-  card.classList.remove('hidden');
-  const totalStories = b.stories?.length || 1;
-  const items = b.sections.map((sec) => {
-    const count = b.stories.filter((s) => s.section === sec.key).length;
-    const pct = Math.round((count / totalStories) * 100);
-    return h('div', { class: `lineup-item cat-${sec.key}` },
-      h('b', {}, sec.title),
-      h('span', {}, `${count} ${count === 1 ? 'story' : 'stories'}`),
-      h('div', { class: 'bar' }, h('i', { style: `width:${pct}%; --cat: var(--c-${sec.key}, var(--accent))` }))
-    );
-  });
-  card.replaceChildren(
-    h('header', { class: 'side-card-head' },
-      h('span', { class: 'cat-tile cat-top' }, icon('playlist')),
-      h('h3', {}, "Today's Lineup")
-    ),
-    h('div', { class: 'lineup-list' }, ...items)
-  );
-}
 
 /* -------------------------------------------------------------- date chips */
 function chipLabel(date) {
@@ -1300,8 +1237,6 @@ function displayBriefing() {
   renderNotice();
   renderGuestBanner();
   renderPersonas();
-  renderNextCard();
-  renderLineupCard();
   renderDateChips();
   renderSections();
   const storyInfo = getTargetStoryInfo();
@@ -1853,8 +1788,6 @@ async function start() {
     renderHeader();
     renderGuestBanner();
     renderPersonas();
-    renderNextCard();
-    renderLineupCard();
 
     // 3. Fallback to today / latest date if target date is not ready
     let briefing = freshBriefing;
@@ -1958,8 +1891,6 @@ async function init() {
   renderNotice();
   renderGuestBanner();
   renderPersonas();
-  renderNextCard();
-  renderLineupCard();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_OUT') {
