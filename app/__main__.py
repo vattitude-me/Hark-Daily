@@ -255,6 +255,10 @@ def cmd_pack(args) -> int:
 
     cfg = load()
     sections = args.sections.split(",") if args.sections else None
+    edition = getattr(args, "edition", None)
+    if edition and not sections:
+        from . import topics
+        sections = topics.sections_for_editions(edition)
     if not getattr(args, "check", False):
         # Cheap, and it keeps the key clients subscribe with in step with the one this machine
         # signs with, on every path that touches a pack.
@@ -364,6 +368,7 @@ def cmd_pack(args) -> int:
             try:
                 rows = asyncio.run(build(cfg, _store(cfg), day=args.day, voice=args.voice,
                                          sections=sections, per_section=args.per_section,
+                                         edition=getattr(args, "edition", None),
                                          voice_url=active_url,
                                          notes=not getattr(args, "no_notes", False),
                                          force=getattr(args, "force", False), deadline=deadline))
@@ -436,6 +441,7 @@ def main() -> None:
     pack.add_argument("--voice", help="reference clip name (default: STORY_VOICE)")
     pack.add_argument("--per-section", type=int, dest="per_section", help="stories per section (default: STORIES_PER_SECTION)")
     pack.add_argument("--sections", help="comma-separated subset (default: all seven)")
+    pack.add_argument("--edition", help="country editions to voice: ca, us, in, or comma-separated list (e.g. ca,us)")
     pack.add_argument("--notes-only", action="store_true", dest="notes_only",
                       help="only re-voice the greeting and section intros")
     pack.add_argument("--podcast-only", action="store_true", dest="podcast_only",

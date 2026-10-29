@@ -9,18 +9,50 @@ export const sb = createClient ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 }) : null;
 
-/** Briefing sections in reading order — the seven pack categories (app/topics.py). */
+/** Briefing sections in reading order — the pack categories (app/topics.py). */
 export const SECTIONS = {
+  // Canada (default)
   top: { title: 'Top stories', emoji: '📰', icon: 'globe' },
-  ai: { title: 'AI', emoji: '🤖', icon: 'bot' },
-  tech: { title: 'Tech', emoji: '💻', icon: 'chip' },
   politics: { title: 'Politics', emoji: '🏛️', icon: 'landmark' },
   entertainment: { title: 'Entertainment', emoji: '🎬', icon: 'film' },
-  science: { title: 'Science', emoji: '🔬', icon: 'flask' },
   sports: { title: 'Sports', emoji: '🏅', icon: 'ball' },
+
+  // Shared global sections
+  ai: { title: 'AI', emoji: '🤖', icon: 'bot' },
+  tech: { title: 'Tech', emoji: '💻', icon: 'chip' },
+  science: { title: 'Science', emoji: '🔬', icon: 'flask' },
+
+  // United States
+  top_us: { title: 'Top stories', emoji: '📰', icon: 'globe' },
+  politics_us: { title: 'Politics', emoji: '🏛️', icon: 'landmark' },
+  entertainment_us: { title: 'Entertainment', emoji: '🎬', icon: 'film' },
+  sports_us: { title: 'Sports', emoji: '🏈', icon: 'ball' },
+
+  // India
+  top_in: { title: 'Top stories', emoji: '📰', icon: 'globe' },
+  politics_in: { title: 'Politics', emoji: '🏛️', icon: 'landmark' },
+  entertainment_in: { title: 'Entertainment', emoji: '🎬', icon: 'film' },
+  sports_in: { title: 'Cricket & Sports', emoji: '🏏', icon: 'ball' },
+
   // Not part of the narrated pack: the Sources tab's user-pasted links keep their own bucket.
   custom: { title: 'My Sources', emoji: '⭐', icon: 'spark' },
 };
+
+export const EDITIONS = {
+  ca: { code: 'ca', name: 'Canada', flag: '🇨🇦', label: '🇨🇦 Canada' },
+  us: { code: 'us', name: 'United States', flag: '🇺🇸', label: '🇺🇸 United States' },
+  in: { code: 'in', name: 'India', flag: '🇮🇳', label: '🇮🇳 India' },
+};
+
+export function defaultEdition() {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    if (tz.includes('Calcutta') || tz.includes('Kolkata') || tz.includes('India')) return 'in';
+    if (tz.includes('New_York') || tz.includes('Chicago') || tz.includes('Los_Angeles') || tz.includes('Denver') || tz.includes('Phoenix')) return 'us';
+    if (tz.includes('Toronto') || tz.includes('Vancouver') || tz.includes('Edmonton') || tz.includes('Winnipeg') || tz.includes('Halifax') || tz.includes('Montreal')) return 'ca';
+  } catch {}
+  return 'ca';
+}
 
 export const sectionLabel = (key) => { const s = SECTIONS[key] || SECTIONS.top; return `${s.emoji} ${s.title}`; };
 

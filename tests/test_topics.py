@@ -148,4 +148,32 @@ def test_clean_sentence_strips_markdown_bullets():
     assert not cleaned.startswith("-")
 
 
+def test_edition_sections_mapping():
+    from app.topics import ALL_SECTIONS, EDITION_SECTIONS, sections_for_editions
+
+    for ed in ("ca", "us", "in"):
+        assert ed in EDITION_SECTIONS
+        sections = EDITION_SECTIONS[ed]
+        assert len(sections) == 7
+        assert "ai" in sections
+        assert "tech" in sections
+        assert "science" in sections
+        for s in sections:
+            assert s in ALL_SECTIONS
+            assert ALL_SECTIONS[s]["feed"].startswith("https://")
+
+    # US + CA combined should share ai, tech, science (total 11 sections)
+    ca_us = sections_for_editions("ca,us")
+    assert len(ca_us) == 11
+    assert "top" in ca_us
+    assert "top_us" in ca_us
+    assert ca_us.count("ai") == 1
+
+    # India edition should have 7 sections with shared ai, tech, science
+    in_sec = sections_for_editions("in")
+    assert len(in_sec) == 7
+    assert in_sec == ["top_in", "ai", "tech", "politics_in", "entertainment_in", "science", "sports_in"]
+
+
+
 

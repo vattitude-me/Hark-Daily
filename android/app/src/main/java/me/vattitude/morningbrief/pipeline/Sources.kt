@@ -48,6 +48,22 @@ val SECTIONS: LinkedHashMap<String, Section> = linkedMapOf(
     "sports" to Section("sports", "Sports", "🏅", "sports"),
 )
 
+/** The 7 canonical sections per country edition. AI, Tech, and Science are shared. */
+val EDITION_SECTIONS: Map<String, List<String>> = mapOf(
+    "ca" to listOf("top", "ai", "tech", "politics", "entertainment", "science", "sports"),
+    "us" to listOf("top_us", "ai", "tech", "politics_us", "entertainment_us", "science", "sports_us"),
+    "in" to listOf("top_in", "ai", "tech", "politics_in", "entertainment_in", "science", "sports_in"),
+)
+
+fun editionSectionKey(logicalKey: String, edition: String = "ca"): String {
+    if (logicalKey in setOf("ai", "tech", "science")) return logicalKey
+    return when (edition.lowercase()) {
+        "us" -> "${logicalKey}_us"
+        "in" -> "${logicalKey}_in"
+        else -> logicalKey
+    }
+}
+
 /**
  * What a brand-new phone starts with: every section on, at five stories — the same
  * default as the web app, so a first brief covers all seven out of the box.

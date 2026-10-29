@@ -13,7 +13,7 @@ const src = readFileSync(new URL('../../web/js/storypack.js', import.meta.url), 
 writeFileSync(join(dir, 'storypack.mjs'), src);
 writeFileSync(join(dir, 'api.mjs'), "export const SECTIONS = { top: { title: 'Top' }, ai: { title: 'AI' }, tech: { title: 'Tech' }, sports: { title: 'Sports' } }; export const voiceName = (v) => v;");
 writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x';");
-const { buildBriefing, planPodcast, PODCAST_BUDGET } = await import(join(dir, 'storypack.mjs'));
+const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor } = await import(join(dir, 'storypack.mjs'));
 
 const row = (section, rank) => ({ date: 'd', section, rank, voice: 'v', title: `${section}${rank}`, url: 'u', source: 's', script: 'x', duration: 20, audio_path: `s/${section}${rank}.mp3` });
 const rows = [row('top', 1), row('top', 2), row('ai', 1), row('tech', 1), row('sports', 1)];
@@ -102,3 +102,31 @@ test('podcast alternates voices between hosts for successive stories', () => {
   assert.ok(storyClips[1].url.includes('/b/top2.mp3'), `story 1 voice was ${storyClips[1].url}`);
   assert.ok(storyClips[2].url.includes('/a/top3.mp3'), `story 2 voice was ${storyClips[2].url}`);
 });
+
+test('editionSectionKey maps regional keys and keeps shared keys universal', () => {
+  assert.equal(editionSectionKey('top', 'ca'), 'top');
+  assert.equal(editionSectionKey('top', 'us'), 'top_us');
+  assert.equal(editionSectionKey('top', 'in'), 'top_in');
+  assert.equal(editionSectionKey('ai', 'us'), 'ai');
+  assert.equal(editionSectionKey('tech', 'in'), 'tech');
+  assert.equal(editionSectionKey('science', 'us'), 'science');
+});
+
+test('clipsFor selects edition-specific clips and falls back to base if unavailable', () => {
+  const mixedRows = [
+    { date: 'd', section: 'top', rank: 1, voice: 'v', title: 'CA Top', duration: 10, audio_path: 's/top1.mp3' },
+    { date: 'd', section: 'top_us', rank: 1, voice: 'v', title: 'US Top', duration: 10, audio_path: 's/top_us1.mp3' },
+    { date: 'd', section: 'ai', rank: 1, voice: 'v', title: 'Global AI', duration: 10, audio_path: 's/ai1.mp3' },
+  ];
+  const usClips = clipsFor(mixedRows, { top: 1, ai: 1 }, 'v', ['top', 'ai'], 'us');
+  assert.equal(usClips.length, 2);
+  assert.equal(usClips[0].title, 'US Top');
+  assert.equal(usClips[1].title, 'Global AI');
+
+  const inClips = clipsFor(mixedRows, { top: 1, ai: 1 }, 'v', ['top', 'ai'], 'in');
+  // Since top_in is missing in mixedRows, it cleanly falls back to top (CA Top)
+  assert.equal(inClips.length, 2);
+  assert.equal(inClips[0].title, 'CA Top');
+  assert.equal(inClips[1].title, 'Global AI');
+});
+

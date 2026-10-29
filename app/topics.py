@@ -41,6 +41,48 @@ SECTIONS: dict[str, dict] = {
     "sports":        {"title": "Sports",        "provider": "CBC News",      "feed": "https://www.cbc.ca/webfeed/rss/rss-sports"},
 }
 
+# Regional feeds for United States and India editions.
+# AI, Tech, and Science are shared universally.
+EDITION_FEEDS: dict[str, dict] = {
+    # United States
+    "top_us":           {"title": "Top stories",          "provider": "New York Times",   "feed": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml", "edition": "us"},
+    "politics_us":      {"title": "Politics",             "provider": "NPR Politics",     "feed": "https://feeds.npr.org/1014/rss.xml", "edition": "us"},
+    "entertainment_us": {"title": "Entertainment",        "provider": "Variety",          "feed": "https://variety.com/feed/", "edition": "us"},
+    "sports_us":        {"title": "Sports",               "provider": "CBS Sports",       "feed": "https://www.cbssports.com/rss/headlines/", "edition": "us"},
+
+    # India
+    "top_in":           {"title": "Top stories",          "provider": "The Hindu",        "feed": "https://www.thehindu.com/news/national/feeder/default.rss", "edition": "in"},
+    "politics_in":      {"title": "Politics",             "provider": "Indian Express",   "feed": "https://indianexpress.com/section/political-pulse/feed/", "edition": "in"},
+    "entertainment_in": {"title": "Entertainment",        "provider": "Indian Express",   "feed": "https://indianexpress.com/section/entertainment/feed/", "edition": "in"},
+    "sports_in":        {"title": "Cricket & Sports",     "provider": "ESPNcricinfo",     "feed": "https://www.espncricinfo.com/rss/content/story/feeds/0.xml", "edition": "in"},
+}
+
+ALL_SECTIONS: dict[str, dict] = {**SECTIONS, **EDITION_FEEDS}
+
+# The 7 canonical sections for each country edition.
+# AI, Tech, and Science are shared universally.
+EDITION_SECTIONS: dict[str, list[str]] = {
+    "ca": ["top", "ai", "tech", "politics", "entertainment", "science", "sports"],
+    "us": ["top_us", "ai", "tech", "politics_us", "entertainment_us", "science", "sports_us"],
+    "in": ["top_in", "ai", "tech", "politics_in", "entertainment_in", "science", "sports_in"],
+}
+
+DEFAULT_SECTIONS = list(EDITION_SECTIONS["ca"])
+
+
+def sections_for_editions(editions: list[str] | str | None) -> list[str]:
+    """The unique list of sections needed for one or more editions (e.g. ['ca', 'us'])."""
+    if not editions:
+        return list(DEFAULT_SECTIONS)
+    if isinstance(editions, str):
+        editions = [e.strip().lower() for e in editions.split(",") if e.strip()]
+    out: list[str] = []
+    for ed in editions:
+        for s in EDITION_SECTIONS.get(ed, []):
+            if s not in out:
+                out.append(s)
+    return out or list(DEFAULT_SECTIONS)
+
 # The pack has no single provider anymore; this label only fills pack-level
 # fields that predate per-section sources.
 PROVIDER = "Mixed sources"
@@ -54,15 +96,16 @@ CANDIDATE_POOL = 20
 
 
 def feed_url(key: str) -> str:
-    return SECTIONS[key]["feed"]
+    return ALL_SECTIONS[key]["feed"]
 
 
 def source_for(key: str) -> dict:
     """The worker's own source dict shape, so the existing fetcher reads the feed unchanged."""
+    sec = ALL_SECTIONS[key]
     return {
         "id": 0,
-        "name": f"{SECTIONS[key]['provider']} · {SECTIONS[key]['title']}",
-        "url": SECTIONS[key]["feed"],
+        "name": f"{sec['provider']} · {sec['title']}",
+        "url": sec["feed"],
         "section": key,
         "weight": 1.0,
         "kind": "feed",
@@ -71,7 +114,7 @@ def source_for(key: str) -> dict:
 
 def fallback_source_for(key: str) -> dict | None:
     """Secondary source dict for a section if its primary feed is short of candidates."""
-    section = SECTIONS.get(key, {})
+    section = ALL_SECTIONS.get(key, {})
     if "fallback_feed" not in section:
         return None
     return {
@@ -168,10 +211,12 @@ def script_for(item: Item, max_words: int = 60, title: str = "", rank: int = 1) 
 
 async def collect_section(client, key: str, limit: int = DEFAULT_PER_SECTION) -> list[Item]:
     items: list[Item] = []
+    sec = ALL_SECTIONS.get(key, {})
+    provider = sec.get("provider", key)
     try:
         items = await fetch_source(client, source_for(key))
     except Exception as e:
-        log.warning("%s · %s primary source failed: %s", SECTIONS[key]["provider"], key, e)
+        log.warning("%s · %s primary source failed: %s", provider, key, e)
 
     fallback = fallback_source_for(key)
     if fallback and len(items) < limit:
@@ -179,21 +224,22 @@ async def collect_section(client, key: str, limit: int = DEFAULT_PER_SECTION) ->
             extra = await fetch_source(client, fallback)
             items = items + extra
         except Exception as e:
-            log.warning("%s · %s fallback source failed: %s", SECTIONS[key]["provider"], key, e)
+            log.warning("%s · %s fallback source failed: %s", provider, key, e)
 
     return top_n(items, limit)
 
 
 async def collect(limit: int = DEFAULT_PER_SECTION, sections: list[str] | None = None) -> dict[str, list[Item]]:
     """Top ``limit`` stories for each section. One bad feed never sinks the rest."""
-    keys = [k for k in (sections or list(SECTIONS)) if k in SECTIONS]
+    keys = [k for k in (sections or DEFAULT_SECTIONS) if k in ALL_SECTIONS]
     async with make_client() as client:
         results = await asyncio.gather(*(collect_section(client, k, limit) for k in keys),
                                        return_exceptions=True)
     out: dict[str, list[Item]] = {}
     for key, res in zip(keys, results):
         if isinstance(res, Exception):  # noqa: BLE001 — report, keep going
-            log.warning("%s · %s failed: %s", SECTIONS[key]["provider"], key, res)
+            provider = ALL_SECTIONS.get(key, {}).get("provider", key)
+            log.warning("%s · %s failed: %s", provider, key, res)
             out[key] = []
         else:
             out[key] = res
@@ -201,13 +247,15 @@ async def collect(limit: int = DEFAULT_PER_SECTION, sections: list[str] | None =
 
 
 async def build_pack(per_section: int = DEFAULT_PER_SECTION, sections: list[str] | None = None,
-                     max_words: int = 60) -> list[dict]:
+                     edition: str | list[str] | None = None, max_words: int = 60) -> list[dict]:
     """The day's story pack: every section's top stories as ready-to-voice scripts.
 
     A story carried by two feeds is told once, under the earlier section, and that section's next
     candidate takes its place.
     """
-    keys = [k for k in (sections or list(SECTIONS)) if k in SECTIONS]
+    if not sections and edition:
+        sections = sections_for_editions(edition)
+    keys = [k for k in (sections or DEFAULT_SECTIONS) if k in ALL_SECTIONS]
     # Ask each feed for a deep candidate pool so deduplication across sections never leaves
     # a section short of its requested count.
     candidate_limit = max(CANDIDATE_POOL, per_section * 3)

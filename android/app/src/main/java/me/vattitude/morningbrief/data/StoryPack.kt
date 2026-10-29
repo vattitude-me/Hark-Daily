@@ -237,6 +237,7 @@ object StoryPack {
         sectionOrder: List<String> = emptyList(),
         mode: String = "full",
         podcastClips: List<JSONObject> = emptyList(),
+        edition: String = "ca",
     ): Pack? {
         if (every.isEmpty()) return null
         // Every narrator is published each morning, so the day's rows hold all of them:
@@ -366,7 +367,9 @@ object StoryPack {
         for (key in order) {
             val count = wanted[key] ?: 0
             if (count <= 0) continue
-            val chosen = all.filter { it.optString("section") == key }.sortedBy { it.optInt("rank") }.take(count)
+            val edKey = me.vattitude.morningbrief.pipeline.editionSectionKey(key, edition)
+            val pool = all.filter { it.optString("section") == edKey }.ifEmpty { all.filter { it.optString("section") == key } }
+            val chosen = pool.sortedBy { it.optInt("rank") }.take(count)
             if (chosen.isEmpty()) continue
             if (!isRapid) {
                 if (isPodcast) {

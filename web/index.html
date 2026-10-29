@@ -348,6 +348,15 @@
           <kbd aria-hidden="true">/</kbd>
         </label>
         <span class="spacer"></span>
+        <div class="edition-chip" id="editionChip" title="Change country edition">
+          <span class="edition-flag" id="editionFlag" aria-hidden="true">🇨🇦</span>
+          <label for="editionSelect" class="sr-only">Choose news edition</label>
+          <select id="editionSelect" aria-label="News edition">
+            <option value="ca">Canada</option>
+            <option value="us">United States</option>
+            <option value="in">India</option>
+          </select>
+        </div>
         <button class="narrator-chip" id="narratorChip" type="button" aria-label="Change narrator">
           <span class="narrator-glyph"><svg aria-hidden="true"><use href="#i-mic"/></svg></span>
           <span class="narrator-text"><b id="narratorName">Narrator</b><small id="narratorDesc"></small></span>
