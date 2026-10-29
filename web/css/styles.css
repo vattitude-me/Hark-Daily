@@ -356,8 +356,10 @@ html.bw-photos .hero-cover, html.bw-photos .story-thumb, html.bw-photos .mini-co
   color: var(--accent-text);
 }
 .footer-sep {
-  color: var(--faint);
+  color: var(--muted);
+  opacity: .7;
   user-select: none;
+  margin: 0 .2rem;
 }
 .footer-legal-links {
   display: inline-flex;
