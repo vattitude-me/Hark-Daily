@@ -103,6 +103,30 @@ export class Player extends EventTarget {
       });
     }
 
+    // Clean Player Controls from Mock
+    document.getElementById('cleanPlayBtn')?.addEventListener('click', () => this.toggle());
+    document.getElementById('cleanPrevBtn')?.addEventListener('click', () => this.prevChapter());
+    document.getElementById('cleanNextBtn')?.addEventListener('click', () => this.nextChapter());
+    document.getElementById('playerCoverWrap')?.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      this.toggle();
+    });
+
+    const cleanCoverImg = document.getElementById('playerCoverImg');
+    if (cleanCoverImg) {
+      cleanCoverImg.addEventListener('error', () => {
+        cleanCoverImg.classList.add('hidden');
+        document.getElementById('playerCoverFallback')?.classList.remove('hidden');
+      });
+      cleanCoverImg.addEventListener('load', () => {
+        cleanCoverImg.classList.remove('hidden');
+        document.getElementById('playerCoverFallback')?.classList.add('hidden');
+      });
+    }
+
+    // 40-bar acoustic waveform scrubber
+    this.setupCleanWaveform();
+
     // Speed pills
     this.renderSpeedPills();
 
@@ -378,6 +402,38 @@ export class Player extends EventTarget {
     else if (i > 0) this.playChapter(this.chapters[i - 1].id);
   }
 
+  setupCleanWaveform() {
+    const barsWrap = document.getElementById('cleanWaveBars');
+    if (!barsWrap) return;
+    const heights = [10, 18, 26, 14, 30, 22, 36, 16, 28, 40, 20, 32, 12, 34, 24, 38, 18, 26, 14, 30, 22, 36, 10, 28, 20, 34, 16, 40, 24, 12, 32, 18, 38, 26, 14, 30, 22, 16, 28, 20];
+    barsWrap.replaceChildren(...heights.map((h, i) => {
+      const s = document.createElement('span');
+      s.className = 'clean-wave-bar';
+      s.style.height = `${h}px`;
+      s.dataset.idx = String(i);
+      return s;
+    }));
+
+    const seekFromEvent = (e) => {
+      const r = barsWrap.getBoundingClientRect();
+      const frac = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+      this.seekTo(frac * (this.total || 0));
+      barsWrap.setAttribute('aria-valuenow', String(Math.round(frac * 100)));
+    };
+
+    let dragging = false;
+    barsWrap.addEventListener('pointerdown', (e) => {
+      dragging = true;
+      try { barsWrap.setPointerCapture(e.pointerId); } catch {}
+      seekFromEvent(e);
+    });
+    barsWrap.addEventListener('pointermove', (e) => {
+      if (dragging) seekFromEvent(e);
+    });
+    barsWrap.addEventListener('pointerup', () => { dragging = false; });
+    barsWrap.addEventListener('pointercancel', () => { dragging = false; });
+  }
+
   renderSpeedPills() {
     const box = document.getElementById('speedPills');
     if (!box) return;
@@ -454,8 +510,21 @@ export class Player extends EventTarget {
     el.seg.setAttribute('aria-valuenow', String(Math.round(frac * 100)));
 
     // Times: elapsed and remaining.
-    el.cur.textContent = fmtTime(t);
-    el.dur.textContent = `-${fmtTime(Math.max(0, dur - t))}`;
+    if (el.cur) el.cur.textContent = fmtTime(t);
+    if (el.dur) el.dur.textContent = `-${fmtTime(Math.max(0, dur - t))}`;
+    const cleanCur = document.getElementById('cleanCurTime');
+    if (cleanCur) cleanCur.textContent = fmtTime(t);
+    const cleanDur = document.getElementById('cleanDurTime');
+    if (cleanDur) cleanDur.textContent = `-${fmtTime(Math.max(0, dur - t))}`;
+
+    // Update 40 acoustic waveform bars
+    const cleanWaveBars = document.querySelectorAll('#cleanWaveBars .clean-wave-bar');
+    if (cleanWaveBars.length) {
+      const activeCount = Math.round(frac * cleanWaveBars.length);
+      cleanWaveBars.forEach((bar, idx) => {
+        bar.classList.toggle('active', idx < activeCount);
+      });
+    }
 
     // Hero state + title + cover.
     const ch = this.currentChapter(t);
@@ -683,6 +752,70 @@ export class Player extends EventTarget {
         readerBadgeText.textContent = idx ? `Now Voicing · Story ${idx} of ${b.stories.length}` : 'Now Voicing';
       } else {
         readerBadgeText.textContent = 'Voiced on Hark Daily';
+      }
+    }
+
+    // Update Clean Player cover image (showcasing article image in Now Voicing section)
+    const cleanCoverImg = document.getElementById('playerCoverImg');
+    const cleanCoverFallback = document.getElementById('playerCoverFallback');
+    if (img && cleanCoverImg) {
+      if (cleanCoverImg.dataset.src !== img) {
+        cleanCoverImg.dataset.src = img;
+        cleanCoverImg.src = img;
+      }
+      cleanCoverImg.classList.remove('hidden');
+      cleanCoverFallback?.classList.add('hidden');
+    } else if (cleanCoverImg) {
+      cleanCoverImg.classList.add('hidden');
+      cleanCoverFallback?.classList.remove('hidden');
+    }
+
+    const cleanNowVoicing = document.getElementById('playerCoverBadgeText');
+    if (cleanNowVoicing) {
+      if (isIntroOrBanter) {
+        cleanNowVoicing.textContent = this.briefing?.mode === 'podcast' ? 'Voiced by Matthew & Kelly' : 'Daily Brief Intro';
+      } else {
+        cleanNowVoicing.textContent = 'Now voicing';
+      }
+    }
+
+    // Clean Player Story Metadata & Actions
+    const cleanCat = document.getElementById('cleanCatBadge');
+    if (cleanCat) {
+      cleanCat.textContent = (section || story?.section || 'TOP STORIES').toUpperCase();
+    }
+    const cleanSrc = document.getElementById('cleanSourceTitle');
+    if (cleanSrc) {
+      cleanSrc.textContent = story?.source ? story.source.split('·')[0].trim() : 'Daily News';
+    }
+    const cleanCounter = document.getElementById('cleanStoryCounter');
+    if (cleanCounter) {
+      const idx = story ? b.stories.indexOf(story) + 1 : 0;
+      cleanCounter.textContent = idx ? `${idx} / ${b.stories.length}` : (b.stories?.length ? `1 / ${b.stories.length}` : '1 / 1');
+    }
+    const cleanHeadline = document.getElementById('cleanStoryHeadline');
+    if (cleanHeadline) {
+      cleanHeadline.textContent = story?.headline || ch?.title || b.title;
+    }
+
+    const cleanShare = document.getElementById('cleanShareBtn');
+    if (cleanShare && story) {
+      cleanShare.onclick = (e) => {
+        e.stopPropagation();
+        window.openShareModal?.(story);
+      };
+    }
+
+    const cleanSourceLink = document.getElementById('cleanSourceLink');
+    const cleanSourceLinkName = document.getElementById('cleanSourceLinkName');
+    if (cleanSourceLink) {
+      if (story?.url) {
+        cleanSourceLink.href = story.url;
+        const srcName = story?.source ? story.source.split('·')[0].trim() : 'original source';
+        if (cleanSourceLinkName) cleanSourceLinkName.textContent = srcName;
+        cleanSourceLink.classList.remove('hidden');
+      } else {
+        cleanSourceLink.classList.add('hidden');
       }
     }
 

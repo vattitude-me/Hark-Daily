@@ -1,7 +1,7 @@
 import { api, fmtTime, h, icon, isAdmin, recordError, sb, store, timeAgo, toast, VOICES, voiceFor, SECTIONS, DEFAULT_VOICE_ID, EDITIONS, defaultEdition, detectEditionFromIp } from './api.js';
 import { Player } from './player.js';
 import { Landing } from './landing.js';
-import { WelcomeSheet, enablePush, installMode, onInstallChange, promptInstall, pushSupported, requestNotificationPermission, wireSheet } from './sheets.js';
+import { WelcomeSheet, DeleteAccountSheet, enablePush, installMode, onInstallChange, promptInstall, pushSupported, requestNotificationPermission, wireSheet } from './sheets.js';
 import { SourcesPage } from './pages/sources.js';
 import { SettingsPage } from './pages/settings.js';
 import { AdminPage } from './pages/admin.js';
@@ -215,6 +215,39 @@ function renderHeader() {
     syncLabel.textContent = isGuest ? 'Guest mode' : 'Synced';
   }
 
+  // Clean Player Hero Heading Updates
+  const cleanHeroGreeting = $('cleanHeroGreeting');
+  if (cleanHeroGreeting) {
+    cleanHeroGreeting.textContent = name.trim() ? `${baseGreeting}, ${name.trim()}` : baseGreeting;
+  }
+  const cleanHeroDate = $('cleanHeroDate');
+  if (cleanHeroDate) {
+    const day = now.getDate();
+    cleanHeroDate.textContent = `FRESH TODAY · ${wd} ${day} ${mon}`;
+  }
+  const cleanHeroDuration = $('cleanHeroDuration');
+  if (cleanHeroDuration) {
+    if (b) {
+      const minutes = Math.max(1, Math.round((b.duration || 0) / 60));
+      cleanHeroDuration.textContent = `${b.stories?.length || 0} stories · ${minutes}m`;
+    } else {
+      cleanHeroDuration.textContent = 'Daily brief';
+    }
+  }
+  const cleanHeroNarrator = $('cleanHeroNarrator');
+  if (cleanHeroNarrator) {
+    cleanHeroNarrator.textContent = isPodcast ? '🎙️ Matthew & Kelly' : `🎙️ ${activeVoice?.name || b?.voice?.name || 'Kelly'}`;
+  }
+  const cleanHeroSub = $('cleanHeroSub');
+  if (cleanHeroSub) {
+    if (b) {
+      const narrator = isPodcast ? 'Matthew & Kelly' : (activeVoice?.name || b?.voice?.name || 'Kelly');
+      cleanHeroSub.textContent = `Your news reader · Voiced by ${narrator} · Listen anywhere`;
+    } else {
+      cleanHeroSub.textContent = 'Your daily news reader · Voiced before you wake';
+    }
+  }
+
   // Avatar initial
   const avInitial = $('avatarInitial');
   if (avInitial) {
@@ -382,6 +415,16 @@ function syncModePicker() {
   }
   if (hero) {
     hero.classList.toggle('is-rapid', isRapid);
+  }
+
+  // Update Clean Player format switcher
+  const cleanPodcast = $('cleanFormatPodcast');
+  const cleanFull = $('cleanFormatFull');
+  if (cleanPodcast) cleanPodcast.classList.toggle('active', mode === 'podcast');
+  if (cleanFull) cleanFull.classList.toggle('active', mode !== 'podcast');
+  const cleanEst = $('cleanBriefEst');
+  if (cleanEst && state.briefing?.duration) {
+    cleanEst.textContent = `~${Math.round(state.briefing.duration / 60)} min`;
   }
 }
 
@@ -1258,6 +1301,8 @@ function displayBriefing() {
   renderPersonas();
   renderDateChips();
   renderSections();
+  renderAllStoriesSheet();
+  updateMenuDrawer();
   const storyInfo = getTargetStoryInfo();
   if (storyInfo.story || storyInfo.title || storyInfo.audio) handleStoryDeepLink(storyInfo);
 }
@@ -1390,8 +1435,302 @@ function discardAll() {
   toast('Changes discarded.');
 }
 
+/* ----------------------------------------------------------- Clean Player (Mock UI) */
+let deleteAccountSheet = null;
+let sleepTimerMinutes = 0;
+let sleepTimerId = null;
+const SLEEP_TIMER_STEPS = [0, 15, 30, 45, 'brief'];
+
+function updateMenuDrawer() {
+  const mode = activeMode();
+  const formatVal = $('menuFormatVal');
+  if (formatVal) {
+    formatVal.textContent = mode === 'podcast' ? 'Podcast · Two hosts' : 'Full brief · 10 min';
+  }
+  const voicesVal = $('menuVoicesVal');
+  if (voicesVal) {
+    if (mode === 'podcast') {
+      voicesVal.textContent = 'Matthew & Kelly';
+    } else {
+      const v = voiceFor(state.briefing?.voice?.id || state.profile?.settings?.voice);
+      voicesVal.textContent = v?.name || 'Matthew';
+    }
+  }
+  const regVal = $('menuRegionVal');
+  if (regVal) {
+    const ed = EDITIONS[state.edition];
+    regVal.textContent = ed?.name || state.edition?.toUpperCase() || 'Canada';
+  }
+  const authBtn = $('menuAuthBtn');
+  if (authBtn) {
+    if (state.profile?.email) {
+      authBtn.textContent = `Sign out (${state.profile.email.split('@')[0]})`;
+    } else {
+      authBtn.textContent = 'Sign in';
+    }
+  }
+  const sleepVal = $('menuSleepTimerVal');
+  if (sleepVal) {
+    sleepVal.textContent = sleepTimerMinutes === 0 ? 'Off' : (sleepTimerMinutes === 'brief' ? 'End of brief' : `${sleepTimerMinutes} min`);
+  }
+}
+
+function cycleSleepTimer() {
+  const currentIdx = SLEEP_TIMER_STEPS.indexOf(sleepTimerMinutes);
+  const nextIdx = (currentIdx + 1) % SLEEP_TIMER_STEPS.length;
+  sleepTimerMinutes = SLEEP_TIMER_STEPS[nextIdx];
+  if (sleepTimerId) {
+    clearTimeout(sleepTimerId);
+    sleepTimerId = null;
+  }
+  updateMenuDrawer();
+  if (sleepTimerMinutes === 0) {
+    toast('Sleep timer turned off');
+  } else if (sleepTimerMinutes === 'brief') {
+    toast('Sleep timer will pause at end of brief');
+  } else {
+    toast(`Sleep timer set for ${sleepTimerMinutes} minutes 🌙`);
+    sleepTimerId = setTimeout(() => {
+      const audio = player.audio;
+      const initialVol = audio.volume;
+      let step = 0;
+      const fade = setInterval(() => {
+        step += 1;
+        audio.volume = Math.max(0, initialVol * (1 - step / 10));
+        if (step >= 10) {
+          clearInterval(fade);
+          audio.pause();
+          audio.volume = initialVol;
+          sleepTimerMinutes = 0;
+          updateMenuDrawer();
+          toast('Sleep timer paused playback 🌙');
+        }
+      }, 250);
+    }, sleepTimerMinutes * 60 * 1000);
+  }
+}
+
+async function downloadOfflineAudio() {
+  const b = state.briefing;
+  if (!b || !b.audio_url) {
+    toast("No audio available to download yet.", { error: true });
+    return;
+  }
+  toast("Downloading briefing for offline listening…");
+  try {
+    const res = await fetch(b.audio_url);
+    if (!res.ok) throw new Error("Download failed");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Hark_Daily_${b.date || 'briefing'}_${b.mode || 'podcast'}.mp3`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast("Briefing downloaded successfully! ✓");
+  } catch (err) {
+    window.open(b.audio_url, '_blank');
+    toast("Opened briefing audio link");
+  }
+}
+
+const EDITIONS_ORDER = ['ca', 'us', 'in'];
+function cycleEdition() {
+  const curIdx = EDITIONS_ORDER.indexOf(state.edition);
+  const nextIdx = (curIdx + 1) % EDITIONS_ORDER.length;
+  setEdition(EDITIONS_ORDER[nextIdx]);
+}
+
+function openAuxSheet(tab) {
+  const aux = $('auxSheet');
+  const title = $('auxTitle');
+  if (title) {
+    title.textContent = tab === 'sources' ? 'Sources & Topics' : (tab === 'settings' ? 'Settings' : 'Admin');
+  }
+  if (aux) aux.classList.remove('hidden');
+  switchTab(tab);
+}
+
+function renderAllStoriesSheet() {
+  const b = state.briefing;
+  if (!b) return;
+
+  const countBadge = $('openAllStoriesLabel');
+  if (countBadge) countBadge.textContent = `All ${b.stories.length}`;
+
+  const sub = $('allStoriesSub');
+  if (sub) sub.textContent = `${b.stories.length} stories today · tap to start listening`;
+
+  const grid = $('cleanTopicGrid');
+  if (grid) {
+    const ch = player.chapters.find((c) => c.id === player.current);
+    const currentSection = b.stories.find((s) => s.id === ch?.id)?.section || 'top';
+
+    const getTopicIcon = (key) => {
+      switch (key) {
+        case 'top':
+          return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>`;
+        case 'world':
+          return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>`;
+        case 'canada':
+        case 'us':
+        case 'in':
+          return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6 7-11a7 7 0 10-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>`;
+        case 'business':
+          return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>`;
+        case 'tech':
+        case 'ai':
+          return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg>`;
+        case 'sports':
+          return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M5 6c4 3 10 3 14 0M5 18c4-3 10-3 14 0"/></svg>`;
+        default:
+          return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>`;
+      }
+    };
+
+    grid.replaceChildren(...(b.sections || []).map((sec) => {
+      const stories = b.stories.filter((s) => s.section === sec.key);
+      if (!stories.length) return null;
+      const isCurrent = currentSection === sec.key;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `clean-topic-btn ${isCurrent ? 'active' : ''}`;
+      btn.innerHTML = `
+        <span class="clean-topic-icon">${getTopicIcon(sec.key)}</span>
+        <span>
+          <span class="clean-topic-name">${sec.title}</span>
+          <span class="clean-topic-count">${isCurrent ? 'Playing now' : `${stories.length} stories`}</span>
+        </span>
+      `;
+      btn.addEventListener('click', () => {
+        const firstStory = stories[0];
+        if (firstStory) {
+          player.seekTo(firstStory.start || 0);
+          player.audio.play().catch(() => {});
+        }
+        $('allStoriesSheet')?.classList.add('hidden');
+      });
+      return btn;
+    }).filter(Boolean));
+  }
+
+  // Populate searchable stories list
+  const list = $('cleanStoriesList');
+  if (list) {
+    list.replaceChildren(...b.stories.map((story, i) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'clean-story-item';
+      item.dataset.storyId = story.id;
+      const isCur = player.current === story.id;
+      if (isCur) item.classList.add('current');
+      item.innerHTML = `
+        <span class="clean-cat-pill" style="font-size:10px;padding:2px 6px;">${(story.section || 'NEWS').toUpperCase()}</span>
+        <div class="clean-story-item-text">
+          <div class="clean-story-item-title">${i + 1}. ${story.headline || story.title}</div>
+          <div class="clean-story-item-sub">${story.source ? story.source.split('·')[0].trim() : 'Daily News'} · ${story.duration ? fmtTime(story.duration) : '20s'}</div>
+        </div>
+      `;
+      item.addEventListener('click', () => {
+        player.playChapter(story.id);
+        $('allStoriesSheet')?.classList.add('hidden');
+      });
+      return item;
+    }));
+  }
+}
+
+function filterAllStoriesList(q) {
+  const query = (q || '').toLowerCase().trim();
+  document.querySelectorAll('#cleanStoriesList .clean-story-item').forEach((item) => {
+    const text = item.textContent.toLowerCase();
+    item.classList.toggle('hidden', query.length > 0 && !text.includes(query));
+  });
+}
+
+function openAllStoriesSheet() {
+  renderAllStoriesSheet();
+  $('allStoriesSheet')?.classList.remove('hidden');
+}
+
 /* ------------------------------------------------------------------ events */
 function bindEvents() {
+  // Clean Player bindings
+  deleteAccountSheet = new DeleteAccountSheet();
+
+  $('cleanFormatPodcast')?.addEventListener('click', () => setBriefingMode('podcast'));
+  $('cleanFormatFull')?.addEventListener('click', () => setBriefingMode('full'));
+
+  $('openMenuBtn')?.addEventListener('click', () => {
+    updateMenuDrawer();
+    $('menuDrawer')?.classList.remove('hidden');
+  });
+  $('closeMenuBtn')?.addEventListener('click', () => $('menuDrawer')?.classList.add('hidden'));
+  $('menuDrawer')?.addEventListener('click', (e) => {
+    if (e.target === $('menuDrawer')) $('menuDrawer')?.classList.add('hidden');
+  });
+  $('menuTodayBtn')?.addEventListener('click', () => {
+    $('menuDrawer')?.classList.add('hidden');
+    $('auxSheet')?.classList.add('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+  $('menuFormatBtn')?.addEventListener('click', () => {
+    const nextMode = activeMode() === 'podcast' ? 'full' : 'podcast';
+    setBriefingMode(nextMode);
+    updateMenuDrawer();
+  });
+  $('menuVoicesBtn')?.addEventListener('click', () => {
+    $('menuDrawer')?.classList.add('hidden');
+    openNarratorSheet();
+  });
+  $('menuSourcesBtn')?.addEventListener('click', () => {
+    $('menuDrawer')?.classList.add('hidden');
+    openAuxSheet('sources');
+  });
+  $('menuRegionBtn')?.addEventListener('click', () => {
+    cycleEdition();
+    updateMenuDrawer();
+  });
+  $('menuOfflineBtn')?.addEventListener('click', downloadOfflineAudio);
+  $('menuSleepTimerBtn')?.addEventListener('click', cycleSleepTimer);
+  $('menuSettingsBtn')?.addEventListener('click', () => {
+    $('menuDrawer')?.classList.add('hidden');
+    openAuxSheet('settings');
+  });
+  $('menuDeleteAccountBtn')?.addEventListener('click', () => {
+    $('menuDrawer')?.classList.add('hidden');
+    if (deleteAccountSheet) deleteAccountSheet.open(state.profile?.email);
+  });
+  $('menuAuthBtn')?.addEventListener('click', () => {
+    $('menuDrawer')?.classList.add('hidden');
+    if (state.profile) {
+      sb.auth.signOut();
+    } else {
+      openSignIn('menu');
+    }
+  });
+
+  // All Stories Sheet bindings
+  $('openAllStoriesBtn')?.addEventListener('click', openAllStoriesSheet);
+  $('closeAllStoriesBtn')?.addEventListener('click', () => $('allStoriesSheet')?.classList.add('hidden'));
+  $('allStoriesSheet')?.addEventListener('click', (e) => {
+    if (e.target === $('allStoriesSheet')) $('allStoriesSheet')?.classList.add('hidden');
+  });
+  $('cleanStoriesSearch')?.addEventListener('input', (e) => filterAllStoriesList(e.target.value));
+
+  // Aux Sheet bindings
+  $('closeAuxBtn')?.addEventListener('click', () => {
+    $('auxSheet')?.classList.add('hidden');
+    switchTab('today');
+  });
+  $('auxSheet')?.addEventListener('click', (e) => {
+    if (e.target === $('auxSheet')) {
+      $('auxSheet')?.classList.add('hidden');
+      switchTab('today');
+    }
+  });
   document.querySelectorAll('#tabbar .tab').forEach((t) => t.addEventListener('click', () => switchTab(t.dataset.tab)));
   $('saveBtn').addEventListener('click', saveAll);
   $('discardBtn').addEventListener('click', discardAll);
@@ -1500,6 +1839,7 @@ function bindEvents() {
   player.addEventListener('chapter', syncPlaying);
   player.addEventListener('chapter', followChapter);
   player.addEventListener('chapter', syncMini);
+  player.addEventListener('chapter', renderAllStoriesSheet);
   player.addEventListener('state', syncPlaying);
   player.addEventListener('state', syncMini);
   // Follow-along stands down for a moment whenever the listener scrolls the page.
