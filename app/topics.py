@@ -267,6 +267,7 @@ async def build_pack(per_section: int = DEFAULT_PER_SECTION, sections: list[str]
     for key in keys:
         for rank, item in enumerate(picked.get(key, []), 1):
             summary = body_summary_for(item, max_words=max_words, title=item.title, rank=rank)
+            article_text = (drop_boilerplate(item.text) or item.summary or item.title or "")[:2500]
             pack.append({
                 "id": item.id,
                 "section": key,
@@ -277,6 +278,7 @@ async def build_pack(per_section: int = DEFAULT_PER_SECTION, sections: list[str]
                 "published": item.published.isoformat() if item.published else None,
                 "image": item.image,
                 "summary": summary,
+                "article_text": article_text,
                 "script": format_script(item.title, summary, rank=rank),
             })
     return pack

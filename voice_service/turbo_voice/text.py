@@ -37,7 +37,7 @@ _BRACKET = re.compile(r"\[([^\[\]]{1,24})\]")
 _SPACE = re.compile(r"\s+")
 _MARK = "\x00"
 
-DEFAULT_BEAT = 0.45
+DEFAULT_BEAT = 0.55
 MAX_PAUSE = 5.0
 
 

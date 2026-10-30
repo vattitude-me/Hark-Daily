@@ -66,6 +66,9 @@ class Config:
     gemini_models: tuple[str, ...] = tuple(
         m.strip() for m in os.getenv("GEMINI_MODELS", "gemini-2.5-flash,gemini-1.5-flash").split(",") if m.strip()
     )
+    # Optional local / secondary OpenAI-compatible LLM endpoint (e.g. Ollama / vLLM / LM Studio)
+    local_llm_url: str | None = os.getenv("LOCAL_LLM_URL") or None
+    local_llm_model: str = os.getenv("LOCAL_LLM_MODEL", "llama3.1:8b")
     admin_emails: tuple[str, ...] = _list("ADMIN_EMAILS")
     # "issues" pushes the admin only when a run had problems; "always" after every run.
     admin_notify: str = os.getenv("ADMIN_NOTIFY", "issues").strip().lower()
@@ -76,6 +79,10 @@ class Config:
     max_custom_sources: int = int(os.getenv("MAX_CUSTOM_SOURCES", "15"))
     # The Cloned narrator: the LAN/GPU voice service that voices the shared daily stories.
     voice_url: str = os.getenv("VOICE_SERVICE_URL", "").rstrip("/")
+    voice_pace: float = float(os.getenv("VOICE_PACE", "0.94"))
+    voice_temperature: float = float(os.getenv("VOICE_TEMPERATURE", "0.90"))
+    voice_top_p: float = float(os.getenv("VOICE_TOP_P", "0.98"))
+    voice_exaggeration: float = float(os.getenv("VOICE_EXAGGERATION", "0.75"))
     story_voice: str = os.getenv("STORY_VOICE", "c3po_reference")
     # Every voice the pack renders each day. A listener hears the one they picked, and the
     # clips are shared, so the cost is stories × voices rather than × listeners.
@@ -87,7 +94,7 @@ class Config:
     stories_per_section: int = int(os.getenv("STORIES_PER_SECTION", "5"))
     # Podcast mode: two hosts chat around the news. The flag is the kill switch (server side:
     # nothing is generated and the app hides the mode); the hosts are any two voice ids.
-    podcast_enabled: bool = _bool("PODCAST_ENABLED")
+    podcast_enabled: bool = _bool("PODCAST_ENABLED", True)
     podcast_hosts: tuple[str, ...] = tuple(
         v.strip()
         for v in os.getenv("PODCAST_HOSTS", "matthew_reference,kelly_reference").split(",")

@@ -44,6 +44,42 @@ def pick_device() -> str:
     return "mps" if torch.backends.mps.is_available() else "cpu"
 
 
+DEFAULT_TEMPERATURE = float(os.getenv("VOICE_TEMPERATURE", "0.90"))
+DEFAULT_TOP_P = float(os.getenv("VOICE_TOP_P", "0.98"))
+DEFAULT_REPETITION_PENALTY = float(os.getenv("VOICE_REPETITION_PENALTY", "1.22"))
+DEFAULT_PACE = float(os.getenv("VOICE_PACE", "0.94"))
+DEFAULT_EXAGGERATION = float(os.getenv("VOICE_EXAGGERATION", "0.75"))
+
+
+def _adjust_pace(samples: np.ndarray, pace: float, sr: int = SAMPLE_RATE) -> np.ndarray:
+    """Stretch or compress speech tempo without shifting pitch (slow-to-medium: 0.90-0.96).
+
+    Uses ffmpeg's phase-vocoder ``atempo`` filter when available so formant structure and
+    pitch stay completely intact; falls back to librosa's phase-vocoder ``time_stretch`` if
+    ffmpeg is absent.
+    """
+    pace = float(pace or 1.0)
+    if samples.size == 0 or abs(pace - 1.0) < 0.015:
+        return samples
+    pace = max(0.75, min(1.25, pace))
+    import shutil
+    import subprocess
+    if shutil.which("ffmpeg"):
+        pcm16 = (np.clip(samples, -1.0, 1.0) * 32767.0).astype("<i2").tobytes()
+        cmd = [
+            "ffmpeg", "-hide_banner", "-loglevel", "error",
+            "-f", "s16le", "-ar", str(sr), "-ac", "1", "-i", "pipe:0",
+            "-filter:a", f"atempo={pace:.3f}",
+            "-f", "s16le", "-ar", str(sr), "-ac", "1", "pipe:1",
+        ]
+        res = subprocess.run(cmd, input=pcm16, capture_output=True, check=False)
+        if res.returncode == 0 and res.stdout:
+            return np.frombuffer(res.stdout, dtype="<i2").astype(np.float32) / 32768.0
+    try:
+        import librosa
+        return librosa.effects.time_stretch(samples.astype(np.float32), rate=pace).astype(np.float32)
+    except Exception:
+        return samples
 def cache_enabled() -> bool:
     """Voice-conditioning sidecars are on by default; set VOICE_CONDS_CACHE=0 to disable."""
     return os.getenv("VOICE_CONDS_CACHE", "1").strip().lower() not in {"0", "false", "no", "off"}
@@ -136,12 +172,20 @@ class TurboVoice:
         return SAMPLE_RATE
 
     # --------------------------------------------------------------- synthesis
-    def say(self, text: str, *, reference: Path | str | None = None, temperature: float = 0.8,
-            top_p: float = 0.95, top_k: int = 1000, repetition_penalty: float = 1.2) -> np.ndarray:
-        """One span of speech, with no leading or trailing silence of our own."""
+    def say(self, text: str, *, reference: Path | str | None = None,
+            temperature: float = DEFAULT_TEMPERATURE,
+            top_p: float = DEFAULT_TOP_P, top_k: int = 1000,
+            repetition_penalty: float = DEFAULT_REPETITION_PENALTY,
+            pace: float = DEFAULT_PACE,
+            exaggeration: float = DEFAULT_EXAGGERATION) -> np.ndarray:
+        """One span of speech, with high expressiveness and slow-to-medium pacing."""
         model = self._load()
         with self._lock:  # the model keeps per-call state; one span at a time
             self._condition(model, self.path_for(reference))
+            # If the underlying T3 model supports emotion_adv conditioning, update it dynamically
+            if getattr(getattr(model, "t3", None), "hp", None) and getattr(model.t3.hp, "emotion_adv", False):
+                import torch
+                model.conds.t3.emotion_adv = (exaggeration * torch.ones(1, 1, 1)).to(self.device)
             wav = model.generate(
                 text,
                 temperature=temperature,
@@ -149,13 +193,19 @@ class TurboVoice:
                 top_k=top_k,
                 repetition_penalty=repetition_penalty,
             )
-        return wav.detach().cpu().numpy().squeeze(0).astype(np.float32)
+        raw = wav.detach().cpu().numpy().squeeze(0).astype(np.float32)
+        return _adjust_pace(raw, pace, SAMPLE_RATE)
 
     def silence(self, seconds: float) -> np.ndarray:
         return np.zeros(int(seconds * SAMPLE_RATE), dtype=np.float32)
 
     def render(self, script: str, *, beat: float | None = None,
-               reference: Path | str | None = None) -> tuple[np.ndarray, list[tuple[str, float, float]]]:
+               reference: Path | str | None = None,
+               temperature: float = DEFAULT_TEMPERATURE,
+               top_p: float = DEFAULT_TOP_P,
+               repetition_penalty: float = DEFAULT_REPETITION_PENALTY,
+               pace: float = DEFAULT_PACE,
+               exaggeration: float = DEFAULT_EXAGGERATION) -> tuple[np.ndarray, list[tuple[str, float, float]]]:
         """Voice a whole script, honouring ``[[pause:x]]``, ellipses and blank lines.
 
         Returns the audio and a ``(text, start, end)`` mark per speech span, so
@@ -174,7 +224,15 @@ class TurboVoice:
                 continue
             if not isinstance(item, Say):
                 continue
-            audio = self.say(item.text, reference=reference)
+            audio = self.say(
+                item.text,
+                reference=reference,
+                temperature=temperature,
+                top_p=top_p,
+                repetition_penalty=repetition_penalty,
+                pace=pace,
+                exaggeration=exaggeration,
+            )
             start = cursor / SAMPLE_RATE
             pieces.append(audio)
             cursor += audio.size

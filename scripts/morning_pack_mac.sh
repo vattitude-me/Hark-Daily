@@ -43,7 +43,12 @@ export VOICE_DIR="$ROOT/voice_service/data/voices"
 export PRELOAD_VOICE="1"
 export PODCAST_ENABLED="true"
 export PODCAST_HOSTS="matthew_reference,kelly_reference"
-export STORY_VOICES="c3po_reference,matthew_reference,kelly_reference"
+export STORY_VOICE="matthew_reference+kelly_reference"
+export STORY_VOICES="matthew_reference+kelly_reference"
+export VOICE_PACE="0.94"
+export VOICE_TEMPERATURE="0.90"
+export VOICE_TOP_P="0.98"
+export VOICE_EXAGGERATION="0.75"
 
 # Start the local voice service using Apple Silicon MPS
 log "Starting local Chatterbox-Turbo voice service on Apple Silicon MPS..."
