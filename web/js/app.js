@@ -1311,14 +1311,14 @@ async function switchTab(tab) {
   syncSaveBar();
 }
 
-/** APK mini-player rule: on other tabs it shows whenever there's something to resume. */
+/** Floating mini-player docked above toolbar whenever a briefing is loaded. */
 function syncMini() {
-  // On Today the hero card owns it: the floating player waits until the card is out of view.
-  if (currentTab === 'today') return player.showMini();
-  const show = !!player.briefing && (player.isPlaying || player.audio.currentTime > 0);
+  const show = !!player.briefing;
   const mini = $('miniPlayer');
-  mini.classList.toggle('show', show);
-  mini.setAttribute('aria-hidden', show ? 'false' : 'true');
+  if (mini) {
+    mini.classList.toggle('show', show);
+    mini.setAttribute('aria-hidden', show ? 'false' : 'true');
+  }
 }
 
 function syncSaveBar() {
