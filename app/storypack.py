@@ -163,19 +163,21 @@ def clear_ready(store, *, day: str, voice: str) -> None:
     store.delete("voice_notes", {"date": f"eq.{day}", "voice": f"eq.{voice}", "note_key": f"eq.{PACK_READY}"})
 
 
-def prune_older(store, *, keep: str) -> list[str]:
+def prune_older(store, *, keep: str, preserve_sections: list[str] | None = None) -> list[str]:
     """Keep one day of audio: delete every day older than [keep], rows and files together.
 
-    Only ever called once [keep] is complete for every narrator. A morning that failed must still
-    have yesterday's brief for listeners to fall back on, so the old days stay until the new one is
-    whole. The run log outlives the audio by a fortnight, since it is the record of what happened.
+    Sections in [preserve_sections] (such as India edition feeds when running the morning CA/US pack)
+    are retained until their own dedicated evening batch updates them.
     Static notes at STATIC_DATE and audio in notes/static/ are permanent and never deleted.
     """
     days: list[str] = []
+    preserve_set = set(preserve_sections or ())
     for table in ("story_audio", "voice_notes", "podcast_clips"):
         rows = store.select(table, {"date": f"lt.{keep}"})
         if table == "voice_notes":
             rows = [r for r in rows if str(r.get("date")) > STATIC_DATE]
+        if table == "story_audio" and preserve_set:
+            rows = [r for r in rows if r.get("section") not in preserve_set]
         if not rows:
             continue
         paths = [r["audio_path"] for r in rows if r.get("audio_path") and not r["audio_path"].startswith("notes/static/")]
@@ -184,6 +186,9 @@ def prune_older(store, *, keep: str) -> list[str]:
         if table == "voice_notes":
             for r in rows:
                 store.delete("voice_notes", {"date": f"eq.{r['date']}", "voice": f"eq.{r['voice']}", "note_key": f"eq.{r['note_key']}"})
+        elif table == "story_audio" and preserve_set:
+            for r in rows:
+                store.delete("story_audio", {"id": f"eq.{r['id']}"})
         else:
             store.delete(table, {"date": f"lt.{keep}"})
         days += [str(r["date"]) for r in rows]
@@ -856,7 +861,10 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
     # ones this run was asked for.
     everything = list(cfg.story_voices or (DEFAULT_VOICE,))
     if everything and all(ready(store, day=day, voice=n) for n in everything):
-        gone = prune_older(store, keep=day)
+        # When running morning batch (e.g. ca, us), preserve India sections from yesterday's evening batch
+        ed_list = [e.strip().lower() for e in edition.split(",")] if isinstance(edition, str) else list(edition or [])
+        preserve = [s for s in topics.EDITION_SECTIONS.get("in", []) if s.endswith("_in")] if ("in" not in ed_list and ed_list) else None
+        gone = prune_older(store, keep=day, preserve_sections=preserve)
         if gone:
             log.info("Pruned %d older day(s): %s", len(gone), ", ".join(gone))
     if failed:

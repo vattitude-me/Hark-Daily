@@ -112,7 +112,9 @@ export function clipsFor(rows, wanted, voice, sectionOrder = SECTION_ORDER, edit
     const count = wanted[key] || 0;
     if (count <= 0) continue;
     const edKey = editionSectionKey(key, edition);
-    const pool = bySection.has(edKey) && bySection.get(edKey).length ? bySection.get(edKey) : (bySection.get(key) || []);
+    const pool = bySection.has(edKey) && bySection.get(edKey).length
+      ? bySection.get(edKey)
+      : (edition === 'ca' ? (bySection.get(key) || []) : []);
     const picked = pool.slice().sort((a, b) => (a.rank || 0) - (b.rank || 0)).slice(0, count);
     ordered.push(...picked);
   }
