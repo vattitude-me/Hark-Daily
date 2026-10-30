@@ -295,305 +295,333 @@
     </div>
   </div>
 
-  <!-- ================================================================ Signed-in app -->
-  <div class="app-shell" id="appShell">
-    <aside class="sidebar" aria-label="Hark Daily">
-      <a class="brand" href="/" aria-label="Hark Daily home">
-        <img src="/icons/icon.svg" alt="" width="34" height="34">
-        <span class="brand-name">Hark Daily</span>
-      </a>
+  <!-- ================================================================ Clean Player App Canvas -->
+  <div class="app-canvas" id="appCanvas">
+    <!-- Ambient Aurora Glow Orbs from Mock -->
+    <div class="aurora-orb orb-amber" aria-hidden="true"></div>
+    <div class="aurora-orb orb-orange" aria-hidden="true"></div>
+    <div class="aurora-orb orb-teal" aria-hidden="true"></div>
 
-      <div class="live-card" id="liveCard">
-        <div class="live-text">
-          <span class="overline">Today's edition</span>
-          <span class="live-status"><span class="live-dot" aria-hidden="true"></span><span id="liveStatus">Checking…</span></span>
-        </div>
-        <span class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-      </div>
-
-      <nav class="tabbar" id="tabbar" aria-label="Primary">
-        <button class="tab active" data-tab="today" aria-current="page"><svg aria-hidden="true"><use href="#i-headphones"/></svg><span>Today<span class="tab-long">'s Brief</span></span></button>
-        <button class="tab" data-tab="sources"><svg aria-hidden="true"><use href="#i-sources"/></svg><span>Sources<span class="tab-long"> &amp; Topics</span></span></button>
-        <button class="tab" data-tab="settings"><svg aria-hidden="true"><use href="#i-settings"/></svg><span>Settings</span></button>
-        <button class="tab hidden" id="adminTab" data-tab="admin"><svg aria-hidden="true"><use href="#i-shield"/></svg><span>Admin</span></button>
-      </nav>
-
-      <div class="sidebar-foot">
-        <div class="progress-card">
-          <div class="progress-row">
-            <span class="overline">Listened today</span>
-            <span class="progress-val" id="dayProgressVal">0:00</span>
-          </div>
-          <div class="progress-track"><span id="dayProgressBar"></span></div>
-        </div>
-        <div class="sync-row">
-          <span><svg aria-hidden="true"><use href="#i-refresh"/></svg><span id="syncLabel">Synced</span></span>
-          <span>Web</span>
-        </div>
-      </div>
-    </aside>
-
-    <div class="workspace">
-      <header class="topbar" id="topbar">
-        <a class="brand brand-compact" href="/" aria-label="Hark Daily home"><img src="/icons/icon.svg" alt="" width="30" height="30"></a>
-        <div class="greeting">
-          <svg aria-hidden="true"><use href="#i-sunrise"/></svg>
-          <span id="greeting">Good morning</span>
-        </div>
-        <span class="status-chip" id="statusChip"><svg aria-hidden="true"><use href="#i-clock"/></svg><span id="statusText"></span></span>
-        <label class="search" id="searchBox">
-          <svg aria-hidden="true"><use href="#i-search"/></svg>
-          <span class="sr-only">Search today's stories</span>
-          <input type="search" id="searchInput" placeholder="Search today's stories" autocomplete="off" spellcheck="false">
-          <kbd aria-hidden="true">/</kbd>
-        </label>
-        <span class="spacer"></span>
-        <div class="edition-chip" id="editionChip" title="Change country edition">
-          <span class="edition-flag" id="editionFlag" aria-hidden="true"><svg class="flag-icon" viewBox="0 0 24 16" width="18" height="12" aria-hidden="true" style="border-radius:2px;overflow:hidden;box-shadow:0 0 1px rgba(0,0,0,0.4);"><rect width="6" height="16" fill="#e01a22"/><rect x="6" width="12" height="16" fill="#ffffff"/><rect x="18" width="6" height="16" fill="#e01a22"/><path d="M12 3.2l.7 2.1 1.7-.8-.5 1.9 2.1.4-1.5 1.4.6 2.1-1.9-1.2-1.2 2.2V9.8l-1.2-2.2-1.9 1.2.6-2.1-1.5-1.4 2.1-.4-.5-1.9 1.7.8z" fill="#e01a22"/></svg></span>
-          <span class="edition-code" id="editionLabel">CA</span>
-          <svg class="edition-arrow" aria-hidden="true" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M4.5 6l3.5 3.5L11.5 6z"/>
-          </svg>
-          <label for="editionSelect" class="sr-only">Choose news edition</label>
-          <select id="editionSelect" aria-label="News edition">
-            <option value="ca">Canada (CA)</option>
-            <option value="us">United States (US)</option>
-            <option value="in">India (IN)</option>
-          </select>
-        </div>
-        <button class="narrator-chip" id="narratorChip" type="button" aria-label="Change narrator">
-          <span class="narrator-glyph"><svg aria-hidden="true"><use href="#i-mic"/></svg></span>
-          <span class="narrator-text"><b id="narratorName">Narrator</b><small id="narratorDesc"></small></span>
+    <!-- Board 0: Primary Player Experience -->
+    <div class="clean-shell" id="cleanShell">
+      <!-- Top Bar -->
+      <header class="clean-topbar" id="cleanTopbar">
+        <button class="clean-glass-circle" id="openMenuBtn" type="button" aria-label="Open menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 8h16M4 16h10"/></svg>
         </button>
-        <div class="text-size" id="textSize" role="group" aria-label="Text size">
-          <button type="button" data-size="sm" aria-label="Smaller text">A<sup>−</sup></button>
-          <button type="button" data-size="md" aria-label="Default text size">A</button>
-          <button type="button" data-size="lg" aria-label="Larger text">A<sup>+</sup></button>
+        <div class="clean-brand" aria-label="Hark Daily">
+          <div class="clean-brand-logo-wrap">
+            <img src="/icons/icon.svg" class="clean-brand-logo" alt="Hark logo" width="32" height="32">
+          </div>
+          <div class="clean-brand-text">
+            <span class="clean-brand-name">hark</span>
+            <span class="clean-brand-badge">DAILY</span>
+          </div>
         </div>
-        <button class="icon-btn hidden" id="installBtn" aria-label="Install the app" title="Install the app"><svg><use href="#i-download"/></svg></button>
-        <button class="icon-btn" id="themeToggle" aria-label="Switch theme" title="Switch theme"><svg><use href="#i-moon"/></svg></button>
-        <button class="pill-btn glass-btn sm hidden" id="topbarSignInBtn" type="button">Sign in</button>
-        <button class="avatar-btn" id="avatarBtn" type="button" aria-label="Account and settings"><span id="avatarInitial"><svg aria-hidden="true"><use href="#i-user"/></svg></span></button>
+        <button class="clean-glass-pill" id="openAllStoriesBtn" type="button" aria-label="All stories">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.5M4 12h.5M4 18h.5"/></svg>
+          <span id="openAllStoriesLabel">All 35</span>
+        </button>
       </header>
 
-      <main id="main">
-        <section class="page" id="page-today" aria-label="Today">
-          <div class="screen">
-            <header class="brief-head">
-              <div class="brief-head-text">
-                <div class="brief-badges">
-                  <span class="freshness-tag" id="freshnessTag"></span>
-                  <span class="overline hidden" id="dateOverline"></span>
-                </div>
-                <h1 class="display" id="briefTitle">Your Daily Brief</h1>
-                <p class="brief-meta" id="screenSubtitle"></p>
-              </div>
-            </header>
-
-            <div id="notice"></div>
-
-            <!-- Shared Story Arrival Banner -->
-            <section class="glass shared-story-banner hidden" id="sharedStoryBanner" aria-label="Shared story briefing">
-              <div class="shared-story-content">
-                <div class="shared-story-badge-row">
-                  <span class="shared-story-pill"><svg class="inline-icon" aria-hidden="true"><use href="#i-share"/></svg>Shared story</span>
-                  <span class="shared-story-meta" id="sharedStorySubtitle">Voiced on Hark Daily · 20s audio</span>
-                </div>
-                <h2 class="shared-story-headline" id="sharedStoryHeadline">Story headline</h2>
-              </div>
-              <div class="shared-story-actions">
-                <button class="pill-btn sm" type="button" id="sharedStoryPlayBtn">
-                  <svg class="i-play" aria-hidden="true"><use href="#i-play"/></svg>
-                  <span>Listen now</span>
-                </button>
-                <button class="pill-btn glass-btn sm" type="button" id="sharedStoryBrowseBtn">
-                  <span>See full brief</span>
-                </button>
-                <button class="icon-btn notice-banner-close" type="button" id="sharedStoryCloseBtn" aria-label="Dismiss banner" title="Dismiss banner">
-                  <svg><use href="#i-close"/></svg>
-                </button>
-              </div>
-            </section>
-
-            <!-- Optional Guest Action Banner: Notifications, Install, Sign in -->
-            <section class="glass guest-banner hidden" id="guestBanner" aria-label="Welcome to Hark Daily">
-              <div class="guest-banner-main">
-                <div class="guest-banner-icon" aria-hidden="true">
-                  <img src="/icons/icon.svg" alt="" width="32" height="32">
-                </div>
-                <div class="guest-banner-content">
-                  <div class="guest-banner-header">
-                    <span class="badge badge-accent"><span class="badge-dot" aria-hidden="true"></span>Guest Mode</span>
-                    <h2 class="guest-banner-title">Welcome to Hark Daily</h2>
-                  </div>
-                  <p class="guest-banner-short">Get the brief every morning.</p>
-                  <p class="guest-banner-desc">You are listening to today's news free as a guest. Enable morning notifications, install the app for instant access, or sign in to sync preferences.</p>
-                  <div class="guest-banner-actions">
-                    <button class="pill-btn sm" type="button" id="bannerPushBtn">
-                      <svg aria-hidden="true" width="15" height="15"><use href="#i-bell"/></svg>
-                      <span>Enable notifications</span>
-                    </button>
-                    <button class="pill-btn glass-btn sm hidden" type="button" id="bannerInstallBtn">
-                      <svg aria-hidden="true" width="15" height="15"><use href="#i-download"/></svg>
-                      <span>Install app</span>
-                    </button>
-                    <button class="pill-btn glass-btn sm" type="button" id="bannerSignInBtn">
-                      <svg aria-hidden="true" width="15" height="15"><use href="#i-user"/></svg>
-                      <span>Sign in</span>
-                    </button>
-                  </div>
-                </div>
-                <button class="icon-btn guest-banner-close" type="button" id="bannerCloseBtn" aria-label="Dismiss banner" title="Dismiss banner">
-                  <svg><use href="#i-close"/></svg>
-                </button>
-              </div>
-            </section>
-
-            <!-- Podcast Narrator Guided Banner -->
-            <section class="glass notice-banner podcast-voice-banner hidden" id="podcastVoiceBanner" aria-label="Podcast co-hosts note">
-              <div class="notice-banner-main">
-                <div class="notice-banner-icon" aria-hidden="true">
-                  <svg width="20" height="20"><use href="#i-mic"/></svg>
-                </div>
-                <div class="notice-banner-content">
-                  <div class="notice-banner-header">
-                    <span class="badge badge-accent"><span class="badge-dot" aria-hidden="true"></span>Podcast Edition</span>
-                    <h2 class="notice-banner-title">Voiced by co-hosts</h2>
-                  </div>
-                  <p class="notice-banner-desc">Matthew &amp; Kelly co-host this edition together. To choose an individual narrator (Kelly, Matthew, Jerry, or C-3PO), switch to Full Brief.</p>
-                  <div class="notice-banner-actions">
-                    <button class="pill-btn sm" type="button" id="bannerSwitchFullBtn">
-                      <svg aria-hidden="true" width="14" height="14"><use href="#i-sun"/></svg>
-                      <span>Switch to Full Brief</span>
-                    </button>
-                    <button class="pill-btn glass-btn sm" type="button" id="bannerDismissVoiceBtn">
-                      <span>Keep Podcast</span>
-                    </button>
-                  </div>
-                </div>
-                <button class="icon-btn notice-banner-close" type="button" id="bannerCloseVoiceBtn" aria-label="Dismiss banner" title="Dismiss banner">
-                  <svg><use href="#i-close"/></svg>
-                </button>
-              </div>
-            </section>
-
-            <!-- Audio Briefing & Spoken Story Reader -->
-            <section class="hero hidden" id="hero" aria-label="Audio briefing">
-              <div class="brief-mode-bar" id="briefModeBar">
-                <div class="segmented mode-segmented" role="radiogroup" aria-label="Briefing edition">
-                  <button type="button" class="seg-opt on" id="modePodcastBtn" role="radio" aria-checked="true">
-                    <svg class="mode-icon" aria-hidden="true"><use href="#i-mic"/></svg>
-                    <span>Podcast</span>
-                    <span class="mode-meta" id="modePodcastMeta">Two hosts</span>
-                  </button>
-                  <button type="button" class="seg-opt" id="modeFullBtn" role="radio" aria-checked="false">
-                    <svg class="mode-icon" aria-hidden="true"><use href="#i-sun"/></svg>
-                    <span>Full Brief</span>
-                    <span class="mode-meta" id="modeFullMeta">~10 min</span>
-                  </button>
-                  <button type="button" class="seg-opt hidden" id="modeRapidBtn" role="radio" aria-checked="false">
-                    <svg class="mode-icon icon-rapid" aria-hidden="true"><use href="#i-bolt"/></svg>
-                    <span>Rapid Fire</span>
-                    <span class="mode-meta badge-rapid" id="modeRapidMeta">⚡ Top 5 · 1.1x</span>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Expanded Active News Story Reader with Big Cover Image -->
-              <article class="hero-article-reader" id="transcript" aria-label="Currently voiced story">
-                <div class="reader-image-wrap" id="readerImageWrap" role="button" tabindex="0" title="Tap to play or pause">
-                  <img id="readerHeroImage" class="reader-hero-image" alt="Story cover" loading="eager" src="/icons/icon-512.png">
-                  <div class="reader-image-overlay">
-                    <span class="reader-image-badge" id="readerImageBadge">
-                      <svg class="inline-icon" aria-hidden="true"><use href="#i-wave"/></svg>
-                      <span id="readerImageBadgeText">Voiced by Matthew &amp; Kelly</span>
-                    </span>
-                    <button class="reader-image-play-btn" id="readerImagePlayBtn" type="button" aria-label="Play or pause story" title="Play or pause">
-                      <svg class="i-play" aria-hidden="true"><use href="#i-play"/></svg>
-                      <svg class="i-pause" aria-hidden="true"><use href="#i-pause"/></svg>
-                    </button>
-                  </div>
-                </div>
-
-                <header class="reader-head">
-                  <div class="reader-kicker">
-                    <span class="reader-live-dot" aria-hidden="true"></span>
-                    <span class="badge badge-cat cat-top" id="readerSectionBadge">TOP STORIES</span>
-                    <span class="reader-source" id="readerSource">CBC News</span>
-                    <span class="reader-sep" aria-hidden="true">·</span>
-                    <span class="reader-count" id="readerStoryCount">Story 1 of 35</span>
-                  </div>
-                  <button class="pill-btn glass-btn xs open-lineup-btn" type="button" id="openLineupBtn" aria-label="View all stories in this brief" title="View episode lineup">
-                    <svg aria-hidden="true" width="13" height="13"><use href="#i-playlist"/></svg>
-                    <span>Episode lineup</span>
-                  </button>
-                </header>
-
-                <h1 class="reader-headline" id="readerHeadline">Welcome to Hark Daily</h1>
-
-                <div class="reader-body" id="transcriptBody">
-                  <p class="reader-text" id="transcriptText">Tap play to listen and read along.</p>
-                </div>
-
-                <footer class="reader-footer">
-                  <div class="reader-source-link">
-                    <a class="pill-btn glass-btn sm hidden" id="readerArticleLink" target="_blank" rel="noopener noreferrer">
-                      <span>Full coverage on original source</span>
-                      <svg aria-hidden="true" width="13" height="13"><use href="#i-external"/></svg>
-                    </a>
-                  </div>
-                  <div class="reader-actions">
-                    <button class="pill-btn glass-btn sm" type="button" id="readerShareBtn" aria-label="Share this story">
-                      <svg aria-hidden="true" width="14" height="14"><use href="#i-share"/></svg>
-                      <span>Share</span>
-                    </button>
-                    <button class="pill-btn glass-btn sm" type="button" id="readerQueueBtn" aria-label="View lineup of all stories">
-                      <svg aria-hidden="true" width="14" height="14"><use href="#i-list"/></svg>
-                      <span id="readerQueueLabel">All 35 stories</span>
-                    </button>
-                  </div>
-                </footer>
-              </article>
-
-              <!-- Hidden dock preserving elements & IDs for player engine without visual duplication -->
-              <div class="hero-hidden-dock hidden" aria-hidden="true" style="display:none !important">
-                <div id="heroArt"><img id="heroCover" alt=""></div>
-                <span id="heroState"></span>
-                <span id="heroSection"></span>
-                <span id="heroTitle"></span>
-                <button id="heroNarratorBtn"><span id="heroNarratorName">Narrator</span></button>
-                <a id="heroArticle"></a>
-                <button id="heroShare"></button>
-                <span id="heroCount"></span>
-                <span id="curTime">0:00</span>
-                <span id="durTime">-0:00</span>
-                <div id="segProgress"><div id="segThumb"></div></div>
-                <button id="back15"></button>
-                <button id="prevChapter"></button>
-                <button id="playBtn"></button>
-                <button id="nextChapter"></button>
-                <button id="fwd30"></button>
-                <div id="speedPills"></div>
-              </div>
-
-              <audio id="audio" preload="metadata"></audio>
-            </section>
-
-            <footer class="app-footer" role="contentinfo">
-              <div class="app-footer-line">
-                <span>Created and managed by <a href="https://vattitude.ca" target="_blank" rel="noopener">vattitude.ca</a></span>
-                <span class="footer-sep" aria-hidden="true">·</span>
-                <a href="/privacy" target="_blank" rel="noopener">Privacy</a>
-                <span class="footer-sep" aria-hidden="true">·</span>
-                <a href="/terms" target="_blank" rel="noopener">Terms</a>
-              </div>
-            </footer>
+      <!-- Cool Hero Heading Section -->
+      <section class="clean-hero-heading" id="cleanHeroHeading" aria-label="Daily brief overview">
+        <div class="clean-hero-eyebrow">
+          <div class="clean-hero-pill">
+            <span class="clean-pulse-dot" aria-hidden="true"></span>
+            <span class="clean-live-label" id="cleanHeroDate">FRESH TODAY · THU 30 OCT</span>
           </div>
-        </section>
-        <section class="page hidden" id="page-sources" aria-label="Sources"><div class="screen"></div></section>
-        <section class="page hidden" id="page-settings" aria-label="Settings"><div class="screen"></div></section>
-        <section class="page hidden" id="page-admin" aria-label="Admin"><div class="screen"></div></section>
-      </main>
+          <div class="clean-hero-stats" id="cleanHeroStats">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span id="cleanHeroDuration">35 stories · 14m</span>
+          </div>
+        </div>
+
+        <div class="clean-hero-main">
+          <div class="clean-hero-title-row">
+            <h1 class="clean-hero-title" id="cleanHeroGreeting">Good evening</h1>
+            <span class="clean-hero-badge-tag" id="cleanHeroNarrator">🎙️ Matthew &amp; Kelly</span>
+          </div>
+          <p class="clean-hero-sub" id="cleanHeroSub">Your daily news reader · Voiced before you wake</p>
+        </div>
+      </section>
+
+      <!-- Segmented Format Toggle -->
+      <div class="clean-format-container" role="radiogroup" aria-label="Briefing edition">
+        <button class="clean-format-btn active" id="cleanFormatPodcast" type="button" role="radio" aria-checked="true">Podcast</button>
+        <button class="clean-format-btn" id="cleanFormatFull" type="button" role="radio" aria-checked="false">Full brief · <span id="cleanBriefEst">~10 min</span></button>
+      </div>
+
+      <!-- Main Glass Player Card -->
+      <div class="clean-player-card" id="cleanPlayerCard">
+        <!-- 195px Cover Image Wrap -->
+        <div class="clean-cover-wrap" id="playerCoverWrap" role="button" tabindex="0" title="Tap to play or pause">
+          <img id="playerCoverImg" class="clean-cover-img" alt="Story cover image" src="/icons/icon-512.png">
+          <div class="clean-cover-fallback hidden" id="playerCoverFallback">
+            <div class="clean-fallback-orb orb-1"></div>
+            <div class="clean-fallback-orb orb-2"></div>
+          </div>
+          <div class="clean-now-voicing-badge" id="playerNowVoicingBadge">
+            <svg class="clean-eq-svg" width="16" height="14" viewBox="0 0 16 14" fill="#F59E0B" aria-hidden="true">
+              <rect class="clean-eq-bar-1" x="1" y="5" width="3" height="8" rx="1.5"/>
+              <rect class="clean-eq-bar-2" x="6.5" y="1" width="3" height="12" rx="1.5"/>
+              <rect class="clean-eq-bar-3" x="12" y="4" width="3" height="9" rx="1.5"/>
+            </svg>
+            <span id="playerCoverBadgeText">Now voicing</span>
+          </div>
+        </div>
+
+        <!-- Story Metadata Row -->
+        <div class="clean-meta-row">
+          <div class="clean-meta-left">
+            <span class="clean-cat-pill" id="cleanCatBadge">TOP STORIES</span>
+            <span class="clean-source-title" id="cleanSourceTitle">Daily News</span>
+          </div>
+          <span class="clean-story-counter" id="cleanStoryCounter">1 / 35</span>
+        </div>
+
+        <!-- Headline -->
+        <h1 class="clean-story-headline" id="cleanStoryHeadline">Loading today's briefing…</h1>
+
+        <!-- Teleprompter / Interactive Sentence-by-Sentence Karaoke Read-Along -->
+        <div class="clean-teleprompter" id="transcriptBody" tabindex="0" aria-label="Read along with speech">
+          <p class="clean-sentences" id="transcriptText">Tap play to listen and read along.</p>
+        </div>
+
+        <!-- 40-Bar Acoustic Waveform Scrubber -->
+        <div class="clean-waveform-wrap" id="cleanWaveformWrap">
+          <div class="clean-waveform-bars" id="cleanWaveBars" role="slider" aria-label="Seek through briefing" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <!-- Dynamically populated 40 acoustic waveform bars -->
+          </div>
+          <div class="clean-waveform-times">
+            <span id="cleanCurTime">0:00</span>
+            <span id="cleanDurTime">-14:00</span>
+          </div>
+        </div>
+
+        <!-- Action Buttons: Share & Read on Source -->
+        <div class="clean-action-row">
+          <button class="clean-action-btn" type="button" id="cleanShareBtn" aria-label="Share story">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4M8 8l4-4 4 4M5 12v7h14v-7"/></svg>
+            <span>Share</span>
+          </button>
+          <a class="clean-action-btn" id="cleanSourceLink" target="_blank" rel="noopener noreferrer" aria-label="Read original coverage">
+            <span>Read on <span id="cleanSourceLinkName">Source</span></span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- Bottom Transport Dock -->
+      <div class="clean-transport-dock">
+        <button class="clean-nav-btn" id="cleanPrevBtn" type="button" aria-label="Previous story">
+          <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14L8 12z" fill="#FFFFFF"/><path d="M5.5 5v14" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"/></svg>
+        </button>
+        <button class="clean-play-circle" id="cleanPlayBtn" type="button" aria-label="Play briefing">
+          <svg class="clean-play-icon" width="40" height="40" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="#1F1A14"/></svg>
+          <svg class="clean-pause-icon" width="34" height="34" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="5" width="3.5" height="14" rx="1" fill="#1F1A14"/><rect x="14.5" y="5" width="3.5" height="14" rx="1" fill="#1F1A14"/></svg>
+        </button>
+        <button class="clean-nav-btn" id="cleanNextBtn" type="button" aria-label="Next story">
+          <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14l11-7z" fill="#FFFFFF"/><path d="M18.5 5v14" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- The persistent single audio element -->
+    <audio id="audio" preload="metadata"></audio>
+
+    <!-- Board 1: Hamburger Menu Drawer -->
+    <div class="clean-drawer-backdrop hidden" id="menuDrawer" role="dialog" aria-modal="true" aria-label="Menu">
+      <div class="clean-drawer-panel">
+        <div class="clean-drawer-head">
+          <button class="clean-glass-circle sm" id="closeMenuBtn" type="button" aria-label="Close menu">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>
+          </button>
+          <div class="clean-brand" aria-label="Hark Daily">
+            <div class="clean-brand-logo-wrap">
+              <img src="/icons/icon.svg" class="clean-brand-logo" alt="Hark logo" width="30" height="30">
+            </div>
+            <div class="clean-brand-text">
+              <span class="clean-brand-name">hark</span>
+              <span class="clean-brand-badge">DAILY</span>
+            </div>
+          </div>
+          <div style="width:44px"></div>
+        </div>
+
+        <div class="clean-drawer-card">
+          <button class="clean-menu-item" type="button" id="menuTodayBtn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14v-2a8 8 0 0116 0v2M4 14h3v5H4zM17 14h3v5h-3z"/></svg>
+            <span class="clean-menu-label">Today</span>
+            <span class="clean-menu-val" id="menuTodayVal"></span>
+          </button>
+
+          <button class="clean-menu-item" type="button" id="menuFormatBtn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+            <span class="clean-menu-label">Format</span>
+            <span class="clean-menu-val" id="menuFormatVal">Podcast · Two hosts</span>
+          </button>
+
+          <button class="clean-menu-item" type="button" id="menuVoicesBtn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>
+            <span class="clean-menu-label">Voices</span>
+            <span class="clean-menu-val" id="menuVoicesVal">Matthew &amp; Kelly</span>
+          </button>
+
+          <button class="clean-menu-item" type="button" id="menuSourcesBtn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a14 14 0 0114 14M5 11a8 8 0 018 8"/><circle cx="6" cy="18" r="1.5"/></svg>
+            <span class="clean-menu-label">Sources</span>
+            <span class="clean-menu-val" id="menuSourcesVal">Customize topics</span>
+          </button>
+
+          <button class="clean-menu-item" type="button" id="menuRegionBtn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
+            <span class="clean-menu-label">Region</span>
+            <span class="clean-menu-val" id="menuRegionVal">Canada</span>
+          </button>
+
+          <button class="clean-menu-item" type="button" id="menuOfflineBtn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>
+            <span class="clean-menu-label">Download for offline</span>
+            <span class="clean-menu-val" id="menuOfflineVal">Save MP3</span>
+          </button>
+
+          <button class="clean-menu-item" type="button" id="menuSleepTimerBtn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></svg>
+            <span class="clean-menu-label">Sleep timer</span>
+            <span class="clean-menu-val" id="menuSleepTimerVal">Off</span>
+          </button>
+
+          <button class="clean-menu-item" type="button" id="menuSettingsBtn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+            <span class="clean-menu-label">Settings</span>
+            <span class="clean-menu-val" id="menuSettingsVal">Options</span>
+          </button>
+
+          <button class="clean-menu-item clean-menu-danger" type="button" id="menuDeleteAccountBtn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg>
+            <span class="clean-menu-label" style="color:#EF4444">Delete Account</span>
+            <span class="clean-menu-val" style="color:#FCA5A5">Permanent</span>
+          </button>
+        </div>
+
+        <button class="clean-auth-btn" type="button" id="menuAuthBtn">Sign in</button>
+      </div>
+    </div>
+
+    <!-- Board 2: All Stories / Jump to a topic Bottom Sheet -->
+    <div class="clean-stories-backdrop hidden" id="allStoriesSheet" role="dialog" aria-modal="true" aria-label="Jump to a topic">
+      <div class="clean-stories-panel">
+        <div class="clean-sheet-handle" aria-hidden="true"></div>
+        <div class="clean-stories-head">
+          <div>
+            <div class="clean-stories-title">Jump to a topic</div>
+            <div class="clean-stories-sub" id="allStoriesSub">35 stories today · tap to start listening</div>
+          </div>
+          <button class="clean-glass-circle sm" id="closeAllStoriesBtn" type="button" aria-label="Close stories">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>
+          </button>
+        </div>
+
+        <!-- 2-Column Grid of Topics from Mock -->
+        <div class="clean-topic-grid" id="cleanTopicGrid">
+          <!-- Populated dynamically with star, globe, map pin, chart, tech, sports icons -->
+        </div>
+
+        <!-- Searchable All Stories List -->
+        <div class="clean-stories-search-wrap">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+          <input type="search" id="cleanStoriesSearch" class="clean-stories-search-input" placeholder="Search stories in today's brief…" autocomplete="off">
+        </div>
+        <div class="clean-stories-list" id="cleanStoriesList">
+          <!-- Story chapters -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Aux Sheet for Sources & Settings Views -->
+    <div class="clean-aux-sheet hidden" id="auxSheet" role="dialog" aria-modal="true" aria-label="Details">
+      <div class="clean-aux-container">
+        <header class="clean-aux-head">
+          <button class="clean-glass-circle sm" id="closeAuxBtn" type="button" aria-label="Back to player">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h2 class="clean-aux-title" id="auxTitle">Sources &amp; Topics</h2>
+          <div style="width:40px"></div>
+        </header>
+        <div class="clean-aux-body" id="auxBody">
+          <section class="page hidden" id="page-sources" aria-label="Sources"><div class="screen"></div></section>
+          <section class="page hidden" id="page-settings" aria-label="Settings"><div class="screen"></div></section>
+          <section class="page hidden" id="page-admin" aria-label="Admin"><div class="screen"></div></section>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compatibility Dock: Retaining all legacy DOM hooks so tests & external modules stay fully functional -->
+    <div class="engine-compat-dock" style="display:none!important" aria-hidden="true">
+      <div id="heroArt"><img id="heroCover" alt=""></div>
+      <span id="heroState"></span>
+      <span id="heroSection"></span>
+      <span id="heroTitle"></span>
+      <button id="heroNarratorBtn"><span id="heroNarratorName">Narrator</span></button>
+      <a id="heroArticle"></a>
+      <button id="heroShare"></button>
+      <span id="heroCount"></span>
+      <span id="curTime">0:00</span>
+      <span id="durTime">-0:00</span>
+      <div id="segProgress"><div id="segThumb"></div></div>
+      <button id="back15"></button>
+      <button id="prevChapter"></button>
+      <button id="playBtn"></button>
+      <button id="nextChapter"></button>
+      <button id="fwd30"></button>
+      <div id="speedPills"></div>
+      <div id="tabbar">
+        <button class="tab" data-tab="today"></button>
+        <button class="tab" data-tab="sources"></button>
+        <button class="tab" data-tab="settings"></button>
+        <button class="tab" id="adminTab" data-tab="admin"></button>
+      </div>
+      <div id="hero"></div>
+      <article id="transcript"></article>
+      <span id="freshnessTag"></span>
+      <span id="dateOverline"></span>
+      <h1 id="briefTitle"></h1>
+      <p id="screenSubtitle"></p>
+      <div id="notice"></div>
+      <div id="sections"></div>
+      <button id="modePodcastBtn"></button>
+      <button id="modeFullBtn"></button>
+      <span id="modePodcastMeta"></span>
+      <span id="modeFullMeta"></span>
+      <select id="editionSelect"><option value="ca">CA</option><option value="us">US</option><option value="in">IN</option></select>
+      <span id="editionLabel">CA</span>
+      <span id="narratorName"></span>
+      <span id="narratorDesc"></span>
+      <button id="topbarSignInBtn"></button>
+      <button id="avatarBtn"><span id="avatarInitial"></span></button>
+      <input type="search" id="searchInput">
+      <span id="statusText"></span>
+      <span id="greeting"></span>
+      <span id="liveStatus"></span>
+      <span id="dayProgressVal"></span>
+      <span id="dayProgressBar"></span>
+      <button id="readerShareBtn"></button>
+      <a id="readerArticleLink"><span></span></a>
+      <span id="readerSectionBadge"></span>
+      <span id="readerSource"></span>
+      <span id="readerStoryCount"></span>
+      <h1 id="readerHeadline"></h1>
+      <div id="readerImageWrap"><img id="readerHeroImage"><span id="readerImageBadgeText"></span><button id="readerImagePlayBtn"></button></div>
+      <div id="miniPlayer" class="mini-player" style="display:none!important">
+        <img id="miniCover"><span id="miniEq"></span><span id="miniTitle"></span><span id="miniSub"></span>
+        <div id="miniBarWrap"><span id="miniBar"></span></div>
+        <button id="miniPrev"></button><button id="miniBack"></button><button id="miniPlay"></button><button id="miniNext"></button>
+      </div>
+      <div id="sharedStoryBanner" class="hidden"></div>
+      <div id="guestBanner" class="hidden"></div>
+      <div id="podcastVoiceBanner" class="hidden"></div>
+      <div id="dateChips"></div>
     </div>
   </div>
 
