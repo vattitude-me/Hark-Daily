@@ -45,9 +45,10 @@ export PODCAST_ENABLED="true"
 export PODCAST_HOSTS="matthew_reference,kelly_reference"
 export STORY_VOICE="matthew_reference+kelly_reference"
 export STORY_VOICES="matthew_reference+kelly_reference"
-export VOICE_PACE="0.94"
-export VOICE_TEMPERATURE="0.90"
-export VOICE_TOP_P="0.98"
+export VOICE_PACE="0.92"
+export VOICE_TEMPERATURE="0.92"
+export VOICE_TOP_P="0.96"
+export VOICE_REPETITION_PENALTY="1.15"
 export VOICE_EXAGGERATION="0.75"
 
 # Start the local voice service using Apple Silicon MPS

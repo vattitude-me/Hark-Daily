@@ -535,6 +535,7 @@ async def synthesise(client: httpx.AsyncClient, base: str, text: str, voice: str
                      pace: float | None = None,
                      temperature: float | None = None,
                      top_p: float | None = None,
+                     repetition_penalty: float | None = None,
                      exaggeration: float | None = None,
                      beat: float | None = None) -> tuple[bytes, float]:
     """One MP3 from the voice service, plus its duration (from the response header).
@@ -556,6 +557,8 @@ async def synthesise(client: httpx.AsyncClient, base: str, text: str, voice: str
         payload["temperature"] = temperature
     if top_p is not None:
         payload["top_p"] = top_p
+    if repetition_penalty is not None:
+        payload["repetition_penalty"] = repetition_penalty
     if exaggeration is not None:
         payload["exaggeration"] = exaggeration
     if beat is not None:

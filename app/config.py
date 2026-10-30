@@ -79,9 +79,10 @@ class Config:
     max_custom_sources: int = int(os.getenv("MAX_CUSTOM_SOURCES", "15"))
     # The Cloned narrator: the LAN/GPU voice service that voices the shared daily stories.
     voice_url: str = os.getenv("VOICE_SERVICE_URL", "").rstrip("/")
-    voice_pace: float = float(os.getenv("VOICE_PACE", "0.94"))
-    voice_temperature: float = float(os.getenv("VOICE_TEMPERATURE", "0.90"))
-    voice_top_p: float = float(os.getenv("VOICE_TOP_P", "0.98"))
+    voice_pace: float = float(os.getenv("VOICE_PACE", "0.92"))
+    voice_temperature: float = float(os.getenv("VOICE_TEMPERATURE", "0.92"))
+    voice_top_p: float = float(os.getenv("VOICE_TOP_P", "0.96"))
+    voice_repetition_penalty: float = float(os.getenv("VOICE_REPETITION_PENALTY", "1.15"))
     voice_exaggeration: float = float(os.getenv("VOICE_EXAGGERATION", "0.75"))
     story_voice: str = os.getenv("STORY_VOICE", "c3po_reference")
     # Every voice the pack renders each day. A listener hears the one they picked, and the
