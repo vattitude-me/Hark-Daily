@@ -289,7 +289,8 @@ export function buildBriefing(rows, settings, {
     for (const key of SECTION_ORDER) rapidWanted[key] = 0;
 
     // Check available clips for voice in 'top'
-    const topClips = (rows || []).filter((r) => (!id || r.voice === id) && r.section === 'top');
+    const topSecKey = editionSectionKey('top', edition);
+    const topClips = (rows || []).filter((r) => (!id || r.voice === id) && (r.section === topSecKey || (edition === 'ca' && r.section === 'top')));
     const topCount = Math.min(5, topClips.length);
     rapidWanted['top'] = topCount;
 
@@ -298,7 +299,8 @@ export function buildBriefing(rows, settings, {
     if (remaining > 0) {
       for (const key of order) {
         if (key === 'top') continue;
-        const avail = (rows || []).filter((r) => (!id || r.voice === id) && r.section === key).length;
+        const edSecKey = editionSectionKey(key, edition);
+        const avail = (rows || []).filter((r) => (!id || r.voice === id) && (r.section === edSecKey || (edition === 'ca' && r.section === key))).length;
         const take = Math.min(remaining, avail);
         if (take > 0) {
           rapidWanted[key] = take;
@@ -524,6 +526,7 @@ export function buildBriefing(rows, settings, {
     date,
     title: isRapid ? 'Rapid Fire · Top 5 Stories' : isPodcast ? 'Your briefing · Podcast' : 'Your briefing',
     mode: isRapid ? 'rapid' : isPodcast ? 'podcast' : 'full',
+    edition: edition || 'ca',
     podcastFallback: mode === 'podcast' && !isPodcast,
     duration: round(cursor),
     generated_at: new Date().toISOString(),
