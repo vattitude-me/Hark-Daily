@@ -2236,6 +2236,76 @@ function initConsentPopup() {
   });
 }
 
+async function handleNativeAuthCallback(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== 'string') return;
+  try {
+    let search = '';
+    let hash = '';
+    const qIdx = rawUrl.indexOf('?');
+    const hIdx = rawUrl.indexOf('#');
+    if (qIdx !== -1) {
+      search = hIdx !== -1 && hIdx > qIdx ? rawUrl.slice(qIdx + 1, hIdx) : rawUrl.slice(qIdx + 1);
+    }
+    if (hIdx !== -1) {
+      hash = rawUrl.slice(hIdx + 1);
+    }
+
+    const params = new URLSearchParams(search);
+    const hashParams = new URLSearchParams(hash);
+
+    const errorDesc = params.get('error_description') || hashParams.get('error_description')
+      || params.get('error') || hashParams.get('error');
+    if (errorDesc) {
+      toast(errorDesc, { error: true });
+      return;
+    }
+
+    const code = params.get('code') || hashParams.get('code');
+    if (code) {
+      toast('Signing you in…');
+      const { data, error } = await sb.auth.exchangeCodeForSession(code);
+      if (error) {
+        console.error('exchangeCodeForSession error:', error);
+        toast(error.message || 'Authentication failed. Please try again.', { error: true });
+        return;
+      }
+      if (data?.session) {
+        toast('Signed in successfully! 👋');
+        $('loginModal')?.classList.add('hidden');
+        $('menuDrawer')?.classList.add('hidden');
+        setTimeout(enterApp, 0);
+        return;
+      }
+    }
+
+    const accessToken = hashParams.get('access_token') || params.get('access_token');
+    const refreshToken = hashParams.get('refresh_token') || params.get('refresh_token');
+    if (accessToken && refreshToken) {
+      toast('Signing you in…');
+      const { data, error } = await sb.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      if (error) {
+        console.error('setSession error:', error);
+        toast(error.message || 'Authentication failed. Please try again.', { error: true });
+        return;
+      }
+      if (data?.session) {
+        toast('Signed in successfully! 👋');
+        $('loginModal')?.classList.add('hidden');
+        $('menuDrawer')?.classList.add('hidden');
+        setTimeout(enterApp, 0);
+        return;
+      }
+    }
+  } catch (err) {
+    console.error('handleNativeAuthCallback error:', err);
+    toast(err.message || 'Authentication failed.', { error: true });
+  }
+}
+window.handleNativeAuthCallback = handleNativeAuthCallback;
+
 async function init() {
   window.addEventListener('error', (e) => { recordError(e.error || e.message, 'window.onerror'); });
   window.addEventListener('unhandledrejection', (e) => { recordError(e.reason, 'window.unhandledrejection'); });
@@ -2246,6 +2316,17 @@ async function init() {
   syncInstallBtn();
   syncAdminTab();
   syncEditionPicker();
+
+  if (window.HarkNative?.getPendingAuthUri) {
+    try {
+      const pending = window.HarkNative.getPendingAuthUri();
+      if (pending) {
+        handleNativeAuthCallback(pending);
+      }
+    } catch (e) {
+      console.warn('Failed to retrieve pending auth uri:', e);
+    }
+  }
   if (!store.get('edition', null)) {
     detectEditionFromIp().then((ipEd) => {
       if (ipEd && ipEd !== state.edition && !store.get('edition', null)) {
