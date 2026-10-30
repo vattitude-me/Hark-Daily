@@ -2998,12 +2998,12 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: clamp(8px, 1.6vh, 12px);
+  gap: clamp(6px, 1.3vh, 10px);
   max-width: 440px;
   margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
-  padding: max(12px, env(safe-area-inset-top)) 16px max(14px, env(safe-area-inset-bottom));
+  padding: max(10px, env(safe-area-inset-top)) 16px max(14px, env(safe-area-inset-bottom));
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
@@ -3224,10 +3224,10 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 12px 32px rgba(0, 0, 0, 0.35);
   flex: 1;
   border-radius: 28px;
-  padding: clamp(10px, 1.5vh, 14px);
+  padding: clamp(10px, 1.4vh, 14px) clamp(10px, 1.4vh, 14px) clamp(8px, 1.1vh, 12px);
   display: flex;
   flex-direction: column;
-  gap: clamp(6px, 1.2vh, 10px);
+  gap: clamp(6px, 1.1vh, 9px);
   min-height: 0;
   overflow: hidden;
 }
@@ -3358,12 +3358,12 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
 /* Teleprompter / Read-along Karaoke */
 .clean-teleprompter {
   flex: 1;
-  min-height: 44px;
-  max-height: clamp(48px, 7.5vh, 76px);
+  min-height: 48px;
+  max-height: clamp(52px, 15vh, 115px);
   overflow-y: auto;
-  padding: 6px 8px;
+  padding: 6px 10px;
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.16);
+  background: rgba(0, 0, 0, 0.22);
   border: 1px solid rgba(255, 255, 255, 0.08);
   scroll-behavior: smooth;
   outline: none;
@@ -3393,14 +3393,15 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
 
 /* 40-Bar Acoustic Waveform Scrubber */
 .clean-waveform-wrap {
-  padding: 0 4px;
+  margin-top: auto;
+  padding: 2px 4px 0;
   flex: none;
 }
 .clean-waveform-bars {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 40px;
+  height: 38px;
   cursor: pointer;
   user-select: none;
   touch-action: none;
@@ -3418,7 +3419,7 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
 .clean-waveform-times {
   display: flex;
   justify-content: space-between;
-  margin-top: 6px;
+  margin-top: 4px;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.75);
   font-variant-numeric: tabular-nums;
@@ -3809,10 +3810,10 @@ body.playing .clean-play-circle .clean-pause-icon {
 .clean-aux-sheet {
   position: fixed;
   inset: 0;
-  background: rgba(23, 18, 14, 0.94);
+  background: rgba(18, 14, 10, 0.95);
   z-index: 1050;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
   display: flex;
   justify-content: center;
   animation: fadeIn .2s ease;
@@ -3832,21 +3833,227 @@ body.playing .clean-play-circle .clean-pause-icon {
   justify-content: space-between;
   height: 48px;
   flex: none;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 .clean-aux-title {
   margin: 0;
-  font-size: 20px;
+  font-family: 'Space Grotesk', -apple-system, sans-serif;
+  font-size: 21px;
   font-weight: 700;
   color: #FFFFFF;
+  letter-spacing: -0.3px;
 }
 .clean-aux-body {
   flex: 1;
   overflow-y: auto;
   border-radius: 20px;
+  padding-bottom: 40px;
+}
+.clean-aux-body::-webkit-scrollbar {
+  width: 6px;
+}
+.clean-aux-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 3px;
 }
 .clean-aux-body .page {
   padding: 0 !important;
+}
+
+/* Scoped Sources & Topics UI theme inside Clean Player */
+.clean-aux-sheet .screen-header {
+  display: none !important;
+}
+.clean-aux-sheet .hint {
+  color: rgba(255, 255, 255, 0.7) !important;
+  font-size: 13.5px !important;
+  line-height: 1.5 !important;
+  margin: 0 4px 16px !important;
+  padding: 0 !important;
+}
+.clean-aux-sheet .glass-group {
+  background: rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(28px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 24px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 16px 40px rgba(0, 0, 0, 0.45) !important;
+  padding: 8px !important;
+  margin-bottom: 24px !important;
+}
+.clean-aux-sheet .topic-card {
+  border-radius: 18px !important;
+  transition: background-color .15s ease, transform .15s ease !important;
+}
+.clean-aux-sheet .topic-card:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+.clean-aux-sheet .topic-card.dragging {
+  opacity: 0.5 !important;
+  background: rgba(245, 158, 11, 0.15) !important;
+}
+.clean-aux-sheet .topic-card.drag-over-top {
+  box-shadow: inset 0 2px 0 #F59E0B !important;
+}
+.clean-aux-sheet .topic-card.drag-over-bottom {
+  box-shadow: inset 0 -2px 0 #F59E0B !important;
+}
+.clean-aux-sheet .topic-head {
+  padding: 8px 10px 8px 6px !important;
+  gap: 10px !important;
+}
+.clean-aux-sheet .topic-title {
+  font-family: 'Space Grotesk', -apple-system, sans-serif !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  color: #FFFFFF !important;
+  letter-spacing: -0.2px !important;
+}
+.clean-aux-sheet .topic-summary {
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  color: #F59E0B !important;
+  margin-top: 2px !important;
+}
+.clean-aux-sheet .topic-card.off .topic-title {
+  color: rgba(255, 255, 255, 0.38) !important;
+}
+.clean-aux-sheet .topic-card.off .topic-summary {
+  color: rgba(255, 255, 255, 0.30) !important;
+}
+.clean-aux-sheet .topic-card.off .cat-tile {
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+.clean-aux-sheet .cat-tile {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+.clean-aux-sheet .cat-tile svg {
+  width: 19px !important;
+  height: 19px !important;
+}
+.clean-aux-sheet .pill-stepper {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  padding: 3px !important;
+  border-radius: 9999px !important;
+  background: rgba(0, 0, 0, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5) !important;
+}
+.clean-aux-sheet .step-btn {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  max-width: 28px !important;
+  max-height: 28px !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.10) !important;
+  border: none !important;
+  color: #F59E0B !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  display: grid !important;
+  place-items: center !important;
+  cursor: pointer !important;
+  transition: all .15s ease !important;
+  padding: 0 !important;
+}
+.clean-aux-sheet .step-btn:hover:not(:disabled) {
+  background: #F59E0B !important;
+  color: #1F1A14 !important;
+  transform: scale(1.08) !important;
+}
+.clean-aux-sheet .step-btn:active:not(:disabled) {
+  transform: scale(0.94) !important;
+}
+.clean-aux-sheet .step-btn:disabled {
+  opacity: 0.22 !important;
+  color: rgba(255, 255, 255, 0.3) !important;
+  cursor: default !important;
+}
+.clean-aux-sheet .step-value {
+  min-width: 32px !important;
+  text-align: center !important;
+  font-family: 'Space Grotesk', -apple-system, sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  color: #FFFFFF !important;
+}
+.clean-aux-sheet .drag-handle {
+  color: rgba(255, 255, 255, 0.32) !important;
+  width: 1.8rem !important;
+}
+.clean-aux-sheet .reorder-btn {
+  color: #F59E0B !important;
+}
+.clean-aux-sheet .reorder-btn:hover:not(:disabled) {
+  color: #FFC766 !important;
+}
+.clean-aux-sheet .reorder-btn:disabled {
+  opacity: 0.15 !important;
+}
+.clean-aux-sheet .hairline {
+  background: rgba(255, 255, 255, 0.08) !important;
+  margin: 0 12px !important;
+}
+.clean-aux-sheet .topic-expand {
+  color: rgba(255, 255, 255, 0.6) !important;
+  border: none !important;
+  background: transparent !important;
+}
+.clean-aux-sheet .topic-expand:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #FFFFFF !important;
+}
+.clean-aux-sheet .topic-body {
+  padding: 4px 8px 12px 3.2rem !important;
+}
+.clean-aux-sheet .source-row {
+  border-radius: 12px !important;
+  padding: 8px 10px !important;
+  transition: background-color .15s ease !important;
+}
+.clean-aux-sheet .source-row:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+.clean-aux-sheet .source-title {
+  color: #FFFFFF !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+}
+.clean-aux-sheet .source-host {
+  color: rgba(255, 255, 255, 0.5) !important;
+  font-size: 12px !important;
+}
+.clean-aux-sheet .source-desc {
+  color: rgba(255, 255, 255, 0.4) !important;
+  font-size: 12px !important;
+}
+.clean-aux-sheet .switch span {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+}
+.clean-aux-sheet .switch input:checked + span {
+  background: #F59E0B !important;
+  border-color: #F59E0B !important;
+}
+.clean-aux-sheet .switch span::after {
+  background: #FFFFFF !important;
+}
+
+/* Floating Save Bar above sheets */
+.save-bar {
+  z-index: 1200 !important;
 }
 
 @keyframes fadeIn {
