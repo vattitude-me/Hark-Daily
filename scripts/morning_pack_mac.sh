@@ -86,8 +86,9 @@ fi
 # Run the storypack generation pipeline (voicing stories & podcast on M3 Pro, pushing to Supabase)
 # Morning edition voices Canada and US, sharing AI, Tech, and Science
 cd "$ROOT"
-log "Running briefing pack generation for Canada & US editions (voicing on M3 Pro, pushing to Supabase)..."
-"$ROOT/.venv/bin/python" -m app pack --edition ca,us --notify "$@" >> "$LOG_FILE" 2>&1
+TARGET_EDITION="${EDITION:-ca,us}"
+log "Running briefing pack generation for ${TARGET_EDITION} editions (voicing on M3 Pro, pushing to Supabase)..."
+"$ROOT/.venv/bin/python" -m app pack --edition "$TARGET_EDITION" --notify "$@" >> "$LOG_FILE" 2>&1
 
 log "✓ Morning Edition successfully published to Supabase!"
 
