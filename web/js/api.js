@@ -354,13 +354,44 @@ export const api = {
   // ------------------------------------------------------------------ auth
   session: async () => (await sb.auth.getSession()).data?.session || null,
   // Signs in, or creates the account on first use. The email links back here (plus a code if the template has one).
-  sendCode: async (email) => check(await sb.auth.signInWithOtp({
-    email, options: { shouldCreateUser: true, emailRedirectTo: location.origin },
-  })),
+  sendCode: async (email) => {
+    const isNative = Boolean(typeof window !== 'undefined' && (window.HarkNative?.isNativeShell?.() || window.Capacitor?.isNativePlatform?.()));
+    const redirectUrl = (typeof window !== 'undefined' && window.HarkNative?.getAuthRedirectUrl?.())
+      || (isNative ? 'me.vattitude.morningbrief://auth' : location.origin);
+    return check(await sb.auth.signInWithOtp({
+      email, options: { shouldCreateUser: true, emailRedirectTo: redirectUrl },
+    }));
+  },
   // Redirects to Google, then back here with a session in the URL (detectSessionInUrl picks it up).
-  signInWithGoogle: async () => check(await sb.auth.signInWithOAuth({
-    provider: 'google', options: { redirectTo: location.origin, queryParams: { prompt: 'select_account' } },
-  })),
+  signInWithGoogle: async () => {
+    const isNative = Boolean(typeof window !== 'undefined' && (window.HarkNative?.isNativeShell?.() || window.Capacitor?.isNativePlatform?.()));
+    const redirectUrl = (typeof window !== 'undefined' && window.HarkNative?.getAuthRedirectUrl?.())
+      || (isNative ? 'me.vattitude.morningbrief://auth' : location.origin);
+
+    if (isNative && window.HarkNative?.openAuthUrl) {
+      const { data, error } = await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: { prompt: 'select_account' },
+          skipBrowserRedirect: true,
+        },
+      });
+      if (error) throw error;
+      if (data?.url) {
+        window.HarkNative.openAuthUrl(data.url);
+        return data;
+      }
+    }
+
+    return check(await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectUrl,
+        queryParams: { prompt: 'select_account' },
+      },
+    }));
+  },
   verifyCode: async (email, token) => check(await sb.auth.verifyOtp({ email, token, type: 'email' })),
   signOut: async () => {
     me = null;

@@ -7,12 +7,14 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import androidx.browser.customtabs.CustomTabsIntent;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import com.getcapacitor.BridgeActivity;
@@ -24,6 +26,7 @@ public class MainActivity extends BridgeActivity {
     public static final int BRIEFING_NOTIFICATION_ID = 3001;
 
     public static WeakReference<MainActivity> activeInstance;
+    private String pendingAuthUri = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,6 +37,60 @@ public class MainActivity extends BridgeActivity {
         requestNotificationPermissionIfNeeded();
         setupWindowInsets();
         configureSmartShell();
+        handleAuthIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleAuthIntent(intent);
+    }
+
+    private void handleAuthIntent(Intent intent) {
+        if (intent == null) return;
+        Uri uri = intent.getData();
+        if (uri == null) return;
+
+        String scheme = uri.getScheme();
+        String host = uri.getHost();
+
+        boolean isCustomAuth = ("me.vattitude.morningbrief".equalsIgnoreCase(scheme) || getPackageName().equalsIgnoreCase(scheme))
+                && "auth".equalsIgnoreCase(host);
+
+        boolean isHttpsAuth = "https".equalsIgnoreCase(scheme)
+                && "hark.vattitude.ca".equalsIgnoreCase(host)
+                && (uri.getQuery() != null || uri.getFragment() != null);
+
+        if (isCustomAuth || isHttpsAuth) {
+            String fullUri = uri.toString();
+            pendingAuthUri = fullUri;
+            WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+            if (webView != null) {
+                webView.post(() -> {
+                    String safeUri = fullUri.replace("\\", "\\\\").replace("'", "\\'");
+                    webView.evaluateJavascript(
+                        "window.handleNativeAuthCallback && window.handleNativeAuthCallback('" + safeUri + "');",
+                        null
+                    );
+                });
+            }
+        }
+    }
+
+    public void openExternalAuth(String url) {
+        try {
+            Uri uri = Uri.parse(url);
+            CustomTabsIntent customTabsIntent = new CustomTabsIntent.Builder()
+                .setShowTitle(true)
+                .build();
+            customTabsIntent.launchUrl(this, uri);
+        } catch (Exception e) {
+            try {
+                Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                startActivity(browserIntent);
+            } catch (Exception ignored) {}
+        }
     }
 
     public static void dispatchMediaCommand(String action) {
@@ -317,6 +374,34 @@ public class MainActivity extends BridgeActivity {
                         insetsController.setAppearanceLightStatusBars(!isDark);
                     }
                 });
+            }
+        }
+
+        @JavascriptInterface
+        public String getAuthRedirectUrl() {
+            MainActivity act = activityRef.get();
+            if (act != null) {
+                return act.getPackageName() + "://auth";
+            }
+            return "me.vattitude.morningbrief://auth";
+        }
+
+        @JavascriptInterface
+        public String getPendingAuthUri() {
+            MainActivity act = activityRef.get();
+            if (act != null && act.pendingAuthUri != null) {
+                String u = act.pendingAuthUri;
+                act.pendingAuthUri = null;
+                return u;
+            }
+            return "";
+        }
+
+        @JavascriptInterface
+        public void openAuthUrl(String url) {
+            MainActivity act = activityRef.get();
+            if (act != null && url != null && !url.isEmpty()) {
+                act.runOnUiThread(() -> act.openExternalAuth(url));
             }
         }
     }
