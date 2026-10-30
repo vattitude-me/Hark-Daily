@@ -3061,30 +3061,39 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   flex: none;
   text-decoration: none;
 }
-.clean-brand-emblem {
-  flex: none;
-  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.75));
+.clean-brand-3d-logo {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 10px rgba(245, 158, 11, 0.55));
   transition: transform .2s ease, filter .2s ease;
+  flex: none;
 }
-.clean-brand:hover .clean-brand-emblem {
+.clean-brand:hover .clean-brand-3d-logo {
   transform: scale(1.08);
-  filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.95));
+  filter: drop-shadow(0 3px 14px rgba(245, 158, 11, 0.75));
+}
+.clean-brand-text {
+  display: flex;
+  align-items: baseline;
 }
 .clean-brand-name {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 22px;
+  font-size: 21px;
   font-weight: 700;
-  letter-spacing: -0.6px;
-  color: #FFFFFF;
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
+  letter-spacing: -0.5px;
+  background: linear-gradient(180deg, #FFFFFF 30%, #F59E0B 120%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
-.clean-brand-daily {
+.clean-brand-sub {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
   color: #F59E0B;
-  font-weight: 600;
-  font-size: 22px;
-  letter-spacing: -0.6px;
+  text-transform: uppercase;
+  margin-left: 5px;
 }
 
 /* Audio generated date inside hamburger menu drawer */
@@ -3509,7 +3518,14 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
 .clean-play-circle:active {
   transform: scale(0.94);
 }
+.clean-play-icon {
+  width: 48px;
+  height: 48px;
+  margin-left: 4px;
+}
 .clean-pause-icon {
+  width: 42px;
+  height: 42px;
   display: none;
 }
 body.playing .clean-play-circle .clean-play-icon {
