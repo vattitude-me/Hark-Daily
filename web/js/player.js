@@ -409,7 +409,7 @@ export class Player extends EventTarget {
   setupCleanWaveform() {
     const barsWrap = document.getElementById('cleanWaveBars');
     if (!barsWrap) return;
-    const heights = [10, 18, 26, 14, 30, 22, 36, 16, 28, 40, 20, 32, 12, 34, 24, 38, 18, 26, 14, 30, 22, 36, 10, 28, 20, 34, 16, 40, 24, 12, 32, 18, 38, 26, 14, 30, 22, 16, 28, 20];
+    const heights = [12, 20, 28, 16, 32, 24, 36, 18, 30, 36, 22, 32, 14, 34, 26, 36, 20, 28, 16, 32, 24, 36, 12, 30, 22, 34, 18, 36, 26, 14, 32, 20, 36, 28, 16, 32, 24, 18, 30, 22];
     barsWrap.replaceChildren(...heights.map((h, i) => {
       const s = document.createElement('span');
       s.className = 'clean-wave-bar';
@@ -434,8 +434,14 @@ export class Player extends EventTarget {
     barsWrap.addEventListener('pointermove', (e) => {
       if (dragging) seekFromEvent(e);
     });
-    barsWrap.addEventListener('pointerup', () => { dragging = false; });
-    barsWrap.addEventListener('pointercancel', () => { dragging = false; });
+    barsWrap.addEventListener('pointerup', (e) => {
+      dragging = false;
+      try { barsWrap.releasePointerCapture(e.pointerId); } catch {}
+    });
+    barsWrap.addEventListener('pointercancel', (e) => {
+      dragging = false;
+      try { barsWrap.releasePointerCapture(e.pointerId); } catch {}
+    });
   }
 
   renderSpeedPills() {
@@ -762,6 +768,7 @@ export class Player extends EventTarget {
     // Update Clean Player cover image (showcasing article image in Now Voicing section)
     const cleanCoverImg = document.getElementById('playerCoverImg');
     const cleanCoverFallback = document.getElementById('playerCoverFallback');
+    const ambientBackdrop = document.getElementById('ambientStoryBackdrop');
     if (img && cleanCoverImg) {
       if (cleanCoverImg.dataset.src !== img) {
         cleanCoverImg.dataset.src = img;
@@ -769,9 +776,19 @@ export class Player extends EventTarget {
       }
       cleanCoverImg.classList.remove('hidden');
       cleanCoverFallback?.classList.add('hidden');
+      if (ambientBackdrop && ambientBackdrop.dataset.bg !== img) {
+        ambientBackdrop.dataset.bg = img;
+        ambientBackdrop.style.backgroundImage = `url("${img}")`;
+        ambientBackdrop.classList.add('has-image');
+      }
     } else if (cleanCoverImg) {
       cleanCoverImg.classList.add('hidden');
       cleanCoverFallback?.classList.remove('hidden');
+      if (ambientBackdrop && ambientBackdrop.dataset.bg) {
+        ambientBackdrop.dataset.bg = '';
+        ambientBackdrop.style.backgroundImage = '';
+        ambientBackdrop.classList.remove('has-image');
+      }
     }
 
     const cleanNowVoicing = document.getElementById('playerCoverBadgeText');
@@ -816,7 +833,7 @@ export class Player extends EventTarget {
       if (story?.url) {
         cleanSourceLink.href = story.url;
         const srcName = story?.source ? story.source.split('·')[0].trim() : 'original source';
-        if (cleanSourceLinkName) cleanSourceLinkName.textContent = srcName;
+        if (cleanSourceLinkName) cleanSourceLinkName.textContent = `Read on ${srcName}`;
         cleanSourceLink.classList.remove('hidden');
       } else {
         cleanSourceLink.classList.add('hidden');

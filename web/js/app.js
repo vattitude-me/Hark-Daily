@@ -413,7 +413,7 @@ function syncModePicker() {
   if (cleanFull) cleanFull.classList.toggle('active', mode !== 'podcast');
   const cleanEst = $('cleanBriefEst');
   if (cleanEst && state.briefing?.duration) {
-    cleanEst.textContent = `~${Math.round(state.briefing.duration / 60)} min`;
+    cleanEst.textContent = `${Math.round(state.briefing.duration / 60)} min`;
   }
 }
 
