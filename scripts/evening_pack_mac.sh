@@ -86,8 +86,9 @@ fi
 # Run the storypack generation pipeline and push to Supabase
 # Evening edition voices India (timed for IST morning), reusing today's shared AI, Tech, and Science
 cd "$ROOT"
-log "Running briefing pack generation for India edition (voicing on M3 Pro, pushing to Supabase)..."
-"$ROOT/.venv/bin/python" -m app pack --edition in --notify "${@:---force}" >> "$LOG_FILE" 2>&1
+TARGET_EDITION="${EDITION:-in}"
+log "Running briefing pack generation for ${TARGET_EDITION} edition (voicing on M3 Pro, pushing to Supabase)..."
+"$ROOT/.venv/bin/python" -m app pack --edition "$TARGET_EDITION" --notify "${@:---force}" >> "$LOG_FILE" 2>&1
 
 log "✓ Evening Edition successfully published to Supabase!"
 
