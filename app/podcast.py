@@ -118,37 +118,37 @@ def _clean(text: str) -> str:
 # ------------------------------------------------------------------ templates
 # {a} and {b} are the hosts' first names, {h} the headline, {s} the section's title.
 OPEN_TEMPLATES: list[list[Turn]] = [
-    [(0, "Hey {b}, welcome back! How are things looking out there?"),
-     (1, "[chuckle] Fast-moving, {a}... we've got a lot of ground to cover today! Lots going on."),
-     (0, "Oh, absolutely. Let's get right into it.")],
-    [(0, "Hey {b}, welcome back! Are you ready for today's rundown?"),
-     (1, "Ready as I'll ever be, {a}! We've got some fascinating stories lined up today."),
-     (0, "We really do... let's jump straight in.")],
-    [(0, "Welcome everyone, and hey {b}! Big headlines moving across the board."),
-     (1, "[sigh] It really is packed, {a}... from tech breakthroughs to world news."),
-     (0, "Alright, let's see what's happening.")],
+    [(0, "Hey {b}."),
+     (1, "Hey {a}. What's on your radar today?"),
+     (0, "A few big stories just broke. Let's take a look.")],
+    [(0, "Hey {b}, good to see you."),
+     (1, "Good to see you too, {a}. What are we tracking today?"),
+     (0, "Quite a bit. Let's start with the top story.")],
+    [(0, "Welcome back everyone, and hey {b}."),
+     (1, "Hey {a}. Ready when you are."),
+     (0, "Great. Let's get into what's happening.")],
 ]
 CLOSE_TEMPLATES: list[list[Turn]] = [
-    [(1, "And that wraps up today's briefing! Thanks for tuning in with us."),
-     (0, "Stay curious, everyone. We'll catch you on the next update!")],
-    [(0, "And that covers the headlines for today."),
-     (1, "[chuckle] Take care out there, stay informed, and we'll see you next time.")],
+    [(1, "And that is our look at the news for today."),
+     (0, "Thanks for listening. We'll talk to you on the next update.")],
+    [(0, "That covers the main stories today."),
+     (1, "[chuckle] Take care, stay informed, and we'll catch you next time.")],
 ]
 TEASE_TEMPLATES: dict[str, list[list[Turn]]] = {
-    "serious": [[(0, "Now here's a developing story we're watching closely: {h}."), (1, "Yeah, this one has huge implications... let's break it down.")]],
-    "warm": [[(0, "Topping the news today, {h}."), (1, "There's quite a lot to unpack here... let's get into the details.")]],
-    "excited": [[(0, "Oh wow, check this out in {s}: {h}."), (1, "[chuckle] I couldn't believe this headline! Let's hear the full story.")]],
-    "light": [[(0, "Okay, you have to hear this one: {h}."), (1, "[laugh] That is fantastic! Let's hear what happened.")]],
-    "energetic": [[(0, "Big developments in {s} today: {h}."), (1, "Oh yeah, definitely one to keep an eye on. Here's the rundown.")]],
-    "curious": [[(0, "Now this one really caught my attention: {h}."), (1, "Same here, {a}... let's see what the reporting says.")]],
+    "serious": [[(0, "Here's an important story we're following: {h}."), (1, "Yeah, this one matters... here are the details.")]],
+    "warm": [[(0, "In the headlines today: {h}."), (1, "Here's the background on what happened.")]],
+    "excited": [[(0, "Take a look at this in {s}: {h}."), (1, "[chuckle] Yeah, this caught a lot of attention today.")]],
+    "light": [[(0, "Here's an interesting one in {s}: {h}."), (1, "[laugh] Let's see what happened here.")]],
+    "energetic": [[(0, "In {s} today: {h}."), (1, "Here's what you need to know.")]],
+    "curious": [[(0, "This is an interesting one: {h}."), (1, "Yeah, let's look at the details.")]],
 }
 BRIDGE_TEMPLATES: dict[str, list[Turn]] = {
-    "serious": [(0, "Let's turn to the lead story.")],
+    "serious": [(0, "Here is the lead story.")],
     "warm": [(0, "Here are the top stories.")],
-    "excited": [(1, "Alright, here's what's buzzing in {s}.")],
-    "light": [(1, "Now for some lighter news in {s}.")],
-    "energetic": [(1, "Let's dive into {s}.")],
-    "curious": [(1, "Let's explore what's new in {s}.")],
+    "excited": [(1, "Now to {s}.")],
+    "light": [(1, "Moving on to {s}.")],
+    "energetic": [(1, "Here's the latest in {s}.")],
+    "curious": [(1, "Next up, {s}.")],
 }
 
 
@@ -184,8 +184,45 @@ def template_piece(piece: Piece, hosts: tuple[str, str]) -> Written:
     return Written(_fill(list(turns), hosts, piece))
 
 
-# ------------------------------------------------------------------ validation
+# ------------------------------------------------------------------ validation & anti-slop
 _BAD = re.compile(r"https?://|www\.|[*_#`<>\[\]{}]|\bhttp", re.I)
+
+SLOP_PATTERNS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\b(?:let's|lets)\s+roll\b", re.I), "let's get started"),
+    (re.compile(r"\ba\s+whirlwind\s+of\s+a\s+(?:day|week|news cycle)\b", re.I), "a busy day"),
+    (re.compile(r"\ba\s+whirlwind\b", re.I), "a lot happening"),
+    (re.compile(r"\b(?:let's|lets)\s+dive\s+(?:right\s+)?in(?:to)?\b", re.I), "let's look at"),
+    (re.compile(r"\bdive\s+into\b", re.I), "look at"),
+    (re.compile(r"\bdeep\s+dive\b", re.I), "closer look"),
+    (re.compile(r"\bunpack\s+this\b", re.I), "break this down"),
+    (re.compile(r"\bquite\s+a\s+lot\s+to\s+unpack\b", re.I), "a lot of details here"),
+    (re.compile(r"\bunpack\b", re.I), "explain"),
+    (re.compile(r"\bdelve\s+into\b", re.I), "look into"),
+    (re.compile(r"\bdelve\b", re.I), "look"),
+    (re.compile(r"\bbuckle\s+up\b", re.I), "so"),
+    (re.compile(r"\bwithout\s+further\s+ado\b", re.I), "first off"),
+    (re.compile(r"\ba\s+lot\s+of\s+ground\s+to\s+cover\b", re.I), "a lot to cover"),
+    (re.compile(r"\bfast[- ]moving\b", re.I), "busy"),
+    (re.compile(r"\bmoving\s+across\s+the\s+board\b", re.I), "developing today"),
+    (re.compile(r"\bwhat's\s+buzzing\s+in\b", re.I), "the latest in"),
+    (re.compile(r"\bgame[- ]changer\b", re.I), "big deal"),
+    (re.compile(r"\bneedless\s+to\s+say\b", re.I), "of course"),
+]
+
+
+def _preserve_case(match: re.Match, replacement: str) -> str:
+    text = match.group(0)
+    if text and text[0].isupper():
+        return replacement[0].upper() + replacement[1:]
+    return replacement
+
+
+def clean_slop(text: str) -> str:
+    """Strip or normalize robotic AI slop phrases into simple, natural spoken English."""
+    cleaned = text
+    for pattern, repl in SLOP_PATTERNS:
+        cleaned = pattern.sub(lambda m, r=repl: _preserve_case(m, r), cleaned)
+    return " ".join(cleaned.split())
 
 
 def strip_tags(text: str) -> str:
@@ -208,6 +245,7 @@ def validate_turns(raw, kind: str, section: str | None = None) -> list[Turn] | N
         who = str(item.get("speaker", "")).strip().lower()
         text = _clean(item.get("text", ""))
         text = _clean(_TAG.sub(lambda m: f"[{m.group(1).lower()}]", text))
+        text = clean_slop(text)
         words_only = strip_tags(text)
         if who not in ("a", "b") or not words_only or _BAD.search(words_only):
             return None
@@ -223,16 +261,19 @@ def validate_turns(raw, kind: str, section: str | None = None) -> list[Turn] | N
 
 
 # ------------------------------------------------------------------ AI writer
-SYSTEM_PROMPT = """You write the lively, animated banter for a two-host news podcast. The hosts introduce and react to the day's news; a separate narrator reads the stories in full, so you never read the news yourself.
+SYSTEM_PROMPT = """You write simple, natural, conversational banter for a two-host news podcast. The hosts introduce and react to the day's news; a separate narrator reads the stories in full, so you never read the news yourself.
 
 Hosts: "a" is {a} and "b" is {b}.
-Vibe: Warm, spontaneous, enthusiastic, and conversational—like two charismatic podcast co-hosts who have great chemistry and banter. Avoid sounding robotic, monotone, stiff, or overly formal.
+Tone & Register: Two smart, grounded friends talking over coffee. Simple, honest, everyday spoken English.
 
-Expressiveness & Pacing:
-- Speak naturally with punchy spoken phrasing, contractions, energetic interjections ("Oh wow!", "No way", "Honestly...", "Can you believe that?"), and genuine curiosity.
-- Use conversational pauses `...` between thoughts or punchlines to give the delivery natural breathing room and comic/dramatic timing.
-- Actively use these paralinguistic voice tags, which the neural engine renders as real human sounds: [chuckle], [laugh], [sigh], [gasp], [groan]. Use them at the beginning of a reaction (e.g. "[chuckle] Oh absolutely", "[gasp] Wait, really?"). At most {max_tags} tags per piece. Do not use tags on tragedy, death, or severe hardship.
-- Keep the energy high and dynamic!
+STRICT ANTI-SLOP RULES (ZERO AI JARGON OR HYPE):
+- Speak like real human beings, NOT morning radio DJs, TV hype-men, or AI bots.
+- BANNED CLICHÉS (NEVER USE ANY OF THESE):
+  "let's roll", "whirlwind", "buckle up", "dive into", "dive in", "deep dive", "unpack", "delve", "fast-moving", "ground to cover", "buzzing", "wild ride", "nuts and bolts", "without further ado", "what a day", "packed day", "game-changer", "moving across the board".
+- Keep language plain, simple, and direct. Avoid breathless hype, exaggerated drama, and corporate buzzwords.
+- Use natural contractions ("we've", "it's", "that's", "don't", "can't").
+- Pacing: use short sentences and natural commas or ellipses `...` where a person would take a breath.
+- Use paralinguistic voice tags sparingly and naturally: [chuckle], [laugh], [sigh], [gasp]. At most {max_tags} tags per piece. Do not use tags on tragedy, death, or severe hardship.
 
 Return ONLY JSON of this shape:
 {{"open": [turns, ...{open_n} variants], "close": [turns, ...{close_n} variants],
@@ -240,12 +281,12 @@ Return ONLY JSON of this shape:
 where turns is a list of {{"speaker": "a" or "b", "text": "..."}}.
 
 Rules:
-- open: an upbeat, time-neutral greeting chat ("Hey {b}! Ready for a wild news day?", "Welcome back, {b}! Quite a news cycle today."). Today is {weekday}. No news yet. Make the {open_n} variants clearly distinct and playful. IMPORTANT: Do NOT use time-of-day locked words like "morning", "afternoon", "evening", or "morning coffee" so the audio stays natural whenever a listener opens the app.
-- close: an energetic, friendly sign-off ("That's a wrap on today's headlines! Thanks for listening everyone.", "Stay curious, stay informed, and we'll catch you on the next update."). Make variants distinct. Do NOT say "tomorrow morning" or "morning brief".
-- tease: react with genuine human emotion to the top headline of that section ("Wait till you hear this one in AI...", "Okay, this sports finish was insane..."). Do NOT say "this morning".
-- bridge: a quick, punchy 1-line handoff into that section ("Alright, let's dive into tech.", "Over to politics...").
+- open: an easy-going, time-neutral greeting between two friends ("Hey {b}. Good to see you.", "Welcome back, {b}. A lot of news to catch up on."). Today is {weekday}. No news yet. Make the {open_n} variants clearly distinct and relaxed. IMPORTANT: Do NOT use time-of-day locked words like "morning", "afternoon", "evening", or "morning coffee".
+- close: an easy-going, friendly sign-off ("That covers the main headlines for today. Thanks for listening.", "Stay safe, stay curious, and we will talk to you next time."). Make variants distinct. Do NOT say "tomorrow morning" or "morning brief".
+- tease: react simply and honestly to the top headline of that section ("Did you see this one in AI?", "This score in sports caught a lot of people off guard..."). Do NOT say "this morning".
+- bridge: a clean, direct 1-line handoff into that section ("Here is the top story.", "Moving over to politics.").
 - Limits per piece: open <= {w_open} words and 4 turns, tease <= {w_tease} words and 3 turns, bridge <= {w_bridge} words and 2 turns, close <= {w_close} words and 3 turns.
-- No URLs, emoji, lists, markdown or stage directions. Do not read the headline out word for word every time; paraphrase.
+- No URLs, emoji, lists, markdown or stage directions. Paraphrase headlines naturally.
 - The tone of each section is guidance for how you sound; never say the tone words themselves ("curious", "serious", "energetic").
 - Stay respectful on sensitive stories: no jokes about tragedies."""
 
@@ -594,6 +635,7 @@ def validate_story_dialogue(
 
         text = _clean(item.get("text", ""))
         text = _clean(_TAG.sub(lambda m: f"[{m.group(1).lower()}]", text))
+        text = clean_slop(text)
         words_only = strip_tags(text)
         word_count = len(words_only.split())
         if not words_only or word_count < 3 or word_count > 52 or _BAD.search(words_only):
@@ -632,25 +674,28 @@ def validate_story_dialogue(
     return parsed
 
 
-STORY_DIALOGUE_PROMPT = """You write a charismatic, expressive, and grounded two-host news podcast conversation for ONE story.
+STORY_DIALOGUE_PROMPT = """You write a simple, grounded, and natural conversation between two friends for ONE news story.
 
 Hosts:
-- "a" is {a} (the warm, expressive lead anchor who frames the news with conviction and tracks key facts).
-- "b" is {b} (the curious, lively co-host who unpacks context, asks the question the listener is thinking, and highlights why it matters with genuine emotion).
+- "a" is {a} (introduces the news clearly and plainly, sharing the core facts without hype).
+- "b" is {b} (the curious friend who asks the obvious question, reacts with genuine human emotion, or notes what it means).
 
-Editorial & Grounding Rules:
-1. Stay 100% faithful to the supplied `facts` (`F1`, `F2`, ...). NEVER invent numbers, quotes, dates, causes, or outcomes not present in `facts`. If a detail isn't in `facts`, do not guess it.
-2. Write 4 to 5 natural conversational turns (at most 6 turns, 55 to 135 words total across all turns).
-3. Alternate naturally between "a" and "b" so both hosts contribute real substance:
-   - Turn 1 ("purpose": "lead"): State the core news event with engaging vocal hook and clarity.
-   - Turn 2 ("purpose": "question" or "context"): React with genuine human character or ask a sharp question, adding the second key fact.
-   - Turn 3 ("purpose": "context" or "implication"): Unpack the details, numbers, or background from the facts at a deliberate, unhurried pace.
-   - Turn 4 ("purpose": "takeaway" or "implication"): Land what happens next or why listeners should care, crediting {source} naturally if helpful.
-4. High Expression & Slow-to-Medium Pacing Style:
-   - Write for expressive spoken delivery: use natural contractions, dynamic sentence cadence, rhetorical questions, and conversational emphasis ("Honestly,", "Wait, think about that,", "Here is what stands out,").
-   - Use natural commas and ellipses `...` where a host would take a thoughtful beat so the voice paces slowly and deliberately instead of rushing.
-   - 8 to 26 words per turn. No semicolons, colons, dashes, markdown, URLs, or quotation marks.
-   - Avoid hollow filler ("That's so interesting", "Totally agree", "Great point"). Every turn must move the story forward.
+STRICT ANTI-SLOP & PLAIN CONVERSATIONAL RULES:
+1. Speak in plain, everyday conversational English. Talk like two friends chatting about an article they just read over lunch—NOT morning radio DJs, TV news anchors, or PR spokespeople.
+2. BANNED AI CLICHÉS (NEVER USE ANY OF THESE):
+   "let's roll", "whirlwind", "buckle up", "dive into", "dive in", "deep dive", "unpack", "delve", "game-changer", "tapestry", "beacon", "foster", "testament", "pivotal", "in today's world", "at the end of the day", "needless to say", "fast-moving", "without further ado", "wild ride", "mind-blowing", "ground to cover", "moving across the board".
+3. Grounding: Stay 100% faithful to the supplied `facts` (`F1`, `F2`, ...). NEVER invent details, numbers, quotes, causes, or outcomes not present in `facts`.
+4. Structure: 4 natural, punchy turns (60 to 120 words total across all turns):
+   - Turn 1 ("purpose": "lead"): State what happened in one clear, simple sentence. No throat-clearing.
+   - Turn 2 ("purpose": "question" or "context"): Ask a simple, direct question ("Wait, why did they do that?", "How much did they actually raise?") or react to fact F2.
+   - Turn 3 ("purpose": "context" or "implication"): Explain the detail or number simply from fact F3 ("Well, according to the report...", "They're saying...").
+   - Turn 4 ("purpose": "takeaway" or "implication"): Land what it means or what happens next in one grounded sentence ("Definitely something to keep an eye on.", "We will see how that plays out.").
+5. Style & Pacing:
+   - 8 to 22 words per turn. Keep sentences short and clear. Use everyday words instead of fancy vocabulary.
+   - Use natural contractions ("don't", "can't", "it's", "they're", "we've").
+   - Use natural commas and ellipses `...` where a speaker would take a breath.
+   - No semicolons, colons, dashes, markdown, URLs, or quotation marks.
+   - Avoid hollow filler ("That's so interesting", "Totally agree", "Great point"). Every turn must share a real fact or question.
    - Do NOT use time-of-day words ("this morning", "tonight").
    - Paralinguistic emotion tags: {tag_instruction}
 

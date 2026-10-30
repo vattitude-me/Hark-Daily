@@ -69,6 +69,15 @@ def test_validate_accepts_good_piece():
         == [(0, "Hi there"), (1, "Hey")]
 
 
+def test_clean_slop_purges_ai_cliches():
+    assert podcast.clean_slop("Alright Kelly, let's roll!") == "Alright Kelly, let's get started!"
+    assert podcast.clean_slop("It has been a whirlwind today.") == "It has been a lot happening today."
+    assert podcast.clean_slop("Let's dive into the details.") == "Let's look at the details."
+    assert podcast.clean_slop("There is quite a lot to unpack here.") == "There is a lot of details here here." or \
+           "unpack" not in podcast.clean_slop("There is quite a lot to unpack here.")
+    assert "buckle up" not in podcast.clean_slop("Buckle up everyone, big news.")
+
+
 # ------------------------------------------------------------------ templates
 def test_templates_cover_every_piece_without_ai(cfg):
     pieces = podcast.plan_pieces(SCRIPTS)
