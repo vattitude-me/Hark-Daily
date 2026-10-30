@@ -63,12 +63,34 @@ export function titlesMatch(a, b) {
 }
 
 /**
+ * Parse speaker-labeled podcast dialogue lines (`[Matthew] ...` / `[Kelly] ...`).
+ * Returns an array of `{ speaker, text }` objects when dialogue turns are present, or `null` otherwise.
+ */
+export function parseDialogueTurns(scriptText) {
+  if (!scriptText || typeof scriptText !== 'string') return null;
+  const lines = scriptText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return null;
+  const turns = [];
+  const turnRe = /^\[([A-Za-z][A-Za-z0-9 &._-]{1,24})\]\s+(.+)$/;
+  for (const line of lines) {
+    const m = line.match(turnRe);
+    if (m) {
+      turns.push({ speaker: m[1].trim(), text: m[2].trim() });
+    } else if (turns.length) {
+      turns[turns.length - 1].text += ` ${line}`;
+    }
+  }
+  return turns.length ? turns : null;
+}
+
+/**
  * Extract clean body summary from broadcast script by stripping repeated headline,
- * podcast banter connectors, and editorial section prefixes (e.g. "The news:").
+ * speaker tags (`[Matthew]`, `[Kelly]`), podcast banter connectors, and editorial prefixes.
  */
 export function stripHeadlineAndFiller(headline, scriptOrSummary) {
   let text = (scriptOrSummary || '').trim();
   if (!text) return '';
+  text = text.replace(/^\[[A-Za-z][A-Za-z0-9 &._-]{1,24}\]\s*/gm, ' ').replace(/\s+/g, ' ').trim();
   const cleanTitle = (headline || '').trim().replace(/[.!?:]+$/, '');
   if (cleanTitle) {
     const esc = cleanTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -91,6 +113,7 @@ export function pickVoice(rows, chosen) {
   const ids = (rows || []).map((r) => r.voice).filter(Boolean);
   if (!ids.length) return null;
   if (chosen && ids.includes(chosen)) return chosen;
+  if (ids.includes('matthew_reference+kelly_reference')) return 'matthew_reference+kelly_reference';
   const counts = new Map();
   for (const id of ids) counts.set(id, (counts.get(id) || 0) + 1);
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
@@ -460,12 +483,19 @@ export function buildBriefing(rows, settings, {
       currentSection = row.section;
     }
     breath();
-    // In podcast mode, alternate the stories between the two hosts so they co-anchor
+    // In podcast mode, prefer the two-host conversation clip (`matthew_reference+kelly_reference`),
+    // or alternate between solo host recordings on legacy archive packs.
     let storyRow = row;
     if (isPodcast && podHosts.length > 1) {
-      const targetVoice = podHosts[storyIndex % podHosts.length];
-      const match = (rows || []).find((r) => r.section === row.section && r.rank === row.rank && r.voice === targetVoice);
-      if (match) storyRow = match;
+      const duoId = podHosts.join('+');
+      const duoMatch = (rows || []).find((r) => r.section === row.section && r.rank === row.rank && r.voice === duoId);
+      if (duoMatch) {
+        storyRow = duoMatch;
+      } else {
+        const targetVoice = podHosts[storyIndex % podHosts.length];
+        const match = (rows || []).find((r) => r.section === row.section && r.rank === row.rank && r.voice === targetVoice);
+        if (match) storyRow = match;
+      }
       storyIndex++;
     }
     const duration = Number(storyRow.duration) || 0;

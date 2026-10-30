@@ -3490,6 +3490,57 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
   box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
 }
 
+/* Two-Host Dialogue Turns in Teleprompter */
+.clean-sentences .w.clean-dialogue-turn {
+  display: block;
+  margin-bottom: 6px;
+  padding: 5px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid rgba(255, 255, 255, 0.14);
+  line-height: 1.5;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease;
+}
+.clean-sentences .w.clean-dialogue-turn.done {
+  color: rgba(255, 255, 255, 0.80);
+  background: rgba(255, 255, 255, 0.02);
+}
+.clean-sentences .w.clean-dialogue-turn.now {
+  color: #FFFFFF;
+  background: rgba(245, 158, 11, 0.16);
+  border-left-color: #F59E0B;
+  font-weight: 500;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+.clean-sentences .w.clean-dialogue-turn.turn-kelly.now {
+  background: rgba(45, 212, 191, 0.14);
+  border-left-color: #2DD4BF;
+}
+.clean-turn-speaker {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  margin-right: 7px;
+  border-radius: 999px;
+  font-family: 'Space Grotesk', -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: baseline;
+  background: rgba(245, 158, 11, 0.20);
+  color: #FCD34D;
+  border: 1px solid rgba(245, 158, 11, 0.38);
+}
+.clean-turn-speaker.speaker-kelly {
+  background: rgba(45, 212, 191, 0.18);
+  color: #5EEAD4;
+  border-color: rgba(45, 212, 191, 0.38);
+}
+.clean-turn-text {
+  display: inline;
+}
+
 /* Pinned Bottom Card Dock: Waveform above Controls */
 .clean-card-bottom-dock {
   margin-top: auto;
@@ -3895,7 +3946,29 @@ body.playing .clean-play-circle .clean-pause-icon {
 .clean-aux-sheet {
   position: fixed;
   inset: 0;
-  background: rgba(18, 14, 10, 0.95);
+  color-scheme: only dark;
+  background: rgba(16, 17, 22, 0.96);
+  color: #F4F4F5;
+  --bg: #0b0f17;
+  --bg-2: #0e131d;
+  --glass: rgba(28, 30, 38, 0.78);
+  --glass-strong: rgba(34, 37, 46, 0.90);
+  --glass-solid: #181a22;
+  --well: rgba(255, 255, 255, 0.06);
+  --well-strong: rgba(255, 255, 255, 0.10);
+  --rim: rgba(255, 255, 255, 0.14);
+  --line: rgba(255, 255, 255, 0.09);
+  --line-2: rgba(255, 255, 255, 0.16);
+  --ink: #F4F4F5;
+  --ink-2: #D4D4D8;
+  --muted: #A1A1AA;
+  --faint: #71717A;
+  --accent: #F59E0B;
+  --accent-strong: #D97706;
+  --accent-ink: #1F1A14;
+  --accent-text: #FBBF24;
+  --accent-soft: rgba(245, 158, 11, 0.16);
+  --accent-line: rgba(245, 158, 11, 0.38);
   z-index: 1050;
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
@@ -3945,12 +4018,18 @@ body.playing .clean-play-circle .clean-pause-icon {
   padding: 0 !important;
 }
 
-/* Scoped Sources & Topics UI theme inside Clean Player */
+/* Scoped Sources, Settings & Admin Dark Glass Theme inside Clean Player */
 .clean-aux-sheet .screen-header {
   display: none !important;
 }
+.clean-aux-sheet .section-label .overline {
+  color: #F4F4F5 !important;
+}
+.clean-aux-sheet .section-label .meta {
+  color: #A1A1AA !important;
+}
 .clean-aux-sheet .hint {
-  color: rgba(255, 255, 255, 0.7) !important;
+  color: rgba(244, 244, 245, 0.72) !important;
   font-size: 13.5px !important;
   line-height: 1.5 !important;
   margin: 0 4px 16px !important;
@@ -3958,21 +4037,88 @@ body.playing .clean-play-circle .clean-pause-icon {
 }
 .clean-aux-sheet .glass,
 .clean-aux-sheet .glass-group {
-  background: rgba(255, 255, 255, 0.05) !important;
+  background: rgba(28, 30, 38, 0.78) !important;
   backdrop-filter: blur(28px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  border: 1px solid rgba(255, 255, 255, 0.11) !important;
   border-radius: 24px !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 16px 40px rgba(0, 0, 0, 0.5) !important;
   padding: 8px !important;
   margin-bottom: 24px !important;
+  color: #F4F4F5 !important;
+}
+.clean-aux-sheet .list-row {
+  color: #F4F4F5 !important;
+  border-radius: 16px !important;
+}
+.clean-aux-sheet .list-row.clickable:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+.clean-aux-sheet .list-row-label {
+  color: #F4F4F5 !important;
+}
+.clean-aux-sheet .list-row-detail {
+  color: #A1A1AA !important;
+}
+.clean-aux-sheet .list-row-value {
+  color: #D4D4D8 !important;
+}
+.clean-aux-sheet .tag-ink {
+  background: rgba(255, 255, 255, 0.10) !important;
+  color: #F4F4F5 !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+}
+.clean-aux-sheet .tag-ink.tag-accent {
+  background: rgba(245, 158, 11, 0.18) !important;
+  color: #FCD34D !important;
+  border-color: rgba(245, 158, 11, 0.38) !important;
+}
+.clean-aux-sheet .tag-ink.tag-tech {
+  background: rgba(45, 212, 191, 0.16) !important;
+  color: #5EEAD4 !important;
+  border-color: rgba(45, 212, 191, 0.34) !important;
+}
+.clean-aux-sheet .segmented {
+  background: rgba(0, 0, 0, 0.42) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+.clean-aux-sheet .seg-opt {
+  color: #A1A1AA !important;
+}
+.clean-aux-sheet .seg-opt.on {
+  background: rgba(245, 158, 11, 0.22) !important;
+  color: #FCD34D !important;
+  border: 1px solid rgba(245, 158, 11, 0.45) !important;
+}
+.clean-aux-sheet .dchip {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #D4D4D8 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+.clean-aux-sheet .dchip.active {
+  background: rgba(245, 158, 11, 0.20) !important;
+  color: #FCD34D !important;
+  border-color: #F59E0B !important;
+}
+.clean-aux-sheet .text-input {
+  background: rgba(0, 0, 0, 0.38) !important;
+  color: #F4F4F5 !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
 }
 .clean-aux-sheet .topic-card {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
   border-radius: 18px !important;
+  margin: 4px 0 !important;
   transition: background-color .15s ease, transform .15s ease !important;
 }
 .clean-aux-sheet .topic-card:hover {
-  background: rgba(255, 255, 255, 0.06) !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+}
+.clean-aux-sheet .topic-toggle {
+  background: transparent !important;
+  border: none !important;
+  color: #F4F4F5 !important;
 }
 .clean-aux-sheet .topic-card.dragging {
   opacity: 0.5 !important;

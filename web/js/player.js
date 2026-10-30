@@ -6,6 +6,7 @@
 //   * a playlist of shared daily clips (briefing.clips[]) — the single-source pack,
 //     played back to back with the next clip pre-buffered so the joins are seamless.
 import { fmtTime, h, store } from './api.js';
+import { parseDialogueTurns } from './storypack.js';
 
 export function splitSentences(text) {
   if (!text) return [];
@@ -631,6 +632,7 @@ export class Player extends EventTarget {
       readerQueueLabel.textContent = `All ${b.stories.length} stories`;
     }
 
+    let activeSpeaker = null;
     if (transBox && transText && transBody) {
       const text = story?.script || story?.summary || story?.headline || ch?.text || ch?.title || '';
       if (text) {
@@ -640,31 +642,64 @@ export class Player extends EventTarget {
           transText.dataset.storyId = currentId;
           transBody.scrollTop = 0;
 
-          const sentences = splitSentences(text);
-          const weights = sentences.map((s) => Math.max(1, s.length));
-          const totalWeight = weights.reduce((a, b) => a + b, 0);
-          let running = 0;
-          const cumFractions = weights.map((w) => {
-            const start = running / totalWeight;
-            running += w;
-            return { start, end: running / totalWeight };
-          });
+          const dialogueTurns = parseDialogueTurns(text);
+          if (dialogueTurns && dialogueTurns.length) {
+            const weights = dialogueTurns.map((turn) => Math.max(1, turn.text.length));
+            const totalWeight = weights.reduce((a, b) => a + b, 0);
+            let running = 0;
+            const cumFractions = weights.map((w) => {
+              const start = running / totalWeight;
+              running += w;
+              return { start, end: running / totalWeight };
+            });
 
-          transText._storyData = { sentences, cumFractions };
-          transText.replaceChildren(...sentences.map((s, idx) => h('span', {
-            class: 'w',
-            role: 'button',
-            tabindex: '0',
-            title: 'Jump to this sentence',
-            dataset: { idx: String(idx) },
-            onclick: (e) => {
-              e.stopPropagation();
-              const chDur = Math.max(1, (ch?.end || dur) - (ch?.start || 0));
-              const targetSec = (ch?.start || 0) + (cumFractions[idx].start * chDur);
-              this.seekTo(targetSec);
-              if (!this.isPlaying) this.audio.play().catch(() => {});
-            },
-          }, s + ' ')));
+            transText._storyData = { dialogueTurns, cumFractions };
+            transText.replaceChildren(...dialogueTurns.map((turn, idx) => {
+              const spkSlug = (turn.speaker || 'host').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+              return h('span', {
+                class: `w clean-dialogue-turn turn-${spkSlug}`,
+                role: 'button',
+                tabindex: '0',
+                title: `Jump to ${turn.speaker}'s line`,
+                dataset: { idx: String(idx), speaker: turn.speaker },
+                onclick: (e) => {
+                  e.stopPropagation();
+                  const chDur = Math.max(1, (ch?.end || dur) - (ch?.start || 0));
+                  const targetSec = (ch?.start || 0) + (cumFractions[idx].start * chDur);
+                  this.seekTo(targetSec);
+                  if (!this.isPlaying) this.audio.play().catch(() => {});
+                },
+              },
+              h('span', { class: `clean-turn-speaker speaker-${spkSlug}` }, turn.speaker),
+              h('span', { class: 'clean-turn-text' }, turn.text + ' '));
+            }));
+          } else {
+            const sentences = splitSentences(text);
+            const weights = sentences.map((s) => Math.max(1, s.length));
+            const totalWeight = weights.reduce((a, b) => a + b, 0);
+            let running = 0;
+            const cumFractions = weights.map((w) => {
+              const start = running / totalWeight;
+              running += w;
+              return { start, end: running / totalWeight };
+            });
+
+            transText._storyData = { sentences, cumFractions };
+            transText.replaceChildren(...sentences.map((s, idx) => h('span', {
+              class: 'w',
+              role: 'button',
+              tabindex: '0',
+              title: 'Jump to this sentence',
+              dataset: { idx: String(idx) },
+              onclick: (e) => {
+                e.stopPropagation();
+                const chDur = Math.max(1, (ch?.end || dur) - (ch?.start || 0));
+                const targetSec = (ch?.start || 0) + (cumFractions[idx].start * chDur);
+                this.seekTo(targetSec);
+                if (!this.isPlaying) this.audio.play().catch(() => {});
+              },
+            }, s + ' ')));
+          }
 
           if (!transBody._scrollListenersAttached) {
             transBody._scrollListenersAttached = true;
@@ -681,6 +716,7 @@ export class Player extends EventTarget {
         const chProgress = Math.min(1, Math.max(0, (t - (ch?.start || 0)) / chDur));
         const spans = transText.querySelectorAll('.w');
         const cumFractions = transText._storyData?.cumFractions;
+        const dialogueTurns = transText._storyData?.dialogueTurns;
 
         let activeIdx = 0;
         if (cumFractions && cumFractions.length === spans.length) {
@@ -691,6 +727,10 @@ export class Player extends EventTarget {
           }
         } else if (spans.length) {
           activeIdx = Math.min(spans.length - 1, Math.floor(chProgress * spans.length));
+        }
+
+        if (dialogueTurns && dialogueTurns[activeIdx]) {
+          activeSpeaker = dialogueTurns[activeIdx].speaker;
         }
 
         spans.forEach((sp, idx) => {
@@ -794,7 +834,11 @@ export class Player extends EventTarget {
     const cleanNowVoicing = document.getElementById('playerCoverBadgeText');
     if (cleanNowVoicing) {
       if (isIntroOrBanter) {
-        cleanNowVoicing.textContent = this.briefing?.mode === 'podcast' ? 'Voiced by Matthew & Kelly' : 'Daily Brief Intro';
+        cleanNowVoicing.textContent = 'Matthew & Kelly';
+      } else if (activeSpeaker) {
+        cleanNowVoicing.textContent = `Matthew & Kelly · ${activeSpeaker}`;
+      } else if (this.briefing?.mode === 'podcast') {
+        cleanNowVoicing.textContent = 'Matthew & Kelly';
       } else {
         cleanNowVoicing.textContent = 'Now voicing';
       }

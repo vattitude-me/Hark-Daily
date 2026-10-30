@@ -36,7 +36,7 @@ const state = {
   status: null,
   archiveDates: [],
   reported: new Set(store.get('reported', [])),
-  mode: store.get('brief-mode', 'podcast'),
+  mode: 'podcast',
   edition: store.get('edition', defaultEdition()),
   packContext: null,
 };
@@ -379,9 +379,7 @@ function podcastOn() {
 
 /** The edition to build: defaults to Podcast when available, falls back to Full. */
 function activeMode() {
-  if (state.mode === 'full') return 'full';
-  if (state.mode === 'rapid') return FEATURES.rapid ? 'rapid' : 'full';
-  if (state.mode === 'podcast' || !state.mode) return podcastOn() ? 'podcast' : 'full';
+  if (state.mode === 'rapid') return FEATURES.rapid ? 'rapid' : (podcastOn() ? 'podcast' : 'full');
   return podcastOn() ? 'podcast' : 'full';
 }
 
@@ -1317,10 +1315,12 @@ async function loadStoryPack(day) {
     // a pack that is mid-recording, or being re-recorded, plays two voices inside one brief.
     const hasReadyMarkers = actualNotes.some((n) => n.note_key === READY_KEY);
     if (hasReadyMarkers) {
-      const hosts = (briefing.voice?.id || '').split('+').filter(Boolean);
-      const isReady = hosts.length > 0
-        ? hosts.every((h) => actualNotes.some((n) => n.note_key === READY_KEY && n.voice === h))
-        : actualNotes.some((n) => n.note_key === READY_KEY && n.voice === briefing.voice?.id);
+      const voiceId = briefing.voice?.id || '';
+      const hosts = voiceId.split('+').filter(Boolean);
+      const isReady = actualNotes.some((n) => n.note_key === READY_KEY && n.voice === voiceId) || (
+        hosts.length > 0 &&
+        hosts.every((h) => actualNotes.some((n) => n.note_key === READY_KEY && n.voice === h))
+      );
       if (!isReady) {
         if (targetDay === today) {
           const latest = await api.latestStoryDate(targetEd);
@@ -1500,19 +1500,13 @@ let sleepTimerId = null;
 const SLEEP_TIMER_STEPS = [0, 15, 30, 45, 'brief'];
 
 function updateMenuDrawer() {
-  const mode = activeMode();
   const formatVal = $('menuFormatVal');
   if (formatVal) {
-    formatVal.textContent = mode === 'podcast' ? 'Podcast · Two hosts' : 'Full brief · 10 min';
+    formatVal.textContent = 'Podcast · Two hosts';
   }
   const voicesVal = $('menuVoicesVal');
   if (voicesVal) {
-    if (mode === 'podcast') {
-      voicesVal.textContent = 'Matthew & Kelly';
-    } else {
-      const v = voiceFor(state.briefing?.voice?.id || state.profile?.settings?.voice);
-      voicesVal.textContent = v?.name || 'Matthew';
-    }
+    voicesVal.textContent = 'Matthew & Kelly';
   }
   const regVal = $('menuRegionVal');
   if (regVal) {
@@ -1747,7 +1741,7 @@ function bindEvents() {
   });
   $('menuVoicesBtn')?.addEventListener('click', () => {
     $('menuDrawer')?.classList.add('hidden');
-    openNarratorSheet();
+    openAuxSheet('settings');
   });
   $('menuSourcesBtn')?.addEventListener('click', () => {
     $('menuDrawer')?.classList.add('hidden');
