@@ -123,7 +123,7 @@ test('editionSectionKey maps regional keys and keeps shared keys universal', () 
   assert.equal(editionSectionKey('science', 'us'), 'science');
 });
 
-test('clipsFor selects edition-specific clips and falls back to base if unavailable', () => {
+test('clipsFor selects edition-specific clips and isolates regional news', () => {
   const mixedRows = [
     { date: 'd', section: 'top', rank: 1, voice: 'v', title: 'CA Top', duration: 10, audio_path: 's/top1.mp3' },
     { date: 'd', section: 'top_us', rank: 1, voice: 'v', title: 'US Top', duration: 10, audio_path: 's/top_us1.mp3' },
@@ -135,10 +135,9 @@ test('clipsFor selects edition-specific clips and falls back to base if unavaila
   assert.equal(usClips[1].title, 'Global AI');
 
   const inClips = clipsFor(mixedRows, { top: 1, ai: 1 }, 'v', ['top', 'ai'], 'in');
-  // Since top_in is missing in mixedRows, it cleanly falls back to top (CA Top)
-  assert.equal(inClips.length, 2);
-  assert.equal(inClips[0].title, 'CA Top');
-  assert.equal(inClips[1].title, 'Global AI');
+  // When top_in is missing, it returns universal coverage (Global AI) and never Canadian domestic news
+  assert.equal(inClips.length, 1);
+  assert.equal(inClips[0].title, 'Global AI');
 });
 
 test('buildBriefing preserves all 7 sections for US, India, and Canada editions', () => {
