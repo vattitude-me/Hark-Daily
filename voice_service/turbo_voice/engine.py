@@ -44,10 +44,10 @@ def pick_device() -> str:
     return "mps" if torch.backends.mps.is_available() else "cpu"
 
 
-DEFAULT_TEMPERATURE = float(os.getenv("VOICE_TEMPERATURE", "0.90"))
-DEFAULT_TOP_P = float(os.getenv("VOICE_TOP_P", "0.98"))
-DEFAULT_REPETITION_PENALTY = float(os.getenv("VOICE_REPETITION_PENALTY", "1.22"))
-DEFAULT_PACE = float(os.getenv("VOICE_PACE", "0.94"))
+DEFAULT_TEMPERATURE = float(os.getenv("VOICE_TEMPERATURE", "0.92"))
+DEFAULT_TOP_P = float(os.getenv("VOICE_TOP_P", "0.96"))
+DEFAULT_REPETITION_PENALTY = float(os.getenv("VOICE_REPETITION_PENALTY", "1.15"))
+DEFAULT_PACE = float(os.getenv("VOICE_PACE", "0.92"))
 DEFAULT_EXAGGERATION = float(os.getenv("VOICE_EXAGGERATION", "0.75"))
 
 
