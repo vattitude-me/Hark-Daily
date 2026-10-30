@@ -203,13 +203,39 @@ export class SourcesPage {
       this.render();
     };
 
-    const dragHandle = h('span', {
+    const canUp = index > 0;
+    const canDown = index < this.draft.section_order.length - 1;
+    const upBtn = h('button', {
+      type: 'button',
+      class: 'reorder-btn reorder-up' + (!canUp ? ' disabled' : ''),
+      'aria-label': `Move ${label} up`,
+      title: `Move ${label} up`,
+      disabled: canUp ? null : '',
+    }, icon('chev-u'));
+    upBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (canUp) this.moveTopic(index, index - 1);
+    });
+
+    const downBtn = h('button', {
+      type: 'button',
+      class: 'reorder-btn reorder-down' + (!canDown ? ' disabled' : ''),
+      'aria-label': `Move ${label} down`,
+      title: `Move ${label} down`,
+      disabled: canDown ? null : '',
+    }, icon('chev-d'));
+    downBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (canDown) this.moveTopic(index, index + 1);
+    });
+
+    const dragHandle = h('div', {
       class: 'drag-handle',
-      title: 'Drag to reorder topics (or press Arrow Up/Down)',
+      title: 'Drag or tap arrows to reorder (or press Arrow Up/Down)',
       'aria-label': `Reorder ${label}`,
-      role: 'button',
+      role: 'group',
       tabindex: '0',
-    }, icon('drag'));
+    }, upBtn, icon('drag'), downBtn);
 
     dragHandle.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowUp' && index > 0) {

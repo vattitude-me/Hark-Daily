@@ -215,37 +215,25 @@ function renderHeader() {
     syncLabel.textContent = isGuest ? 'Guest mode' : 'Synced';
   }
 
-  // Clean Player Hero Heading Updates
-  const cleanHeroGreeting = $('cleanHeroGreeting');
-  if (cleanHeroGreeting) {
-    cleanHeroGreeting.textContent = name.trim() ? `${baseGreeting}, ${name.trim()}` : baseGreeting;
-  }
-  const cleanHeroDate = $('cleanHeroDate');
-  if (cleanHeroDate) {
+  // Move audio briefing date info to hamburger menu drawer
+  const menuDate = $('menuDrawerDateText');
+  if (menuDate) {
     const day = now.getDate();
-    cleanHeroDate.textContent = `FRESH TODAY · ${wd} ${day} ${mon}`;
+    menuDate.textContent = `FRESH TODAY · ${wd} ${day} ${mon}`;
   }
-  const cleanHeroDuration = $('cleanHeroDuration');
-  if (cleanHeroDuration) {
+  const menuMeta = $('menuDrawerMetaText');
+  if (menuMeta) {
     if (b) {
       const minutes = Math.max(1, Math.round((b.duration || 0) / 60));
-      cleanHeroDuration.textContent = `${b.stories?.length || 0} stories · ${minutes}m`;
+      menuMeta.textContent = `${b.stories?.length || 0} stories · ${minutes}m · Updated at sunrise`;
     } else {
-      cleanHeroDuration.textContent = 'Daily brief';
+      menuMeta.textContent = 'Voiced at sunrise · Updated daily';
     }
   }
-  const cleanHeroNarrator = $('cleanHeroNarrator');
-  if (cleanHeroNarrator) {
-    cleanHeroNarrator.textContent = isPodcast ? '🎙️ Matthew & Kelly' : `🎙️ ${activeVoice?.name || b?.voice?.name || 'Kelly'}`;
-  }
-  const cleanHeroSub = $('cleanHeroSub');
-  if (cleanHeroSub) {
-    if (b) {
-      const narrator = isPodcast ? 'Matthew & Kelly' : (activeVoice?.name || b?.voice?.name || 'Kelly');
-      cleanHeroSub.textContent = `Your news reader · Voiced by ${narrator} · Listen anywhere`;
-    } else {
-      cleanHeroSub.textContent = 'Your daily news reader · Voiced before you wake';
-    }
+  const menuTodayVal = $('menuTodayVal');
+  if (menuTodayVal && b) {
+    const minutes = Math.max(1, Math.round((b.duration || 0) / 60));
+    menuTodayVal.textContent = `${b.stories?.length || 0} stories · ${minutes}m`;
   }
 
   // Avatar initial
@@ -1330,7 +1318,7 @@ async function switchTab(tab) {
     if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
   });
   for (const p of ['today', 'sources', 'settings', 'admin']) {
-    document.getElementById(`page-${p}`).classList.toggle('hidden', p !== tab);
+    document.getElementById(`page-${p}`)?.classList.toggle('hidden', p !== tab);
   }
   window.scrollTo({ top: 0 });
   if (tab === 'sources' && !sourcesPage) {
@@ -1591,17 +1579,18 @@ function renderAllStoriesSheet() {
     };
 
     grid.replaceChildren(...(b.sections || []).map((sec) => {
-      const stories = b.stories.filter((s) => s.section === sec.key);
-      if (!stories.length) return null;
-      const isCurrent = currentSection === sec.key;
+      const stories = b.stories.filter((s) => s.section === sec.key || s.section === sec.logicalKey || (s.section && s.section.startsWith(sec.logicalKey)));
+      const count = stories.length || sec.count || 0;
+      if (!count) return null;
+      const isCurrent = currentSection === sec.key || currentSection === sec.logicalKey;
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = `clean-topic-btn ${isCurrent ? 'active' : ''}`;
       btn.innerHTML = `
-        <span class="clean-topic-icon">${getTopicIcon(sec.key)}</span>
+        <span class="clean-topic-icon">${getTopicIcon(sec.logicalKey || sec.key)}</span>
         <span>
           <span class="clean-topic-name">${sec.title}</span>
-          <span class="clean-topic-count">${isCurrent ? 'Playing now' : `${stories.length} stories`}</span>
+          <span class="clean-topic-count">${isCurrent ? 'Playing now' : `${count} stories`}</span>
         </span>
       `;
       btn.addEventListener('click', () => {
