@@ -5,14 +5,14 @@ import { BUILTIN_VOICES, SECTIONS, VOICES, api, deleteCustomVoice, h, icon, save
 import { READY_KEY } from '../storypack.js';
 import { processReferenceAudio } from '../audio-processor.js';
 import {
-  CheckDot, GlassGroup, Hairline, Hint, ListRow, Overline, PillButton, SectionLabel, SwitchRow,
+  CheckDot, GlassGroup, Hairline, Hint, ListRow, Overline, PillButton, SectionLabel, SwitchRow, Tag,
 } from '../design.js';
 
 const today = () => new Date().toLocaleDateString('en-CA');
 const minutes = (seconds) => `${(Number(seconds || 0) / 60).toFixed(1)} min`;
 const at = (iso) => (iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : null);
 const KINDS = {
-  pack: 'Rebuild the audio',
+  pack: 'Rebuild the podcast',
   build: 'Rebuild one briefing',
   push_test: 'Test notification',
   delete_account: 'Delete account',
@@ -36,7 +36,8 @@ export class AdminPage {
     this.logError = null;
     this.dates = [];
     this.day = today();
-    this.voices = new Set(VOICES.map((v) => v.id));   // both narrators unless trimmed
+    this.voices = new Set(['matthew_reference+kelly_reference']);
+    this.edition = 'all';
     this.notesOnly = false;
     this.force = false;
     this.waiting = null;     // the request this page is following
@@ -94,13 +95,13 @@ export class AdminPage {
       SectionLabel('Recent runs', { detail: 'Last three days, newest first' }),
       this.logGroup(),
 
-      SectionLabel('Narrators & Voice Studio', { detail: 'Active voices, reference audio & Chatterbox-Turbo 24kHz formatter' }),
-      this.narratorsGroup(),
+      SectionLabel('Podcast Hosts & Dialogue Engine', { detail: 'Two-host synthesis & Chatterbox-Turbo 24kHz studio' }),
+      this.narratorsGroup(st),
 
-      SectionLabel('Rebuild the audio', { detail: 'One recording, heard by every listener' }),
+      SectionLabel('Rebuild the Podcast', { detail: 'Two-host conversation heard by every listener' }),
       this.rebuildGroup(),
 
-      SectionLabel(`Pack for ${dayLabel(this.day)}`, { detail: 'What is published right now' }),
+      SectionLabel(`Podcast Pack for ${dayLabel(this.day)}`, { detail: 'Published editions & dialogue clips' }),
       this.packGroup(),
 
       SectionLabel('Requests', { detail: 'One job runs at a time' }),
@@ -113,8 +114,24 @@ export class AdminPage {
     );
   }
 
-  narratorsGroup() {
-    const list = h('div', { class: 'narrators-admin-list' }, ...VOICES.map((v) => {
+  narratorsGroup(st = {}) {
+    const podStatus = st.podcast || {};
+    const writerName = (podStatus.writer || 'Groq').toUpperCase();
+    const hostPairSummary = GlassGroup(
+      ListRow({
+        label: 'Podcast Host Pair',
+        detail: 'Matthew (Lead Anchor) & Kelly (Co-Host / Analyst) — 4 to 8 turn dialogue per story',
+        end: Tag('MATTHEW & KELLY', 'accent'),
+      }),
+      Hairline(),
+      ListRow({
+        label: 'Dialogue Script Engine',
+        detail: 'Two-host factual dialogue writer · High expression (temp 0.90 + paralinguistic tags) · Slow-to-medium pace (0.94×)',
+        end: Tag(writerName, 'tech'),
+      }),
+    );
+
+    const list = h('div', { class: 'narrators-admin-list' }, ...VOICES.filter((v) => v.id === 'matthew_reference' || v.id === 'kelly_reference' || !v.builtin).map((v) => {
       const isCustom = !v.builtin;
       const avatar = h('span', { class: 'narrator-avatar' }, icon(v.icon || 'mic'));
       const text = h('div', { class: 'narrator-info' },
@@ -265,23 +282,26 @@ export class AdminPage {
       },
     });
 
-    return GlassGroup(
-      list,
-      Hairline(),
-      h('div', { class: 'add-voice-form' },
-        h('h3', { class: 'form-title' }, 'Add Narrator & Format Reference Audio'),
-        h('div', { class: 'form-grid' },
-          h('label', {}, 'Narrator Name', nameInput),
-          h('label', {}, 'Voice ID (Reference)', idInput),
-          h('label', {}, 'Gender', genderSelect),
-          h('label', {}, 'Style / Delivery', styleInput),
-          h('label', {}, 'Icon', iconSelect)
-        ),
-        fileInput,
-        dropzone,
-        statusBadge,
-        audioPreview,
-        h('div', { class: 'form-actions' }, downloadBtn, saveBtn)
+    return h('div', { class: 'admin-studio-stack' },
+      hostPairSummary,
+      GlassGroup(
+        list,
+        Hairline(),
+        h('div', { class: 'add-voice-form' },
+          h('h3', { class: 'form-title' }, 'Format & Upload 24kHz Host Reference Audio'),
+          h('div', { class: 'form-grid' },
+            h('label', {}, 'Host Name', nameInput),
+            h('label', {}, 'Voice ID (Reference)', idInput),
+            h('label', {}, 'Gender', genderSelect),
+            h('label', {}, 'Style / Delivery', styleInput),
+            h('label', {}, 'Icon', iconSelect)
+          ),
+          fileInput,
+          dropzone,
+          statusBadge,
+          audioPreview,
+          h('div', { class: 'form-actions' }, downloadBtn, saveBtn)
+        )
       )
     );
   }
@@ -322,23 +342,26 @@ export class AdminPage {
         return b;
       }));
 
-    const voiceRows = VOICES.flatMap((v) => {
-      const on = this.voices.has(v.id);
-      const row = h('button', {
-        type: 'button', class: 'list-row clickable', 'aria-pressed': String(on),
-      },
-      h('div', { class: 'list-row-text' },
-        h('span', { class: 'list-row-label' }, v.name),
-        h('span', { class: 'list-row-detail' }, v.gender === 'female' ? 'A woman reads the news' : 'A man reads the news')),
-      CheckDot(on));
-      row.addEventListener('click', () => {
-        if (this.voices.has(v.id)) this.voices.delete(v.id); else this.voices.add(v.id);
-        this.render();
-      });
-      return [row, Hairline()];
-    });
+    const editions = [
+      { id: 'all', label: 'All Editions (CA · US · IN)' },
+      { id: 'ca', label: 'Canada (CA)' },
+      { id: 'us', label: 'United States (US)' },
+      { id: 'in', label: 'India (IN)' },
+    ];
+    const editionChips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Edition to rebuild' },
+      ...editions.map((ed) => {
+        const b = h('button', {
+          type: 'button',
+          class: 'dchip' + (this.edition === ed.id ? ' active' : ''),
+        }, ed.label);
+        b.addEventListener('click', () => {
+          this.edition = ed.id;
+          this.render();
+        });
+        return b;
+      }));
 
-    const button = PillButton(this.waiting ? 'Rebuilding…' : 'Rebuild the audio', {
+    const button = PillButton(this.waiting ? 'Rebuilding Podcast…' : 'Rebuild Podcast Edition', {
       iconName: 'refresh', onClick: () => this.queue(),
     });
     if (this.waiting) button.disabled = true;
@@ -346,14 +369,21 @@ export class AdminPage {
     return GlassGroup(
       dayChips,
       Hairline(),
-      ...voiceRows,
-      SwitchRow('Greeting and intros only', this.notesOnly, {
-        detail: 'Re-record the framing, leave the stories alone',
+      editionChips,
+      Hairline(),
+      ListRow({
+        label: 'Matthew & Kelly (Two-Host Podcast)',
+        detail: 'Conversational dialogue + cold open, section transitions & sign-off',
+        end: Tag('ACTIVE', 'accent'),
+      }),
+      Hairline(),
+      SwitchRow('Framing & banter clips only', this.notesOnly, {
+        detail: 'Re-record the podcast cold open, transitions & sign-off, leave stories alone',
         onChange: (on) => { this.notesOnly = on; this.render(); },
       }),
       Hairline(),
-      SwitchRow('Re-record every clip', this.force, {
-        detail: 'Off reuses a story already published for that day',
+      SwitchRow('Re-record every story conversation', this.force, {
+        detail: 'Off reuses story dialogues already published for that day',
         onChange: (on) => { this.force = on; this.render(); },
       }),
       Hairline(),
@@ -364,33 +394,78 @@ export class AdminPage {
   packGroup() {
     const clips = this.pack?.clips || [];
     const notes = this.pack?.notes || [];
-    if (!clips.length && !notes.length) {
+    const podcastClips = this.pack?.podcastClips || [];
+    if (!clips.length && !notes.length && !podcastClips.length) {
       return GlassGroup(
         ListRow({ label: 'Nothing published for this day' }),
-        Hint('A rebuild here records whatever Guardian has right now and publishes it under this date.'),
+        Hint('A rebuild here records the two-host podcast and publishes it under this date.'),
       );
     }
-    const wanted = Object.keys(SECTIONS).filter((k) => k !== 'custom');
-    const rows = VOICES.flatMap((v) => {
-      const mine = clips.filter((c) => c.voice === v.id);
-      const have = new Set(mine.map((c) => c.section));
-      const missing = wanted.filter((k) => !have.has(k));
-      const seconds = mine.reduce((n, c) => n + (Number(c.duration) || 0), 0);
-      // The readiness marker is a row in the notes table, not something anybody hears.
-      const count = notes.filter((n) => n.voice === v.id && n.note_key !== READY_KEY).length;
-      const published = notes.some((n) => n.voice === v.id && n.note_key === READY_KEY);
-      return [
+
+    const duoVoice = 'matthew_reference+kelly_reference';
+    const duoClips = clips.filter((c) => c.voice === duoVoice);
+    const activeClips = duoClips.length ? duoClips : clips;
+
+    const editionDefs = [
+      {
+        code: 'CA',
+        name: 'Canada Edition',
+        sections: ['top', 'politics', 'sports', 'ai', 'tech', 'entertainment', 'science'],
+      },
+      {
+        code: 'US',
+        name: 'United States Edition',
+        sections: ['top_us', 'politics_us', 'sports_us', 'ai', 'tech', 'entertainment', 'science'],
+      },
+      {
+        code: 'IN',
+        name: 'India Edition',
+        sections: ['top_in', 'politics_in', 'sports_in', 'ai', 'tech', 'entertainment', 'science'],
+      },
+    ];
+
+    const isReady = notes.some((n) => n.note_key === READY_KEY && (n.voice === duoVoice || n.voice === 'matthew_reference'));
+    const rows = [];
+
+    for (const ed of editionDefs) {
+      const edClips = activeClips.filter((c) => ed.sections.includes(c.section));
+      // Deduplicate by (section, rank) when fallback includes multiple voices
+      const seen = new Set();
+      const uniqueClips = edClips.filter((c) => {
+        const key = `${c.section}:${c.rank}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      const haveSecs = new Set(uniqueClips.map((c) => c.section));
+      const missing = ed.sections.filter((s) => !haveSecs.has(s));
+      const seconds = uniqueClips.reduce((n, c) => n + (Number(c.duration) || 0), 0);
+
+      rows.push(
         ListRow({
-          label: v.name,
-          value: `${mine.length} clips · ${minutes(seconds)}`,
-          detail: published
-            ? `${count} ${count === 1 ? 'note' : 'notes'} · ${missing.length ? `missing ${missing.map((k) => SECTIONS[k].title).join(', ')}` : 'every section covered'}`
-            : `still recording · ${count} ${count === 1 ? 'note' : 'notes'} so far`,
+          label: `${ed.name} (${ed.code})`,
+          value: `${uniqueClips.length} stories · ${minutes(seconds)}`,
+          detail: uniqueClips.length === 0
+            ? 'Not recorded for this date yet'
+            : missing.length === 0
+              ? `All 7 sections covered · ${duoClips.length ? 'Matthew & Kelly duo' : 'Published'}`
+              : `${7 - missing.length}/7 sections covered`,
         }),
         Hairline(),
-      ];
-    });
-    rows.pop();  // no divider under the last row
+      );
+    }
+
+    const banterSeconds = podcastClips.reduce((n, c) => n + (Number(c.duration) || 0), 0);
+    rows.push(
+      ListRow({
+        label: 'Podcast Framing & Banter Clips',
+        value: `${podcastClips.length} clips · ${minutes(banterSeconds)}`,
+        detail: isReady
+          ? 'Cold open, headline tease, topic handoffs & sign-off published ✓'
+          : 'Framing clips pending or recording',
+      }),
+    );
+
     return GlassGroup(...rows);
   }
 
@@ -463,13 +538,17 @@ export class AdminPage {
   }
 
   async queue() {
-    if (!this.voices.size) { toast('Pick at least one narrator.', { error: true }); return; }
+    const voices = this.voices.size ? [...this.voices] : ['matthew_reference+kelly_reference'];
     try {
       const id = await api.queuePack({
-        day: this.day, voices: [...this.voices], notesOnly: this.notesOnly, force: this.force,
+        day: this.day,
+        voices,
+        edition: this.edition === 'all' ? null : this.edition,
+        notesOnly: this.notesOnly,
+        force: this.force,
       });
       this.waiting = { id, status: 'queued', message: '' };
-      toast('Queued. The worker picks it up within a minute.');
+      toast('Queued podcast rebuild. The worker picks it up within a minute.');
       this.render();
       await this.follow(id);
     } catch (err) {

@@ -48,6 +48,7 @@ MAX_PER_SECTION = 5
 # C-3PO is the flagship anchor, accompanied by modular neural narrators (e.g. Matthew, Kelly).
 # Clients display these names in Settings and under each briefing.
 VOICES: dict[str, dict[str, str]] = {
+    "matthew_reference+kelly_reference": {"name": "Matthew & Kelly", "gender": "duo"},
     "c3po_reference": {"name": "C-3PO", "gender": "male"},
     "matthew_reference": {"name": "Matthew", "gender": "male"},
     "kelly_reference": {"name": "Kelly", "gender": "female"},
@@ -63,11 +64,13 @@ DEFAULT_VOICE = "c3po_reference"
 
 
 def voice_name(voice: str | None) -> str:
-    """The name a listener would recognise for a clip: e.g. 'C-3PO', 'Matthew', 'Kelly'."""
+    """The name a listener would recognise for a clip: e.g. 'Matthew & Kelly', 'C-3PO'."""
     if not voice:
         return "the narrator"
     if voice in VOICES:
         return VOICES[voice]["name"]
+    if "+" in voice:
+        return " & ".join(voice_name(part) for part in voice.split("+") if part.strip())
     # Dynamic fallback: clean up arbitrary voice ID (e.g. nora_reference -> Nora)
     clean = (
         voice.replace("_reference", "")
@@ -132,7 +135,8 @@ STATIC_DATE = "2000-01-01"
 
 def static_note_path(key: str, voice: str) -> str:
     """The canonical permanent storage path for a static voice note."""
-    return f"notes/static/{key}-{voice}.mp3"
+    safe_voice = voice.replace("+", "__")
+    return f"notes/static/{key}-{safe_voice}.mp3"
 
 
 # A marker row in voice_notes meaning "this narrator's day is complete": the greeting, the intros
@@ -430,9 +434,10 @@ async def publish_showcase(cfg, store, *, day: str | None = None, voice: str | N
     try:
         all_rows = store.select("story_audio", {"date": f"eq.{day}"})
         all_notes = store.select("voice_notes", {"date": f"eq.{day}"})
+        all_podcast = store.select("podcast_clips", {"date": f"eq.{day}"})
         if all_rows:
             pack_body = json.dumps(
-                {"date": day, "story_audio": all_rows, "voice_notes": all_notes},
+                {"date": day, "story_audio": all_rows, "voice_notes": all_notes, "podcast_clips": all_podcast},
                 ensure_ascii=False, separators=(",", ":"),
             ).encode()
             store.upload("showcase/pack.json", pack_body, content_type="application/json", cache="max-age=300")
@@ -526,7 +531,13 @@ async def write_sample_bundle(cfg, store, directory: str = SAMPLE_BUNDLE_DIR, *,
 
 
 async def synthesise(client: httpx.AsyncClient, base: str, text: str, voice: str,
-                     attempts: int = 3) -> tuple[bytes, float]:
+                     attempts: int = 3, *,
+                     pace: float | None = None,
+                     temperature: float | None = None,
+                     top_p: float | None = None,
+                     repetition_penalty: float | None = None,
+                     exaggeration: float | None = None,
+                     beat: float | None = None) -> tuple[bytes, float]:
     """One MP3 from the voice service, plus its duration (from the response header).
 
     Transport errors and gateway-style 5xx are retried with back-off. A service that stays
@@ -539,13 +550,27 @@ async def synthesise(client: httpx.AsyncClient, base: str, text: str, voice: str
     clean_text = re.sub(r",\s*,+", ",", clean_text)
     clean_text = re.sub(r",\s*([.!?])", r"\1", clean_text)
 
+    payload: dict = {"text": clean_text, "voice": voice}
+    if pace is not None:
+        payload["pace"] = pace
+    if temperature is not None:
+        payload["temperature"] = temperature
+    if top_p is not None:
+        payload["top_p"] = top_p
+    if repetition_penalty is not None:
+        payload["repetition_penalty"] = repetition_penalty
+    if exaggeration is not None:
+        payload["exaggeration"] = exaggeration
+    if beat is not None:
+        payload["beat"] = beat
+
     delay = 5
     last: Exception | None = None
     down = False
     for attempt in range(1, attempts + 1):
         try:
             resp = await client.post(f"{base}/synthesize", params={"format": "mp3"},
-                                     json={"text": clean_text, "voice": voice})
+                                     json=payload)
         except httpx.HTTPError as exc:
             last, down = exc, True
         else:
@@ -616,6 +641,7 @@ async def ensure_static_notes(cfg, store, *, voices: list[str],
 
             # Synthesize any remaining missing notes using active voice VM
             if missing:
+                synth_voice = voice.split("+", 1)[0] if "+" in voice else voice
                 log.info("→ Synthesizing %d missing static notes for %s before VM shutdown...",
                          len(missing), voice_name(voice))
                 for key in missing:
@@ -623,7 +649,7 @@ async def ensure_static_notes(cfg, store, *, voices: list[str],
                     if on_note:
                         on_note(key, voice)
                     path = static_note_path(key, voice)
-                    audio, duration = await synthesise(client, base, text, voice)
+                    audio, duration = await synthesise(client, base, text, synth_voice)
                     store.upload(path, audio, content_type="audio/mpeg", cache="max-age=31536000")
                     row = {
                         "date": STATIC_DATE,
@@ -826,7 +852,7 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
             if force:
                 clear_ready(store, day=day, voice=name)
             mine = await voice_scripts(
-                store, scripts, day=day, voice=name, base=base, force=force, deadline=deadline,
+                store, scripts, day=day, voice=name, base=base, force=force, deadline=deadline, cfg=cfg,
                 on_clip=lambda story, who=name: tick(f"{voice_name(who)}: {story['section']} #{story['rank']}"))
             if notes:
                 await build_notes(cfg, store, day=day, voice=name, voice_url=base, force=force,
@@ -890,9 +916,14 @@ def _publish_clip(store, path: str, audio: bytes, row: dict) -> None:
 async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
                         base: str, force: bool = False,
                         on_clip: Callable[[dict], None] | None = None,
-                        deadline: float | None = None) -> list[dict]:
+                        deadline: float | None = None,
+                        cfg=None) -> list[dict]:
     """Voice one voice's worth of the day's stories. Extracted so a second voice costs
     one more pass over the same scripts, with the same reuse rules.
+
+    When ``voice`` is a duo pair (e.g. ``matthew_reference+kelly_reference``), each story is
+    written and voiced as a two-host conversation between Matthew and Kelly, stitched with
+    natural inter-turn silence.
 
     A finished clip is uploaded on a worker thread while the GPU starts on the next one, so the
     expensive part never waits on Storage. `deadline` is a ``time.monotonic()`` instant: past it,
@@ -903,6 +934,14 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
     existing = {(r["section"], r["rank"]): r for r in store.select(
         "story_audio", {"date": f"eq.{day}", "voice": f"eq.{voice}"})}
     existing_by_url = {r["url"]: r for r in existing.values() if r.get("url")}
+    is_duo = "+" in voice
+    duo_voices: tuple[str, str] | None = None
+    duo_names: tuple[str, str] = ("Matthew", "Kelly")
+    if is_duo:
+        parts = [p.strip() for p in voice.split("+") if p.strip()]
+        if len(parts) >= 2:
+            duo_voices = (parts[0], parts[1])
+            duo_names = (voice_name(parts[0]).split()[0], voice_name(parts[1]).split()[0])
 
     rows: list[dict] = []
     publishing: list[asyncio.Future] = []
@@ -930,7 +969,7 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
                         "image": image,
                         "title": story["title"][:500],
                         "source": (story.get("source") or done.get("source") or "")[:200],
-                        "script": story["script"],
+                        "script": done.get("script") if is_duo and done.get("script") else story["script"],
                     })
                     log.info("[%s %s #%s] %s — reused (%.1fs)", voice_name(voice), story["section"],
                              story["rank"], story["title"][:60], done.get("duration") or 0)
@@ -938,14 +977,26 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
 
                 if deadline is not None and time.monotonic() >= deadline:
                     raise DeadlineReached(f"ran out of time at {story['section']} #{story['rank']}")
-                audio, duration = await synthesise(client, base, story["script"], voice)
+                if duo_voices:
+                    from . import podcast
+                    dialogue = await asyncio.to_thread(
+                        podcast.generate_story_dialogue, cfg, story, duo_names, force=force
+                    )
+                    audio, duration, _ = await podcast.synthesise_story_dialogue(
+                        client, base, dialogue, duo_voices, cache_dir=getattr(cfg, "cache_dir", None)
+                    )
+                    spoken_script = podcast.format_dialogue_transcript(dialogue.turns, duo_names)
+                else:
+                    audio, duration = await synthesise(client, base, story["script"], voice)
+                    spoken_script = story["script"]
                 content_hash = hashlib.sha256(audio).hexdigest()[:8]
-                path = f"stories/{day}/{story['section']}-{story['rank']}-{voice}-{content_hash}.mp3"
+                voice_slug = voice.replace("+", "__")
+                path = f"stories/{day}/{story['section']}-{story['rank']}-{voice_slug}-{content_hash}.mp3"
                 row = {
                     "date": day, "section": story["section"], "rank": story["rank"], "voice": voice,
                     "title": story["title"][:500], "url": story["url"],
                     "source": (story["source"] or "")[:200], "image": image,
-                    "script": story["script"],
+                    "script": spoken_script,
                     "duration": round(duration, 3), "audio_path": path,
                 }
                 # Upload audio file in the background so storage upload overlaps with GPU synthesis.

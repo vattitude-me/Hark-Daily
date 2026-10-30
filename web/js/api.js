@@ -518,13 +518,14 @@ export const api = {
   },
 
   // ------------------------------------------------------------------ admin
-  /** One day of the shared pack: every clip and note, so the admin page can summarise it. */
+  /** One day of the shared pack: every clip, note, and podcast banter clip, so the admin page can summarise it. */
   async packState(day) {
-    const [clips, notes] = await Promise.all([
+    const [clips, notes, podcastClips] = await Promise.all([
       check(await sb.from('story_audio').select('section,rank,voice,duration').eq('date', day)) || [],
       check(await sb.from('voice_notes').select('voice,note_key,duration').eq('date', day)) || [],
+      sb.from('podcast_clips').select('hosts,clip_key,duration').eq('date', day).then((r) => r.data || []).catch(() => []),
     ]);
-    return { clips, notes };
+    return { clips, notes, podcastClips };
   },
   /** Recent requests. Shows only the admin's own rows until the admin read policy is applied. */
   async packRequests(limit = 15) {
@@ -541,8 +542,8 @@ export const api = {
     return rows || [];
   },
   /** Asks the worker to re-voice the pack. The options mirror `python -m app pack`. */
-  async queuePack({ day = null, voices = [], notesOnly = false, force = false } = {}) {
-    const payload = { day, voices, notes_only: notesOnly, force };
+  async queuePack({ day = null, voices = [], edition = null, notesOnly = false, force = false } = {}) {
+    const payload = { day, voices, edition, notes_only: notesOnly, force };
     try {
       const row = check(await sb.from('build_requests').insert({ kind: 'pack', payload }).select('id').single());
       return row.id;

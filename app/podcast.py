@@ -23,13 +23,17 @@ import hashlib
 import json
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import date as _date
+from pathlib import Path
+import time
 
 import httpx
 
-from . import topics
-from .writer import GEMINI_URL, GROQ_URL
+from . import audio, topics
+from .summarizer import drop_boilerplate
+from .tts import SAMPLE_RATE
+from .writer import GEMINI_URL, GROQ_URL, _retry_after
 
 log = logging.getLogger(__name__)
 
@@ -252,18 +256,26 @@ def _prompt(hosts: tuple[str, str], weekday: str) -> str:
         w_open=MAX_WORDS["open"], w_tease=MAX_WORDS["tease"], w_bridge=MAX_WORDS["bridge"], w_close=MAX_WORDS["close"], max_tags=MAX_TAGS)
 
 
+def _ai_provider_chain(cfg) -> list[tuple[str, str, str, str]]:
+    """Ordered (model, url, token, provider_label) chain: Groq first, then local LLM, then Gemini."""
+    models: list[tuple[str, str, str, str]] = []
+    if getattr(cfg, "groq_api_key", None):
+        models += [(m, GROQ_URL, cfg.groq_api_key, "Groq") for m in cfg.groq_models]
+    if getattr(cfg, "local_llm_url", None):
+        models.append((getattr(cfg, "local_llm_model", "llama3.1:8b"), cfg.local_llm_url, "local", "LocalLLM"))
+    if getattr(cfg, "gemini_api_key", None):
+        models += [(m, GEMINI_URL, cfg.gemini_api_key, "Gemini") for m in cfg.gemini_models]
+    return models
+
+
 def ask_ai(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
            client: httpx.Client | None = None) -> tuple[dict[str, Written], list[str]]:
     """One AI call for the whole day. Returns the valid pieces by key and a list of problems.
 
-    Tries each Gemini then Groq model once; the first answer that parses wins. Never raises: a down or
-    rate-limited service just yields nothing, and the caller fills in from templates."""
+    Tries each Groq, local, then Gemini model once; the first answer that parses wins. Never raises:
+    a down or rate-limited service just yields nothing, and the caller fills in from templates."""
     problems: list[str] = []
-    models = []
-    if cfg.gemini_api_key:
-        models += [(m, GEMINI_URL, cfg.gemini_api_key, "Gemini") for m in cfg.gemini_models]
-    if cfg.groq_api_key:
-        models += [(m, GROQ_URL, cfg.groq_api_key, "Groq") for m in cfg.groq_models]
+    models = _ai_provider_chain(cfg)
     if not models:
         return {}, ["no AI key configured"]
 
@@ -278,7 +290,7 @@ def ask_ai(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
     try:
         for model, url, token, provider in models:
             body = {
-                "model": model, "temperature": 0.8, "max_tokens": 3000,
+                "model": model, "temperature": 0.75, "max_tokens": 3000,
                 "response_format": {"type": "json_object"},
                 **({"reasoning_effort": "low"} if model.startswith("openai/gpt-oss") else {}),
                 "messages": [{"role": "system", "content": _prompt(hosts, weekday)},
@@ -354,6 +366,25 @@ def transcript(turns: list[Turn]) -> str:
     return "\n".join(strip_tags(text) for _, text in turns)
 
 
+def stitch_turn_audio(
+    raw_turns: list[tuple[bytes, float, float]],
+    sr: int = SAMPLE_RATE,
+) -> tuple[bytes, float, list[tuple[float, float]]]:
+    """Decode each turn's audio bytes, stitch with PCM silence, and encode once to MP3.
+
+    ``raw_turns`` is a list of ``(audio_bytes, reported_duration, pause_after_sec)``.
+    Returns ``(mp3_bytes, total_duration_sec, [(start_sec, end_sec), ...])``.
+    """
+    decoded: list[tuple] = []
+    for raw_bytes, dur, pause_after in raw_turns:
+        pcm = audio.decode_audio(raw_bytes, sr=sr, fallback_duration=dur or 1.2)
+        decoded.append((pcm, pause_after))
+    combined, marks = audio.stitch_turns(decoded, sr=sr)
+    mp3_bytes = audio.encode_mp3(combined, sr=sr)
+    total_sec = round(combined.size / sr, 3)
+    return mp3_bytes, total_sec, marks
+
+
 async def build_podcast(cfg, store, scripts: list[dict], *, day: str, base: str,
                         force: bool = False, client: httpx.Client | None = None) -> list[dict]:
     """Voice and publish the day's banter. Returns the published rows ([] when the mode is off).
@@ -390,13 +421,11 @@ async def build_podcast(cfg, store, scripts: list[dict], *, day: str, base: str,
                 rows.append(have)
                 continue
             try:
-                parts, total = [], 0.0
-                for i, (who, line) in enumerate(w.turns):
-                    spoken_line = f"[[pause:0.35]] {line}" if i > 0 else line
-                    audio, seconds = await synthesise(http, base, spoken_line, pair[who])
-                    parts.append(audio)
-                    total += seconds
-                data = b"".join(parts)
+                raw_turns: list[tuple[bytes, float, float]] = []
+                for who, line in w.turns:
+                    raw_audio, seconds = await synthesise(http, base, line, pair[who])
+                    raw_turns.append((raw_audio, seconds, 0.35))
+                data, total, _ = await asyncio.to_thread(stitch_turn_audio, raw_turns)
                 path = f"podcast/{day}/{p.key}-{hosts_id.replace('+', '__')}-{hashlib.sha256(data).hexdigest()[:8]}.mp3"
                 await asyncio.to_thread(_publish_audio_file, store, path, data)
                 row = {"date": day, "hosts": hosts_id, "clip_key": p.key, "text": text,
@@ -423,3 +452,507 @@ async def build_podcast(cfg, store, scripts: list[dict], *, day: str, base: str,
     if failed:
         raise PodcastIncomplete("; ".join(failed)[:600])
     return rows
+
+
+# ------------------------------------------------------------------ Two-Host Story Dialogue Engine
+STORY_DIALOGUE_VERSION = "v2"
+PURPOSE_PAUSES: dict[str, float] = {
+    "lead": 0.44,
+    "question": 0.56,
+    "context": 0.42,
+    "implication": 0.46,
+    "takeaway": 0.50,
+}
+VALID_PURPOSES = frozenset(PURPOSE_PAUSES)
+
+
+@dataclass
+class DialogueTurn:
+    speaker: int                  # 0 for Host A (Matthew), 1 for Host B (Kelly)
+    text: str                     # spoken text (may include valid Chatterbox tags in non-sober sections)
+    purpose: str = "context"      # lead | question | context | implication | takeaway
+    fact_refs: list[str] = field(default_factory=list)
+    pause_after: float = 0.36
+
+
+@dataclass
+class StoryDialogue:
+    story_id: str
+    section: str
+    headline: str
+    summary: str
+    turns: list[DialogueTurn]
+    writer: str = "built-in"
+
+
+def _split_sentences(text: str) -> list[str]:
+    cleaned = _clean(drop_boilerplate(text) or text)
+    if not cleaned:
+        return []
+    parts = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'])", cleaned)
+    out: list[str] = []
+    seen: set[str] = set()
+    for p in parts:
+        s = _clean(p).strip()
+        if len(s.split()) < 4:
+            continue
+        key = s.lower()
+        if key not in seen:
+            seen.add(key)
+            out.append(s)
+    return out
+
+
+def build_story_brief(story: dict) -> dict:
+    """Extract a grounded factual brief (F1..Fn) from an enriched story dict."""
+    sec = str(story.get("section") or "top")
+    base_sec = sec.replace("_us", "").replace("_in", "").replace("_ca", "")
+    headline = _clean(story.get("title") or story.get("headline") or "").rstrip(".")
+    source = _clean(story.get("source") or "News wire")
+    summary = _clean(story.get("summary") or "")
+    raw_body = str(story.get("article_text") or story.get("summary") or story.get("script") or "")
+
+    candidates = _split_sentences(raw_body)
+    if summary:
+        for s in _split_sentences(summary):
+            if s.lower() not in {c.lower() for c in candidates}:
+                candidates.insert(0, s)
+
+    head_norm = headline.lower()
+    facts: list[dict[str, str]] = []
+    if headline:
+        facts.append({"id": "F1", "fact": f"{headline}."})
+    for sent in candidates:
+        if sent.lower().rstrip(".") == head_norm:
+            continue
+        fid = f"F{len(facts) + 1}"
+        facts.append({"id": fid, "fact": sent})
+        if len(facts) >= 6:
+            break
+
+    if len(facts) == 1 and summary and summary.lower().rstrip(".") != head_norm:
+        facts.append({"id": "F2", "fact": summary if summary.endswith((".", "!", "?")) else f"{summary}."})
+
+    return {
+        "story_id": str(story.get("id") or story.get("url") or f"{sec}-{story.get('rank', 1)}"),
+        "section": sec,
+        "section_title": topics.ALL_SECTIONS.get(sec, {}).get("title", sec.title()),
+        "rank": int(story.get("rank") or 1),
+        "headline": headline,
+        "source": source,
+        "summary": summary or headline,
+        "tone": TONE.get(base_sec, "warm and informative"),
+        "sober": base_sec in SOBER_SECTIONS,
+        "facts": facts,
+    }
+
+
+def _speaker_index(raw_speaker: str, hosts: tuple[str, str] = ("Matthew", "Kelly")) -> int | None:
+    s = str(raw_speaker or "").strip().lower()
+    h0, h1 = hosts[0].lower(), hosts[1].lower()
+    if s in ("a", "0", h0, f"{h0}_reference"):
+        return 0
+    if s in ("b", "1", h1, f"{h1}_reference"):
+        return 1
+    return None
+
+
+def validate_story_dialogue(
+    raw: dict | list | None,
+    story_brief: dict,
+    hosts: tuple[str, str] = ("Matthew", "Kelly"),
+    *,
+    min_turns: int = 3,
+    max_turns: int = 6,
+) -> list[DialogueTurn] | None:
+    """Validate LLM-generated story dialogue turns against podcast editorial & TTS rules."""
+    turns_raw = raw.get("turns") if isinstance(raw, dict) else raw
+    if not isinstance(turns_raw, list) or not (min_turns <= len(turns_raw) <= max_turns):
+        return None
+
+    sober = bool(story_brief.get("sober"))
+    valid_fact_ids = {f["id"] for f in story_brief.get("facts", []) if isinstance(f, dict) and "id" in f}
+    parsed: list[DialogueTurn] = []
+    total_words = 0
+    total_tags = 0
+    consecutive = 0
+    last_speaker: int | None = None
+
+    for item in turns_raw:
+        if not isinstance(item, dict):
+            return None
+        who = _speaker_index(item.get("speaker", ""), hosts)
+        if who is None:
+            return None
+        if who == last_speaker:
+            consecutive += 1
+            if consecutive > 2:
+                return None
+        else:
+            consecutive = 1
+            last_speaker = who
+
+        text = _clean(item.get("text", ""))
+        text = _clean(_TAG.sub(lambda m: f"[{m.group(1).lower()}]", text))
+        words_only = strip_tags(text)
+        word_count = len(words_only.split())
+        if not words_only or word_count < 3 or word_count > 52 or _BAD.search(words_only):
+            return None
+
+        tags_in_turn = len(_TAG.findall(text))
+        total_tags += tags_in_turn
+        if sober:
+            text = words_only
+
+        purpose = str(item.get("purpose") or "context").strip().lower()
+        if purpose not in VALID_PURPOSES:
+            purpose = "context"
+
+        raw_refs = item.get("fact_refs")
+        fact_refs = [str(r).strip().upper() for r in raw_refs if str(r).strip()] if isinstance(raw_refs, list) else []
+        if valid_fact_ids:
+            fact_refs = [r for r in fact_refs if r in valid_fact_ids] or ["F1"]
+
+        pause_after = PURPOSE_PAUSES.get(purpose, 0.36)
+        total_words += word_count
+        parsed.append(DialogueTurn(
+            speaker=who,
+            text=text,
+            purpose=purpose,
+            fact_refs=fact_refs,
+            pause_after=pause_after,
+        ))
+
+    # Both hosts must participate, and total word budget must fit a crisp 20-45s segment
+    speakers_used = {t.speaker for t in parsed}
+    if len(speakers_used) < 2 or total_words < 20 or total_words > 190:
+        return None
+    if not sober and total_tags > MAX_TAGS:
+        return None
+    return parsed
+
+
+STORY_DIALOGUE_PROMPT = """You write a charismatic, expressive, and grounded two-host news podcast conversation for ONE story.
+
+Hosts:
+- "a" is {a} (the warm, expressive lead anchor who frames the news with conviction and tracks key facts).
+- "b" is {b} (the curious, lively co-host who unpacks context, asks the question the listener is thinking, and highlights why it matters with genuine emotion).
+
+Editorial & Grounding Rules:
+1. Stay 100% faithful to the supplied `facts` (`F1`, `F2`, ...). NEVER invent numbers, quotes, dates, causes, or outcomes not present in `facts`. If a detail isn't in `facts`, do not guess it.
+2. Write 4 to 5 natural conversational turns (at most 6 turns, 55 to 135 words total across all turns).
+3. Alternate naturally between "a" and "b" so both hosts contribute real substance:
+   - Turn 1 ("purpose": "lead"): State the core news event with engaging vocal hook and clarity.
+   - Turn 2 ("purpose": "question" or "context"): React with genuine human character or ask a sharp question, adding the second key fact.
+   - Turn 3 ("purpose": "context" or "implication"): Unpack the details, numbers, or background from the facts at a deliberate, unhurried pace.
+   - Turn 4 ("purpose": "takeaway" or "implication"): Land what happens next or why listeners should care, crediting {source} naturally if helpful.
+4. High Expression & Slow-to-Medium Pacing Style:
+   - Write for expressive spoken delivery: use natural contractions, dynamic sentence cadence, rhetorical questions, and conversational emphasis ("Honestly,", "Wait, think about that,", "Here is what stands out,").
+   - Use natural commas and ellipses `...` where a host would take a thoughtful beat so the voice paces slowly and deliberately instead of rushing.
+   - 8 to 26 words per turn. No semicolons, colons, dashes, markdown, URLs, or quotation marks.
+   - Avoid hollow filler ("That's so interesting", "Totally agree", "Great point"). Every turn must move the story forward.
+   - Do NOT use time-of-day words ("this morning", "tonight").
+   - Paralinguistic emotion tags: {tag_instruction}
+
+Return ONLY valid JSON of this exact shape:
+{{
+  "summary": "1-2 sentence neutral card summary (30-50 words) built strictly from the facts",
+  "turns": [
+    {{"speaker": "a", "purpose": "lead", "fact_refs": ["F1"], "text": "..."}},
+    {{"speaker": "b", "purpose": "context", "fact_refs": ["F2"], "text": "..."}},
+    {{"speaker": "a", "purpose": "implication", "fact_refs": ["F3"], "text": "..."}},
+    {{"speaker": "b", "purpose": "takeaway", "fact_refs": ["F2", "F3"], "text": "..."}}
+  ]
+}}"""
+
+
+def fallback_story_dialogue(
+    story: dict,
+    hosts: tuple[str, str] = ("Matthew", "Kelly"),
+) -> StoryDialogue:
+    """Deterministic, strictly factual two-host exchange built from extracted article sentences."""
+    brief = build_story_brief(story)
+    facts = brief["facts"]
+    lead_speaker = 0 if (brief["rank"] % 2 == 1) else 1
+    co_speaker = 1 - lead_speaker
+    source = brief["source"]
+    headline = brief["headline"].rstrip(".")
+
+    f1 = facts[0]["fact"] if facts else f"{headline}."
+    f2 = facts[1]["fact"] if len(facts) > 1 else ""
+    f3 = facts[2]["fact"] if len(facts) > 2 else ""
+    f4 = facts[3]["fact"] if len(facts) > 3 else ""
+
+    turns: list[DialogueTurn] = [
+        DialogueTurn(
+            speaker=lead_speaker,
+            text=f1,
+            purpose="lead",
+            fact_refs=["F1"],
+            pause_after=PURPOSE_PAUSES["lead"],
+        ),
+    ]
+    if f2:
+        turns.append(DialogueTurn(
+            speaker=co_speaker,
+            text=f2,
+            purpose="context",
+            fact_refs=["F2"],
+            pause_after=PURPOSE_PAUSES["context"],
+        ))
+    else:
+        turns.append(DialogueTurn(
+            speaker=co_speaker,
+            text=f"That comes from {source}, and it is one of the key developments we are tracking in {brief['section_title']}.",
+            purpose="context",
+            fact_refs=["F1"],
+            pause_after=PURPOSE_PAUSES["context"],
+        ))
+
+    if f3:
+        turns.append(DialogueTurn(
+            speaker=lead_speaker,
+            text=f3,
+            purpose="implication",
+            fact_refs=["F3"],
+            pause_after=PURPOSE_PAUSES["implication"],
+        ))
+        takeaway_text = f4 if f4 else f"Reporting there from {source}."
+        turns.append(DialogueTurn(
+            speaker=co_speaker,
+            text=takeaway_text,
+            purpose="takeaway",
+            fact_refs=["F4"] if f4 else ["F3"],
+            pause_after=PURPOSE_PAUSES["takeaway"],
+        ))
+    else:
+        turns.append(DialogueTurn(
+            speaker=lead_speaker,
+            text=f"Full details on that story are available from {source}.",
+            purpose="takeaway",
+            fact_refs=["F1"],
+            pause_after=PURPOSE_PAUSES["takeaway"],
+        ))
+
+    return StoryDialogue(
+        story_id=brief["story_id"],
+        section=brief["section"],
+        headline=brief["headline"],
+        summary=brief["summary"],
+        turns=turns,
+        writer="built-in",
+    )
+
+
+def _dialogue_cache_path(cfg, brief: dict, hosts: tuple[str, str]) -> Path | None:
+    cache_root = getattr(cfg, "cache_dir", None)
+    if not cache_root:
+        return None
+    folder = Path(cache_root) / "story_dialogue"
+    folder.mkdir(parents=True, exist_ok=True)
+    fingerprint = json.dumps(
+        {"v": STORY_DIALOGUE_VERSION, "hosts": hosts, "headline": brief["headline"], "facts": brief["facts"]},
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    digest = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()[:16]
+    return folder / f"{digest}.{STORY_DIALOGUE_VERSION}.json"
+
+
+def generate_story_dialogue(
+    cfg,
+    story: dict,
+    hosts: tuple[str, str] = ("Matthew", "Kelly"),
+    *,
+    client: httpx.Client | None = None,
+    force: bool = False,
+    sleep=time.sleep,
+) -> StoryDialogue:
+    """Write a grounded two-host conversation for one story using Groq -> Local LLM -> Gemini -> fallback."""
+    brief = build_story_brief(story)
+    cache_path = _dialogue_cache_path(cfg, brief, hosts)
+    if not force and cache_path and cache_path.is_file():
+        try:
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+            turns = validate_story_dialogue(cached.get("turns"), brief, hosts)
+            if turns:
+                return StoryDialogue(
+                    story_id=brief["story_id"],
+                    section=brief["section"],
+                    headline=brief["headline"],
+                    summary=_clean(cached.get("summary") or brief["summary"]),
+                    turns=turns,
+                    writer=str(cached.get("writer") or "cached"),
+                )
+        except Exception:
+            pass
+
+    models = _ai_provider_chain(cfg)
+    if not models:
+        return fallback_story_dialogue(story, hosts)
+
+    tag_instruction = (
+        "Do NOT use any bracketed voice tags ([laugh], [chuckle], etc.) because this is a sober news section. Express gravity and warmth through thoughtful phrasing and `...` pauses."
+        if brief["sober"]
+        else "Include 1 to 2 natural Chatterbox emotion tags ([chuckle], [laugh], [sigh], or [gasp]) at the start of a reaction turn where it fits the story's mood."
+    )
+    sys_prompt = STORY_DIALOGUE_PROMPT.format(
+        a=hosts[0],
+        b=hosts[1],
+        source=brief["source"],
+        tag_instruction=tag_instruction,
+    )
+    user_payload = {
+        "section": brief["section_title"],
+        "tone": brief["tone"],
+        "source": brief["source"],
+        "headline": brief["headline"],
+        "facts": brief["facts"],
+    }
+
+    own = client is None
+    client = client or httpx.Client(timeout=60)
+    try:
+        for model, url, token, provider in models:
+            messages = [
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
+            ]
+            for attempt in range(2):
+                body = {
+                    "model": model,
+                    "temperature": 0.45 if attempt == 0 else 0.25,
+                    "max_tokens": 1100,
+                    "response_format": {"type": "json_object"},
+                    **({"reasoning_effort": "low"} if model.startswith("openai/gpt-oss") else {}),
+                    "messages": messages,
+                }
+                try:
+                    resp = client.post(url, json=body, headers={"Authorization": f"Bearer {token}"})
+                    if resp.status_code == 429:
+                        wait = _retry_after(resp)
+                        if wait <= 20 and attempt == 0:
+                            sleep(wait + 0.5)
+                            continue
+                        break
+                    resp.raise_for_status()
+                    content = resp.json()["choices"][0]["message"]["content"]
+                    data = json.loads(content)
+                    if not isinstance(data, dict):
+                        raise ValueError("response is not a JSON object")
+                    turns = validate_story_dialogue(data, brief, hosts)
+                    if not turns:
+                        if attempt == 0:
+                            messages.append({"role": "assistant", "content": content})
+                            messages.append({
+                                "role": "user",
+                                "content": (
+                                    "Repair the JSON: ensure 4 to 5 turns alternating between 'a' and 'b', "
+                                    "8 to 26 words per turn, no dashes or special characters, and valid fact_refs."
+                                ),
+                            })
+                            continue
+                        break
+                    summary = _clean(data.get("summary") or brief["summary"])
+                    result = StoryDialogue(
+                        story_id=brief["story_id"],
+                        section=brief["section"],
+                        headline=brief["headline"],
+                        summary=summary,
+                        turns=turns,
+                        writer=model,
+                    )
+                    if cache_path:
+                        try:
+                            cache_path.write_text(
+                                json.dumps(
+                                    {
+                                        "story_id": result.story_id,
+                                        "section": result.section,
+                                        "headline": result.headline,
+                                        "summary": result.summary,
+                                        "writer": result.writer,
+                                        "turns": [
+                                            {
+                                                "speaker": "a" if t.speaker == 0 else "b",
+                                                "purpose": t.purpose,
+                                                "fact_refs": t.fact_refs,
+                                                "text": t.text,
+                                            }
+                                            for t in result.turns
+                                        ],
+                                    },
+                                    ensure_ascii=False,
+                                    indent=2,
+                                ),
+                                encoding="utf-8",
+                            )
+                        except Exception:
+                            pass
+                    return result
+                except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
+                    log.debug("story dialogue %s (%s) attempt %d failed: %s", provider, model, attempt + 1, exc)
+                    continue
+    finally:
+        if own:
+            client.close()
+
+    return fallback_story_dialogue(story, hosts)
+
+
+def format_dialogue_transcript(
+    turns: list[DialogueTurn],
+    hosts: tuple[str, str] = ("Matthew", "Kelly"),
+) -> str:
+    """Format two-host turns as speaker-labeled lines for ``story_audio.script`` and the UI teleprompter."""
+    lines: list[str] = []
+    for t in turns:
+        speaker_name = hosts[t.speaker] if 0 <= t.speaker < len(hosts) else hosts[0]
+        clean_line = strip_tags(t.text)
+        if clean_line:
+            lines.append(f"[{speaker_name}] {clean_line}")
+    return "\n".join(lines)
+
+
+async def synthesise_story_dialogue(
+    http: httpx.AsyncClient,
+    base: str,
+    dialogue: StoryDialogue,
+    host_voices: tuple[str, str],
+    *,
+    cache_dir: Path | None = None,
+) -> tuple[bytes, float, list[tuple[float, float]]]:
+    """Synthesize each turn of a StoryDialogue with Matthew & Kelly, cache per-turn audio, and stitch via PCM."""
+    from .storypack import synthesise
+
+    turn_cache: Path | None = None
+    if cache_dir:
+        turn_cache = Path(cache_dir) / "podcast_turns"
+        turn_cache.mkdir(parents=True, exist_ok=True)
+
+    raw_turns: list[tuple[bytes, float, float]] = []
+    for turn in dialogue.turns:
+        voice_id = host_voices[turn.speaker]
+        key = hashlib.sha256(f"{voice_id}::{turn.text}".encode("utf-8")).hexdigest()[:16]
+        cached_mp3 = turn_cache / f"{key}.mp3" if turn_cache else None
+        cached_meta = turn_cache / f"{key}.json" if turn_cache else None
+
+        if cached_mp3 and cached_mp3.is_file() and cached_meta and cached_meta.is_file():
+            try:
+                raw_audio = cached_mp3.read_bytes()
+                seconds = float(json.loads(cached_meta.read_text(encoding="utf-8")).get("duration") or 1.2)
+                raw_turns.append((raw_audio, seconds, turn.pause_after))
+                continue
+            except Exception:
+                pass
+
+        raw_audio, seconds = await synthesise(http, base, turn.text, voice_id)
+        if cached_mp3 and cached_meta:
+            try:
+                cached_mp3.write_bytes(raw_audio)
+                cached_meta.write_text(json.dumps({"duration": seconds, "voice": voice_id}), encoding="utf-8")
+            except Exception:
+                pass
+        raw_turns.append((raw_audio, seconds, turn.pause_after))
+
+    return await asyncio.to_thread(stitch_turn_audio, raw_turns)

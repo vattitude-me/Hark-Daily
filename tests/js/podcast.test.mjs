@@ -19,10 +19,11 @@ writeFileSync(join(dir, 'api.mjs'), `export const SECTIONS = {
   sports: { title: 'Sports' }, sports_us: { title: 'Sports' }, sports_in: { title: 'Cricket & Sports' }
 }; export const voiceName = (v) => v; export const fmtTime = (s) => String(s); export const h = () => ({}); export const store = { get: () => 0, set: () => {} };`);
 writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x';");
-const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor } = await import(join(dir, 'storypack.mjs'));
+const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor, parseDialogueTurns, pickVoice } = await import(join(dir, 'storypack.mjs'));
 
 const playerSrc = readFileSync(new URL('../../web/js/player.js', import.meta.url), 'utf8')
-  .replace("'./api.js'", "'./api.mjs'");
+  .replace("'./api.js'", "'./api.mjs'")
+  .replace("'./storypack.js'", "'./storypack.mjs'");
 writeFileSync(join(dir, 'player.mjs'), playerSrc);
 const { posKeyFor } = await import(join(dir, 'player.mjs'));
 
@@ -209,4 +210,34 @@ test('posKeyFor generates independent timeline keys for Canada, US, and India', 
   assert.equal(inFull, 'pos-2026-10-30-in');
   assert.notEqual(caFull, inFull);
 });
+
+test('parseDialogueTurns extracts speaker-labeled turns and returns null for monologue scripts', () => {
+  const dialogueScript = '[Matthew] Bank of Canada held its policy rate at 3.25 percent today.\n[Kelly] That affects variable mortgage holders immediately.';
+  const turns = parseDialogueTurns(dialogueScript);
+  assert.ok(Array.isArray(turns));
+  assert.equal(turns.length, 2);
+  assert.deepEqual(turns[0], { speaker: 'Matthew', text: 'Bank of Canada held its policy rate at 3.25 percent today.' });
+  assert.deepEqual(turns[1], { speaker: 'Kelly', text: 'That affects variable mortgage holders immediately.' });
+
+  assert.equal(parseDialogueTurns('Plain monologue sentence without speaker tags.'), null);
+});
+
+test('pickVoice and buildBriefing prefer matthew_reference+kelly_reference duo clips when present', () => {
+  const duoVoice = 'matthew_reference+kelly_reference';
+  const duoRows = [
+    { date: 'd', section: 'top', rank: 1, voice: duoVoice, title: 'Top Story 1', script: '[Matthew] Line 1.\n[Kelly] Line 2.', duration: 24, audio_path: 's/duo/top1.mp3' },
+    { date: 'd', section: 'top', rank: 2, voice: duoVoice, title: 'Top Story 2', script: '[Kelly] Line 1.\n[Matthew] Line 2.', duration: 22, audio_path: 's/duo/top2.mp3' },
+  ];
+  const duoPod = pod.map((c) => ({ ...c, hosts: duoVoice }));
+  assert.equal(pickVoice(duoRows, 'c3po_reference'), duoVoice);
+
+  const b = buildBriefing(duoRows, { stories: { top: 2 } }, { date: 'd', voice: duoVoice, notes: [{ voice: duoVoice, note_key: 'pack_ready' }], mode: 'podcast', podcastClips: duoPod });
+  assert.equal(b.mode, 'podcast');
+  assert.equal(b.voice.id, duoVoice);
+  const storyClips = b.clips.filter((c) => !c.note && !c.gap);
+  assert.equal(storyClips.length, 2);
+  assert.ok(storyClips[0].url.includes('s/duo/top1.mp3'));
+  assert.ok(storyClips[1].url.includes('s/duo/top2.mp3'));
+});
+
 
