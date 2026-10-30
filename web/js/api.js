@@ -485,9 +485,13 @@ export const api = {
     return pack.podcast_clips || [];
   },
   /** The most recent date that has a pack — used when today's hasn't been published yet. */
-  async latestStoryDate() {
+  async latestStoryDate(edition = null) {
     try {
-      const rows = check(await sb.from('story_audio').select('date').order('date', { ascending: false }).limit(1));
+      let query = sb.from('story_audio').select('date').order('date', { ascending: false });
+      if (edition === 'in') query = query.like('section', '%_in');
+      else if (edition === 'us') query = query.like('section', '%_us');
+      else if (edition === 'ca') query = query.eq('section', 'top');
+      const rows = check(await query.limit(1));
       if (rows && rows[0]?.date) return rows[0].date;
     } catch {
       // Fall back to storage CDN

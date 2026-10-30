@@ -82,7 +82,7 @@ log "Running briefing pack generation for India edition (voicing on M3 Pro, push
 
 log "✓ Evening Edition successfully published to Supabase!"
 
-# Option B Relay: Re-affirm tomorrow's morning edition wake event (05:58)
+# Option B Relay: Re-affirm tomorrow's morning edition wake event (04:58)
 if [ -x "$ROOT/scripts/schedule_wake.sh" ]; then
   "$ROOT/scripts/schedule_wake.sh" morning 2>&1 | tee -a "$LOG_FILE" || true
 fi

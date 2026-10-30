@@ -473,7 +473,7 @@ function syncEditionPicker() {
   if (label) label.textContent = (EDITIONS[state.edition]?.code || state.edition || 'ca').toUpperCase();
 }
 
-export function setEdition(edition) {
+export async function setEdition(edition) {
   if (!EDITIONS[edition]) return;
   const wasPlaying = player.isPlaying;
 
@@ -491,6 +491,32 @@ export function setEdition(edition) {
   syncEditionPicker();
   updateMenuDrawer();
   trackEvent('select_content', { content_type: 'edition', item_id: edition });
+
+  const today = new Date().toLocaleDateString('en-CA');
+  const currentRows = state.packContext?.rows || [];
+  const targetNeedsLoad =
+    (edition === 'in' && !currentRows.some((r) => r.section && r.section.endsWith('_in'))) ||
+    (edition === 'us' && !currentRows.some((r) => r.section && r.section.endsWith('_us'))) ||
+    (edition === 'ca' && state.briefing?.date !== today && currentRows.some((r) => r.section && r.section.endsWith('_in')));
+
+  if (targetNeedsLoad) {
+    const pack = await loadStoryPack(today);
+    if (pack) {
+      state.briefing = pack;
+      const posKey = posKeyFor(pack);
+      store.set(posKey, 0);
+      displayBriefing();
+      if (wasPlaying) {
+        player.loadClip(0, { seek: 0, autoplay: true });
+      } else {
+        player.loadClip(0, { seek: 0, autoplay: false });
+        player.tick();
+      }
+      const ed = EDITIONS[edition];
+      toast(`Switched to ${ed?.name || edition} ${ed?.flag || ''}`);
+      return;
+    }
+  }
 
   if (state.packContext) {
     const { rows, settings, date, notes, fresh, podcastClips } = state.packContext;
@@ -528,15 +554,10 @@ export function setEdition(edition) {
       }
 
       const ed = EDITIONS[edition];
-      const hasEditionStories = edition === 'ca' || briefing.stories.some((s) => s.section.endsWith(`_${edition}`));
-      if (!hasEditionStories) {
-        toast(`Switched to ${ed?.name || edition} ${ed?.flag || ''} · Regional stories coming soon`);
-      } else {
-        toast(`Switched to ${ed?.name || edition} ${ed?.flag || ''}`);
-      }
+      toast(`Switched to ${ed?.name || edition} ${ed?.flag || ''}`);
     } else {
       const ed = EDITIONS[edition];
-      toast(`${ed?.name || edition} stories are not available for today yet.`, { error: true });
+      toast(`${ed?.name || edition} stories are not available yet.`, { error: true });
     }
   }
 }
@@ -1233,32 +1254,47 @@ async function sendReport() {
 /** The day's shared clips assembled for this listener; null when there is no pack at all.
  *
  * Today's pack may not be published yet (the nightly job hasn't run), so for today only we fall
- * back to the most recent one and flag it, rather than showing an empty player. */
+ * back to the most recent one and flag it, rather than showing an empty player.
+ * For international editions like India, data naturally stems from the previous day's evening run
+ * until the next evening run updates it. */
 async function loadStoryPack(day) {
   const today = new Date().toLocaleDateString('en-CA');
+  const targetDay = day || today;
+  const targetEd = state.edition || 'ca';
   try {
     // Parallelize settings and day queries concurrently
     const [{ settings }, rows, notes, podcastClips] = await Promise.all([
       api.settings(),
-      api.storyAudio(day),
-      api.voiceNotes(day),
-      podcastOn() ? api.podcastClips(day).catch(() => []) : Promise.resolve([])
+      api.storyAudio(targetDay),
+      api.voiceNotes(targetDay),
+      podcastOn() ? api.podcastClips(targetDay).catch(() => []) : Promise.resolve([])
     ]);
 
-    let date = day;
+    let date = targetDay;
     let actualRows = rows;
     let actualNotes = notes;
     let actualPodcast = podcastClips;
 
-    if (!actualRows.length && day === today) {
-      const latest = await api.latestStoryDate();
-      if (!latest) return null;
-      date = latest;
-      [actualRows, actualNotes, actualPodcast] = await Promise.all([
-        api.storyAudio(date),
-        api.voiceNotes(date),
-        podcastOn() ? api.podcastClips(date).catch(() => []) : Promise.resolve([])
-      ]);
+    // Check whether the queried day actually has stories for the listener's chosen country edition.
+    // For example, India edition is voiced in the evening run, so in the morning EST it picks up
+    // naturally from the previous day's evening run until today's evening run publishes.
+    const hasEditionRows = (rList) => {
+      if (!rList || !rList.length) return false;
+      if (targetEd === 'in') return rList.some((r) => r.section && r.section.endsWith('_in'));
+      if (targetEd === 'us') return rList.some((r) => r.section && r.section.endsWith('_us'));
+      return rList.some((r) => r.section === 'top' || (r.section && !r.section.endsWith('_us') && !r.section.endsWith('_in')));
+    };
+
+    if ((!actualRows.length || !hasEditionRows(actualRows)) && targetDay === today) {
+      const latest = await api.latestStoryDate(targetEd);
+      if (latest && latest !== targetDay) {
+        date = latest;
+        [actualRows, actualNotes, actualPodcast] = await Promise.all([
+          api.storyAudio(date),
+          api.voiceNotes(date),
+          podcastOn() ? api.podcastClips(date).catch(() => []) : Promise.resolve([])
+        ]);
+      }
     }
     if (!actualRows.length) return null;
 
@@ -1286,8 +1322,8 @@ async function loadStoryPack(day) {
         ? hosts.every((h) => actualNotes.some((n) => n.note_key === READY_KEY && n.voice === h))
         : actualNotes.some((n) => n.note_key === READY_KEY && n.voice === briefing.voice?.id);
       if (!isReady) {
-        if (day === today) {
-          const latest = await api.latestStoryDate();
+        if (targetDay === today) {
+          const latest = await api.latestStoryDate(targetEd);
           if (latest && latest !== today) return loadStoryPack(latest);
         }
         return null;
