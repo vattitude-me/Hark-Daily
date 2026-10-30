@@ -477,8 +477,8 @@
               </div>
             </section>
 
-            <!-- Hero player card -->
-            <section class="glass hero hidden" id="hero" aria-label="Audio briefing">
+            <!-- Audio Briefing & Spoken Story Reader -->
+            <section class="hero hidden" id="hero" aria-label="Audio briefing">
               <div class="brief-mode-bar" id="briefModeBar">
                 <div class="segmented mode-segmented" role="radiogroup" aria-label="Briefing edition">
                   <button type="button" class="seg-opt on" id="modePodcastBtn" role="radio" aria-checked="true">
@@ -499,56 +499,22 @@
                 </div>
               </div>
 
-              <div class="hero-top">
-                <div class="hero-art" id="heroArt">
-                  <svg class="hero-art-icon" aria-hidden="true"><use href="#i-wave"/></svg>
-                  <img class="hero-cover hidden" id="heroCover" alt="">
-                </div>
-                <div class="hero-heading">
-                  <p class="hero-kicker">
-                    <span class="badge badge-info" id="heroState"></span>
-                    <span class="overline" id="heroSection"></span>
-                  </p>
-                  <h2 class="hero-title" id="heroTitle"></h2>
-                </div>
-                <div class="hero-top-actions">
-                  <button class="narrator-pill-btn" id="heroNarratorBtn" type="button" aria-label="Change narrator" title="Change narrator">
-                    <svg aria-hidden="true"><use href="#i-mic"/></svg>
-                    <span id="heroNarratorName">Narrator</span>
-                  </button>
-                  <a class="pill-btn glass-btn sm hero-article hidden" id="heroArticle" target="_blank" rel="noopener noreferrer"><span>Read article</span><svg aria-hidden="true"><use href="#i-external"/></svg></a>
-                  <button class="pill-btn glass-btn sm hero-share hidden" id="heroShare" type="button" aria-label="Share current story" title="Share current story">
-                    <svg aria-hidden="true"><use href="#i-share"/></svg>
-                    <span>Share</span>
-                  </button>
-                </div>
-              </div>
-
-              <div class="wave-panel">
-                <div class="wave-head">
-                  <div class="times"><span class="t-cur" id="curTime">0:00</span><span class="t-sep">/</span><span id="durTime">-0:00</span></div>
-                  <span class="overline" id="heroCount"></span>
-                </div>
-                <div class="wave" id="segProgress" role="slider" tabindex="0" aria-label="Seek through the briefing" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                  <div class="seg-thumb" id="segThumb"></div>
-                </div>
-                <div class="hero-controls">
-                  <div class="transport">
-                    <button class="skip-btn" id="back15" aria-label="Back 15 seconds"><svg><use href="#i-back"/></svg></button>
-                    <button class="skip-btn" id="prevChapter" aria-label="Previous story"><svg><use href="#i-prev"/></svg></button>
-                    <button class="ink-circle" id="playBtn" aria-label="Play briefing">
-                      <svg class="i-play"><use href="#i-play"/></svg>
-                      <svg class="i-pause"><use href="#i-pause"/></svg>
-                    </button>
-                    <button class="skip-btn" id="nextChapter" aria-label="Next story"><svg><use href="#i-next"/></svg></button>
-                    <button class="skip-btn" id="fwd30" aria-label="Forward 30 seconds"><svg><use href="#i-fwd"/></svg></button>
-                  </div>
-                  <div class="segmented speed-pills" id="speedPills" role="group" aria-label="Playback speed"></div>
-                </div>
-              </div>
-
-              <!-- Expanded Active News Story Reader -->
+              <!-- Expanded Active News Story Reader with Big Cover Image -->
               <article class="hero-article-reader" id="transcript" aria-label="Currently voiced story">
+                <div class="reader-image-wrap" id="readerImageWrap" role="button" tabindex="0" title="Tap to play or pause">
+                  <img id="readerHeroImage" class="reader-hero-image" alt="Story cover" loading="eager" src="/icons/icon-512.png">
+                  <div class="reader-image-overlay">
+                    <span class="reader-image-badge" id="readerImageBadge">
+                      <svg class="inline-icon" aria-hidden="true"><use href="#i-wave"/></svg>
+                      <span id="readerImageBadgeText">Voiced by Matthew &amp; Kelly</span>
+                    </span>
+                    <button class="reader-image-play-btn" id="readerImagePlayBtn" type="button" aria-label="Play or pause story" title="Play or pause">
+                      <svg class="i-play" aria-hidden="true"><use href="#i-play"/></svg>
+                      <svg class="i-pause" aria-hidden="true"><use href="#i-pause"/></svg>
+                    </button>
+                  </div>
+                </div>
+
                 <header class="reader-head">
                   <div class="reader-kicker">
                     <span class="reader-live-dot" aria-hidden="true"></span>
@@ -563,7 +529,7 @@
                   </button>
                 </header>
 
-                <h2 class="reader-headline" id="readerHeadline">Welcome to Hark Daily</h2>
+                <h1 class="reader-headline" id="readerHeadline">Welcome to Hark Daily</h1>
 
                 <div class="reader-body" id="transcriptBody">
                   <p class="reader-text" id="transcriptText">Tap play to listen and read along.</p>
@@ -588,6 +554,27 @@
                   </div>
                 </footer>
               </article>
+
+              <!-- Hidden dock preserving elements & IDs for player engine without visual duplication -->
+              <div class="hero-hidden-dock hidden" aria-hidden="true" style="display:none !important">
+                <div id="heroArt"><img id="heroCover" alt=""></div>
+                <span id="heroState"></span>
+                <span id="heroSection"></span>
+                <span id="heroTitle"></span>
+                <button id="heroNarratorBtn"><span id="heroNarratorName">Narrator</span></button>
+                <a id="heroArticle"></a>
+                <button id="heroShare"></button>
+                <span id="heroCount"></span>
+                <span id="curTime">0:00</span>
+                <span id="durTime">-0:00</span>
+                <div id="segProgress"><div id="segThumb"></div></div>
+                <button id="back15"></button>
+                <button id="prevChapter"></button>
+                <button id="playBtn"></button>
+                <button id="nextChapter"></button>
+                <button id="fwd30"></button>
+                <div id="speedPills"></div>
+              </div>
 
               <audio id="audio" preload="metadata"></audio>
             </section>
@@ -618,16 +605,17 @@
     </div>
     <div class="mini-text">
       <span class="mini-title" id="miniTitle">Hark Daily</span>
-      <span class="mini-sub" id="miniSub"></span>
-      <div class="mini-bar"><span id="miniBar"></span></div>
+      <span class="mini-sub" id="miniSub">Ready to listen</span>
+      <div class="mini-bar" id="miniBarWrap" role="slider" aria-label="Seek progress" tabindex="0"><span id="miniBar"></span></div>
     </div>
     <div class="mini-controls">
-      <button class="skip-btn sm" id="miniBack" aria-label="Back 15 seconds"><svg><use href="#i-back"/></svg></button>
-      <button class="ink-circle sm" id="miniPlay" aria-label="Play or pause">
+      <button class="skip-btn sm" id="miniPrev" aria-label="Previous story" title="Previous story"><svg><use href="#i-prev"/></svg></button>
+      <button class="skip-btn sm" id="miniBack" aria-label="Back 15 seconds" title="Back 15 seconds"><svg><use href="#i-back"/></svg></button>
+      <button class="ink-circle sm" id="miniPlay" aria-label="Play or pause" title="Play or pause">
         <svg class="i-play"><use href="#i-play"/></svg>
         <svg class="i-pause"><use href="#i-pause"/></svg>
       </button>
-      <button class="skip-btn sm" id="miniNext" aria-label="Next story"><svg><use href="#i-next"/></svg></button>
+      <button class="skip-btn sm" id="miniNext" aria-label="Next story" title="Next story"><svg><use href="#i-next"/></svg></button>
     </div>
   </div>
 

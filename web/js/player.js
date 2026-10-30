@@ -70,9 +70,38 @@ export class Player extends EventTarget {
     el.prev.addEventListener('click', () => this.prevChapter());
     el.next.addEventListener('click', () => this.nextChapter());
     document.getElementById('miniNext')?.addEventListener('click', () => this.nextChapter());
+    document.getElementById('miniPrev')?.addEventListener('click', () => this.prevChapter());
     document.getElementById('back15')?.addEventListener('click', () => this.skip(-15));
     document.getElementById('fwd30')?.addEventListener('click', () => this.skip(30));
     document.getElementById('miniBack')?.addEventListener('click', () => this.skip(-15));
+
+    // Interactive scrubber on floating mini player
+    const miniBar = document.getElementById('miniBarWrap') || document.querySelector('.mini-bar');
+    if (miniBar) {
+      miniBar.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const r = miniBar.getBoundingClientRect();
+        const frac = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+        this.seekTo(frac * (this.total || 0));
+      });
+    }
+
+    // Big Picture tap to play/pause in story reader
+    document.getElementById('readerImagePlayBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggle();
+    });
+    document.getElementById('readerImageWrap')?.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      this.toggle();
+    });
+
+    const readerHeroImg = document.getElementById('readerHeroImage');
+    if (readerHeroImg) {
+      readerHeroImg.addEventListener('error', () => {
+        readerHeroImg.src = '/icons/icon-512.png';
+      });
+    }
 
     // Speed pills
     this.renderSpeedPills();
@@ -133,14 +162,12 @@ export class Player extends EventTarget {
   get isPlaying() { return !this.audio.paused && !this.audio.ended; }
 
   /**
-   * The floating player shows whenever the hero card is off screen and there is
-   * something to resume. Kept in one place because the observer only fires when the
-   * card crosses the viewport, not when the tab or the briefing changes underneath it.
+   * The floating player is docked above the toolbar whenever a briefing is loaded.
    */
   showMini() {
-    const show = !!this.briefing && !this.heroInView && (this.isPlaying || this.position > 0);
-    this.el.mini.classList.toggle('show', show);
-    this.el.mini.setAttribute('aria-hidden', show ? 'false' : 'true');
+    const show = !!this.briefing;
+    this.el.mini?.classList.toggle('show', show);
+    this.el.mini?.setAttribute('aria-hidden', show ? 'false' : 'true');
   }
 
   /** Seconds into the whole briefing (not the current clip). */
@@ -636,15 +663,36 @@ export class Player extends EventTarget {
       const upNext = this.chapters.find((c) => c.kind === 'story' && c.start >= t - 0.01);
       img = (story || this.storyFor(upNext))?.image || '/icons/icon-512.png';
     }
-    if (img && el.cover.dataset.src !== img) { el.cover.dataset.src = img; el.cover.src = img; el.cover.classList.remove('hidden'); }
-    else if (!img) el.cover.classList.add('hidden');
+    if (img && el.cover && el.cover.dataset.src !== img) { el.cover.dataset.src = img; el.cover.src = img; el.cover.classList.remove('hidden'); }
+    else if (!img && el.cover) el.cover.classList.add('hidden');
 
-    // Mini player.
+    // Update Big Picture in the story reader
+    const readerImg = document.getElementById('readerHeroImage');
+    if (readerImg) {
+      if (img && readerImg.dataset.src !== img) {
+        readerImg.dataset.src = img;
+        readerImg.src = img;
+      }
+    }
+    const readerBadgeText = document.getElementById('readerImageBadgeText');
+    if (readerBadgeText) {
+      if (isIntroOrBanter) {
+        readerBadgeText.textContent = this.briefing?.mode === 'podcast' ? 'Voiced by Matthew & Kelly' : 'Daily Brief Intro';
+      } else if (story) {
+        const idx = b.stories.indexOf(story) + 1;
+        readerBadgeText.textContent = idx ? `Now Voicing · Story ${idx} of ${b.stories.length}` : 'Now Voicing';
+      } else {
+        readerBadgeText.textContent = 'Voiced on Hark Daily';
+      }
+    }
+
+    // Floating Mini player docked above toolbar
     el.miniTitle.textContent = story?.headline || ch?.title || b.title;
     el.miniSub.textContent = [section, `${fmtTime(t)} / ${fmtTime(dur)}`].filter(Boolean).join(' · ');
     el.miniBar.style.width = `${frac * 100}%`;
     if (img && el.miniCover.dataset.src !== img) { el.miniCover.dataset.src = img; el.miniCover.src = img; el.miniCover.classList.remove('hidden'); el.miniEq.classList.add('hidden'); }
     else if (!img) { el.miniCover.classList.add('hidden'); el.miniEq.classList.remove('hidden'); }
+    this.showMini();
 
     if (ch && ch.id !== this.current && (t > 0 || this.isPlaying)) {
       this.current = ch.id;
