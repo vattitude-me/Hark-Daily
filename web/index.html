@@ -83,7 +83,7 @@
   <meta name="theme-color" content="#0b0f17" media="(prefers-color-scheme: dark)">
   <link rel="preload" href="/fonts/plus-jakarta-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/css/styles.css?v=52">
+  <link rel="stylesheet" href="/css/styles.css?v=53">
   <script>
     try {
       const t = localStorage.getItem('mb-theme');
@@ -187,11 +187,11 @@
         <section class="landing-welcome" aria-labelledby="landingTitle">
           <span class="badge badge-accent"><span class="badge-dot" aria-hidden="true"></span>Fresh every morning</span>
           <h1 class="landing-title" id="landingTitle">The news you hear, not just read.</h1>
-          <p class="landing-lead">Seven sections of news, summarized and read aloud by the narrator you pick. Your Hark Daily brief is ready before you wake.</p>
+          <p class="landing-lead">Seven sections of the day's news, discussed in a lively two-host conversation by Matthew &amp; Kelly. Your Hark Daily podcast is ready before you wake.</p>
           <ul class="landing-points">
             <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Choose the topics you follow and their order</span></li>
-            <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Neural narrators: C-3PO, Matthew, and Kelly</span></li>
-            <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Full Brief, or a Podcast edition with two hosts chatting about your news</span></li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Hosted by Matthew &amp; Kelly with natural conversational analysis</span></li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Canada, United States, and India editions updated daily</span></li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Free to listen, with no ads</span></li>
           </ul>
           <div class="landing-cta">
@@ -324,12 +324,6 @@
         </button>
       </header>
 
-      <!-- Segmented Format Toggle (One Amber Hero: active is amber-tinted glass fill) -->
-      <div class="clean-format-container" role="radiogroup" aria-label="Briefing edition">
-        <button class="clean-format-btn active" id="cleanFormatPodcast" type="button" role="radio" aria-checked="true">Podcast</button>
-        <button class="clean-format-btn" id="cleanFormatFull" type="button" role="radio" aria-checked="false">Full brief · <span id="cleanBriefEst">14 min</span></button>
-      </div>
-
       <!-- Main Glass Player Card (One Unified Surface) -->
       <div class="clean-player-card" id="cleanPlayerCard">
         <!-- Taller Cover Image Wrap with Share button overlaid on top right -->
@@ -440,15 +434,9 @@
             <span class="clean-menu-val" id="menuTodayVal"></span>
           </button>
 
-          <button class="clean-menu-item" type="button" id="menuFormatBtn">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
-            <span class="clean-menu-label">Format</span>
-            <span class="clean-menu-val" id="menuFormatVal">Podcast · Two hosts</span>
-          </button>
-
           <button class="clean-menu-item" type="button" id="menuVoicesBtn">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>
-            <span class="clean-menu-label">Voices</span>
+            <span class="clean-menu-label">Hosts</span>
             <span class="clean-menu-val" id="menuVoicesVal">Matthew &amp; Kelly</span>
           </button>
 
@@ -570,6 +558,10 @@
       <div id="sections"></div>
       <button id="modePodcastBtn"></button>
       <button id="modeFullBtn"></button>
+      <button id="cleanFormatPodcast"></button>
+      <button id="cleanFormatFull"></button>
+      <span id="cleanBriefEst"></span>
+      <button id="menuFormatBtn"><span id="menuFormatVal"></span></button>
       <span id="modePodcastMeta"></span>
       <span id="modeFullMeta"></span>
       <select id="editionSelect"><option value="ca">CA</option><option value="us">US</option><option value="in">IN</option></select>
@@ -671,7 +663,7 @@
               <span class="first-brief-what" id="welcomeWhat"></span>
             </div>
           </div>
-          <div class="setting-group" id="welcomeModeGroup">
+          <div class="setting-group hidden" id="welcomeModeGroup">
             <h3>Preferred Edition</h3>
             <div class="segmented mode-segmented welcome-mode" role="radiogroup" aria-label="Default edition">
               <button type="button" class="seg-opt on" id="welcomeModePodcast" role="radio" aria-checked="true">
@@ -970,6 +962,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/vendor/supabase.min.js"></script>
-  <script type="module" src="/js/app.js?v=52"></script>
+  <script type="module" src="/js/app.js?v=53"></script>
 </body>
 </html>

@@ -226,3 +226,141 @@ def test_clean_replaces_emdashes_and_endashes():
     assert podcast._clean("Ready —. Yes.") == "Ready. Yes."
     turns = podcast.validate_turns([{"speaker": "a", "text": "Hello — how are you?"}], "open")
     assert turns == [(0, "Hello, how are you?")]
+
+
+# ------------------------------------------------------------------ story dialogue & PCM stitching
+SAMPLE_STORY = {
+    "id": "s-ai-1",
+    "section": "ai",
+    "rank": 1,
+    "title": "Open weights model matches frontier reasoning benchmarks",
+    "source": "TechCrunch",
+    "url": "https://techcrunch.com/2026/10/30/open-weights-model",
+    "summary": "Researchers released a 32-billion-parameter model that runs on consumer workstations.",
+    "article_text": (
+        "Researchers released a 32-billion-parameter model that runs on consumer workstations. "
+        "The release includes full training recipes and an Apache 2.0 license for commercial teams. "
+        "Independent benchmarks show it matching much larger proprietary systems on coding tasks."
+    ),
+    "script": "Open weights model matches frontier reasoning benchmarks.",
+}
+
+
+def test_provider_chain_prioritizes_groq_before_gemini(cfg):
+    c = dataclasses.replace(
+        cfg,
+        groq_api_key="g_key",
+        groq_models=("groq-m1",),
+        local_llm_url="http://localhost:11434/v1/chat/completions",
+        local_llm_model="llama3.1:8b",
+        gemini_api_key="gem_key",
+        gemini_models=("gemini-2.5-flash",),
+    )
+    chain = podcast._ai_provider_chain(c)
+    assert [provider for _, _, _, provider in chain] == ["Groq", "LocalLLM", "Gemini"]
+
+
+def test_build_story_brief_extracts_facts_and_sober_flag():
+    brief = podcast.build_story_brief(SAMPLE_STORY)
+    assert brief["section"] == "ai"
+    assert brief["sober"] is False
+    assert len(brief["facts"]) >= 3
+    assert brief["facts"][0]["id"] == "F1"
+
+    sober_brief = podcast.build_story_brief({**SAMPLE_STORY, "section": "politics_us"})
+    assert sober_brief["sober"] is True
+
+
+def test_validate_story_dialogue_enforces_alternation_and_sober_tags():
+    brief = podcast.build_story_brief(SAMPLE_STORY)
+    good_raw = {
+        "turns": [
+            {"speaker": "a", "purpose": "lead", "fact_refs": ["F1"], "text": "A new 32 billion parameter open model just landed with frontier coding scores."},
+            {"speaker": "b", "purpose": "question", "fact_refs": ["F2"], "text": "[chuckle] And it actually runs on a single workstation under an Apache license?"},
+            {"speaker": "a", "purpose": "context", "fact_refs": ["F2", "F3"], "text": "Yes, the team published the full training recipe alongside the weights."},
+            {"speaker": "b", "purpose": "takeaway", "fact_refs": ["F3"], "text": "That gives smaller developer teams a serious local alternative, according to TechCrunch."},
+        ]
+    }
+    turns = podcast.validate_story_dialogue(good_raw, brief)
+    assert turns is not None and len(turns) == 4
+    assert [t.speaker for t in turns] == [0, 1, 0, 1]
+    assert "[chuckle]" in turns[1].text
+    assert turns[1].pause_after == podcast.PURPOSE_PAUSES["question"]
+
+    # Sober section strips paralinguistic tags
+    sober_brief = podcast.build_story_brief({**SAMPLE_STORY, "section": "top"})
+    sober_turns = podcast.validate_story_dialogue(good_raw, sober_brief)
+    assert sober_turns is not None
+    assert "[chuckle]" not in sober_turns[1].text
+
+    # Single-speaker monologue is rejected
+    monologue = {"turns": [{**t, "speaker": "a"} for t in good_raw["turns"]]}
+    assert podcast.validate_story_dialogue(monologue, brief) is None
+
+
+def test_generate_story_dialogue_uses_groq_and_repairs_invalid_first_attempt(cfg):
+    c = dataclasses.replace(cfg, groq_api_key="g_key", groq_models=("groq-fast",))
+    attempts = 0
+
+    def handler(req):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            # First attempt returns only 1 turn (invalid)
+            bad = {"summary": "Short.", "turns": [{"speaker": "a", "text": "Too short."}]}
+            return _ok(bad)(req)
+        good = {
+            "summary": "A 32B open model runs on workstations with Apache 2.0 licensing.",
+            "turns": [
+                {"speaker": "a", "purpose": "lead", "fact_refs": ["F1"], "text": "Researchers just released a 32 billion parameter model built for workstations."},
+                {"speaker": "b", "purpose": "context", "fact_refs": ["F2"], "text": "It ships with full training recipes and an Apache 2.0 commercial license."},
+                {"speaker": "a", "purpose": "implication", "fact_refs": ["F3"], "text": "Independent benchmarks put it right alongside much larger proprietary systems on coding."},
+                {"speaker": "b", "purpose": "takeaway", "fact_refs": ["F2", "F3"], "text": "That is a major step forward for local developer workflows, TechCrunch reports."},
+            ],
+        }
+        return _ok(good)(req)
+
+    dialogue = podcast.generate_story_dialogue(c, SAMPLE_STORY, HOSTS, client=_client(handler), force=True)
+    assert attempts == 2
+    assert dialogue.writer == "groq-fast"
+    assert len(dialogue.turns) == 4
+    formatted = podcast.format_dialogue_transcript(dialogue.turns, HOSTS)
+    assert "[Matthew]" in formatted and "[Kelly]" in formatted
+
+
+def test_generate_story_dialogue_falls_back_to_grounded_facts_when_ai_offline(cfg):
+    dialogue = podcast.generate_story_dialogue(cfg, SAMPLE_STORY, HOSTS, force=True)
+    assert dialogue.writer == "built-in"
+    assert len(dialogue.turns) >= 3
+    assert {t.speaker for t in dialogue.turns} == {0, 1}
+
+
+def test_stitch_turns_inserts_audible_silence_between_hosts():
+    from app import audio
+    sr = 24000
+    t = audio. np.arange(int(0.5 * sr), dtype=audio.np.float32) / sr
+    tone = 0.2 * audio.np.sin(2 * audio.np.pi * 220 * t)
+    pause_sec = 0.40
+    combined, marks = audio.stitch_turns([(tone, pause_sec), (tone, 0.35)], sr=sr)
+    assert len(marks) == 2
+    gap_start = int(marks[0][1] * sr) + int(0.05 * sr)
+    gap_end = int(marks[1][0] * sr) - int(0.05 * sr)
+    assert gap_end > gap_start
+    gap_rms = float(audio.np.sqrt(audio.np.mean(combined[gap_start:gap_end] ** 2)))
+    assert gap_rms < 1e-4, f"Expected near-zero silence between turns, got RMS={gap_rms}"
+
+
+def test_voice_scripts_duo_synthesizes_two_host_conversation(cfg, voice):
+    store = FakeStore()
+    c = _cfg(cfg)
+    rows = run(storypack.voice_scripts(
+        store, [SAMPLE_STORY], day="2026-10-30", voice="matthew_reference+kelly_reference",
+        base="http://v", force=True, cfg=c,
+    ))
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["voice"] == "matthew_reference+kelly_reference"
+    assert "[Matthew]" in row["script"] and "[Kelly]" in row["script"]
+    assert {v for v, _ in voice} == {"matthew_reference", "kelly_reference"}
+    assert row["audio_path"] in store.objects
+    assert row["duration"] > 1.0

@@ -167,12 +167,21 @@ class SynthRequest(BaseModel):
     text: str = Field(..., min_length=1)
     beat: float | None = Field(None, gt=0, le=5.0)
     voice: str | None = Field(None, description="Clip name from /voices; defaults to reference.wav")
+    temperature: float | None = Field(None, gt=0.1, le=1.5, description="Sampling temperature for expressiveness (default 0.90)")
+    top_p: float | None = Field(None, gt=0.1, le=1.0, description="Nucleus sampling top_p (default 0.98)")
+    repetition_penalty: float | None = Field(None, ge=1.0, le=2.0)
+    pace: float | None = Field(None, ge=0.75, le=1.25, description="Speech tempo factor: <1.0 is slower (default 0.94 slow-to-medium)")
+    exaggeration: float | None = Field(None, ge=0.0, le=1.5, description="Emotion/character exaggeration weight (default 0.75)")
 
 
 class SampleRequest(BaseModel):
     text: str | None = None
     beat: float | None = Field(None, gt=0, le=5.0)
     voice: str | None = Field(None, description="Clip name from /voices; defaults to reference.wav")
+    temperature: float | None = Field(None, gt=0.1, le=1.5)
+    top_p: float | None = Field(None, gt=0.1, le=1.0)
+    pace: float | None = Field(None, ge=0.75, le=1.25)
+    exaggeration: float | None = Field(None, ge=0.0, le=1.5)
 
 
 # ------------------------------------------------------------------ endpoints
@@ -204,7 +213,11 @@ def synthesize(req: SynthRequest, format: str = Query("wav", pattern="^(wav|mp3)
     """
     try:
         voice = get_voice()
-        kwargs = {} if req.beat is None else {"beat": req.beat}
+        kwargs: dict = {}
+        for k in ("beat", "temperature", "top_p", "repetition_penalty", "pace", "exaggeration"):
+            val = getattr(req, k, None)
+            if val is not None:
+                kwargs[k] = val
         target = target_for(req.voice)
         audio, _ = voice.render(req.text, reference=target, **kwargs)
     except HTTPException:
@@ -238,7 +251,11 @@ def news_sample(req: SampleRequest) -> dict:
     text = req.text or SAMPLE_STORY
     try:
         voice = get_voice()
-        kwargs = {} if req.beat is None else {"beat": req.beat}
+        kwargs = {}
+        for k in ("beat", "temperature", "top_p", "pace", "exaggeration"):
+            val = getattr(req, k, None)
+            if val is not None:
+                kwargs[k] = val
         target = target_for(req.voice)
         audio, marks = voice.render(text, reference=target, **kwargs)
     except HTTPException:

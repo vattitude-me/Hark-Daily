@@ -198,10 +198,10 @@ class StoryWriter:
         self.api_key = api_key
         self.gemini_api_key = gemini_api_key
         self.models: list[str] = []
-        if gemini_api_key:
-            self.models.extend(list(gemini_models or ("gemini-2.5-flash", "gemini-1.5-flash")))
         if api_key:
             self.models.extend(list(models))
+        if gemini_api_key:
+            self.models.extend(list(gemini_models or ("gemini-2.5-flash", "gemini-1.5-flash")))
         self.client = client or httpx.Client(timeout=60)
         self.sleep = sleep
         self.failures = 0

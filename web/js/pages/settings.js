@@ -301,7 +301,7 @@ export class SettingsPage {
         }),
       ),
 
-      SectionLabel('Voice'),
+      SectionLabel('Podcast & Playback'),
       this.voiceGroup(d),
 
       SectionLabel('Appearance'),
@@ -365,34 +365,17 @@ export class SettingsPage {
   }
 
   /**
-   * Who reads the brief. The pack records both narrators every morning, so switching picks
-   * which recording plays — it isn't a per-listener voice, and it costs nothing extra.
+   * Podcast & Playback settings: shows the active co-host pair (Matthew & Kelly)
+   * and playback speed controls.
    */
   voiceGroup(d) {
-    const id = voiceFor(d.voice).id;
-    const rows = VOICES.map((v) => {
-      const on = v.id === id;
-      const row = h('button', {
-        type: 'button', class: `persona${on ? ' on' : ''}`, 'aria-pressed': String(on),
-      },
-      h('span', { class: 'persona-avatar' }, icon(v.icon || 'mic')),
-      h('span', { class: 'persona-text' },
-        h('span', { class: 'persona-name' }, v.name),
-        h('span', { class: 'persona-desc' }, v.style || v.desc || (v.gender === 'female' ? 'Warm British newsreader' : 'Calm American newsreader'))),
-      h('span', { class: 'persona-play', role: 'button', tabindex: '0', 'aria-label': `Hear ${v.name}` }, icon('play')));
-      row.addEventListener('click', (e) => {
-        if (e.target.closest('.persona-play')) return;
-        this.set({ voice: v.id });
-      });
-      row.querySelector('.persona-play').addEventListener('click', (e) => { e.stopPropagation(); this.preview(v); });
-      return row;
-    });
-
     const speed = Math.round((Number(d.speed) || 1.0) * 20);
     return GlassGroup(
-      h('div', { class: 'voice-list' }, ...rows),
-      Hairline(),
-      Hint('All four narrators read the same daily briefing for the Full Brief edition. Podcast mode uses pre-selected co-hosts (Matthew & Kelly).'),
+      ListRow({
+        label: 'Podcast Hosts',
+        detail: 'Daily two-host conversation & news analysis across every story.',
+        end: Tag('MATTHEW & KELLY', 'accent'),
+      }),
       Hairline(),
       ListRow({
         label: 'Playback speed',
@@ -468,8 +451,8 @@ export class SettingsPage {
       }),
       Hairline(),
       ListRow({
-        label: 'Expanded Voice Roster',
-        detail: 'More curated narrators, cultural accents, and guest voices (joining Jerry & C-3PO) powered by Chatterbox-Turbo.',
+        label: 'Guest Co-Hosts & Special Editions',
+        detail: 'Curated guest analysts and regional accents joining Matthew & Kelly powered by Chatterbox-Turbo.',
         end: Tag('PREVIEW', 'warn'),
         onClick: () => this.openSuggest('New Voice'),
       }),
