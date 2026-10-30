@@ -304,47 +304,26 @@
 
     <!-- Board 0: Primary Player Experience -->
     <div class="clean-shell" id="cleanShell">
-      <!-- Top Bar -->
+      <!-- Top Bar with Impressive Vector Sunrise Emblem + Hark Daily -->
       <header class="clean-topbar" id="cleanTopbar">
         <button class="clean-glass-circle" id="openMenuBtn" type="button" aria-label="Open menu">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 8h16M4 16h10"/></svg>
         </button>
         <div class="clean-brand" aria-label="Hark Daily">
-          <div class="clean-brand-logo-wrap">
-            <img src="/icons/icon.svg" class="clean-brand-logo" alt="Hark logo" width="32" height="32">
-          </div>
-          <div class="clean-brand-text">
-            <span class="clean-brand-name">hark</span>
-            <span class="clean-brand-badge">DAILY</span>
-          </div>
+          <svg class="clean-brand-emblem" width="32" height="28" viewBox="0 0 32 28" fill="none" aria-hidden="true">
+            <path d="M4 22 A12 12 0 0 1 28 22" stroke="#F59E0B" stroke-width="2.6" stroke-linecap="round" opacity="0.6"/>
+            <path d="M8 22 A8 8 0 0 1 24 22" stroke="#FBBF24" stroke-width="2.6" stroke-linecap="round" opacity="0.85"/>
+            <path d="M12 22 A4 4 0 0 1 20 22" stroke="#FEF3C7" stroke-width="2.6" stroke-linecap="round"/>
+            <circle cx="16" cy="22" r="3.5" fill="#F59E0B"/>
+            <line x1="2" y1="23" x2="30" y2="23" stroke="#F59E0B" stroke-width="1.6" stroke-linecap="round" opacity="0.4"/>
+          </svg>
+          <span class="clean-brand-name">hark <span class="clean-brand-daily">daily</span></span>
         </div>
         <button class="clean-glass-pill" id="openAllStoriesBtn" type="button" aria-label="All stories">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.5M4 12h.5M4 18h.5"/></svg>
           <span id="openAllStoriesLabel">All 35</span>
         </button>
       </header>
-
-      <!-- Cool Hero Heading Section -->
-      <section class="clean-hero-heading" id="cleanHeroHeading" aria-label="Daily brief overview">
-        <div class="clean-hero-eyebrow">
-          <div class="clean-hero-pill">
-            <span class="clean-pulse-dot" aria-hidden="true"></span>
-            <span class="clean-live-label" id="cleanHeroDate">FRESH TODAY · THU 30 OCT</span>
-          </div>
-          <div class="clean-hero-stats" id="cleanHeroStats">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            <span id="cleanHeroDuration">35 stories · 14m</span>
-          </div>
-        </div>
-
-        <div class="clean-hero-main">
-          <div class="clean-hero-title-row">
-            <h1 class="clean-hero-title" id="cleanHeroGreeting">Good evening</h1>
-            <span class="clean-hero-badge-tag" id="cleanHeroNarrator">🎙️ Matthew &amp; Kelly</span>
-          </div>
-          <p class="clean-hero-sub" id="cleanHeroSub">Your daily news reader · Voiced before you wake</p>
-        </div>
-      </section>
 
       <!-- Segmented Format Toggle -->
       <div class="clean-format-container" role="radiogroup" aria-label="Briefing edition">
@@ -438,15 +417,25 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>
           </button>
           <div class="clean-brand" aria-label="Hark Daily">
-            <div class="clean-brand-logo-wrap">
-              <img src="/icons/icon.svg" class="clean-brand-logo" alt="Hark logo" width="30" height="30">
-            </div>
-            <div class="clean-brand-text">
-              <span class="clean-brand-name">hark</span>
-              <span class="clean-brand-badge">DAILY</span>
-            </div>
+            <svg class="clean-brand-emblem" width="28" height="24" viewBox="0 0 32 28" fill="none" aria-hidden="true">
+              <path d="M4 22 A12 12 0 0 1 28 22" stroke="#F59E0B" stroke-width="2.6" stroke-linecap="round" opacity="0.6"/>
+              <path d="M8 22 A8 8 0 0 1 24 22" stroke="#FBBF24" stroke-width="2.6" stroke-linecap="round" opacity="0.85"/>
+              <path d="M12 22 A4 4 0 0 1 20 22" stroke="#FEF3C7" stroke-width="2.6" stroke-linecap="round"/>
+              <circle cx="16" cy="22" r="3.5" fill="#F59E0B"/>
+              <line x1="2" y1="23" x2="30" y2="23" stroke="#F59E0B" stroke-width="1.6" stroke-linecap="round" opacity="0.4"/>
+            </svg>
+            <span class="clean-brand-name">hark <span class="clean-brand-daily">daily</span></span>
           </div>
           <div style="width:44px"></div>
+        </div>
+
+        <!-- Audio Briefing Generated Date Badge in Menu Drawer -->
+        <div class="clean-drawer-date-badge" id="menuDrawerDateBadge">
+          <div class="clean-drawer-date-pill">
+            <span class="clean-pulse-dot" aria-hidden="true"></span>
+            <span id="menuDrawerDateText">FRESH TODAY · THU 29 OCT</span>
+          </div>
+          <span class="clean-drawer-date-meta" id="menuDrawerMetaText">Voiced at sunrise · Updated daily</span>
         </div>
 
         <div class="clean-drawer-card">
