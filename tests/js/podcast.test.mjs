@@ -120,7 +120,9 @@ test('editionSectionKey maps regional keys and keeps shared keys universal', () 
   assert.equal(editionSectionKey('top', 'us'), 'top_us');
   assert.equal(editionSectionKey('top', 'in'), 'top_in');
   assert.equal(editionSectionKey('ai', 'us'), 'ai');
-  assert.equal(editionSectionKey('tech', 'in'), 'tech');
+  assert.equal(editionSectionKey('tech', 'ca'), 'tech');
+  assert.equal(editionSectionKey('tech', 'us'), 'tech_us');
+  assert.equal(editionSectionKey('tech', 'in'), 'tech_in');
   assert.equal(editionSectionKey('science', 'us'), 'science');
 });
 
@@ -145,25 +147,27 @@ test('buildBriefing preserves all 7 sections for US, India, and Canada editions'
   const multiEdRows = [
     // US sections
     { section: 'top_us', rank: 1, voice: 'v', title: 'US Top', duration: 10, audio_path: 's/top_us.mp3' },
+    { section: 'tech_us', rank: 1, voice: 'v', title: 'US Tech', duration: 10, audio_path: 's/tech_us.mp3' },
     { section: 'politics_us', rank: 1, voice: 'v', title: 'US Politics', duration: 10, audio_path: 's/pol_us.mp3' },
     { section: 'entertainment_us', rank: 1, voice: 'v', title: 'US Ent', duration: 10, audio_path: 's/ent_us.mp3' },
     { section: 'sports_us', rank: 1, voice: 'v', title: 'US Sports', duration: 10, audio_path: 's/spo_us.mp3' },
 
     // India sections
     { section: 'top_in', rank: 1, voice: 'v', title: 'IN Top', duration: 10, audio_path: 's/top_in.mp3' },
+    { section: 'tech_in', rank: 1, voice: 'v', title: 'IN Tech', duration: 10, audio_path: 's/tech_in.mp3' },
     { section: 'politics_in', rank: 1, voice: 'v', title: 'IN Politics', duration: 10, audio_path: 's/pol_in.mp3' },
     { section: 'entertainment_in', rank: 1, voice: 'v', title: 'IN Ent', duration: 10, audio_path: 's/ent_in.mp3' },
     { section: 'sports_in', rank: 1, voice: 'v', title: 'IN Cricket', duration: 10, audio_path: 's/spo_in.mp3' },
 
     // Canada sections
     { section: 'top', rank: 1, voice: 'v', title: 'CA Top', duration: 10, audio_path: 's/top_ca.mp3' },
+    { section: 'tech', rank: 1, voice: 'v', title: 'CA Tech', duration: 10, audio_path: 's/tech_ca.mp3' },
     { section: 'politics', rank: 1, voice: 'v', title: 'CA Politics', duration: 10, audio_path: 's/pol_ca.mp3' },
     { section: 'entertainment', rank: 1, voice: 'v', title: 'CA Ent', duration: 10, audio_path: 's/ent_ca.mp3' },
     { section: 'sports', rank: 1, voice: 'v', title: 'CA Sports', duration: 10, audio_path: 's/spo_ca.mp3' },
 
     // Shared global sections
     { section: 'ai', rank: 1, voice: 'v', title: 'Global AI', duration: 10, audio_path: 's/ai.mp3' },
-    { section: 'tech', rank: 1, voice: 'v', title: 'Global Tech', duration: 10, audio_path: 's/tech.mp3' },
     { section: 'science', rank: 1, voice: 'v', title: 'Global Science', duration: 10, audio_path: 's/sci.mp3' },
   ];
 
@@ -172,7 +176,7 @@ test('buildBriefing preserves all 7 sections for US, India, and Canada editions'
   assert.equal(usBrief.edition, 'us');
   assert.equal(usBrief.sections.length, 7, 'US edition must contain all 7 sections');
   const usKeys = usBrief.sections.map((s) => s.key);
-  assert.deepEqual(usKeys, ['top_us', 'ai', 'tech', 'politics_us', 'entertainment_us', 'science', 'sports_us']);
+  assert.deepEqual(usKeys, ['top_us', 'ai', 'tech_us', 'politics_us', 'entertainment_us', 'science', 'sports_us']);
   assert.equal(usBrief.stories.length, 7);
 
   // 2. India edition
@@ -180,7 +184,7 @@ test('buildBriefing preserves all 7 sections for US, India, and Canada editions'
   assert.equal(inBrief.edition, 'in');
   assert.equal(inBrief.sections.length, 7, 'India edition must contain all 7 sections');
   const inKeys = inBrief.sections.map((s) => s.key);
-  assert.deepEqual(inKeys, ['top_in', 'ai', 'tech', 'politics_in', 'entertainment_in', 'science', 'sports_in']);
+  assert.deepEqual(inKeys, ['top_in', 'ai', 'tech_in', 'politics_in', 'entertainment_in', 'science', 'sports_in']);
   assert.equal(inBrief.stories.length, 7);
 
   // 3. Canada edition

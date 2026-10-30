@@ -42,16 +42,18 @@ SECTIONS: dict[str, dict] = {
 }
 
 # Regional feeds for United States and India editions.
-# AI, Tech, and Science are shared universally.
+# AI and Science are shared universally; Tech is regionalized (BetaKit for CA, The Verge for US, ET Tech for IN).
 EDITION_FEEDS: dict[str, dict] = {
     # United States
     "top_us":           {"title": "Top stories",          "provider": "New York Times",   "feed": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml", "edition": "us"},
+    "tech_us":          {"title": "Tech",                 "provider": "The Verge",        "feed": "https://www.theverge.com/rss/index.xml", "edition": "us"},
     "politics_us":      {"title": "Politics",             "provider": "NPR Politics",     "feed": "https://feeds.npr.org/1014/rss.xml", "edition": "us"},
     "entertainment_us": {"title": "Entertainment",        "provider": "Variety",          "feed": "https://variety.com/feed/", "edition": "us"},
     "sports_us":        {"title": "Sports",               "provider": "CBS Sports",       "feed": "https://www.cbssports.com/rss/headlines/", "edition": "us"},
 
     # India
     "top_in":           {"title": "Top stories",          "provider": "The Hindu",        "feed": "https://www.thehindu.com/news/national/feeder/default.rss", "edition": "in"},
+    "tech_in":          {"title": "Tech",                 "provider": "ET Tech",          "feed": "https://economictimes.indiatimes.com/tech/rssfeeds/13357270.cms", "edition": "in"},
     "politics_in":      {"title": "Politics",             "provider": "Indian Express",   "feed": "https://indianexpress.com/section/political-pulse/feed/", "edition": "in"},
     "entertainment_in": {"title": "Entertainment",        "provider": "Indian Express",   "feed": "https://indianexpress.com/section/entertainment/feed/", "edition": "in"},
     "sports_in":        {"title": "Cricket & Sports",     "provider": "ESPNcricinfo",     "feed": "https://www.espncricinfo.com/rss/content/story/feeds/0.xml", "edition": "in"},
@@ -60,11 +62,11 @@ EDITION_FEEDS: dict[str, dict] = {
 ALL_SECTIONS: dict[str, dict] = {**SECTIONS, **EDITION_FEEDS}
 
 # The 7 canonical sections for each country edition.
-# AI, Tech, and Science are shared universally.
+# AI and Science are shared universally.
 EDITION_SECTIONS: dict[str, list[str]] = {
     "ca": ["top", "ai", "tech", "politics", "entertainment", "science", "sports"],
-    "us": ["top_us", "ai", "tech", "politics_us", "entertainment_us", "science", "sports_us"],
-    "in": ["top_in", "ai", "tech", "politics_in", "entertainment_in", "science", "sports_in"],
+    "us": ["top_us", "ai", "tech_us", "politics_us", "entertainment_us", "science", "sports_us"],
+    "in": ["top_in", "ai", "tech_in", "politics_in", "entertainment_in", "science", "sports_in"],
 }
 
 DEFAULT_SECTIONS = list(EDITION_SECTIONS["ca"])
