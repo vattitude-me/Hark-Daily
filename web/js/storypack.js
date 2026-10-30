@@ -11,7 +11,7 @@ export const SECTION_ORDER = LOGICAL_SECTIONS;
 export const MAX_PER_SECTION = 5;
 
 export function editionSectionKey(logicalKey, edition = 'ca') {
-  if (['ai', 'tech', 'science'].includes(logicalKey)) return logicalKey;
+  if (['ai', 'science'].includes(logicalKey)) return logicalKey;
   if (edition === 'us') return `${logicalKey}_us`;
   if (edition === 'in') return `${logicalKey}_in`;
   return logicalKey;

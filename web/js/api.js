@@ -24,12 +24,14 @@ export const SECTIONS = {
 
   // United States
   top_us: { title: 'Top stories', emoji: '📰', icon: 'globe' },
+  tech_us: { title: 'Tech', emoji: '💻', icon: 'chip' },
   politics_us: { title: 'Politics', emoji: '🏛️', icon: 'landmark' },
   entertainment_us: { title: 'Entertainment', emoji: '🎬', icon: 'film' },
   sports_us: { title: 'Sports', emoji: '🏈', icon: 'ball' },
 
   // India
   top_in: { title: 'Top stories', emoji: '📰', icon: 'globe' },
+  tech_in: { title: 'Tech', emoji: '💻', icon: 'chip' },
   politics_in: { title: 'Politics', emoji: '🏛️', icon: 'landmark' },
   entertainment_in: { title: 'Entertainment', emoji: '🎬', icon: 'film' },
   sports_in: { title: 'Cricket & Sports', emoji: '🏏', icon: 'ball' },
