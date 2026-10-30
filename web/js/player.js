@@ -23,7 +23,10 @@ export function splitSentences(text) {
 }
 
 /** Where a briefing's playback position is remembered: each edition has its own timeline. */
-const posKeyFor = (b) => (b?.mode && b.mode !== 'full' ? `pos-${b.date}-${b.mode}` : `pos-${b?.date}`);
+export const posKeyFor = (b) => {
+  const ed = b?.edition || 'ca';
+  return b?.mode && b.mode !== 'full' ? `pos-${b?.date}-${b?.mode}-${ed}` : `pos-${b?.date}-${ed}`;
+};
 
 export class Player extends EventTarget {
   constructor() {
@@ -290,6 +293,7 @@ export class Player extends EventTarget {
       delete this.preloader.dataset.clip;
       this.preloader.removeAttribute('src');
     }
+    this.isTransitioningClip = false;
     // In Rapid Fire mode, default to 1.1x speed; in Full mode, restore listener's standard speed.
     if (briefing.mode === 'rapid') {
       this.speed = 1.1;

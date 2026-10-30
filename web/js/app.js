@@ -1,5 +1,5 @@
 import { api, fmtTime, h, icon, isAdmin, recordError, sb, store, timeAgo, toast, VOICES, voiceFor, SECTIONS, DEFAULT_VOICE_ID, EDITIONS, defaultEdition, detectEditionFromIp } from './api.js';
-import { Player } from './player.js';
+import { Player, posKeyFor } from './player.js';
 import { Landing } from './landing.js';
 import { WelcomeSheet, DeleteAccountSheet, enablePush, installMode, onInstallChange, promptInstall, pushSupported, requestNotificationPermission, wireSheet } from './sheets.js';
 import { SourcesPage } from './pages/sources.js';
@@ -475,9 +475,21 @@ function syncEditionPicker() {
 
 export function setEdition(edition) {
   if (!EDITIONS[edition]) return;
+  const wasPlaying = player.isPlaying;
+
+  // Stop currently playing audio immediately and reset timeline
+  player.audio.pause();
+  player.audio.currentTime = 0;
+  player.index = 0;
+  if (player.preloader) {
+    delete player.preloader.dataset.clip;
+    player.preloader.removeAttribute('src');
+  }
+
   state.edition = edition;
   store.set('edition', edition);
   syncEditionPicker();
+  updateMenuDrawer();
   trackEvent('select_content', { content_type: 'edition', item_id: edition });
 
   if (state.packContext) {
@@ -496,16 +508,35 @@ export function setEdition(edition) {
       targetDur: targetInfo.dur,
       edition: state.edition,
     });
-    if (briefing) {
+    if (briefing && briefing.stories && briefing.stories.length > 0) {
       briefing.fresh = fresh;
-      const wasPlaying = player.isPlaying;
+      briefing.edition = edition;
+
+      // Reset saved position for this edition so we restart fresh
+      const posKey = posKeyFor(briefing);
+      store.set(posKey, 0);
+
       state.briefing = briefing;
       displayBriefing();
+
+      // Restart player with the new country's content from the beginning (Story 1 / clip 0)
       if (wasPlaying) {
-        player.audio.play().catch(() => {});
+        player.loadClip(0, { seek: 0, autoplay: true });
+      } else {
+        player.loadClip(0, { seek: 0, autoplay: false });
+        player.tick();
       }
+
       const ed = EDITIONS[edition];
-      toast(`Switched to ${ed?.name || edition} ${ed?.flag || ''}`);
+      const hasEditionStories = edition === 'ca' || briefing.stories.some((s) => s.section.endsWith(`_${edition}`));
+      if (!hasEditionStories) {
+        toast(`Switched to ${ed?.name || edition} ${ed?.flag || ''} · Regional stories coming soon`);
+      } else {
+        toast(`Switched to ${ed?.name || edition} ${ed?.flag || ''}`);
+      }
+    } else {
+      const ed = EDITIONS[edition];
+      toast(`${ed?.name || edition} stories are not available for today yet.`, { error: true });
     }
   }
 }

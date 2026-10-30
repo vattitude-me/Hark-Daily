@@ -17,9 +17,14 @@ writeFileSync(join(dir, 'api.mjs'), `export const SECTIONS = {
   politics: { title: 'Politics' }, politics_us: { title: 'Politics' }, politics_in: { title: 'Politics' },
   entertainment: { title: 'Entertainment' }, entertainment_us: { title: 'Entertainment' }, entertainment_in: { title: 'Entertainment' },
   sports: { title: 'Sports' }, sports_us: { title: 'Sports' }, sports_in: { title: 'Cricket & Sports' }
-}; export const voiceName = (v) => v;`);
+}; export const voiceName = (v) => v; export const fmtTime = (s) => String(s); export const h = () => ({}); export const store = { get: () => 0, set: () => {} };`);
 writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x';");
 const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor } = await import(join(dir, 'storypack.mjs'));
+
+const playerSrc = readFileSync(new URL('../../web/js/player.js', import.meta.url), 'utf8')
+  .replace("'./api.js'", "'./api.mjs'");
+writeFileSync(join(dir, 'player.mjs'), playerSrc);
+const { posKeyFor } = await import(join(dir, 'player.mjs'));
 
 const row = (section, rank) => ({ date: 'd', section, rank, voice: 'v', title: `${section}${rank}`, url: 'u', source: 's', script: 'x', duration: 20, audio_path: `s/${section}${rank}.mp3` });
 const rows = [row('top', 1), row('top', 2), row('ai', 1), row('tech', 1), row('sports', 1)];
@@ -164,6 +169,7 @@ test('buildBriefing preserves all 7 sections for US, India, and Canada editions'
 
   // 1. US edition
   const usBrief = buildBriefing(multiEdRows, {}, { edition: 'us', voice: 'v' });
+  assert.equal(usBrief.edition, 'us');
   assert.equal(usBrief.sections.length, 7, 'US edition must contain all 7 sections');
   const usKeys = usBrief.sections.map((s) => s.key);
   assert.deepEqual(usKeys, ['top_us', 'ai', 'tech', 'politics_us', 'entertainment_us', 'science', 'sports_us']);
@@ -171,6 +177,7 @@ test('buildBriefing preserves all 7 sections for US, India, and Canada editions'
 
   // 2. India edition
   const inBrief = buildBriefing(multiEdRows, {}, { edition: 'in', voice: 'v' });
+  assert.equal(inBrief.edition, 'in');
   assert.equal(inBrief.sections.length, 7, 'India edition must contain all 7 sections');
   const inKeys = inBrief.sections.map((s) => s.key);
   assert.deepEqual(inKeys, ['top_in', 'ai', 'tech', 'politics_in', 'entertainment_in', 'science', 'sports_in']);
@@ -178,9 +185,29 @@ test('buildBriefing preserves all 7 sections for US, India, and Canada editions'
 
   // 3. Canada edition
   const caBrief = buildBriefing(multiEdRows, {}, { edition: 'ca', voice: 'v' });
+  assert.equal(caBrief.edition, 'ca');
   assert.equal(caBrief.sections.length, 7, 'Canada edition must contain all 7 sections');
   const caKeys = caBrief.sections.map((s) => s.key);
   assert.deepEqual(caKeys, ['top', 'ai', 'tech', 'politics', 'entertainment', 'science', 'sports']);
   assert.equal(caBrief.stories.length, 7);
+});
+
+test('posKeyFor generates independent timeline keys for Canada, US, and India', () => {
+  const caPodcast = posKeyFor({ date: '2026-10-30', mode: 'podcast', edition: 'ca' });
+  const usPodcast = posKeyFor({ date: '2026-10-30', mode: 'podcast', edition: 'us' });
+  const inPodcast = posKeyFor({ date: '2026-10-30', mode: 'podcast', edition: 'in' });
+
+  assert.equal(caPodcast, 'pos-2026-10-30-podcast-ca');
+  assert.equal(usPodcast, 'pos-2026-10-30-podcast-us');
+  assert.equal(inPodcast, 'pos-2026-10-30-podcast-in');
+
+  assert.notEqual(caPodcast, inPodcast, 'Canada and India must have distinct position keys');
+  assert.notEqual(usPodcast, inPodcast, 'US and India must have distinct position keys');
+
+  const caFull = posKeyFor({ date: '2026-10-30', mode: 'full', edition: 'ca' });
+  const inFull = posKeyFor({ date: '2026-10-30', mode: 'full', edition: 'in' });
+  assert.equal(caFull, 'pos-2026-10-30-ca');
+  assert.equal(inFull, 'pos-2026-10-30-in');
+  assert.notEqual(caFull, inFull);
 });
 

@@ -78,10 +78,10 @@ if [ "$HEALTHY" -ne 1 ]; then
 fi
 
 # Run the storypack generation pipeline (voicing stories & podcast on M3 Pro, pushing to Supabase)
-# Morning edition voices US and Canada, sharing AI, Tech, and Science
+# Morning edition voices Canada, US, and India, sharing AI, Tech, and Science
 cd "$ROOT"
-log "Running briefing pack generation for Canada & US editions (voicing on M3 Pro, pushing to Supabase)..."
-"$ROOT/.venv/bin/python" -m app pack --edition ca,us --notify "$@" >> "$LOG_FILE" 2>&1
+log "Running briefing pack generation for Canada, US & India editions (voicing on M3 Pro, pushing to Supabase)..."
+"$ROOT/.venv/bin/python" -m app pack --edition ca,us,in --notify "$@" >> "$LOG_FILE" 2>&1
 
 log "✓ Morning Edition successfully published to Supabase!"
 
