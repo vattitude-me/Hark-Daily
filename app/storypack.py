@@ -163,8 +163,8 @@ def clear_ready(store, *, day: str, voice: str) -> None:
     store.delete("voice_notes", {"date": f"eq.{day}", "voice": f"eq.{voice}", "note_key": f"eq.{PACK_READY}"})
 
 
-def prune_older(store, *, keep: str, preserve_sections: list[str] | None = None) -> list[str]:
-    """Keep one day of audio: delete every day older than [keep], rows and files together.
+def prune_older(store, *, keep: str, keep_days: int = 2, preserve_sections: list[str] | None = None) -> list[str]:
+    """Keep [keep_days] days of audio: delete every day older than cutoff, rows and files together.
 
     Sections in [preserve_sections] (such as India edition feeds when running the morning CA/US pack)
     are retained until their own dedicated evening batch updates them.
@@ -172,8 +172,14 @@ def prune_older(store, *, keep: str, preserve_sections: list[str] | None = None)
     """
     days: list[str] = []
     preserve_set = set(preserve_sections or ())
+    try:
+        base = datetime.fromisoformat(keep).date()
+        cutoff_date = (base - timedelta(days=max(1, keep_days) - 1)).isoformat()
+    except Exception:
+        cutoff_date = keep
+
     for table in ("story_audio", "voice_notes", "podcast_clips"):
-        rows = store.select(table, {"date": f"lt.{keep}"})
+        rows = store.select(table, {"date": f"lt.{cutoff_date}"})
         if table == "voice_notes":
             rows = [r for r in rows if str(r.get("date")) > STATIC_DATE]
         if table == "story_audio" and preserve_set:
@@ -190,9 +196,9 @@ def prune_older(store, *, keep: str, preserve_sections: list[str] | None = None)
             for r in rows:
                 store.delete("story_audio", {"id": f"eq.{r['id']}"})
         else:
-            store.delete(table, {"date": f"lt.{keep}"})
+            store.delete(table, {"date": f"lt.{cutoff_date}"})
         days += [str(r["date"]) for r in rows]
-        log.info("[prune] %s: %d rows, %d files removed", table, len(rows), len(paths))
+        log.info("[prune] %s: %d rows, %d files removed (older than %s)", table, len(rows), len(paths), cutoff_date)
     unique_days = sorted(set(days))
     for d in unique_days:
         try:
@@ -864,7 +870,7 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
         # When running morning batch (e.g. ca, us), preserve India sections from yesterday's evening batch
         ed_list = [e.strip().lower() for e in edition.split(",")] if isinstance(edition, str) else list(edition or [])
         preserve = [s for s in topics.EDITION_SECTIONS.get("in", []) if s.endswith("_in")] if ("in" not in ed_list and ed_list) else None
-        gone = prune_older(store, keep=day, preserve_sections=preserve)
+        gone = prune_older(store, keep=day, keep_days=cfg.keep_days, preserve_sections=preserve)
         if gone:
             log.info("Pruned %d older day(s): %s", len(gone), ", ".join(gone))
     if failed:

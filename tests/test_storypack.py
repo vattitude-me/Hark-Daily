@@ -326,8 +326,8 @@ def _yesterday_is_gone(store) -> bool:
 
 
 def test_the_old_day_goes_once_the_new_one_is_whole(cfg, store, monkeypatch):
-    """Yesterday's audio is deleted, rows and files, when today is complete for every narrator."""
-    cfg = dataclasses.replace(cfg, voice_url="http://voice.test",
+    """Yesterday's audio is deleted, rows and files, when today is complete and keep_days=1."""
+    cfg = dataclasses.replace(cfg, voice_url="http://voice.test", keep_days=1,
                               story_voices=("her_reference", "him_reference"))
     _one_story(monkeypatch)
     for voice in cfg.story_voices:
@@ -337,7 +337,21 @@ def test_the_old_day_goes_once_the_new_one_is_whole(cfg, store, monkeypatch):
 
     assert storypack.ready(store, day=DAY, voice="her_reference")
     assert storypack.ready(store, day=DAY, voice="him_reference")
-    assert _yesterday_is_gone(store), "the previous day should not survive a complete morning"
+    assert _yesterday_is_gone(store), "the previous day should not survive when keep_days=1"
+
+
+def test_two_days_retention_preserves_yesterday(cfg, store, monkeypatch):
+    """When keep_days=2, yesterday is preserved and only older days are deleted."""
+    cfg = dataclasses.replace(cfg, voice_url="http://voice.test", keep_days=2,
+                              story_voices=("her_reference", "him_reference"))
+    _one_story(monkeypatch)
+    for voice in cfg.story_voices:
+        _old_day(store, YESTERDAY, voice)
+
+    asyncio.run(storypack.build(cfg, store, day=DAY))
+
+    assert storypack.ready(store, day=DAY, voice="her_reference")
+    assert not _yesterday_is_gone(store), "yesterday should be preserved when keep_days=2"
 
 
 def test_a_failed_morning_keeps_yesterday(cfg, store, monkeypatch):
