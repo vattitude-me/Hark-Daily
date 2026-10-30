@@ -276,6 +276,7 @@ function renderHeader() {
     dateOverline.textContent = '';
     dateOverline.classList.add('hidden');
   }
+  updateMenuDrawer();
 }
 
 /* ------------------------------------------------------------------ notice */
@@ -1295,6 +1296,8 @@ function displayBriefing() {
   if (storyInfo.story || storyInfo.title || storyInfo.audio) handleStoryDeepLink(storyInfo);
 }
 window.displayBriefing = displayBriefing;
+window.updateMenuDrawer = updateMenuDrawer;
+window.state = state;
 
 async function loadArchive() {
   try {
@@ -1460,6 +1463,11 @@ function updateMenuDrawer() {
   const sleepVal = $('menuSleepTimerVal');
   if (sleepVal) {
     sleepVal.textContent = sleepTimerMinutes === 0 ? 'Off' : (sleepTimerMinutes === 'brief' ? 'End of brief' : `${sleepTimerMinutes} min`);
+  }
+  const deleteBtn = $('menuDeleteAccountBtn');
+  if (deleteBtn) {
+    const hasAccount = !!(state.profile?.id || state.profile?.email);
+    deleteBtn.classList.toggle('hidden', !hasAccount);
   }
 }
 
@@ -1684,10 +1692,6 @@ function bindEvents() {
   });
   $('menuOfflineBtn')?.addEventListener('click', downloadOfflineAudio);
   $('menuSleepTimerBtn')?.addEventListener('click', cycleSleepTimer);
-  $('menuSettingsBtn')?.addEventListener('click', () => {
-    $('menuDrawer')?.classList.add('hidden');
-    openAuxSheet('settings');
-  });
   $('menuDeleteAccountBtn')?.addEventListener('click', () => {
     $('menuDrawer')?.classList.add('hidden');
     if (deleteAccountSheet) deleteAccountSheet.open(state.profile?.email);
