@@ -3203,7 +3203,7 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 28px;
-  padding: 4px;
+  padding: 3px;
   display: flex;
   gap: 4px;
   flex: none;
@@ -3212,11 +3212,12 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   all: unset;
   box-sizing: border-box;
   flex: 1;
-  height: 42px;
+  height: 40px;
+  padding: 0 8px;
   border-radius: 22px;
   color: rgba(255, 255, 255, 0.65);
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 14.5px;
+  font-family: 'Space Grotesk', -apple-system, sans-serif;
+  font-size: 13.5px;
   font-weight: 500;
   display: flex;
   align-items: center;
@@ -3225,6 +3226,7 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   transition: all .18s ease;
   user-select: none;
   border: 1px solid transparent;
+  white-space: nowrap;
 }
 .clean-format-btn.active {
   background: rgba(245, 158, 11, 0.16);
@@ -3324,30 +3326,39 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
 
 /* Small Glass Icon Share Button on Art */
 .clean-cover-share-btn {
-  all: unset;
-  box-sizing: border-box;
   position: absolute;
   top: 12px;
   right: 12px;
   width: 36px;
   height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  margin: 0;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.48);
+  background: rgba(18, 14, 10, 0.72) !important;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-  display: flex;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  display: flex !important;
   align-items: center;
   justify-content: center;
-  color: #FFFFFF;
+  color: #FFFFFF !important;
   cursor: pointer;
-  z-index: 3;
+  z-index: 20 !important;
+  outline: none;
   transition: transform .15s ease, background .15s ease, border-color .15s ease;
 }
+.clean-cover-share-btn svg {
+  display: block;
+  width: 17px;
+  height: 17px;
+  stroke: #FFFFFF;
+}
 .clean-cover-share-btn:hover {
-  background: rgba(245, 158, 11, 0.25);
-  border-color: rgba(245, 158, 11, 0.5);
+  background: rgba(245, 158, 11, 0.3) !important;
+  border-color: rgba(245, 158, 11, 0.6) !important;
   transform: scale(1.08);
 }
 .clean-cover-share-btn:active {
@@ -3361,13 +3372,19 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
   justify-content: space-between;
   padding: 0 4px;
   flex: none;
+  width: 100%;
+  box-sizing: border-box;
 }
 .clean-meta-left {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 .clean-cat-pill {
+  flex: none;
   background: rgba(245, 158, 11, 0.18);
   color: #FFC766;
   border: 1px solid rgba(245, 158, 11, 0.4);
@@ -3382,6 +3399,9 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
   font-size: 13.5px;
   font-weight: 500;
   color: #FFFFFF;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .clean-source-link {
   display: inline-flex;
@@ -3393,6 +3413,8 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
   text-decoration: none;
   transition: color .15s ease;
   margin-left: 2px;
+  white-space: nowrap;
+  flex: none;
 }
 .clean-source-link:hover {
   color: #F59E0B;
@@ -3409,6 +3431,9 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
   font-weight: 500;
   color: rgba(255, 255, 255, 0.70);
   font-variant-numeric: tabular-nums;
+  flex: none;
+  white-space: nowrap;
+  margin-left: 8px;
 }
 
 /* Headline */
