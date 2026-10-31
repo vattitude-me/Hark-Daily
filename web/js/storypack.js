@@ -286,11 +286,13 @@ export function noteTitle(noteKey) {
 export function buildBriefing(rows, settings, {
   date, voice, notes = [], hour, mode = 'full', podcastClips = [],
   targetStory = null, targetTitle = null, targetAudio = null, targetSource = null, targetDur = 20,
-  targetHash = null,
+  targetHash = null, targetImage = null, targetScript = null,
   edition = 'ca',
 } = {}) {
   const isRapid = mode === 'rapid';
-  const id = pickVoice(rows, voice);
+  const podVoice = (podcastClips || []).find((c) => c.clip_key === PODCAST_READY_KEY)?.hosts || 'matthew_reference+kelly_reference';
+  const effectiveVoice = mode === 'podcast' ? podVoice : voice;
+  const id = pickVoice(rows, effectiveVoice);
   const userOrder = (settings && Array.isArray(settings.section_order) && settings.section_order.length)
     ? settings.section_order
     : SECTION_ORDER;
@@ -323,12 +325,16 @@ export function buildBriefing(rows, settings, {
   let matchedRow = null;
 
   if (effectiveHash) {
-    matchedRow = (rows || []).find((r) => (!id || r.voice === id) && storyKey(r) === effectiveHash)
+    matchedRow = (rows || []).find((r) => r.voice === 'matthew_reference+kelly_reference' && storyKey(r) === effectiveHash)
+      || (rows || []).find((r) => r.script && r.script.includes('[') && storyKey(r) === effectiveHash)
+      || (rows || []).find((r) => (!id || r.voice === id) && storyKey(r) === effectiveHash)
       || (rows || []).find((r) => storyKey(r) === effectiveHash);
   }
 
   if (!matchedRow && targetTitle) {
-    matchedRow = (rows || []).find((r) => (!id || r.voice === id) && titlesMatch(r.title, targetTitle))
+    matchedRow = (rows || []).find((r) => r.voice === 'matthew_reference+kelly_reference' && titlesMatch(r.title, targetTitle))
+      || (rows || []).find((r) => r.script && r.script.includes('[') && titlesMatch(r.title, targetTitle))
+      || (rows || []).find((r) => (!id || r.voice === id) && titlesMatch(r.title, targetTitle))
       || (rows || []).find((r) => titlesMatch(r.title, targetTitle));
   }
 
@@ -443,16 +449,24 @@ export function buildBriefing(rows, settings, {
     const sec = (baseTargetSec && SECTION_ORDER.includes(baseTargetSec)) ? (localTargetSec || targetSec) : editionSectionKey('top', edition);
     const cleanHash = effectiveHash || targetAudio.replace(/[^a-zA-Z0-9]/g, '').slice(-8);
     const archivedId = cleanHash || normalizedTargetStory || `shared-${sec}-${cleanHash}`;
+    const existingMeta = (rows || []).find((r) =>
+      (cleanHash && storyKey(r) === cleanHash) ||
+      (targetTitle && titlesMatch(r.title, targetTitle)) ||
+      (targetAudio && r.audio_path === targetAudio)
+    );
+    const synImage = existingMeta?.image || targetImage || null;
+    const synScript = existingMeta?.script || targetScript || null;
     const syntheticRow = {
       section: sec,
       rank: 0,
-      title: targetTitle || 'Shared Story',
-      summary: targetTitle || 'Shared Story',
-      source: targetSource || 'The news',
-      url: null,
-      image: null,
-      duration: targetDur || 20,
-      audio_path: targetAudio,
+      title: targetTitle || existingMeta?.title || 'Shared Story',
+      summary: targetTitle || existingMeta?.summary || 'Shared Story',
+      source: targetSource || existingMeta?.source || 'The news',
+      url: existingMeta?.url || null,
+      image: synImage,
+      script: synScript,
+      duration: targetDur || existingMeta?.duration || 20,
+      audio_path: targetAudio || existingMeta?.audio_path,
       isSharedBonus: true,
       syntheticId: archivedId,
     };
@@ -547,12 +561,13 @@ export function buildBriefing(rows, settings, {
     // In podcast mode, prefer the two-host conversation clip (`matthew_reference+kelly_reference`),
     // or alternate between solo host recordings on legacy archive packs.
     let storyRow = row;
-    if (!row.isSharedBonus && isPodcast && podHosts.length > 1) {
+    if (isPodcast && podHosts.length > 1) {
       const duoId = podHosts.join('+');
-      const duoMatch = (rows || []).find((r) => r.section === row.section && r.rank === row.rank && r.voice === duoId);
+      const duoMatch = (rows || []).find((r) => r.section === row.section && r.rank === row.rank && r.voice === duoId)
+        || (rows || []).find((r) => storyKey(r) === storyKey(row) && r.voice === duoId);
       if (duoMatch) {
         storyRow = duoMatch;
-      } else {
+      } else if (!row.isSharedBonus) {
         const targetVoice = podHosts[storyIndex % podHosts.length];
         const match = (rows || []).find((r) => r.section === row.section && r.rank === row.rank && r.voice === targetVoice);
         if (match) storyRow = match;
@@ -569,10 +584,10 @@ export function buildBriefing(rows, settings, {
       headline: storyRow.title,
       summary: storyRow.summary || stripHeadlineAndFiller(storyRow.title, storyRow.script || ''),
       url: storyRow.url || null,
-      image: storyRow.image || null, start, end, rapid: isRapid,
+      image: storyRow.image || targetImage || null, start, end, rapid: isRapid,
       audio_path: storyRow.audio_path,
       isSharedBonus: Boolean(storyRow.isSharedBonus),
-      script: storyRow.script || storyRow.summary || '',
+      script: storyRow.script || targetScript || storyRow.summary || '',
     });
     chapters.push({ id, key, kind: 'story', title: storyRow.title, start, end, section: storyRow.section });
     clips.push({

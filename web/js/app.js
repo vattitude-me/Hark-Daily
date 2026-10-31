@@ -531,6 +531,8 @@ function setBriefingMode(mode) {
       targetSource: targetInfo.source,
       targetDur: targetInfo.dur,
       targetHash: targetInfo.hash,
+      targetImage: targetInfo.image,
+      targetScript: targetInfo.script,
       edition: state.edition,
     });
     if (briefing) {
@@ -627,6 +629,8 @@ export async function setEdition(edition) {
       targetSource: targetInfo.source,
       targetDur: targetInfo.dur,
       targetHash: targetInfo.hash,
+      targetImage: targetInfo.image,
+      targetScript: targetInfo.script,
       edition: state.edition,
     });
     if (briefing && briefing.stories && briefing.stories.length > 0) {
@@ -942,9 +946,11 @@ function reportRow(story) {
 
 /* ------------------------------------------------------------- story sharing */
 export function buildStoryShareUrl(story, date, origin = window.location.origin) {
-  const key = storyKey(story) || story?.id || '';
-  if (date) return `${origin}/s/${date}/${key}`;
-  return `${origin}/?story=${encodeURIComponent(key)}`;
+  const hash = storyKey(story) || '';
+  const baseId = story?.id || 'story';
+  const slug = hash ? (baseId.endsWith(`-${hash}`) ? baseId : `${baseId}-${hash}`) : baseId;
+  if (date) return `${origin}/s/${date}/${slug}`;
+  return `${origin}/?story=${encodeURIComponent(slug)}`;
 }
 
 export async function openShareModal(story) {
@@ -1120,6 +1126,8 @@ function getTargetStoryInfo() {
       source: s.source || null,
       date: s.date || null,
       hash,
+      image: s.image || null,
+      script: s.script || null,
     };
   }
   const pathMatch = window.location.pathname.match(/^\/s\/(\d{4}-\d{2}-\d{2})\/([^/?#]+)/);
@@ -1135,6 +1143,8 @@ function getTargetStoryInfo() {
         source: null,
         date: pathDate,
         hash: key,
+        image: null,
+        script: null,
       };
     }
     const slugMatch = rawSlug.match(/^([a-z0-9_]+-\d+)(?:-([0-9a-f]{8}))?$/i);
@@ -1146,6 +1156,8 @@ function getTargetStoryInfo() {
       source: null,
       date: pathDate,
       hash: slugMatch && slugMatch[2] ? slugMatch[2].toLowerCase() : null,
+      image: null,
+      script: null,
     };
   }
   const urlParams = new URLSearchParams(window.location.search);
@@ -1156,6 +1168,8 @@ function getTargetStoryInfo() {
   const dur = Number.parseInt(urlParams.get('dur') || hashParams.get('dur') || '20', 10);
   const source = urlParams.get('src') || urlParams.get('source') || hashParams.get('src') || null;
   const date = urlParams.get('date') || hashParams.get('date') || null;
+  const image = urlParams.get('img') || urlParams.get('image') || hashParams.get('img') || null;
+  const script = urlParams.get('script') || hashParams.get('script') || null;
   const hashMatch = (audio || story || '').match(/(?:-|^)([0-9a-f]{8})(?:\.mp3)?$/i);
   return {
     story,
@@ -1165,6 +1179,8 @@ function getTargetStoryInfo() {
     source,
     date,
     hash: hashMatch ? hashMatch[1].toLowerCase() : null,
+    image,
+    script,
   };
 }
 
@@ -1514,9 +1530,12 @@ async function loadStoryPack(day) {
     }
     if (!actualRows.length) return null;
 
+    const effectiveVoice = (activeMode() === 'podcast' || targetInfo.script?.includes('['))
+      ? 'matthew_reference+kelly_reference'
+      : settings.voice;
     const briefing = buildPackBriefing(actualRows, settings, {
       date,
-      voice: settings.voice,
+      voice: effectiveVoice,
       notes: actualNotes,
       mode: activeMode(),
       podcastClips: actualPodcast,
@@ -1526,6 +1545,8 @@ async function loadStoryPack(day) {
       targetSource: targetInfo.source,
       targetDur: targetInfo.dur,
       targetHash: targetInfo.hash,
+      targetImage: targetInfo.image,
+      targetScript: targetInfo.script,
       edition: state.edition,
     });
     if (!briefing) return null;
@@ -1673,6 +1694,8 @@ async function saveAll() {
         targetSource: targetInfo.source,
         targetDur: targetInfo.dur,
         targetHash: targetInfo.hash,
+        targetImage: targetInfo.image,
+        targetScript: targetInfo.script,
         edition: state.edition,
       });
       if (briefing) {
