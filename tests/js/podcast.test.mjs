@@ -18,7 +18,7 @@ writeFileSync(join(dir, 'api.mjs'), `export const SECTIONS = {
   entertainment: { title: 'Entertainment' }, entertainment_us: { title: 'Entertainment' }, entertainment_in: { title: 'Entertainment' },
   sports: { title: 'Sports' }, sports_us: { title: 'Sports' }, sports_in: { title: 'Cricket & Sports' }
 }; export const voiceName = (v) => v; export const fmtTime = (s) => String(s); export const h = () => ({}); export const store = { get: () => 0, set: () => {} };`);
-writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x';");
+writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x'; export const SUPABASE_PUBLISHABLE_KEY = 'k';");
 const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor, parseDialogueTurns, pickVoice } = await import(join(dir, 'storypack.mjs'));
 
 const playerSrc = readFileSync(new URL('../../web/js/player.js', import.meta.url), 'utf8')
@@ -243,5 +243,86 @@ test('pickVoice and buildBriefing prefer matthew_reference+kelly_reference duo c
   assert.ok(storyClips[0].url.includes('s/duo/top1.mp3'));
   assert.ok(storyClips[1].url.includes('s/duo/top2.mp3'));
 });
+
+test('parseShareSlug and buildBriefing resolve short share links by hash and rank', async () => {
+  const shareSrc = readFileSync(new URL('../../web/api/share.js', import.meta.url), 'utf8')
+    .replace("'../config.js'", "'./config.mjs'");
+  writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x'; export const SUPABASE_PUBLISHABLE_KEY = 'k';");
+  writeFileSync(join(dir, 'share.mjs'), shareSrc);
+  const { parseShareSlug } = await import(join(dir, 'share.mjs'));
+
+  assert.deepEqual(parseShareSlug('ai-4-c80758f3'), { storyId: 'ai-4', section: 'ai', rank: 4, hash: 'c80758f3' });
+  assert.deepEqual(parseShareSlug('tech_us-2-12ab34cd'), { storyId: 'tech_us-2', section: 'tech_us', rank: 2, hash: '12ab34cd' });
+  assert.deepEqual(parseShareSlug('top-1'), { storyId: 'top-1', section: 'top', rank: 1, hash: null });
+
+  const shareRows = [
+    { date: '2026-10-31', section: 'top', rank: 1, voice: 'v', title: 'Top Story 1', duration: 20, audio_path: 'stories/2026-10-31/top-1-v-11111111.mp3' },
+    // Suppose a story that was ai-4 in the morning shifted to ai-5 in the evening, keeping its content hash c80758f3:
+    { date: '2026-10-31', section: 'ai', rank: 5, voice: 'v', title: 'Anthropic expected to receive high junk rating', duration: 25, audio_path: 'stories/2026-10-31/ai-5-v-c80758f3.mp3' },
+  ];
+
+  // User only has top: 1 enabled in settings, and opens /s/2026-10-31/ai-4-c80758f3
+  const b = buildBriefing(shareRows, { stories: { top: 1, ai: 0 } }, {
+    date: '2026-10-31',
+    voice: 'v',
+    targetStory: 'ai-4',
+    targetHash: 'c80758f3',
+  });
+  assert.ok(b);
+  assert.ok(b.stories.some((s) => s.headline.includes('Anthropic expected to receive')), 'Short link hash must include and resolve the shared story even if rank shifted or section was disabled');
+
+  // Test the Vercel serverless share handler HTML injection
+  const { default: shareHandler } = await import(join(dir, 'share.mjs'));
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/rest/v1/story_audio')) {
+      return {
+        ok: true,
+        json: async () => [
+          {
+            date: '2026-10-31',
+            section: 'ai',
+            rank: 4,
+            voice: 'matthew_reference+kelly_reference',
+            title: "Anthropic expected to receive high 'junk' rating",
+            source: 'TechCrunch · AI',
+            duration: 25,
+            audio_path: 'stories/2026-10-31/ai-4-matthew_reference__kelly_reference-c80758f3.mp3',
+          },
+        ],
+      };
+    }
+    throw new Error(`Unexpected fetch: ${url}`);
+  };
+
+  let statusCode = 0;
+  let bodyHtml = '';
+  const headers = {};
+  const mockReq = {
+    url: '/api/share?date=2026-10-31&slug=ai-4-c80758f3',
+    headers: { host: 'hark.vattitude.ca', 'x-forwarded-proto': 'https' },
+  };
+  const mockRes = {
+    setHeader: (k, v) => { headers[k] = v; },
+    status: (code) => {
+      statusCode = code;
+      return { send: (html) => { bodyHtml = html; } };
+    },
+  };
+
+  try {
+    await shareHandler(mockReq, mockRes);
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+
+  assert.equal(statusCode, 200);
+  assert.ok(bodyHtml.includes('<meta property="og:title" content="Anthropic expected to receive high &#39;junk&#39; rating">'));
+  assert.ok(bodyHtml.includes('<meta property="og:description" content="TechCrunch · AI · 25s audio · Hark Daily">'));
+  assert.ok(bodyHtml.includes('<meta property="og:image" content="https://hark.vattitude.ca/icons/og-thumb-dark.png">'));
+  assert.ok(bodyHtml.includes('<meta property="og:image:width" content="192">'));
+  assert.ok(bodyHtml.includes('window.__SHARED_STORY__ = {"date":"2026-10-31","story":"ai-4","hash":"c80758f3"'));
+});
+
 
 

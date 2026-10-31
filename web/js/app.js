@@ -437,6 +437,7 @@ function setBriefingMode(mode) {
       targetAudio: targetInfo.audio,
       targetSource: targetInfo.source,
       targetDur: targetInfo.dur,
+      targetHash: targetInfo.hash,
       edition: state.edition,
     });
     if (briefing) {
@@ -530,6 +531,7 @@ export async function setEdition(edition) {
       targetAudio: targetInfo.audio,
       targetSource: targetInfo.source,
       targetDur: targetInfo.dur,
+      targetHash: targetInfo.hash,
       edition: state.edition,
     });
     if (briefing && briefing.stories && briefing.stories.length > 0) {
@@ -787,24 +789,23 @@ function reportRow(story) {
 }
 
 /* ------------------------------------------------------------- story sharing */
+export function buildStoryShareUrl(story, date, origin = window.location.origin) {
+  const hashMatch = (story?.audio_path || '').match(/-([0-9a-f]{8})\.mp3$/i);
+  const hash = hashMatch ? hashMatch[1].toLowerCase() : '';
+  const slug = hash ? `${story.id}-${hash}` : story.id;
+  if (date) return `${origin}/s/${date}/${slug}`;
+  return `${origin}/?story=${encodeURIComponent(story.id)}`;
+}
+
 export async function openShareModal(story) {
   if (!story) return;
   const briefing = state.briefing;
   const date = briefing?.date || '';
-  const origin = window.location.origin;
-  const params = new URLSearchParams();
-  params.set('story', story.id);
-  if (date) params.set('date', date);
-  if (story.headline) params.set('title', story.headline);
-  if (story.audio_path) params.set('audio', story.audio_path);
-  if (story.source) params.set('src', story.source);
-  const duration = Math.round((story.end - story.start) || story.duration || 20);
-  if (duration > 0) params.set('dur', String(duration));
-  const shareUrl = `${origin}/?${params.toString()}`;
+  const shareUrl = buildStoryShareUrl(story, date);
 
   const shareData = {
-    title: `${story.headline} — Hark Daily`,
-    text: `"${story.headline}" · Listen to this ${duration}-second summary on Hark Daily (no login required):`,
+    title: story.headline,
+    text: story.headline,
     url: shareUrl,
   };
 
@@ -839,11 +840,12 @@ function showShareSheet(story, shareUrl, shareData) {
   const sheet = $('shareSheet');
   if (!sheet) return;
 
-  const sec = SECTIONS[story.section] || SECTIONS.top;
+  const baseSec = (story.section || 'top').replace(/_(us|in|ca)$/, '');
+  const sec = SECTIONS[story.section] || SECTIONS[baseSec] || SECTIONS.top;
   const catEl = $('sharePreviewCat');
   if (catEl) {
-    catEl.textContent = sec.title;
-    catEl.className = `badge badge-cat cat-${story.section || 'top'}`;
+    catEl.textContent = story.source || sec.title;
+    catEl.className = `badge badge-cat cat-${baseSec}`;
   }
 
   const durEl = $('sharePreviewDurText');
@@ -886,7 +888,7 @@ function showShareSheet(story, shareUrl, shareData) {
 
   const xBtn = $('shareXBtn');
   if (xBtn) {
-    xBtn.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(`"${story.headline}" · Listen on Hark Daily:`)}&url=${encodeURIComponent(shareUrl)}`;
+    xBtn.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(story.headline)}&url=${encodeURIComponent(shareUrl)}`;
     xBtn.onclick = () => {
       trackEvent('share', {
         method: 'x_twitter',
@@ -914,7 +916,7 @@ function showShareSheet(story, shareUrl, shareData) {
 
   const whatsAppBtn = $('shareWhatsAppBtn');
   if (whatsAppBtn) {
-    whatsAppBtn.href = `https://api.whatsapp.com/send?text=${encodeURIComponent(`"${story.headline}"\n\nListen on Hark Daily: ${shareUrl}`)}`;
+    whatsAppBtn.href = `https://api.whatsapp.com/send?text=${encodeURIComponent(`${story.headline}\n${shareUrl}`)}`;
     whatsAppBtn.onclick = () => {
       trackEvent('share', {
         method: 'whatsapp',
@@ -956,6 +958,33 @@ function showShareSheet(story, shareUrl, shareData) {
 }
 
 function getTargetStoryInfo() {
+  if (window.__SHARED_STORY__) {
+    const s = window.__SHARED_STORY__;
+    const hashMatch = (s.audio || s.slug || '').match(/(?:-|^)([0-9a-f]{8})(?:\.mp3)?$/i);
+    return {
+      story: s.story || null,
+      title: s.title || null,
+      audio: s.audio || null,
+      dur: Number.parseInt(String(s.dur || '20'), 10),
+      source: s.source || null,
+      date: s.date || null,
+      hash: hashMatch ? hashMatch[1].toLowerCase() : null,
+    };
+  }
+  const pathMatch = window.location.pathname.match(/^\/s\/(\d{4}-\d{2}-\d{2})\/([^/?#]+)/);
+  if (pathMatch) {
+    const [, pathDate, rawSlug] = pathMatch;
+    const slugMatch = rawSlug.match(/^([a-z0-9_]+-\d+)(?:-([0-9a-f]{8}))?$/i);
+    return {
+      story: slugMatch ? slugMatch[1] : rawSlug,
+      title: null,
+      audio: null,
+      dur: 20,
+      source: null,
+      date: pathDate,
+      hash: slugMatch && slugMatch[2] ? slugMatch[2].toLowerCase() : null,
+    };
+  }
   const urlParams = new URLSearchParams(window.location.search);
   const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   const story = urlParams.get('story') || hashParams.get('story') || null;
@@ -963,19 +992,33 @@ function getTargetStoryInfo() {
   const audio = urlParams.get('audio') || urlParams.get('a') || hashParams.get('audio') || null;
   const dur = Number.parseInt(urlParams.get('dur') || hashParams.get('dur') || '20', 10);
   const source = urlParams.get('src') || urlParams.get('source') || hashParams.get('src') || null;
-  return { story, title, audio, dur, source };
+  const date = urlParams.get('date') || hashParams.get('date') || null;
+  const hashMatch = (audio || story || '').match(/-([0-9a-f]{8})(?:\.mp3)?$/i);
+  return {
+    story,
+    title,
+    audio,
+    dur,
+    source,
+    date,
+    hash: hashMatch ? hashMatch[1].toLowerCase() : null,
+  };
 }
 
 let lastDeepLinkedStory = null;
 function handleStoryDeepLink(storyInfo) {
   if (!storyInfo || !state.briefing?.stories?.length) return;
-  const { story: storyId, title, audio } = typeof storyInfo === 'string' ? { story: storyInfo } : storyInfo;
+  const { story: storyId, title, audio, hash } = typeof storyInfo === 'string' ? { story: storyInfo } : storyInfo;
 
-  // 1. Match by title first (resilient against morning/evening batch rank shifts!)
-  let story = title ? state.briefing.stories.find((s) => titlesMatch(s.headline, title)) : null;
-  // 2. Match by exact audio path (handles dropped/archived morning clips)
+  // 1. Match by 8-char audio hash first (short share links /s/:date/:slug)
+  let story = hash
+    ? state.briefing.stories.find((s) => s.audio_path && s.audio_path.toLowerCase().endsWith(`-${hash.toLowerCase()}.mp3`))
+    : null;
+  // 2. Match by title (resilient against morning/evening batch rank shifts!)
+  if (!story && title) story = state.briefing.stories.find((s) => titlesMatch(s.headline, title));
+  // 3. Match by exact audio path (handles dropped/archived morning clips)
   if (!story && audio) story = state.briefing.stories.find((s) => s.audio_path === audio);
-  // 3. Fallback to ID (science-5)
+  // 4. Fallback to ID (science-5)
   if (!story && storyId) story = state.briefing.stories.find((s) => s.id === storyId);
 
   if (!story) {
@@ -1308,6 +1351,7 @@ async function loadStoryPack(day) {
       targetAudio: targetInfo.audio,
       targetSource: targetInfo.source,
       targetDur: targetInfo.dur,
+      targetHash: targetInfo.hash,
       edition: state.edition,
     });
     if (!briefing) return null;
@@ -1360,7 +1404,7 @@ function displayBriefing() {
   renderAllStoriesSheet();
   updateMenuDrawer();
   const storyInfo = getTargetStoryInfo();
-  if (storyInfo.story || storyInfo.title || storyInfo.audio) handleStoryDeepLink(storyInfo);
+  if (storyInfo.story || storyInfo.title || storyInfo.audio || storyInfo.hash) handleStoryDeepLink(storyInfo);
 }
 window.displayBriefing = displayBriefing;
 window.updateMenuDrawer = updateMenuDrawer;
@@ -1448,19 +1492,20 @@ async function saveAll() {
       }
       const { rows, settings, date, notes, fresh, podcastClips } = state.packContext;
       const targetInfo = getTargetStoryInfo();
-    const briefing = buildPackBriefing(rows, settings, {
-      date,
-      voice: settings.voice,
-      notes,
-      mode: activeMode(),
-      podcastClips,
-      targetStory: targetInfo.story,
-      targetTitle: targetInfo.title,
-      targetAudio: targetInfo.audio,
-      targetSource: targetInfo.source,
-      targetDur: targetInfo.dur,
-      edition: state.edition,
-    });
+      const briefing = buildPackBriefing(rows, settings, {
+        date,
+        voice: settings.voice,
+        notes,
+        mode: activeMode(),
+        podcastClips,
+        targetStory: targetInfo.story,
+        targetTitle: targetInfo.title,
+        targetAudio: targetInfo.audio,
+        targetSource: targetInfo.source,
+        targetDur: targetInfo.dur,
+        targetHash: targetInfo.hash,
+        edition: state.edition,
+      });
       if (briefing) {
         briefing.fresh = fresh;
         const curStory = player.storyFor(player.currentChapter());
@@ -2180,14 +2225,26 @@ async function start() {
   document.body.classList.remove('booting', 'signed-out');
   const today = new Date().toLocaleDateString('en-CA');
   const urlParams = new URLSearchParams(window.location.search);
-  const targetDate = urlParams.get('date') || today;
+  const targetInfo = getTargetStoryInfo();
+  const targetDate = targetInfo.date || urlParams.get('date') || today;
+
+  // If a shared story specifically targets a US or India section, align edition so it's included
+  if (targetInfo.story) {
+    if (/_us-\d+$/i.test(targetInfo.story) && state.edition !== 'us') {
+      state.edition = 'us';
+      syncEditionPicker();
+    } else if (/_in-\d+$/i.test(targetInfo.story) && state.edition !== 'in') {
+      state.edition = 'in';
+      syncEditionPicker();
+    }
+  }
 
   // 1. Instant optimistic paint from cached briefing (0 ms!)
-  const targetInfo = getTargetStoryInfo();
   if (!state.briefing) {
     const cached = store.get('last-briefing', null);
-    const canUseCache = cached && (!urlParams.get('date') || cached.date === targetDate)
+    const canUseCache = cached && (!(targetInfo.date || urlParams.get('date')) || cached.date === targetDate)
       && (!cached.edition || cached.edition === state.edition)
+      && (!targetInfo.hash || cached.stories?.some((s) => s.audio_path?.toLowerCase().endsWith(`-${targetInfo.hash}.mp3`)))
       && (!targetInfo.title || cached.stories?.some((s) => titlesMatch(s.headline, targetInfo.title)))
       && (!targetInfo.story || cached.stories?.some((s) => s.id === targetInfo.story));
     if (canUseCache && (cached.stories?.length || cached.clips?.length)) {

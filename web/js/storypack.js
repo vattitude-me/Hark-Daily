@@ -270,6 +270,7 @@ export function noteTitle(noteKey) {
 export function buildBriefing(rows, settings, {
   date, voice, notes = [], hour, mode = 'full', podcastClips = [],
   targetStory = null, targetTitle = null, targetAudio = null, targetSource = null, targetDur = 20,
+  targetHash = null,
   edition = 'ca',
 } = {}) {
   const isRapid = mode === 'rapid';
@@ -282,13 +283,31 @@ export function buildBriefing(rows, settings, {
   // In Rapid Fire mode, select the 5 top stories of the day
   let wanted = lineup(settings);
 
+  // Normalize targetStory if it includes a trailing 8-char hex hash (e.g. "ai-4-c80758f3")
+  let normalizedTargetStory = targetStory ? String(targetStory) : null;
+  let effectiveHash = targetHash ? String(targetHash).toLowerCase() : null;
+  if (normalizedTargetStory) {
+    const hashMatch = normalizedTargetStory.match(/^([a-z0-9_]+-\d+)-([0-9a-f]{8})$/i);
+    if (hashMatch) {
+      normalizedTargetStory = hashMatch[1];
+      if (!effectiveHash) effectiveHash = hashMatch[2].toLowerCase();
+    }
+  }
+
   // If a specific story is requested via deep link:
-  // 1. Try matching by headline title first (resilient against morning/evening batch rank shifts)
+  // 1. Try matching by 8-char audio hash first (short share links /s/:date/:slug)
+  // 2. Try matching by headline title next (resilient against morning/evening batch rank shifts)
   let targetSec = null;
   let targetRank = null;
   let matchedRow = null;
 
-  if (targetTitle) {
+  if (effectiveHash) {
+    const suffix = `-${effectiveHash}.mp3`;
+    matchedRow = (rows || []).find((r) => (!id || r.voice === id) && r.audio_path && r.audio_path.toLowerCase().endsWith(suffix))
+      || (rows || []).find((r) => r.audio_path && r.audio_path.toLowerCase().endsWith(suffix));
+  }
+
+  if (!matchedRow && targetTitle) {
     matchedRow = (rows || []).find((r) => (!id || r.voice === id) && titlesMatch(r.title, targetTitle))
       || (rows || []).find((r) => titlesMatch(r.title, targetTitle));
   }
@@ -297,16 +316,18 @@ export function buildBriefing(rows, settings, {
     // Found the story in the active pack! Use its actual current section and rank
     targetSec = matchedRow.section;
     targetRank = matchedRow.rank;
-  } else if (targetStory) {
-    const parts = String(targetStory).split('-');
+  } else if (normalizedTargetStory) {
+    const parts = String(normalizedTargetStory).split('-');
     if (parts.length >= 2) {
-      targetSec = parts[0];
+      targetSec = parts.slice(0, -1).join('-');
       targetRank = Number.parseInt(parts[parts.length - 1], 10);
     }
   }
 
-  if (targetSec && SECTION_ORDER.includes(targetSec) && Number.isFinite(targetRank) && targetRank > 0) {
-    wanted[targetSec] = Math.max(wanted[targetSec] || 0, Math.min(targetRank, MAX_PER_SECTION));
+  const baseTargetSec = targetSec ? targetSec.replace(/_(us|in|ca)$/, '') : null;
+
+  if (baseTargetSec && SECTION_ORDER.includes(baseTargetSec) && Number.isFinite(targetRank) && targetRank > 0) {
+    wanted[baseTargetSec] = Math.max(wanted[baseTargetSec] || 0, Math.min(targetRank, MAX_PER_SECTION));
   }
 
   if (isRapid) {
@@ -339,8 +360,8 @@ export function buildBriefing(rows, settings, {
       rapidWanted['top'] = 5;
     }
     // If a targetStory was deep-linked in rapid mode, make sure its section is also included
-    if (targetSec && targetRank && SECTION_ORDER.includes(targetSec)) {
-      rapidWanted[targetSec] = Math.max(rapidWanted[targetSec] || 0, Math.min(targetRank, MAX_PER_SECTION));
+    if (baseTargetSec && targetRank && SECTION_ORDER.includes(baseTargetSec)) {
+      rapidWanted[baseTargetSec] = Math.max(rapidWanted[baseTargetSec] || 0, Math.min(targetRank, MAX_PER_SECTION));
     }
     wanted = rapidWanted;
   }
@@ -348,28 +369,33 @@ export function buildBriefing(rows, settings, {
   const chosen = clipsFor(rows, wanted, id, order, edition);
   if (!chosen.length && !targetAudio) return null;
 
+  const sectionOrderIndex = (sec) => {
+    const idx = order.indexOf((sec || '').replace(/_(us|in|ca)$/, ''));
+    return idx === -1 ? 999 : idx;
+  };
+
   // Resilient deep-link check:
   // 1. If matchedRow was found in rows but was not in chosen, insert it
   if (matchedRow && !chosen.some((r) => r === matchedRow || (r.section === matchedRow.section && r.rank === matchedRow.rank))) {
     chosen.push(matchedRow);
     chosen.sort((a, b) => {
-      const secA = order.indexOf(a.section);
-      const secB = order.indexOf(b.section);
-      if (secA !== secB) return (secA === -1 ? 999 : secA) - (secB === -1 ? 999 : secB);
+      const secA = sectionOrderIndex(a.section);
+      const secB = sectionOrderIndex(b.section);
+      if (secA !== secB) return secA - secB;
       return (a.rank || 0) - (b.rank || 0);
     });
-  } else if (targetStory && !matchedRow) {
-    const hasTarget = chosen.some((r) => `${r.section}-${r.rank}` === targetStory || r.id === targetStory);
+  } else if (normalizedTargetStory && !matchedRow) {
+    const hasTarget = chosen.some((r) => `${r.section}-${r.rank}` === normalizedTargetStory || r.id === normalizedTargetStory);
     if (!hasTarget) {
       const match = (rows || []).find((r) =>
-        (!id || r.voice === id) && (`${r.section}-${r.rank}` === targetStory || r.id === targetStory)
-      ) || (rows || []).find((r) => `${r.section}-${r.rank}` === targetStory || r.id === targetStory);
+        (!id || r.voice === id) && (`${r.section}-${r.rank}` === normalizedTargetStory || r.id === normalizedTargetStory)
+      ) || (rows || []).find((r) => `${r.section}-${r.rank}` === normalizedTargetStory || r.id === normalizedTargetStory);
       if (match) {
         chosen.push(match);
         chosen.sort((a, b) => {
-          const secA = order.indexOf(a.section);
-          const secB = order.indexOf(b.section);
-          if (secA !== secB) return (secA === -1 ? 999 : secA) - (secB === -1 ? 999 : secB);
+          const secA = sectionOrderIndex(a.section);
+          const secB = sectionOrderIndex(b.section);
+          if (secA !== secB) return secA - secB;
           return (a.rank || 0) - (b.rank || 0);
         });
       }
@@ -379,9 +405,9 @@ export function buildBriefing(rows, settings, {
   // 2. If the story was voiced in an earlier batch (e.g. morning) and replaced in the evening batch,
   // the audio file remains permanent in Supabase Storage. Inject it as a shared story!
   if (targetAudio && !chosen.some((r) => (targetTitle && titlesMatch(r.title, targetTitle)) || r.audio_path === targetAudio)) {
-    const sec = (targetSec && SECTION_ORDER.includes(targetSec)) ? targetSec : 'top';
+    const sec = (baseTargetSec && SECTION_ORDER.includes(baseTargetSec)) ? targetSec : 'top';
     const cleanHash = targetAudio.replace(/[^a-zA-Z0-9]/g, '').slice(-8);
-    const archivedId = targetStory || `shared-${sec}-${cleanHash}`;
+    const archivedId = normalizedTargetStory || `shared-${sec}-${cleanHash}`;
     const syntheticRow = {
       section: sec,
       rank: 0,
@@ -397,9 +423,9 @@ export function buildBriefing(rows, settings, {
     };
     chosen.unshift(syntheticRow);
     chosen.sort((a, b) => {
-      const secA = order.indexOf(a.section);
-      const secB = order.indexOf(b.section);
-      if (secA !== secB) return (secA === -1 ? 999 : secA) - (secB === -1 ? 999 : secB);
+      const secA = sectionOrderIndex(a.section);
+      const secB = sectionOrderIndex(b.section);
+      if (secA !== secB) return secA - secB;
       return (a.rank || 0) - (b.rank || 0);
     });
   }
