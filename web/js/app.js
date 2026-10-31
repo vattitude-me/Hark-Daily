@@ -1,7 +1,7 @@
 import { api, fmtTime, h, icon, isAdmin, recordError, sb, store, timeAgo, toast, VOICES, voiceFor, SECTIONS, DEFAULT_VOICE_ID, EDITIONS, defaultEdition, detectEditionFromIp } from './api.js';
 import { Player, posKeyFor } from './player.js';
 import { Landing } from './landing.js';
-import { WelcomeSheet, DeleteAccountSheet, enablePush, installMode, onInstallChange, promptInstall, pushSupported, requestNotificationPermission, wireSheet } from './sheets.js';
+import { WelcomeSheet, DeleteAccountSheet, enablePush, installMode, isIOS, isInstalled, onInstallChange, promptInstall, pushSupported, requestNotificationPermission, wireSheet } from './sheets.js';
 import { SourcesPage } from './pages/sources.js';
 import { SettingsPage } from './pages/settings.js';
 import { AdminPage } from './pages/admin.js';
@@ -72,13 +72,105 @@ function syncAdminTab() {
 window.syncAdminTab = syncAdminTab;
 
 /* ------------------------------------------------------------------ header */
+function getBrowserInstallInfo() {
+  if (isInstalled() || window.HarkNative) {
+    return { installed: true, label: 'Install App', sub: 'Installed ✓', steps: [] };
+  }
+  const mode = installMode();
+  if (mode === 'prompt') {
+    return { installed: false, mode: 'prompt', label: 'Install App', sub: 'One-tap install', steps: [] };
+  }
+  const ua = navigator.userAgent || '';
+  if (isIOS()) {
+    return {
+      installed: false,
+      mode: 'sheet',
+      label: 'Install App',
+      sub: 'Add to Home Screen',
+      steps: [
+        'Tap <strong>Share</strong> <svg class="inline-icon" aria-hidden="true"><use href="#i-share"/></svg> in the browser toolbar.',
+        'Scroll down and tap <strong>Add to Home Screen</strong>, then tap <strong>Add</strong>.',
+        'Open <strong>Hark Daily</strong> from your Home Screen for full-screen playback and morning notifications.',
+      ],
+    };
+  }
+  if (/Android/i.test(ua)) {
+    return {
+      installed: false,
+      mode: 'sheet',
+      label: 'Install App',
+      sub: 'Add to Home Screen',
+      steps: [
+        'Tap the browser menu <strong>⋮</strong> in the top-right corner.',
+        'Tap <strong>Install app</strong> or <strong>Add to Home screen</strong>.',
+        'Open <strong>Hark Daily</strong> from your Home screen.',
+      ],
+    };
+  }
+  if (/^((?!chrome|chromium|android|edg).)*safari/i.test(ua)) {
+    return {
+      installed: false,
+      mode: 'sheet',
+      label: 'Install App',
+      sub: 'Safari · Add to Dock',
+      steps: [
+        'In the macOS menu bar at the top of your screen, click <strong>File</strong> (or the <strong>Share</strong> button in the Safari toolbar).',
+        'Choose <strong>Add to Dock…</strong> and click <strong>Add</strong>.',
+        'Launch <strong>Hark Daily</strong> anytime directly from your Mac Dock.',
+      ],
+    };
+  }
+  if (/Edg\//i.test(ua) || /Chrome\//i.test(ua)) {
+    const browserName = /Edg\//i.test(ua) ? 'Edge' : 'Chrome';
+    return {
+      installed: false,
+      mode: 'sheet',
+      label: 'Install App',
+      sub: `${browserName} · Install`,
+      steps: [
+        `Click the <strong>Install Hark Daily</strong> icon on the right side of the ${browserName} address bar (or open the <strong>⋮</strong> menu).`,
+        `Choose <strong>Install Hark Daily</strong> (or <strong>Cast, save, and share → Install page as app</strong>).`,
+        'Launch <strong>Hark Daily</strong> as a standalone desktop app.',
+      ],
+    };
+  }
+  return {
+    installed: false,
+    mode: 'sheet',
+    label: 'Install App',
+    sub: 'Add to device',
+    steps: [
+      'Open your browser menu in the toolbar.',
+      'Choose <strong>Install App</strong> or <strong>Add to Home Screen</strong>.',
+      'Open <strong>Hark Daily</strong> from your home screen or launcher.',
+    ],
+  };
+}
+
 function syncInstallBtn() {
   $('installBtn')?.classList.toggle('hidden', !installMode());
+  updateMenuDrawer();
 }
 
 async function install() {
-  if (installMode() === 'ios') { $('installSheet').showModal(); return; }
-  if (await promptInstall()) toast('Installed. Next time, open Hark Daily from your home screen.');
+  const info = getBrowserInstallInfo();
+  if (info.installed) {
+    toast('Hark Daily is already installed on this device ✓');
+    return;
+  }
+  if (installMode() === 'prompt') {
+    if (await promptInstall()) {
+      toast('Installed. Next time, open Hark Daily from your home screen.');
+      updateMenuDrawer();
+    }
+    return;
+  }
+  const listEl = $('installStepsList');
+  if (listEl && info.steps?.length) {
+    listEl.innerHTML = info.steps.map((s) => `<li>${s}</li>`).join('');
+  }
+  $('menuDrawer')?.classList.add('hidden');
+  $('installSheet')?.showModal();
 }
 
 function syncThemeIcon() {
@@ -1492,7 +1584,8 @@ function syncMini() {
 
 function syncSaveBar() {
   const dirty = currentTab !== 'today' && (sourcesPage?.isDirty() || settingsPage?.isDirty());
-  $('saveBar').classList.toggle('hidden', !dirty);
+  $('saveBar')?.classList.toggle('hidden', !dirty);
+  $('auxSaveBtn')?.classList.toggle('hidden', !dirty);
 }
 
 async function saveAll() {
@@ -1564,6 +1657,7 @@ function discardAll() {
 let deleteAccountSheet = null;
 let sleepTimerMinutes = 0;
 let sleepTimerId = null;
+let pendingMenuEdition = null;
 const SLEEP_TIMER_STEPS = [0, 15, 30, 45, 'brief'];
 
 function updateMenuDrawer() {
@@ -1575,10 +1669,25 @@ function updateMenuDrawer() {
   if (voicesVal) {
     voicesVal.textContent = 'Matthew & Kelly';
   }
+  const activeMenuEd = pendingMenuEdition || state.edition;
   const regVal = $('menuRegionVal');
   if (regVal) {
-    const ed = EDITIONS[state.edition];
-    regVal.textContent = ed?.name || state.edition?.toUpperCase() || 'Canada';
+    const ed = EDITIONS[activeMenuEd];
+    regVal.textContent = ed?.name || activeMenuEd?.toUpperCase() || 'Canada';
+  }
+  const menuSaveBtn = $('menuSaveBtn');
+  if (menuSaveBtn) {
+    const hasPendingChange = Boolean(pendingMenuEdition && pendingMenuEdition !== state.edition);
+    menuSaveBtn.classList.toggle('hidden', !hasPendingChange);
+  }
+  const installBtn = $('menuInstallBtn');
+  const installLabel = $('menuInstallLabel');
+  const installVal = $('menuInstallVal');
+  if (installBtn) {
+    const info = getBrowserInstallInfo();
+    installBtn.classList.toggle('hidden', Boolean(info.installed));
+    if (installLabel) installLabel.textContent = info.label;
+    if (installVal) installVal.textContent = info.sub;
   }
   const authBtn = $('menuAuthBtn');
   if (authBtn) {
@@ -1634,37 +1743,28 @@ function cycleSleepTimer() {
   }
 }
 
-async function downloadOfflineAudio() {
-  const b = state.briefing;
-  if (!b || !b.audio_url) {
-    toast("No audio available to download yet.", { error: true });
-    return;
-  }
-  toast("Downloading briefing for offline listening…");
-  try {
-    const res = await fetch(b.audio_url);
-    if (!res.ok) throw new Error("Download failed");
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Hark_Daily_${b.date || 'briefing'}_${b.mode || 'podcast'}.mp3`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast("Briefing downloaded successfully! ✓");
-  } catch (err) {
-    window.open(b.audio_url, '_blank');
-    toast("Opened briefing audio link");
-  }
-}
-
 const EDITIONS_ORDER = ['ca', 'us', 'in'];
 function cycleEdition() {
-  const curIdx = EDITIONS_ORDER.indexOf(state.edition);
+  const baseEd = pendingMenuEdition || state.edition;
+  const curIdx = EDITIONS_ORDER.indexOf(baseEd);
   const nextIdx = (curIdx + 1) % EDITIONS_ORDER.length;
-  setEdition(EDITIONS_ORDER[nextIdx]);
+  pendingMenuEdition = EDITIONS_ORDER[nextIdx];
+  updateMenuDrawer();
+}
+
+async function saveMenuChanges() {
+  if (pendingMenuEdition && pendingMenuEdition !== state.edition) {
+    const nextEd = pendingMenuEdition;
+    pendingMenuEdition = null;
+    await setEdition(nextEd);
+    if (settingsPage?.loaded) {
+      settingsPage.saved.edition = nextEd;
+      settingsPage.draft.edition = nextEd;
+      settingsPage.render();
+    }
+  }
+  updateMenuDrawer();
+  $('menuDrawer')?.classList.add('hidden');
 }
 
 function openAuxSheet(tab) {
@@ -1789,14 +1889,22 @@ function bindEvents() {
   $('cleanFormatFull')?.addEventListener('click', () => setBriefingMode('full'));
 
   $('openMenuBtn')?.addEventListener('click', () => {
+    pendingMenuEdition = state.edition;
     updateMenuDrawer();
     $('menuDrawer')?.classList.remove('hidden');
   });
-  $('closeMenuBtn')?.addEventListener('click', () => $('menuDrawer')?.classList.add('hidden'));
+  $('closeMenuBtn')?.addEventListener('click', () => {
+    pendingMenuEdition = null;
+    $('menuDrawer')?.classList.add('hidden');
+  });
   $('menuDrawer')?.addEventListener('click', (e) => {
-    if (e.target === $('menuDrawer')) $('menuDrawer')?.classList.add('hidden');
+    if (e.target === $('menuDrawer')) {
+      pendingMenuEdition = null;
+      $('menuDrawer')?.classList.add('hidden');
+    }
   });
   $('menuTodayBtn')?.addEventListener('click', () => {
+    pendingMenuEdition = null;
     $('menuDrawer')?.classList.add('hidden');
     $('auxSheet')?.classList.add('hidden');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1807,18 +1915,20 @@ function bindEvents() {
     updateMenuDrawer();
   });
   $('menuVoicesBtn')?.addEventListener('click', () => {
+    pendingMenuEdition = null;
     $('menuDrawer')?.classList.add('hidden');
     openAuxSheet('settings');
   });
   $('menuSourcesBtn')?.addEventListener('click', () => {
+    pendingMenuEdition = null;
     $('menuDrawer')?.classList.add('hidden');
     openAuxSheet('sources');
   });
   $('menuRegionBtn')?.addEventListener('click', () => {
     cycleEdition();
-    updateMenuDrawer();
   });
-  $('menuOfflineBtn')?.addEventListener('click', downloadOfflineAudio);
+  $('menuSaveBtn')?.addEventListener('click', saveMenuChanges);
+  $('menuInstallBtn')?.addEventListener('click', install);
   $('menuSleepTimerBtn')?.addEventListener('click', cycleSleepTimer);
   $('menuDeleteAccountBtn')?.addEventListener('click', () => {
     $('menuDrawer')?.classList.add('hidden');
@@ -1854,6 +1964,7 @@ function bindEvents() {
   });
   document.querySelectorAll('#tabbar .tab').forEach((t) => t.addEventListener('click', () => switchTab(t.dataset.tab)));
   $('saveBtn').addEventListener('click', saveAll);
+  $('auxSaveBtn')?.addEventListener('click', saveAll);
   $('discardBtn').addEventListener('click', discardAll);
   wireSheet($('confirmDialog'));
   $('miniPlayer').addEventListener('click', (e) => {
