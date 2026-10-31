@@ -36,8 +36,9 @@ export class SettingsPage {
   async load() {
     if (this.loaded) return;
     const { settings } = await api.settings();
-    this.saved = JSON.parse(JSON.stringify(settings));
-    this.draft = JSON.parse(JSON.stringify(settings));
+    const currentEd = window.state?.edition || 'ca';
+    this.saved = { ...JSON.parse(JSON.stringify(settings)), edition: currentEd };
+    this.draft = { ...JSON.parse(JSON.stringify(settings)), edition: currentEd };
     this.loaded = true;
     this.render();
     this.refreshPush();
@@ -58,12 +59,16 @@ export class SettingsPage {
   }
 
   async save() {
-    await api.saveSettings(this.draft);
+    const { edition: nextEd, ...settingsPayload } = this.draft;
+    await api.saveSettings(settingsPayload);
+    if (nextEd && nextEd !== window.state?.edition) {
+      await window.setEdition?.(nextEd);
+    }
     this.saved = JSON.parse(JSON.stringify(this.draft));
     applyPhotoMode(this.draft.color_photos);
     this.markDirty();
     this.render();
-    toast('Saved. Changes apply from the next briefing.');
+    toast('Settings saved.');
   }
 
   discard() {
@@ -289,14 +294,13 @@ export class SettingsPage {
         ListRow({
           label: 'News Country',
           detail: 'National top stories, politics, and sports tailored for your country. AI, Tech, and Science are shared universally.',
-          end: Tag(EDITIONS[window.state?.edition] ? `${(EDITIONS[window.state.edition].code || 'CA').toUpperCase()} · ${EDITIONS[window.state.edition].name.toUpperCase()}` : 'CA · CANADA'),
+          end: Tag(EDITIONS[d.edition || window.state?.edition] ? `${(EDITIONS[d.edition || window.state?.edition].code || 'CA').toUpperCase()} · ${EDITIONS[d.edition || window.state?.edition].name.toUpperCase()}` : 'CA · CANADA'),
           caret: true,
           onClick: () => {
-            const current = window.state?.edition || 'ca';
+            const current = d.edition || window.state?.edition || 'ca';
             const order = ['ca', 'us', 'in'];
             const next = order[(order.indexOf(current) + 1) % order.length];
-            window.setEdition?.(next);
-            this.render();
+            this.set({ edition: next });
           },
         }),
       ),
