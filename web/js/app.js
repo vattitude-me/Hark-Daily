@@ -38,6 +38,7 @@ const state = {
   reported: new Set(store.get('reported', [])),
   mode: 'podcast',
   edition: store.get('edition', defaultEdition()),
+  selectedDate: null,
   packContext: null,
 };
 
@@ -583,15 +584,17 @@ export async function setEdition(edition) {
   updateMenuDrawer();
   trackEvent('select_content', { content_type: 'edition', item_id: edition });
 
-  const today = new Date().toLocaleDateString('en-CA');
+  const { todayStr: today } = getLocalDateInfo();
+  const targetDay = state.selectedDate || today;
   const currentRows = state.packContext?.rows || [];
   const targetNeedsLoad =
+    state.packContext?.date !== targetDay ||
     (edition === 'in' && !currentRows.some((r) => r.section && r.section.endsWith('_in'))) ||
     (edition === 'us' && !currentRows.some((r) => r.section && r.section.endsWith('_us'))) ||
-    (edition === 'ca' && state.briefing?.date !== today && currentRows.some((r) => r.section && r.section.endsWith('_in')));
+    (edition === 'ca' && state.briefing?.date !== targetDay && currentRows.some((r) => r.section && r.section.endsWith('_in')));
 
   if (targetNeedsLoad) {
-    const pack = await loadStoryPack(today);
+    const pack = await loadStoryPack(targetDay);
     if (pack) {
       state.briefing = pack;
       const posKey = posKeyFor(pack);
@@ -733,12 +736,58 @@ function renderPersonas() {
 }
 
 
-/* -------------------------------------------------------------- date chips */
+/* -------------------------------------------------------------- date chips & timezone */
+export function getLocalDateInfo(now = new Date()) {
+  let tz = '';
+  try {
+    tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch { /* fallback */ }
+
+  let todayStr;
+  try {
+    todayStr = tz
+      ? new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
+      : now.toLocaleDateString('en-CA');
+  } catch {
+    todayStr = now.toLocaleDateString('en-CA');
+  }
+
+  const [ty, tm, td] = todayStr.split('-').map(Number);
+  const todayLocal = new Date(ty, tm - 1, td, 12, 0, 0);
+  const yestLocal = new Date(ty, tm - 1, td - 1, 12, 0, 0);
+  const yesterdayStr = `${yestLocal.getFullYear()}-${String(yestLocal.getMonth() + 1).padStart(2, '0')}-${String(yestLocal.getDate()).padStart(2, '0')}`;
+
+  const fmtShortSub = (dt) => {
+    const wd = dt.toLocaleDateString('en-US', { weekday: 'short' });
+    const day = dt.getDate();
+    const mon = dt.toLocaleDateString('en-US', { month: 'short' });
+    return `${wd} ${day} ${mon}`;
+  };
+
+  let tzShort = '';
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { ...(tz ? { timeZone: tz } : {}), timeZoneName: 'short' }).formatToParts(now);
+    tzShort = parts.find((p) => p.type === 'timeZoneName')?.value || '';
+  } catch { /* fallback */ }
+
+  const city = tz && tz.includes('/') ? tz.split('/').pop().replace(/_/g, ' ') : '';
+  const tzHint = city && tzShort
+    ? `Follows your time zone · ${city} (${tzShort})`
+    : (city || tzShort ? `Follows your time zone · ${city || tzShort}` : 'Follows your local time zone');
+
+  return {
+    todayStr,
+    yesterdayStr,
+    todaySub: fmtShortSub(todayLocal),
+    yesterdaySub: fmtShortSub(yestLocal),
+    tzHint,
+  };
+}
+
 function chipLabel(date) {
-  const today = new Date().toLocaleDateString('en-CA');
-  if (date === today) return 'Today';
-  const y = new Date(); y.setDate(y.getDate() - 1);
-  if (date === y.toLocaleDateString('en-CA')) return 'Yesterday';
+  const { todayStr, yesterdayStr } = getLocalDateInfo();
+  if (date === todayStr) return 'Today';
+  if (date === yesterdayStr) return 'Yesterday';
   return new Date(`${date}T12:00`).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
@@ -763,16 +812,27 @@ function renderDateChips() {
 
 async function selectDate(date) {
   try {
-    const pack = await loadStoryPack(date);
+    const { todayStr, yesterdayStr, todaySub, yesterdaySub } = getLocalDateInfo();
+    state.selectedDate = date;
+    let pack = await loadStoryPack(date);
+    if (!pack && date === yesterdayStr && state.archiveDates?.length) {
+      const fallbackPrev = state.archiveDates.find((d) => d < todayStr);
+      if (fallbackPrev && fallbackPrev !== date) {
+        pack = await loadStoryPack(fallbackPrev);
+      }
+    }
     if (pack) {
       state.briefing = pack;
       displayBriefing();
-      return;
+      const label = date === todayStr ? `Today (${todaySub})` : (date === yesterdayStr ? `Yesterday (${yesterdaySub})` : date);
+      toast(`Switched to ${label}`);
+      return true;
     }
-    state.briefing = null;
-    displayBriefing();
+    toast("That day's briefing isn't available for this region yet.", { error: true });
+    return false;
   } catch (err) {
     toast(err.message, { error: true });
+    return false;
   }
 }
 
@@ -1537,6 +1597,10 @@ async function loadArchive() {
 
 /* ------------------------------------------------------------ tab pages */
 async function switchTab(tab) {
+  if (tab === 'settings') {
+    openMenuDrawer();
+    return;
+  }
   if (tab === 'admin' && !isAdmin(state.profile)) return;
   currentTab = tab;
   trackEvent('screen_view', { screen_name: tab });
@@ -1545,22 +1609,13 @@ async function switchTab(tab) {
     t.classList.toggle('active', on);
     if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
   });
-  for (const p of ['today', 'sources', 'settings', 'admin']) {
+  for (const p of ['today', 'sources', 'admin']) {
     document.getElementById(`page-${p}`)?.classList.toggle('hidden', p !== tab);
   }
   window.scrollTo({ top: 0 });
   if (tab === 'sources' && !sourcesPage) {
     sourcesPage = new SourcesPage({ onDirty: syncSaveBar });
     try { await sourcesPage.load(); } catch (err) { recordError(err, 'sourcesPage.load'); toast("Couldn't load your sources.", { error: true }); }
-  }
-  if (tab === 'settings' && !settingsPage) {
-    settingsPage = new SettingsPage({
-      onDirty: syncSaveBar,
-      goSources: () => switchTab('sources'),
-      email: state.profile?.email,
-      setRate: (rate) => player.setRate(rate),
-    });
-    try { await settingsPage.load(); } catch (err) { recordError(err, 'settingsPage.load'); toast("Couldn't load settings.", { error: true }); }
   }
   if (tab === 'admin' && !adminPage) {
     adminPage = new AdminPage();
@@ -1583,7 +1638,7 @@ function syncMini() {
 }
 
 function syncSaveBar() {
-  const dirty = currentTab !== 'today' && (sourcesPage?.isDirty() || settingsPage?.isDirty());
+  const dirty = currentTab !== 'today' && Boolean(sourcesPage?.isDirty());
   $('saveBar')?.classList.toggle('hidden', !dirty);
   $('auxSaveBtn')?.classList.toggle('hidden', !dirty);
 }
@@ -1595,7 +1650,6 @@ async function saveAll() {
       await sourcesPage.save();
       storiesChanged = true;
     }
-    if (settingsPage?.isDirty()) await settingsPage.save();
     toast('Saved.');
     if (storiesChanged && state.packContext) {
       if (sourcesPage?.draft?.stories) {
@@ -1648,38 +1702,130 @@ async function saveAll() {
 
 function discardAll() {
   sourcesPage?.discard();
-  settingsPage?.discard();
   syncSaveBar();
   toast('Changes discarded.');
 }
 
-/* ----------------------------------------------------------- Clean Player (Mock UI) */
+/* ----------------------------------------------------------- Clean Player & Hamburger Settings */
 let deleteAccountSheet = null;
-let sleepTimerMinutes = 0;
-let sleepTimerId = null;
 let pendingMenuEdition = null;
-const SLEEP_TIMER_STEPS = [0, 15, 30, 45, 'brief'];
+let pendingMenuDate = null;
+let initialMenuDate = null;
+const PLAYBACK_SPEEDS = [1, 1.15, 1.25, 1.5, 0.9];
+
+const EDITION_SHORT_LABELS = {
+  ca: 'Canada',
+  us: 'USA',
+  in: 'India',
+};
+
+function isPushEnabled() {
+  if (window.HarkNative) {
+    return Boolean(window.HarkNative.hasNotificationPermission?.());
+  }
+  return typeof Notification !== 'undefined' && Notification.permission === 'granted';
+}
+
+function openMenuDrawer() {
+  const { todayStr } = getLocalDateInfo();
+  pendingMenuEdition = state.edition;
+  initialMenuDate = state.selectedDate || todayStr;
+  pendingMenuDate = initialMenuDate;
+  updateMenuDrawer();
+  $('menuDrawer')?.classList.remove('hidden');
+  $('mainPlayerCanvas')?.setAttribute('inert', '');
+}
+
+function closeMenuDrawer() {
+  pendingMenuEdition = null;
+  pendingMenuDate = null;
+  $('menuDrawer')?.classList.add('hidden');
+  $('mainPlayerCanvas')?.removeAttribute('inert');
+}
+
+function hasPendingMenuChanges() {
+  const { todayStr } = getLocalDateInfo();
+  const curDate = state.selectedDate || todayStr;
+  const edChanged = Boolean(pendingMenuEdition && pendingMenuEdition !== state.edition);
+  const dateChanged = Boolean(pendingMenuDate && pendingMenuDate !== curDate);
+  const sessionDateChanged = Boolean(initialMenuDate && curDate !== initialMenuDate);
+  return edChanged || dateChanged || sessionDateChanged;
+}
 
 function updateMenuDrawer() {
-  const formatVal = $('menuFormatVal');
-  if (formatVal) {
-    formatVal.textContent = 'Podcast · Two hosts';
+  const { todayStr, yesterdayStr, todaySub, yesterdaySub, tzHint } = getLocalDateInfo();
+  const activeDate = pendingMenuDate || state.selectedDate || todayStr;
+  const isYesterday = activeDate === yesterdayStr;
+
+  const yestBtn = $('menuDateYesterday');
+  const todayBtn = $('menuDateToday');
+  const yestSubEl = $('menuDateYesterdaySub');
+  const todaySubEl = $('menuDateTodaySub');
+  const tzEl = $('menuTimezoneText');
+
+  if (yestSubEl) yestSubEl.textContent = yesterdaySub;
+  if (todaySubEl) todaySubEl.textContent = todaySub;
+  if (tzEl) tzEl.textContent = tzHint;
+  if (yestBtn) {
+    yestBtn.classList.toggle('active', isYesterday);
+    yestBtn.setAttribute('aria-pressed', String(isYesterday));
   }
-  const voicesVal = $('menuVoicesVal');
-  if (voicesVal) {
-    voicesVal.textContent = 'Matthew & Kelly';
+  if (todayBtn) {
+    todayBtn.classList.toggle('active', !isYesterday);
+    todayBtn.setAttribute('aria-pressed', String(!isYesterday));
   }
+
+  // Region Card
   const activeMenuEd = pendingMenuEdition || state.edition;
-  const regVal = $('menuRegionVal');
-  if (regVal) {
-    const ed = EDITIONS[activeMenuEd];
-    regVal.textContent = ed?.name || activeMenuEd?.toUpperCase() || 'Canada';
+  const edDirty = Boolean(pendingMenuEdition && pendingMenuEdition !== state.edition);
+  document.querySelectorAll('#menuRegionPills .clean-region-pill').forEach((pill) => {
+    const on = pill.dataset.edition === activeMenuEd;
+    pill.classList.toggle('active', on);
+    pill.setAttribute('aria-pressed', String(on));
+  });
+
+  const unsavedEl = $('menuRegionUnsaved');
+  if (unsavedEl) {
+    unsavedEl.classList.toggle('hidden', !edDirty);
   }
-  const menuSaveBtn = $('menuSaveBtn');
-  if (menuSaveBtn) {
-    const hasPendingChange = Boolean(pendingMenuEdition && pendingMenuEdition !== state.edition);
-    menuSaveBtn.classList.toggle('hidden', !hasPendingChange);
+
+  const regionNoteEl = $('menuRegionNote');
+  if (regionNoteEl) {
+    const fromName = EDITION_SHORT_LABELS[state.edition] || EDITIONS[state.edition]?.name || 'Canada';
+    const toName = EDITION_SHORT_LABELS[activeMenuEd] || EDITIONS[activeMenuEd]?.name || 'Canada';
+    if (edDirty) {
+      regionNoteEl.textContent = `Changing from ${fromName} to ${toName}`;
+      regionNoteEl.classList.add('is-dirty');
+    } else {
+      regionNoteEl.textContent = `Listening to ${toName} edition`;
+      regionNoteEl.classList.remove('is-dirty');
+    }
   }
+
+  // Settings rows
+  const topicsVal = $('menuTopicsVal');
+  if (topicsVal) {
+    const secCount = (state.briefing?.sections || []).filter((sec) => {
+      const stories = (state.briefing?.stories || []).filter(
+        (s) => s.section === sec.key || s.section === sec.logicalKey || (s.section && s.section.startsWith(sec.logicalKey))
+      );
+      return (stories.length || sec.count || 0) > 0;
+    }).length || 6;
+    topicsVal.textContent = `All ${secCount}`;
+  }
+
+  const speedVal = $('menuSpeedVal');
+  if (speedVal) {
+    const s = Number(player?.speed || 1);
+    speedVal.textContent = `${s.toFixed(2).replace(/\.?0+$/, '')}×`;
+  }
+
+  const pushBtn = $('menuPushBtn');
+  if (pushBtn) {
+    const pushOn = isPushEnabled();
+    pushBtn.setAttribute('aria-checked', String(pushOn));
+  }
+
   const installBtn = $('menuInstallBtn');
   const installLabel = $('menuInstallLabel');
   const installVal = $('menuInstallVal');
@@ -1689,89 +1835,92 @@ function updateMenuDrawer() {
     if (installLabel) installLabel.textContent = info.label;
     if (installVal) installVal.textContent = info.sub;
   }
-  const authBtn = $('menuAuthBtn');
-  if (authBtn) {
-    if (state.profile?.email) {
-      authBtn.textContent = `Sign out (${state.profile.email.split('@')[0]})`;
-    } else {
-      authBtn.textContent = 'Sign in';
-    }
+
+  // Account row & expandable tray
+  const hasAccount = Boolean(state.profile?.id || state.profile?.email);
+  const accountVal = $('menuAccountVal');
+  const accountEmail = $('menuAccountEmail');
+  const accountTray = $('menuAccountTray');
+  const accountBtn = $('menuAccountBtn');
+  const adminBtn = $('menuAdminBtn');
+
+  if (accountVal) {
+    accountVal.textContent = hasAccount ? 'Signed in' : 'Sign in';
   }
-  const sleepVal = $('menuSleepTimerVal');
-  if (sleepVal) {
-    sleepVal.textContent = sleepTimerMinutes === 0 ? 'Off' : (sleepTimerMinutes === 'brief' ? 'End of brief' : `${sleepTimerMinutes} min`);
+  if (accountEmail) {
+    accountEmail.textContent = state.profile?.email ? `Signed in as ${state.profile.email}` : '';
   }
-  const deleteBtn = $('menuDeleteAccountBtn');
-  if (deleteBtn) {
-    const hasAccount = !!(state.profile?.id || state.profile?.email);
-    deleteBtn.classList.toggle('hidden', !hasAccount);
+  if (!hasAccount && accountTray) {
+    accountTray.classList.add('hidden');
+    accountBtn?.setAttribute('aria-expanded', 'false');
+  }
+  if (adminBtn) {
+    adminBtn.classList.toggle('hidden', !isAdmin(state.profile));
+  }
+
+  // Bottom Footer Bar (Discard / Close & Save changes)
+  const discardBtn = $('menuDiscardBtn');
+  if (discardBtn) {
+    discardBtn.textContent = hasPendingMenuChanges() ? 'Discard' : 'Close';
   }
 }
 
-function cycleSleepTimer() {
-  const currentIdx = SLEEP_TIMER_STEPS.indexOf(sleepTimerMinutes);
-  const nextIdx = (currentIdx + 1) % SLEEP_TIMER_STEPS.length;
-  sleepTimerMinutes = SLEEP_TIMER_STEPS[nextIdx];
-  if (sleepTimerId) {
-    clearTimeout(sleepTimerId);
-    sleepTimerId = null;
-  }
+function cyclePlaybackSpeed() {
+  const cur = Number(player?.speed || 1);
+  const idx = PLAYBACK_SPEEDS.findIndex((s) => Math.abs(s - cur) < 0.04);
+  const next = PLAYBACK_SPEEDS[(idx + 1) % PLAYBACK_SPEEDS.length];
+  player.setRate(next);
   updateMenuDrawer();
-  if (sleepTimerMinutes === 0) {
-    toast('Sleep timer turned off');
-  } else if (sleepTimerMinutes === 'brief') {
-    toast('Sleep timer will pause at end of brief');
-  } else {
-    toast(`Sleep timer set for ${sleepTimerMinutes} minutes 🌙`);
-    sleepTimerId = setTimeout(() => {
-      const audio = player.audio;
-      const initialVol = audio.volume;
-      let step = 0;
-      const fade = setInterval(() => {
-        step += 1;
-        audio.volume = Math.max(0, initialVol * (1 - step / 10));
-        if (step >= 10) {
-          clearInterval(fade);
-          audio.pause();
-          audio.volume = initialVol;
-          sleepTimerMinutes = 0;
-          updateMenuDrawer();
-          toast('Sleep timer paused playback 🌙');
-        }
-      }, 250);
-    }, sleepTimerMinutes * 60 * 1000);
-  }
-}
-
-const EDITIONS_ORDER = ['ca', 'us', 'in'];
-function cycleEdition() {
-  const baseEd = pendingMenuEdition || state.edition;
-  const curIdx = EDITIONS_ORDER.indexOf(baseEd);
-  const nextIdx = (curIdx + 1) % EDITIONS_ORDER.length;
-  pendingMenuEdition = EDITIONS_ORDER[nextIdx];
-  updateMenuDrawer();
+  toast(`Playback speed: ${next.toFixed(2).replace(/\.?0+$/, '')}×`);
 }
 
 async function saveMenuChanges() {
-  if (pendingMenuEdition && pendingMenuEdition !== state.edition) {
+  const { todayStr } = getLocalDateInfo();
+  const curDate = state.selectedDate || todayStr;
+  const dateDiff = Boolean(pendingMenuDate && pendingMenuDate !== curDate);
+  const edDiff = Boolean(pendingMenuEdition && pendingMenuEdition !== state.edition);
+
+  if (dateDiff) {
+    state.selectedDate = pendingMenuDate;
+  }
+
+  if (edDiff) {
     const nextEd = pendingMenuEdition;
     pendingMenuEdition = null;
     await setEdition(nextEd);
-    if (settingsPage?.loaded) {
-      settingsPage.saved.edition = nextEd;
-      settingsPage.draft.edition = nextEd;
-      settingsPage.render();
-    }
+  } else if (dateDiff) {
+    const nextDate = pendingMenuDate;
+    pendingMenuDate = null;
+    await selectDate(nextDate);
+  }
+  closeMenuDrawer();
+}
+
+async function discardMenuChanges() {
+  if (!hasPendingMenuChanges()) {
+    closeMenuDrawer();
+    return;
+  }
+  const { todayStr } = getLocalDateInfo();
+  pendingMenuEdition = state.edition;
+  const revertDate = initialMenuDate || todayStr;
+  pendingMenuDate = revertDate;
+  if ((state.selectedDate || todayStr) !== revertDate) {
+    await selectDate(revertDate);
   }
   updateMenuDrawer();
-  $('menuDrawer')?.classList.add('hidden');
+  toast('Changes discarded');
 }
 
 function openAuxSheet(tab) {
+  if (tab === 'settings') {
+    openMenuDrawer();
+    return;
+  }
   const aux = $('auxSheet');
   const title = $('auxTitle');
   if (title) {
-    title.textContent = tab === 'sources' ? 'Sources & Topics' : (tab === 'settings' ? 'Settings' : 'Admin');
+    title.textContent = tab === 'sources' ? 'Sources & Topics' : 'Admin';
   }
   if (aux) aux.classList.remove('hidden');
   switchTab(tab);
@@ -1888,60 +2037,93 @@ function bindEvents() {
   $('cleanFormatPodcast')?.addEventListener('click', () => setBriefingMode('podcast'));
   $('cleanFormatFull')?.addEventListener('click', () => setBriefingMode('full'));
 
-  $('openMenuBtn')?.addEventListener('click', () => {
-    pendingMenuEdition = state.edition;
-    updateMenuDrawer();
-    $('menuDrawer')?.classList.remove('hidden');
-  });
-  $('closeMenuBtn')?.addEventListener('click', () => {
-    pendingMenuEdition = null;
-    $('menuDrawer')?.classList.add('hidden');
-  });
+  $('openMenuBtn')?.addEventListener('click', openMenuDrawer);
+  $('closeMenuBtn')?.addEventListener('click', closeMenuDrawer);
   $('menuDrawer')?.addEventListener('click', (e) => {
     if (e.target === $('menuDrawer')) {
-      pendingMenuEdition = null;
-      $('menuDrawer')?.classList.add('hidden');
+      closeMenuDrawer();
     }
   });
-  $('menuTodayBtn')?.addEventListener('click', () => {
-    pendingMenuEdition = null;
-    $('menuDrawer')?.classList.add('hidden');
-    $('auxSheet')?.classList.add('hidden');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('menuDrawer')?.classList.contains('hidden')) {
+      closeMenuDrawer();
+    }
   });
-  $('menuFormatBtn')?.addEventListener('click', () => {
-    const nextMode = activeMode() === 'podcast' ? 'full' : 'podcast';
-    setBriefingMode(nextMode);
+
+  // NEWS FROM: Yesterday / Today segmented selector (timezone-based)
+  $('menuDateYesterday')?.addEventListener('click', async () => {
+    const { yesterdayStr } = getLocalDateInfo();
+    pendingMenuDate = yesterdayStr;
+    updateMenuDrawer();
+    await selectDate(yesterdayStr);
     updateMenuDrawer();
   });
-  $('menuVoicesBtn')?.addEventListener('click', () => {
-    pendingMenuEdition = null;
-    $('menuDrawer')?.classList.add('hidden');
-    openAuxSheet('settings');
+  $('menuDateToday')?.addEventListener('click', async () => {
+    const { todayStr } = getLocalDateInfo();
+    pendingMenuDate = todayStr;
+    updateMenuDrawer();
+    await selectDate(todayStr);
+    updateMenuDrawer();
+  });
+
+  // Region pill buttons (requires Save / Discard)
+  document.querySelectorAll('#menuRegionPills .clean-region-pill').forEach((pill) => {
+    pill.addEventListener('click', () => {
+      const ed = pill.dataset.edition;
+      if (ed && EDITIONS[ed]) {
+        pendingMenuEdition = ed;
+        updateMenuDrawer();
+      }
+    });
+  });
+
+  // Settings & Actions rows
+  $('menuTopicsBtn')?.addEventListener('click', () => {
+    closeMenuDrawer();
+    openAllStoriesSheet();
   });
   $('menuSourcesBtn')?.addEventListener('click', () => {
-    pendingMenuEdition = null;
-    $('menuDrawer')?.classList.add('hidden');
+    closeMenuDrawer();
     openAuxSheet('sources');
   });
-  $('menuRegionBtn')?.addEventListener('click', () => {
-    cycleEdition();
+  $('menuSpeedBtn')?.addEventListener('click', cyclePlaybackSpeed);
+  $('menuPushBtn')?.addEventListener('click', async () => {
+    await bannerSetupPush();
+    updateMenuDrawer();
   });
-  $('menuSaveBtn')?.addEventListener('click', saveMenuChanges);
   $('menuInstallBtn')?.addEventListener('click', install);
-  $('menuSleepTimerBtn')?.addEventListener('click', cycleSleepTimer);
+  $('menuAccountBtn')?.addEventListener('click', () => {
+    const hasAccount = Boolean(state.profile?.id || state.profile?.email);
+    if (!hasAccount) {
+      closeMenuDrawer();
+      openSignIn('menu');
+      return;
+    }
+    const tray = $('menuAccountTray');
+    const btn = $('menuAccountBtn');
+    if (tray) {
+      const hidden = tray.classList.toggle('hidden');
+      btn?.setAttribute('aria-expanded', String(!hidden));
+    }
+  });
+  $('menuAdminBtn')?.addEventListener('click', () => {
+    closeMenuDrawer();
+    openAuxSheet('admin');
+  });
   $('menuDeleteAccountBtn')?.addEventListener('click', () => {
-    $('menuDrawer')?.classList.add('hidden');
+    closeMenuDrawer();
     if (deleteAccountSheet) deleteAccountSheet.open(state.profile?.email);
   });
   $('menuAuthBtn')?.addEventListener('click', () => {
-    $('menuDrawer')?.classList.add('hidden');
+    closeMenuDrawer();
     if (state.profile) {
       sb.auth.signOut();
     } else {
       openSignIn('menu');
     }
   });
+  $('menuSaveBtn')?.addEventListener('click', saveMenuChanges);
+  $('menuDiscardBtn')?.addEventListener('click', discardMenuChanges);
 
   // All Stories Sheet bindings
   $('openAllStoriesBtn')?.addEventListener('click', openAllStoriesSheet);
@@ -2356,10 +2538,11 @@ window.enterApp = enterApp;
 /* -------------------------------------------------------------------- boot */
 async function start() {
   document.body.classList.remove('booting', 'signed-out');
-  const today = new Date().toLocaleDateString('en-CA');
+  const { todayStr: today } = getLocalDateInfo();
   const urlParams = new URLSearchParams(window.location.search);
   const targetInfo = getTargetStoryInfo();
   const targetDate = targetInfo.date || urlParams.get('date') || today;
+  state.selectedDate = targetDate;
 
   // 1. Instant optimistic paint from cached briefing (0 ms!)
   if (!state.briefing) {

@@ -402,15 +402,15 @@
     <!-- The persistent single audio element -->
     <audio id="audio" preload="metadata"></audio>
 
-    <!-- Board 1: Hamburger Menu Drawer -->
-    <div class="clean-drawer-backdrop hidden" id="menuDrawer" role="dialog" aria-modal="true" aria-label="Menu">
+    <!-- Board 1: Hamburger Menu & Primary Settings Drawer -->
+    <div class="clean-drawer-backdrop hidden" id="menuDrawer" role="dialog" aria-modal="true" aria-label="Settings and Menu">
       <div class="clean-drawer-panel">
         <div class="clean-drawer-head">
           <button class="clean-glass-circle sm" id="closeMenuBtn" type="button" aria-label="Close menu">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>
           </button>
           <div class="clean-brand" aria-label="Hark Daily">
-            <img src="/icons/icon.svg" class="clean-brand-flat-logo" alt="Hark logo" width="32" height="32">
+            <img src="/icons/icon.svg" class="clean-brand-flat-logo" alt="" width="32" height="32">
             <div class="clean-brand-text">
               <span class="clean-brand-name">hark</span><span class="clean-brand-sub">DAILY</span>
             </div>
@@ -418,61 +418,112 @@
           <div style="width:44px"></div>
         </div>
 
-        <!-- Audio Briefing Generated Date Badge in Menu Drawer -->
-        <div class="clean-drawer-date-badge" id="menuDrawerDateBadge">
-          <div class="clean-drawer-date-pill">
-            <span class="clean-pulse-dot" aria-hidden="true"></span>
-            <span id="menuDrawerDateText">FRESH TODAY · THU 29 OCT</span>
+        <div class="clean-drawer-scroll">
+          <!-- Section 1: NEWS FROM (Yesterday / Today — Timezone Based) -->
+          <div class="clean-drawer-section">
+            <div class="clean-drawer-overline">NEWS FROM</div>
+            <div class="clean-date-segmented" role="group" aria-label="Choose briefing date">
+              <button type="button" class="clean-date-seg-btn" id="menuDateYesterday" aria-pressed="false">
+                <span class="clean-date-seg-title">Yesterday</span>
+                <span class="clean-date-seg-sub" id="menuDateYesterdaySub">Fri 30 Oct</span>
+              </button>
+              <button type="button" class="clean-date-seg-btn active" id="menuDateToday" aria-pressed="true">
+                <span class="clean-date-seg-title"><span class="clean-date-dot" aria-hidden="true"></span>Today</span>
+                <span class="clean-date-seg-sub" id="menuDateTodaySub">Sat 31 Oct</span>
+              </button>
+            </div>
+            <div class="clean-timezone-row">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
+              <span id="menuTimezoneText">Follows your time zone</span>
+            </div>
           </div>
-          <span class="clean-drawer-date-meta" id="menuDrawerMetaText">Voiced at sunrise · Updated daily</span>
+
+          <!-- Section 2: Region Card -->
+          <div class="clean-region-card" id="menuRegionCard">
+            <div class="clean-region-head">
+              <span class="clean-region-title">Region</span>
+              <span class="clean-region-unsaved hidden" id="menuRegionUnsaved">
+                <span class="clean-unsaved-dot" aria-hidden="true"></span>Unsaved
+              </span>
+            </div>
+            <div class="clean-region-sub">Sets the sources and headlines you hear</div>
+            <div class="clean-region-pills" id="menuRegionPills" role="group" aria-label="Select region">
+              <button type="button" class="clean-region-pill active" data-edition="ca" aria-pressed="true">
+                <svg class="clean-pill-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>
+                <span>Canada</span>
+              </button>
+              <button type="button" class="clean-region-pill" data-edition="us" aria-pressed="false">
+                <svg class="clean-pill-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>
+                <span>USA</span>
+              </button>
+              <button type="button" class="clean-region-pill" data-edition="in" aria-pressed="false">
+                <svg class="clean-pill-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>
+                <span>India</span>
+              </button>
+            </div>
+            <div class="clean-region-note" id="menuRegionNote">Listening to Canada edition</div>
+          </div>
+
+          <!-- Section 3: Settings & Actions Card -->
+          <div class="clean-drawer-card">
+            <button class="clean-menu-item" type="button" id="menuTopicsBtn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h12M4 18h8"/></svg>
+              <span class="clean-menu-label">Topics</span>
+              <span class="clean-menu-val" id="menuTopicsVal">All 6</span>
+              <svg class="clean-menu-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+
+            <button class="clean-menu-item" type="button" id="menuSourcesBtn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a14 14 0 0114 14M5 11a8 8 0 018 8"/><circle cx="6" cy="18" r="1.5"/></svg>
+              <span class="clean-menu-label">Sources</span>
+              <span class="clean-menu-val" id="menuSourcesVal">Customize</span>
+              <svg class="clean-menu-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+
+            <button class="clean-menu-item" type="button" id="menuSpeedBtn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.6 17.6a9 9 0 1112.8 0"/><path d="M12 13l3.5-3.5"/><circle cx="12" cy="13" r="1.5"/></svg>
+              <span class="clean-menu-label">Playback speed</span>
+              <span class="clean-menu-val" id="menuSpeedVal">1×</span>
+              <svg class="clean-menu-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+
+            <button class="clean-menu-item" type="button" id="menuPushBtn" role="switch" aria-checked="false">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+              <span class="clean-menu-label">Morning alerts</span>
+              <span class="clean-menu-switch" id="menuPushSwitch" aria-hidden="true"><span class="clean-menu-switch-knob"></span></span>
+            </button>
+
+            <button class="clean-menu-item" type="button" id="menuInstallBtn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+              <span class="clean-menu-label" id="menuInstallLabel">Install App</span>
+              <span class="clean-menu-val" id="menuInstallVal">Add to device</span>
+              <svg class="clean-menu-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+
+            <button class="clean-menu-item" type="button" id="menuAccountBtn" aria-expanded="false">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M5 20a7 7 0 0114 0"/></svg>
+              <span class="clean-menu-label">Account</span>
+              <span class="clean-menu-val" id="menuAccountVal">Sign in</span>
+              <svg class="clean-menu-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+
+            <!-- Expandable Account Actions Tray when Signed In -->
+            <div class="clean-account-tray hidden" id="menuAccountTray">
+              <div class="clean-account-email" id="menuAccountEmail"></div>
+              <div class="clean-account-btns">
+                <button type="button" class="clean-account-sub-btn hidden" id="menuAdminBtn">Admin</button>
+                <button type="button" class="clean-account-sub-btn" id="menuAuthBtn">Sign out</button>
+                <button type="button" class="clean-account-sub-btn danger" id="menuDeleteAccountBtn">Delete account</button>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div class="clean-drawer-card">
-          <button class="clean-menu-item" type="button" id="menuTodayBtn">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14v-2a8 8 0 0116 0v2M4 14h3v5H4zM17 14h3v5h-3z"/></svg>
-            <span class="clean-menu-label">Today</span>
-            <span class="clean-menu-val" id="menuTodayVal"></span>
-          </button>
-
-          <button class="clean-menu-item" type="button" id="menuVoicesBtn">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>
-            <span class="clean-menu-label">Hosts</span>
-            <span class="clean-menu-val" id="menuVoicesVal">Matthew &amp; Kelly</span>
-          </button>
-
-          <button class="clean-menu-item" type="button" id="menuSourcesBtn">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a14 14 0 0114 14M5 11a8 8 0 018 8"/><circle cx="6" cy="18" r="1.5"/></svg>
-            <span class="clean-menu-label">Sources</span>
-            <span class="clean-menu-val" id="menuSourcesVal">Customize topics</span>
-          </button>
-
-          <button class="clean-menu-item" type="button" id="menuRegionBtn">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
-            <span class="clean-menu-label">Region</span>
-            <span class="clean-menu-val" id="menuRegionVal">Canada</span>
-          </button>
-
-          <button class="clean-menu-item" type="button" id="menuInstallBtn">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2.5"/><path d="M12 18h.01M12 7v6M9.5 10.5L12 13l2.5-2.5"/></svg>
-            <span class="clean-menu-label" id="menuInstallLabel">Install App</span>
-            <span class="clean-menu-val" id="menuInstallVal">Add to device</span>
-          </button>
-
-          <button class="clean-menu-item" type="button" id="menuSleepTimerBtn">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></svg>
-            <span class="clean-menu-label">Sleep timer</span>
-            <span class="clean-menu-val" id="menuSleepTimerVal">Off</span>
-          </button>
-
-          <button class="clean-menu-item clean-menu-danger hidden" type="button" id="menuDeleteAccountBtn">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg>
-            <span class="clean-menu-label" style="color:#EF4444">Delete Account</span>
-            <span class="clean-menu-val" style="color:#FCA5A5">Permanent</span>
-          </button>
+        <!-- Bottom Action Bar: Discard / Close & Save changes -->
+        <div class="clean-drawer-foot" id="menuFooterBar">
+          <button class="clean-foot-discard" type="button" id="menuDiscardBtn">Close</button>
+          <button class="clean-foot-save" type="button" id="menuSaveBtn">Save changes</button>
         </div>
-
-        <button class="clean-auth-btn hidden" type="button" id="menuSaveBtn" style="background:#F59E0B;color:#1F1A14;font-weight:700;border-color:#F59E0B;margin-bottom:10px;">Save changes</button>
-        <button class="clean-auth-btn" type="button" id="menuAuthBtn">Sign in</button>
       </div>
     </div>
 
@@ -506,7 +557,7 @@
       </div>
     </div>
 
-    <!-- Aux Sheet for Sources & Settings Views -->
+    <!-- Aux Sheet for Sources & Admin Views -->
     <div class="clean-aux-sheet hidden" id="auxSheet" role="dialog" aria-modal="true" aria-label="Details">
       <div class="clean-aux-container">
         <header class="clean-aux-head">
@@ -520,7 +571,6 @@
         </header>
         <div class="clean-aux-body" id="auxBody">
           <section class="page hidden" id="page-sources" aria-label="Sources"><div class="screen"></div></section>
-          <section class="page hidden" id="page-settings" aria-label="Settings"><div class="screen"></div></section>
           <section class="page hidden" id="page-admin" aria-label="Admin"><div class="screen"></div></section>
         </div>
       </div>
