@@ -289,9 +289,11 @@ test('parseShareSlug and buildBriefing resolve short share links by hash and ran
   assert.equal(inBrief.stories[0].isSharedBonus, true);
   assert.equal(inBrief.stories[1].key, '12222222', 'Recipient own India sequence follows immediately after');
 
-  // Test the Vercel serverless share handler HTML injection
+  // Test the Vercel serverless share handler HTML injection with hero image & dialogue script
   const { default: shareHandler } = await import(join(dir, 'share.mjs'));
   const origFetch = globalThis.fetch;
+  const sampleScript = '[Matthew] Anthropic is expected to get a high junk rating.\n[Kelly] Wait, why would credit agencies do that?';
+  const sampleImage = 'https://images.unsplash.com/photo-sample.jpg';
   globalThis.fetch = async (url) => {
     if (String(url).includes('/rest/v1/story_audio')) {
       return {
@@ -305,6 +307,8 @@ test('parseShareSlug and buildBriefing resolve short share links by hash and ran
             title: "Anthropic expected to receive high 'junk' rating",
             source: 'TechCrunch · AI',
             duration: 25,
+            image: sampleImage,
+            script: sampleScript,
             audio_path: 'stories/2026-10-31/ai-4-matthew_reference__kelly_reference-c80758f3.mp3',
           },
         ],
@@ -337,9 +341,32 @@ test('parseShareSlug and buildBriefing resolve short share links by hash and ran
   assert.equal(statusCode, 200);
   assert.ok(bodyHtml.includes('<meta property="og:title" content="Anthropic expected to receive high &#39;junk&#39; rating">'));
   assert.ok(bodyHtml.includes('<meta property="og:description" content="TechCrunch · AI · 25s audio · Hark Daily">'));
-  assert.ok(bodyHtml.includes('<meta property="og:image" content="https://hark.vattitude.ca/icons/og-thumb-dark.png">'));
-  assert.ok(bodyHtml.includes('<meta property="og:image:width" content="192">'));
-  assert.ok(bodyHtml.includes('window.__SHARED_STORY__ = {"date":"2026-10-31","story":"ai-4","hash":"c80758f3"'));
+  assert.ok(bodyHtml.includes(`<meta property="og:image" content="${sampleImage}">`));
+  assert.ok(bodyHtml.includes('<meta property="og:image:width" content="1200">'));
+  assert.ok(bodyHtml.includes('<meta name="twitter:card" content="summary_large_image">'));
+  assert.ok(bodyHtml.includes('"image":"https://images.unsplash.com/photo-sample.jpg"'));
+  assert.ok(bodyHtml.includes('[Matthew] Anthropic is expected to get a high junk rating.'));
+
+  // Test that buildBriefing preserves targetImage & targetScript for shared bonus stories
+  const sharedBonusBrief = buildBriefing([], {}, {
+    date: '2026-10-31',
+    mode: 'podcast',
+    targetStory: 'ai-4',
+    targetTitle: "Anthropic expected to receive high 'junk' rating",
+    targetAudio: 'stories/2026-10-31/ai-4-matthew_reference__kelly_reference-c80758f3.mp3',
+    targetHash: 'c80758f3',
+    targetImage: sampleImage,
+    targetScript: sampleScript,
+    edition: 'ca',
+  });
+  assert.ok(sharedBonusBrief);
+  const sharedStory = sharedBonusBrief.stories[0];
+  assert.equal(sharedStory.image, sampleImage, 'Shared story preserves editorial image');
+  assert.equal(sharedStory.script, sampleScript, 'Shared story preserves dialogue script');
+  const turns = parseDialogueTurns(sharedStory.script);
+  assert.ok(turns && turns.length === 2, 'Dialogue turns parse into speaker lines');
+  assert.equal(turns[0].speaker, 'Matthew');
+  assert.equal(turns[1].speaker, 'Kelly');
 });
 
 

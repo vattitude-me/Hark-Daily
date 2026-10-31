@@ -81,7 +81,7 @@ export function parseShareSlug(rawSlug) {
 
 async function fetchStoryMeta(date, parsed) {
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  const endpoint = `${SUPABASE_URL}/rest/v1/story_audio?date=eq.${encodeURIComponent(date)}&select=date,section,rank,voice,title,url,source,duration,audio_path`;
+  const endpoint = `${SUPABASE_URL}/rest/v1/story_audio?date=eq.${encodeURIComponent(date)}&select=date,section,rank,voice,title,url,source,duration,audio_path,image,script`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 3000);
   try {
@@ -98,12 +98,15 @@ async function fetchStoryMeta(date, parsed) {
     if (!Array.isArray(rows) || !rows.length) return null;
 
     if (parsed.hash) {
-      const byHash = rows.find((r) => storyKey(r) === parsed.hash);
+      const byHash = rows.find((r) => r.voice === 'matthew_reference+kelly_reference' && storyKey(r) === parsed.hash)
+        || rows.find((r) => r.script && r.script.includes('[') && storyKey(r) === parsed.hash)
+        || rows.find((r) => storyKey(r) === parsed.hash);
       if (byHash) return byHash;
     }
     if (parsed.section && parsed.rank) {
       return (
         rows.find((r) => r.section === parsed.section && Number(r.rank) === parsed.rank && r.voice === 'matthew_reference+kelly_reference')
+        || rows.find((r) => r.section === parsed.section && Number(r.rank) === parsed.rank && r.script && r.script.includes('['))
         || rows.find((r) => r.section === parsed.section && Number(r.rank) === parsed.rank)
         || null
       );
@@ -168,7 +171,9 @@ export default async function handler(req, res) {
     ? `${sourceName} · ${durSec}s audio · Hark Daily`
     : 'Daily two-host audio news briefing with Matthew & Kelly.';
   const canonicalUrl = date && slug ? `${origin}/s/${encodeURIComponent(date)}/${encodeURIComponent(slug)}` : `${origin}/`;
-  const thumbUrl = `${origin}/icons/og-thumb-dark.png`;
+  const storyImage = storyRow?.image || null;
+  const thumbUrl = storyImage || `${origin}/icons/og-thumb-dark.png`;
+  const isCustomThumb = Boolean(storyImage);
 
   const eTitle = escapeHtml(headline);
   const eDesc = escapeHtml(description);
@@ -184,8 +189,9 @@ export default async function handler(req, res) {
     .replace(/<meta\s+property="og:description"\s+content="[^"]*">/i, `<meta property="og:description" content="${eDesc}">`)
     .replace(/<meta\s+property="og:image"\s+content="[^"]*">/i, `<meta property="og:image" content="${eThumb}">`)
     .replace(/<meta\s+property="og:image:secure_url"\s+content="[^"]*">/i, `<meta property="og:image:secure_url" content="${eThumb}">`)
-    .replace(/<meta\s+property="og:image:width"\s+content="[^"]*">/i, '<meta property="og:image:width" content="192">')
-    .replace(/<meta\s+property="og:image:height"\s+content="[^"]*">/i, '<meta property="og:image:height" content="192">')
+    .replace(/<meta\s+property="og:image:width"\s+content="[^"]*">/i, `<meta property="og:image:width" content="${isCustomThumb ? '1200' : '192'}">`)
+    .replace(/<meta\s+property="og:image:height"\s+content="[^"]*">/i, `<meta property="og:image:height" content="${isCustomThumb ? '630' : '192'}">`)
+    .replace(/<meta\s+name="twitter:card"\s+content="[^"]*">/i, isCustomThumb ? '<meta name="twitter:card" content="summary_large_image">' : '<meta name="twitter:card" content="summary">')
     .replace(/<meta\s+name="twitter:url"\s+content="[^"]*">/i, `<meta name="twitter:url" content="${eUrl}">`)
     .replace(/<meta\s+name="twitter:title"\s+content="[^"]*">/i, `<meta name="twitter:title" content="${eTitle}">`)
     .replace(/<meta\s+name="twitter:description"\s+content="[^"]*">/i, `<meta name="twitter:description" content="${eDesc}">`)
@@ -199,6 +205,8 @@ export default async function handler(req, res) {
     audio: storyRow?.audio_path || null,
     source: storyRow?.source || null,
     dur: durSec,
+    image: storyImage,
+    script: storyRow?.script || null,
   };
   const safeJson = JSON.stringify(sharedPayload).replace(/</g, '\\u003c');
   html = html.replace('</head>', `  <script>window.__SHARED_STORY__ = ${safeJson};</script>\n</head>`);
