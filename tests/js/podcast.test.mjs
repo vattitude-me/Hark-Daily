@@ -251,25 +251,43 @@ test('parseShareSlug and buildBriefing resolve short share links by hash and ran
   writeFileSync(join(dir, 'share.mjs'), shareSrc);
   const { parseShareSlug } = await import(join(dir, 'share.mjs'));
 
+  assert.deepEqual(parseShareSlug('c80758f3'), { storyId: 'c80758f3', section: null, rank: null, hash: 'c80758f3' });
   assert.deepEqual(parseShareSlug('ai-4-c80758f3'), { storyId: 'ai-4', section: 'ai', rank: 4, hash: 'c80758f3' });
   assert.deepEqual(parseShareSlug('tech_us-2-12ab34cd'), { storyId: 'tech_us-2', section: 'tech_us', rank: 2, hash: '12ab34cd' });
   assert.deepEqual(parseShareSlug('top-1'), { storyId: 'top-1', section: 'top', rank: 1, hash: null });
 
   const shareRows = [
-    { date: '2026-10-31', section: 'top', rank: 1, voice: 'v', title: 'Top Story 1', duration: 20, audio_path: 'stories/2026-10-31/top-1-v-11111111.mp3' },
+    { date: '2026-10-31', section: 'top', rank: 1, voice: 'v', title: 'Canadian Top Story 1', duration: 20, audio_path: 'stories/2026-10-31/top-1-v-ca111111.mp3' },
+    { date: '2026-10-31', section: 'top_in', rank: 1, voice: 'v', title: 'India Top Story 1', duration: 22, audio_path: 'stories/2026-10-31/top_in-1-v-12222222.mp3' },
     // Suppose a story that was ai-4 in the morning shifted to ai-5 in the evening, keeping its content hash c80758f3:
     { date: '2026-10-31', section: 'ai', rank: 5, voice: 'v', title: 'Anthropic expected to receive high junk rating', duration: 25, audio_path: 'stories/2026-10-31/ai-5-v-c80758f3.mp3' },
   ];
 
-  // User only has top: 1 enabled in settings, and opens /s/2026-10-31/ai-4-c80758f3
+  // 1. User only has top: 1 enabled in settings, and opens /s/2026-10-31/c80758f3 (pure unique story key)
   const b = buildBriefing(shareRows, { stories: { top: 1, ai: 0 } }, {
     date: '2026-10-31',
     voice: 'v',
-    targetStory: 'ai-4',
+    targetStory: 'c80758f3',
     targetHash: 'c80758f3',
   });
   assert.ok(b);
-  assert.ok(b.stories.some((s) => s.headline.includes('Anthropic expected to receive')), 'Short link hash must include and resolve the shared story even if rank shifted or section was disabled');
+  assert.ok(b.stories.some((s) => s.key === 'c80758f3' && s.headline.includes('Anthropic expected to receive')), 'Pure unique key must include and resolve the shared story even if rank shifted or section was disabled');
+
+  // 2. Cross-region share: User in India (edition: 'in') clicks a Canadian story key ('ca111111')
+  const inBrief = buildBriefing(shareRows, { stories: { top: 1, ai: 0 } }, {
+    date: '2026-10-31',
+    voice: 'v',
+    edition: 'in',
+    targetStory: 'ca111111',
+    targetHash: 'ca111111',
+  });
+  assert.ok(inBrief);
+  assert.equal(inBrief.edition, 'in', 'Recipient remains in their own India edition');
+  assert.equal(inBrief.stories.length, 2, 'Both the shared Canadian story and the recipient India sequence are present');
+  assert.equal(inBrief.stories[0].key, 'ca111111', 'Shared Canadian story is placed first in the sharing window');
+  assert.equal(inBrief.stories[0].section, 'top_in', 'Shared story maps cleanly into the recipient regional section');
+  assert.equal(inBrief.stories[0].isSharedBonus, true);
+  assert.equal(inBrief.stories[1].key, '12222222', 'Recipient own India sequence follows immediately after');
 
   // Test the Vercel serverless share handler HTML injection
   const { default: shareHandler } = await import(join(dir, 'share.mjs'));

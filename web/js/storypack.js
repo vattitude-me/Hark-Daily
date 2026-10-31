@@ -181,6 +181,22 @@ function stableHash(text) {
 }
 
 /**
+ * Unique, region-agnostic 8-character reference key for a story.
+ * Prefers the 8-hex-char content hash embedded at the end of `audio_path`
+ * (e.g. `stories/2026-10-31/ai-4-matthew_reference__kelly_reference-c80758f3.mp3` -> `c80758f3`),
+ * falling back to a deterministic 8-hex-char hash of the story's URL/title.
+ */
+export function storyKey(row) {
+  if (!row) return '';
+  if (row.key) return String(row.key).toLowerCase();
+  const audio = row.audio_path || '';
+  const m = audio.match(/-([0-9a-f]{8})\.mp3$/i);
+  if (m) return m[1].toLowerCase();
+  const seed = `${row.url || ''}|${row.title || row.headline || ''}|${row.section || ''}-${row.rank || ''}`;
+  return stableHash(seed).toString(16).padStart(8, '0').slice(0, 8);
+}
+
+/**
  * Choose the banter for one listener's lineup, or null when the day has no usable podcast.
  *
  * `clips` are the day's podcast_clips rows. A day is usable only if a host pair published its ready
@@ -283,28 +299,32 @@ export function buildBriefing(rows, settings, {
   // In Rapid Fire mode, select the 5 top stories of the day
   let wanted = lineup(settings);
 
-  // Normalize targetStory if it includes a trailing 8-char hex hash (e.g. "ai-4-c80758f3")
-  let normalizedTargetStory = targetStory ? String(targetStory) : null;
-  let effectiveHash = targetHash ? String(targetHash).toLowerCase() : null;
+  // Normalize targetStory if it is a pure 8-char key ("c80758f3") or includes a trailing hash ("ai-4-c80758f3")
+  let normalizedTargetStory = targetStory ? String(targetStory).trim() : null;
+  let effectiveHash = targetHash ? String(targetHash).trim().toLowerCase() : null;
   if (normalizedTargetStory) {
-    const hashMatch = normalizedTargetStory.match(/^([a-z0-9_]+-\d+)-([0-9a-f]{8})$/i);
-    if (hashMatch) {
-      normalizedTargetStory = hashMatch[1];
-      if (!effectiveHash) effectiveHash = hashMatch[2].toLowerCase();
+    if (/^[0-9a-f]{8}$/i.test(normalizedTargetStory)) {
+      if (!effectiveHash) effectiveHash = normalizedTargetStory.toLowerCase();
+      normalizedTargetStory = null;
+    } else {
+      const hashMatch = normalizedTargetStory.match(/^([a-z0-9_]+-\d+)-([0-9a-f]{8})$/i);
+      if (hashMatch) {
+        normalizedTargetStory = hashMatch[1];
+        if (!effectiveHash) effectiveHash = hashMatch[2].toLowerCase();
+      }
     }
   }
 
   // If a specific story is requested via deep link:
-  // 1. Try matching by 8-char audio hash first (short share links /s/:date/:slug)
+  // 1. Try matching by unique 8-char story key first (region-agnostic reference key /s/:date/:key)
   // 2. Try matching by headline title next (resilient against morning/evening batch rank shifts)
   let targetSec = null;
   let targetRank = null;
   let matchedRow = null;
 
   if (effectiveHash) {
-    const suffix = `-${effectiveHash}.mp3`;
-    matchedRow = (rows || []).find((r) => (!id || r.voice === id) && r.audio_path && r.audio_path.toLowerCase().endsWith(suffix))
-      || (rows || []).find((r) => r.audio_path && r.audio_path.toLowerCase().endsWith(suffix));
+    matchedRow = (rows || []).find((r) => (!id || r.voice === id) && storyKey(r) === effectiveHash)
+      || (rows || []).find((r) => storyKey(r) === effectiveHash);
   }
 
   if (!matchedRow && targetTitle) {
@@ -325,9 +345,15 @@ export function buildBriefing(rows, settings, {
   }
 
   const baseTargetSec = targetSec ? targetSec.replace(/_(us|in|ca)$/, '') : null;
+  const localTargetSec = baseTargetSec ? editionSectionKey(baseTargetSec, edition) : targetSec;
+  const isSameEditionTarget = !targetSec || targetSec === localTargetSec || (edition === 'ca' && targetSec === baseTargetSec);
 
   if (baseTargetSec && SECTION_ORDER.includes(baseTargetSec) && Number.isFinite(targetRank) && targetRank > 0) {
-    wanted[baseTargetSec] = Math.max(wanted[baseTargetSec] || 0, Math.min(targetRank, MAX_PER_SECTION));
+    if (isSameEditionTarget) {
+      wanted[baseTargetSec] = Math.max(wanted[baseTargetSec] || 0, Math.min(targetRank, MAX_PER_SECTION));
+    } else if (!wanted[baseTargetSec]) {
+      wanted[baseTargetSec] = 1;
+    }
   }
 
   if (isRapid) {
@@ -361,13 +387,13 @@ export function buildBriefing(rows, settings, {
     }
     // If a targetStory was deep-linked in rapid mode, make sure its section is also included
     if (baseTargetSec && targetRank && SECTION_ORDER.includes(baseTargetSec)) {
-      rapidWanted[baseTargetSec] = Math.max(rapidWanted[baseTargetSec] || 0, Math.min(targetRank, MAX_PER_SECTION));
+      rapidWanted[baseTargetSec] = Math.max(rapidWanted[baseTargetSec] || 0, isSameEditionTarget ? Math.min(targetRank, MAX_PER_SECTION) : 1);
     }
     wanted = rapidWanted;
   }
 
   const chosen = clipsFor(rows, wanted, id, order, edition);
-  if (!chosen.length && !targetAudio) return null;
+  if (!chosen.length && !matchedRow && !targetAudio) return null;
 
   const sectionOrderIndex = (sec) => {
     const idx = order.indexOf((sec || '').replace(/_(us|in|ca)$/, ''));
@@ -375,9 +401,18 @@ export function buildBriefing(rows, settings, {
   };
 
   // Resilient deep-link check:
-  // 1. If matchedRow was found in rows but was not in chosen, insert it
-  if (matchedRow && !chosen.some((r) => r === matchedRow || (r.section === matchedRow.section && r.rank === matchedRow.rank))) {
-    chosen.push(matchedRow);
+  // 1. If matchedRow was found in rows but was not in chosen (e.g. cross-region share or disabled section), insert it
+  if (matchedRow && !chosen.some((r) => r === matchedRow || storyKey(r) === storyKey(matchedRow) || (r.section === matchedRow.section && r.rank === matchedRow.rank))) {
+    const mappedRow = isSameEditionTarget
+      ? matchedRow
+      : {
+          ...matchedRow,
+          section: localTargetSec || matchedRow.section,
+          rank: 0,
+          isSharedBonus: true,
+          syntheticId: storyKey(matchedRow),
+        };
+    chosen.push(mappedRow);
     chosen.sort((a, b) => {
       const secA = sectionOrderIndex(a.section);
       const secB = sectionOrderIndex(b.section);
@@ -385,11 +420,11 @@ export function buildBriefing(rows, settings, {
       return (a.rank || 0) - (b.rank || 0);
     });
   } else if (normalizedTargetStory && !matchedRow) {
-    const hasTarget = chosen.some((r) => `${r.section}-${r.rank}` === normalizedTargetStory || r.id === normalizedTargetStory);
+    const hasTarget = chosen.some((r) => `${r.section}-${r.rank}` === normalizedTargetStory || r.id === normalizedTargetStory || storyKey(r) === normalizedTargetStory);
     if (!hasTarget) {
       const match = (rows || []).find((r) =>
-        (!id || r.voice === id) && (`${r.section}-${r.rank}` === normalizedTargetStory || r.id === normalizedTargetStory)
-      ) || (rows || []).find((r) => `${r.section}-${r.rank}` === normalizedTargetStory || r.id === normalizedTargetStory);
+        (!id || r.voice === id) && (`${r.section}-${r.rank}` === normalizedTargetStory || r.id === normalizedTargetStory || storyKey(r) === normalizedTargetStory)
+      ) || (rows || []).find((r) => `${r.section}-${r.rank}` === normalizedTargetStory || r.id === normalizedTargetStory || storyKey(r) === normalizedTargetStory);
       if (match) {
         chosen.push(match);
         chosen.sort((a, b) => {
@@ -405,9 +440,9 @@ export function buildBriefing(rows, settings, {
   // 2. If the story was voiced in an earlier batch (e.g. morning) and replaced in the evening batch,
   // the audio file remains permanent in Supabase Storage. Inject it as a shared story!
   if (targetAudio && !chosen.some((r) => (targetTitle && titlesMatch(r.title, targetTitle)) || r.audio_path === targetAudio)) {
-    const sec = (baseTargetSec && SECTION_ORDER.includes(baseTargetSec)) ? targetSec : 'top';
-    const cleanHash = targetAudio.replace(/[^a-zA-Z0-9]/g, '').slice(-8);
-    const archivedId = normalizedTargetStory || `shared-${sec}-${cleanHash}`;
+    const sec = (baseTargetSec && SECTION_ORDER.includes(baseTargetSec)) ? (localTargetSec || targetSec) : editionSectionKey('top', edition);
+    const cleanHash = effectiveHash || targetAudio.replace(/[^a-zA-Z0-9]/g, '').slice(-8);
+    const archivedId = cleanHash || normalizedTargetStory || `shared-${sec}-${cleanHash}`;
     const syntheticRow = {
       section: sec,
       rank: 0,
@@ -512,7 +547,7 @@ export function buildBriefing(rows, settings, {
     // In podcast mode, prefer the two-host conversation clip (`matthew_reference+kelly_reference`),
     // or alternate between solo host recordings on legacy archive packs.
     let storyRow = row;
-    if (isPodcast && podHosts.length > 1) {
+    if (!row.isSharedBonus && isPodcast && podHosts.length > 1) {
       const duoId = podHosts.join('+');
       const duoMatch = (rows || []).find((r) => r.section === row.section && r.rank === row.rank && r.voice === duoId);
       if (duoMatch) {
@@ -527,9 +562,10 @@ export function buildBriefing(rows, settings, {
     const duration = Number(storyRow.duration) || 0;
     const start = round(cursor);
     const end = round(cursor + duration);
+    const key = storyKey(storyRow);
     const id = storyRow.syntheticId || `${storyRow.section}-${storyRow.rank}`;
     stories.push({
-      id, section: storyRow.section, source: storyRow.source || '',
+      id, key, section: storyRow.section, source: storyRow.source || '',
       headline: storyRow.title,
       summary: storyRow.summary || stripHeadlineAndFiller(storyRow.title, storyRow.script || ''),
       url: storyRow.url || null,
@@ -538,9 +574,9 @@ export function buildBriefing(rows, settings, {
       isSharedBonus: Boolean(storyRow.isSharedBonus),
       script: storyRow.script || storyRow.summary || '',
     });
-    chapters.push({ id, kind: 'story', title: storyRow.title, start, end, section: storyRow.section });
+    chapters.push({ id, key, kind: 'story', title: storyRow.title, start, end, section: storyRow.section });
     clips.push({
-      id, url: clipUrl(storyRow.audio_path), duration, section: storyRow.section, rank: storyRow.rank,
+      id, key, url: clipUrl(storyRow.audio_path), duration, section: storyRow.section, rank: storyRow.rank,
       title: storyRow.title, start, end,
     });
     counts.set(storyRow.section, (counts.get(storyRow.section) || 0) + 1);

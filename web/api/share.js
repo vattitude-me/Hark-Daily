@@ -35,9 +35,31 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+function stableHash(text) {
+  let n = 0;
+  for (let i = 0; i < text.length; i += 1) n = (n * 31 + text.charCodeAt(i)) >>> 0;
+  return n;
+}
+
+export function storyKey(row) {
+  if (!row) return '';
+  if (row.key) return String(row.key).toLowerCase();
+  const audio = row.audio_path || '';
+  const m = audio.match(/-([0-9a-f]{8})\.mp3$/i);
+  if (m) return m[1].toLowerCase();
+  const seed = `${row.url || ''}|${row.title || row.headline || ''}|${row.section || ''}-${row.rank || ''}`;
+  return stableHash(seed).toString(16).padStart(8, '0').slice(0, 8);
+}
+
 export function parseShareSlug(rawSlug) {
   const slug = String(rawSlug || '').trim().replace(/^\/+|\/+$/g, '');
   if (!slug) return { storyId: null, section: null, rank: null, hash: null };
+
+  // Pure 8-character unique story key (region- and rank-independent)
+  if (/^[0-9a-f]{8}$/i.test(slug)) {
+    const key = slug.toLowerCase();
+    return { storyId: key, section: null, rank: null, hash: key };
+  }
 
   let base = slug;
   let hash = null;
@@ -59,7 +81,7 @@ export function parseShareSlug(rawSlug) {
 
 async function fetchStoryMeta(date, parsed) {
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  const endpoint = `${SUPABASE_URL}/rest/v1/story_audio?date=eq.${encodeURIComponent(date)}&select=date,section,rank,voice,title,source,duration,audio_path`;
+  const endpoint = `${SUPABASE_URL}/rest/v1/story_audio?date=eq.${encodeURIComponent(date)}&select=date,section,rank,voice,title,url,source,duration,audio_path`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 3000);
   try {
@@ -76,7 +98,7 @@ async function fetchStoryMeta(date, parsed) {
     if (!Array.isArray(rows) || !rows.length) return null;
 
     if (parsed.hash) {
-      const byHash = rows.find((r) => r.audio_path && r.audio_path.toLowerCase().endsWith(`-${parsed.hash}.mp3`));
+      const byHash = rows.find((r) => storyKey(r) === parsed.hash);
       if (byHash) return byHash;
     }
     if (parsed.section && parsed.rank) {
