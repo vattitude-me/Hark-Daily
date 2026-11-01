@@ -32,28 +32,24 @@ export const posKeyFor = (b) => {
 export class Player extends EventTarget {
   constructor() {
     super();
-    // Dual persistent in-DOM audio elements for seamless background baton-pass handoff.
-    // This ensures iOS WebKit and Android Chrome never revoke
-    // playback privileges or suspend the JavaScript background thread between clips.
+    // Authoritative single audio element for playback to ensure stable mobile AudioFocus,
+    // lock-screen MediaSession ownership, and continuous background play.
+    // Secondary element audioB is used strictly as a silent cache preloader.
     const hasDoc = typeof document !== 'undefined';
-    this.audioA = (hasDoc && document.getElementById('audio')) || (typeof Audio !== 'undefined' ? new Audio() : null);
-    this.audioB = (hasDoc && document.getElementById('audioB')) || (typeof Audio !== 'undefined' ? new Audio() : null);
-    this.activeAudio = this.audioA;
-    this.standbyAudio = this.audioB;
-    this.handingOff = false;
-    this.preloadReady = false;
+    this.audio = (hasDoc && document.getElementById('audio')) || (typeof Audio !== 'undefined' ? new Audio() : null);
+    this.preloader = (hasDoc && document.getElementById('audioB')) || (typeof Audio !== 'undefined' ? new Audio() : null);
     this.isPrimed = false;
     this.wakeLock = null;
 
-    if (this.audioA) {
-      this.audioA.preload = 'auto';
-      this.audioA.volume = 1.0;
-      this.audioA.muted = false;
+    if (this.audio) {
+      this.audio.preload = 'auto';
+      this.audio.volume = 1.0;
+      this.audio.muted = false;
     }
-    if (this.audioB) {
-      this.audioB.preload = 'auto';
-      this.audioB.volume = 1.0;
-      this.audioB.muted = false;
+    if (this.preloader) {
+      this.preloader.preload = 'auto';
+      this.preloader.volume = 0.0;
+      this.preloader.muted = true;
     }
 
     this.clips = null;
@@ -86,8 +82,20 @@ export class Player extends EventTarget {
     this.bind();
   }
 
-  get audio() {
-    return this.activeAudio;
+  get activeAudio() {
+    return this.audio;
+  }
+
+  get audioA() {
+    return this.audio;
+  }
+
+  get audioB() {
+    return this.preloader;
+  }
+
+  get standbyAudio() {
+    return this.preloader;
   }
 
   bind() {
@@ -176,9 +184,8 @@ export class Player extends EventTarget {
       e.preventDefault();
     });
 
-    // Dual audio elements for seamless background baton pass
-    this.setupAudioElement(this.audioA);
-    this.setupAudioElement(this.audioB);
+    // Setup authoritative playback audio element
+    this.setupAudioElement(this.audio);
 
     // Keep screen awake while playing in foreground
     if (typeof document !== 'undefined') {
@@ -216,73 +223,38 @@ export class Player extends EventTarget {
   setupAudioElement(audioEl) {
     if (!audioEl) return;
     audioEl.addEventListener('timeupdate', () => {
-      if (audioEl === this.activeAudio) {
-        this.tick();
-        this.checkHandoff();
-      }
+      this.tick();
     });
     audioEl.addEventListener('loadedmetadata', () => {
-      if (audioEl === this.activeAudio) {
-        audioEl.playbackRate = this.speed;
-        this.tick();
-      }
+      audioEl.playbackRate = this.speed;
+      this.tick();
     });
     audioEl.addEventListener('play', () => {
-      if (audioEl === this.activeAudio) {
-        this.setPlaying(true);
-        this.preloadNext();
-      }
+      this.setPlaying(true);
+      this.preloadNext();
     });
     audioEl.addEventListener('pause', () => {
-      if (audioEl === this.activeAudio) {
-        if (this.handingOff || this.isTransitioningClip) return;
-        this.setPlaying(false);
-      }
+      if (this.isTransitioningClip) return;
+      this.setPlaying(false);
     });
     audioEl.addEventListener('ended', () => {
-      if (audioEl === this.activeAudio) {
-        this.onEnded();
-      }
+      this.onEnded();
     });
     audioEl.addEventListener('error', (e) => {
-      if (audioEl === this.activeAudio) {
-        console.warn('[player] audio error:', e);
-      }
+      console.warn('[player] audio error:', e);
     });
   }
 
   primeAudioChannels() {
     if (this.isPrimed) return;
     this.isPrimed = true;
-    if (this.audioA) {
-      this.audioA.volume = 1.0;
-      this.audioA.muted = false;
+    if (this.audio) {
+      this.audio.volume = 1.0;
+      this.audio.muted = false;
     }
-    // Prime standby audio channel in this user gesture so iOS/Android won't block background playback
-    if (this.standbyAudio) {
-      this.standbyAudio.volume = 1.0;
-      this.standbyAudio.muted = false;
-      if (!this.standbyAudio.src) {
-        try {
-          this.standbyAudio.src = '/audio/gap.mp3';
-          const p = this.standbyAudio.play();
-          if (p && typeof p.then === 'function') {
-            p.then(() => {
-              this.standbyAudio.pause();
-              this.standbyAudio.volume = 1.0;
-              this.standbyAudio.muted = false;
-              this.standbyAudio.removeAttribute('src');
-              delete this.standbyAudio.dataset.clip;
-            }).catch(() => {
-              this.standbyAudio.volume = 1.0;
-              this.standbyAudio.muted = false;
-            });
-          }
-        } catch {
-          this.standbyAudio.volume = 1.0;
-          this.standbyAudio.muted = false;
-        }
-      }
+    if (this.preloader) {
+      this.preloader.volume = 0.0;
+      this.preloader.muted = true;
     }
   }
 
@@ -307,7 +279,7 @@ export class Player extends EventTarget {
   }
 
   get isPlaying() {
-    return Boolean(this.activeAudio && !this.activeAudio.paused && !this.activeAudio.ended);
+    return Boolean(this.audio && !this.audio.paused && !this.audio.ended);
   }
 
   /**
@@ -321,13 +293,13 @@ export class Player extends EventTarget {
 
   /** Seconds into the whole briefing (not the current clip). */
   get position() {
-    if (!this.clips) return (this.activeAudio && this.activeAudio.currentTime) || 0;
-    return (this.clips[this.index]?.start || 0) + ((this.activeAudio && this.activeAudio.currentTime) || 0);
+    if (!this.clips) return (this.audio && this.audio.currentTime) || 0;
+    return (this.clips[this.index]?.start || 0) + ((this.audio && this.audio.currentTime) || 0);
   }
 
   /** Total briefing length. */
   get total() {
-    if (!this.clips) return (this.activeAudio && this.activeAudio.duration) || this.briefing?.duration || 0;
+    if (!this.clips) return (this.audio && this.audio.duration) || this.briefing?.duration || 0;
     return this.clips.length ? this.clips[this.clips.length - 1].end : 0;
   }
 
@@ -343,9 +315,8 @@ export class Player extends EventTarget {
     const clip = this.clips?.[i];
     if (!clip) return;
     this.index = i;
-    this.handingOff = false;
     this.isTransitioningClip = false;
-    const el = this.activeAudio;
+    const el = this.audio;
     if (!el) return;
 
     const needsLoad = forceReload || el.dataset.clip !== String(i) || !el.src || el.error;
@@ -372,141 +343,31 @@ export class Player extends EventTarget {
     this.preloadNext();
   }
 
-  /** Buffer the following clip into the standby audio element and verify preload readiness. */
+  /** Pre-buffer the following clip silently into cache using the secondary audio preloader. */
   preloadNext() {
     if (!this.clips || !this.isPlaying) return;
     const nextIdx = this.index + 1;
     const next = this.clips[nextIdx];
-    if (!next || !next.url) {
-      this.preloadReady = false;
-      return;
-    }
-    const standby = this.standbyAudio;
-    if (!standby) return;
+    if (!next || !next.url) return;
+    const preloader = this.preloader;
+    if (!preloader) return;
 
-    if (standby.dataset.clip !== String(nextIdx)) {
-      this.preloadReady = false;
-      standby.dataset.clip = String(nextIdx);
-      standby.preload = 'auto';
-      standby.src = next.url;
-      standby.playbackRate = this.speed;
-      standby.volume = 1.0;
-      standby.muted = false;
-
-      // Keep a check on pre load
-      const markReady = () => {
-        if (standby.dataset.clip === String(nextIdx)) {
-          this.preloadReady = true;
-        }
-        standby.removeEventListener('canplay', markReady);
-        standby.removeEventListener('canplaythrough', markReady);
-      };
-      standby.addEventListener('canplay', markReady);
-      standby.addEventListener('canplaythrough', markReady);
-      standby.load();
-    } else if (standby.readyState >= 2) {
-      this.preloadReady = true;
-      standby.volume = 1.0;
-      standby.muted = false;
+    if (preloader.dataset.clip !== String(nextIdx)) {
+      preloader.dataset.clip = String(nextIdx);
+      preloader.preload = 'auto';
+      preloader.src = next.url;
+      try { preloader.load(); } catch {}
     }
   }
 
-  checkHandoff() {
-    if (this.handingOff || !this.clips || this.index + 1 >= this.clips.length) return;
-    const cur = this.activeAudio;
-    if (!cur || !cur.duration || isNaN(cur.duration)) return;
-    const remaining = cur.duration - cur.currentTime;
-    // Seamless baton pass ~0.35s before current clip ends while outgoing audio still plays
-    if (remaining <= 0.35 && remaining >= 0.0) {
-      const nextIdx = this.index + 1;
-      const standby = this.standbyAudio;
-      // Preload check requirement
-      if (standby && standby.dataset.clip === String(nextIdx) && (this.preloadReady || standby.readyState >= 2)) {
-        this.handOffToNextClip();
-      }
-    }
-  }
-
-  handOffToNextClip() {
-    if (this.handingOff || !this.clips || this.index + 1 >= this.clips.length) return;
-    const nextIdx = this.index + 1;
-    const nextClip = this.clips[nextIdx];
-    if (!nextClip) return;
-
-    this.handingOff = true;
-    const outgoing = this.activeAudio;
-    const incoming = this.standbyAudio;
-
-    if (incoming.dataset.clip !== String(nextIdx) || !incoming.src) {
-      incoming.dataset.clip = String(nextIdx);
-      incoming.src = nextClip.url;
-      try { incoming.load(); } catch {}
-    }
-    incoming.playbackRate = this.speed;
-    incoming.volume = 1.0;
-    incoming.muted = false;
-    outgoing.volume = 1.0;
-    outgoing.muted = false;
-
-    let handoffDone = false;
-    const finalizeHandoff = () => {
-      if (handoffDone) return;
-      handoffDone = true;
-      if (handoffTimer) clearTimeout(handoffTimer);
-      this.index = nextIdx;
-      this.activeAudio = incoming;
-      this.standbyAudio = outgoing;
-      this.handingOff = false;
-      this.preloadReady = false;
-
-      try {
-        outgoing.pause();
-        outgoing.removeAttribute('src');
-        delete outgoing.dataset.clip;
-        outgoing.volume = 1.0;
-        outgoing.muted = false;
-      } catch {}
-
-      this.preloadNext();
-      this.tick();
-      this.syncPositionState();
-    };
-
-    const handoffTimer = setTimeout(() => {
-      if (!handoffDone && this.handingOff) {
-        console.warn('[player] baton pass incoming.play timeout (1500ms), forcing finalize');
-        finalizeHandoff();
-      }
-    }, 1500);
-
-    const p = incoming.play();
-    if (p && typeof p.then === 'function') {
-      p.then(() => finalizeHandoff()).catch((err) => {
-        console.warn('[player] baton pass play error:', err);
-        if (handoffTimer) clearTimeout(handoffTimer);
-        this.handingOff = false;
-        // If incoming play was rejected (e.g. mobile gesture restriction), load directly on activeAudio
-        this.loadClip(nextIdx, { seek: 0, autoplay: true, forceReload: true });
-      });
-    } else {
-      finalizeHandoff();
-    }
-  }
-
-  /** A clip finished: transition seamlessly on standby audio or fallback to active audio. */
+  /** A clip finished: advance directly to next clip on the authoritative audio channel. */
   onEnded() {
     if (this.clips && this.index + 1 < this.clips.length) {
-      // If a handoff was stuck, clear the lock now that outgoing audio has ended
-      this.handingOff = false;
-      const nextIdx = this.index + 1;
-      const standby = this.standbyAudio;
-      if (standby && standby.dataset.clip === String(nextIdx) && (this.preloadReady || standby.readyState >= 2)) {
-        this.handOffToNextClip();
-        return;
-      }
-      // Standby not ready: fallback to loadClip directly with forceReload
       this.isTransitioningClip = true;
+      const nextIdx = this.index + 1;
       this.loadClip(nextIdx, { seek: 0, autoplay: true, forceReload: true });
+      this.tick();
+      this.syncPositionState();
       return;
     }
     this.setPlaying(false);
@@ -540,21 +401,17 @@ export class Player extends EventTarget {
 
     this.current = null;
     this.index = 0;
-    this.handingOff = false;
-    this.preloadReady = false;
 
-    if (this.audioA) {
-      this.audioA.pause();
-      delete this.audioA.dataset.clip;
-      this.audioA.removeAttribute('src');
+    if (this.audio) {
+      this.audio.pause();
+      delete this.audio.dataset.clip;
+      this.audio.removeAttribute('src');
     }
-    if (this.audioB) {
-      this.audioB.pause();
-      delete this.audioB.dataset.clip;
-      this.audioB.removeAttribute('src');
+    if (this.preloader) {
+      this.preloader.pause();
+      delete this.preloader.dataset.clip;
+      this.preloader.removeAttribute('src');
     }
-    this.activeAudio = this.audioA;
-    this.standbyAudio = this.audioB;
 
     this.isTransitioningClip = false;
     // In Rapid Fire mode, default to 1.1x speed; in Full mode, restore listener's standard speed.
@@ -563,13 +420,12 @@ export class Player extends EventTarget {
     } else {
       this.speed = store.get('rate', 1.0);
     }
-    if (this.audioA) this.audioA.playbackRate = this.speed;
-    if (this.audioB) this.audioB.playbackRate = this.speed;
+    if (this.audio) this.audio.playbackRate = this.speed;
     this.renderSpeedPills();
     this.syncSpeedPills();
 
     if (this.clips) this.loadClip(0);
-    else if (this.activeAudio) this.activeAudio.src = briefing.audio_url;
+    else if (this.audio) this.audio.src = briefing.audio_url;
     this.buildSegments();
     const posKey = posKeyFor(briefing);
     const saved = store.get(posKey, 0);
@@ -607,11 +463,10 @@ export class Player extends EventTarget {
 
   toggle() {
     if (!this.briefing) return;
-    this.handingOff = false;
     this.isTransitioningClip = false;
 
     if (this.isPlaying) {
-      this.activeAudio.pause();
+      this.audio.pause();
     } else {
       this.primeAudioChannels();
       window.trackEvent?.('play_briefing', {
@@ -620,7 +475,7 @@ export class Player extends EventTarget {
       });
       if (this.clips && this.clips.length) {
         let targetIdx = this.clipIndexAt(this.position);
-        const cur = this.activeAudio;
+        const cur = this.audio;
         const curTime = cur ? cur.currentTime : 0;
         const curDur = cur ? (cur.duration || 0) : 0;
 
@@ -631,14 +486,14 @@ export class Player extends EventTarget {
           return;
         }
 
-        // If target clip is not current or activeAudio doesn't have it loaded or is in error
+        // If target clip is not current or audio doesn't have it loaded or is in error
         if (targetIdx !== this.index || cur.dataset.clip !== String(targetIdx) || !cur.src || cur.error) {
           const seek = Math.max(0, this.position - (this.clips[targetIdx]?.start || 0));
           this.loadClip(targetIdx, { seek, autoplay: true, forceReload: true });
           return;
         }
       }
-      const p = this.activeAudio.play();
+      const p = this.audio.play();
       if (p && typeof p.catch === 'function') {
         p.catch((err) => {
           console.warn('[player] direct play rejected, force reloading active clip:', err);
@@ -667,7 +522,7 @@ export class Player extends EventTarget {
       section: ch.section,
     });
     this.seekTo(ch.start);
-    this.activeAudio.play().catch(() => {});
+    this.audio.play().catch(() => {});
   }
 
   seekTo(seconds) {
@@ -767,8 +622,7 @@ export class Player extends EventTarget {
 
   setRate(rate) {
     this.speed = rate;
-    if (this.audioA) this.audioA.playbackRate = rate;
-    if (this.audioB) this.audioB.playbackRate = rate;
+    if (this.audio) this.audio.playbackRate = rate;
     if (this.briefing?.mode !== 'rapid') {
       store.set('rate', rate);
     }
