@@ -23,6 +23,7 @@ from .ranking import Story
 from .report import RunReport
 from .sources import SECTIONS
 from .summarizer import drop_boilerplate, summarize
+from .tts.text import voice_normalize
 
 log = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ def template_copy(story: Story) -> StoryCopy:
     connector = CONNECTORS[int(story.id, 16) % len(CONNECTORS)]
     title = lead.title.rstrip(".")
     opener = f"{connector} {title}." if connector else f"{title}."
-    spoken = f"{opener}\n{spoken_body}".strip()
+    spoken = voice_normalize(f"{opener}\n{spoken_body}".strip(), preserve_tags=False)
     return StoryCopy(headline=lead.title, summary=summary, spoken=spoken, writer="built-in")
 
 
@@ -138,12 +139,13 @@ Return a JSON object with exactly these keys:
 
 How the spoken beats should sound:
 - Like a calm radio host talking to one listener: plain words, contractions, active voice.
+- VOICE-BASED SPOKEN TEXT: The spoken beats are read aloud by text-to-speech. Never use print or financial shorthand like "$5B", "$10M", "$500K", or "15%". Always write "5 billion dollars", "10 million dollars", "500 thousand dollars", "15 percent". Never use symbols like "$", "€", "£", "%", "&", "vs.", or "#".
+- Numbers the way people say them: rounded, at most two in a sentence, written with "percent" and
+  "dollars" in words (55 percent, 64 million dollars, 11 a.m., first quarter).
 - Sentences of 8 to 20 words, with the subject and verb near the start. No long lead-in clauses.
 - Attribution after the fact, not before it: "The plant will close in March, the company said."
 - Commas only where a speaker would breathe. No semicolons, colons, dashes, brackets or quotation marks;
   paraphrase quotes instead.
-- Numbers the way people say them: rounded, at most two in a sentence, written as digits with "percent" and
-  "dollars" in words (55 percent, 64 million dollars, 11 a.m.).
 - Use a person's full name and role the first time, then the surname. Expand initials a listener
   might not know.
 - Never name the news outlet or say "reports" or "according to" about it: the app credits the source
@@ -156,7 +158,7 @@ Stay strictly factual and neutral. Never add facts that aren't in the text; if t
 def spoken_beats(value) -> str:
     """The spoken copy as beats, one per line: the voice pauses between lines."""
     beats = value if isinstance(value, list) else str(value or "").split("\n")
-    return "\n".join(" ".join(str(b).split()) for b in beats if str(b).strip())
+    return "\n".join(voice_normalize(" ".join(str(b).split()), preserve_tags=False) for b in beats if str(b).strip())
 
 
 class LimitHit(Exception):

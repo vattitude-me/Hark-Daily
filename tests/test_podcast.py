@@ -373,3 +373,28 @@ def test_voice_scripts_duo_synthesizes_two_host_conversation(cfg, voice):
     assert {v for v, _ in voice} == {"matthew_reference", "kelly_reference"}
     assert row["audio_path"] in store.objects
     assert row["duration"] > 1.0
+
+
+def test_voice_normalize_converts_financial_and_textual_shorthand():
+    from app.tts.text import voice_normalize
+    assert voice_normalize("Anthropic raised $5B at a $60B valuation.") == "Anthropic raised 5 billion dollars at a 60 billion dollars valuation."
+    assert voice_normalize("Revenue jumped 15% in Q3 vs Q2 w/ $500K in profit.") == "Revenue jumped 15 percent in the third quarter versus the second quarter with 500 thousand dollars in profit."
+    assert voice_normalize("Acquisition cost €50M and £10B before the IPO.") == "Acquisition cost 50 million euros and 10 billion pounds before the I P O."
+    assert voice_normalize("[chuckle] The stock gained $25.") == "[chuckle] The stock gained 25 dollars."
+
+
+def test_prompt_demands_voice_based_spoken_text():
+    assert "VOICE-BASED TEXT" in podcast.STORY_DIALOGUE_PROMPT
+    assert "$5B" in podcast.STORY_DIALOGUE_PROMPT
+    assert "5 billion dollars" in podcast.STORY_DIALOGUE_PROMPT
+    assert "VOICE-BASED SPOKEN TEXT" in podcast.SYSTEM_PROMPT
+
+
+def test_format_dialogue_transcript_normalizes_textual_shorthand():
+    turns = [
+        podcast.DialogueTurn(speaker=0, text="They secured $5B in funding.", purpose="lead", fact_refs=["F1"]),
+        podcast.DialogueTurn(speaker=1, text="That represents 15% growth in Q3.", purpose="context", fact_refs=["F2"]),
+    ]
+    script = podcast.format_dialogue_transcript(turns, HOSTS)
+    assert "[Matthew] They secured 5 billion dollars in funding." in script
+    assert "[Kelly] That represents 15 percent growth in the third quarter." in script

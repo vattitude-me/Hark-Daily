@@ -65,8 +65,11 @@ def format_script(title: str, summary: str, rank: int = 1, connector: str | None
         clean_conn = chosen_conn.strip().rstrip(":")
         if clean_conn and not re.search(r"[.!?…]$", clean_conn):
             clean_conn = f"{clean_conn}."
-        return f"{clean_title} {clean_conn} {summary.strip()}"
-    return f"{clean_title} {summary.strip()}"
+        res = f"{clean_title} {clean_conn} {summary.strip()}"
+    else:
+        res = f"{clean_title} {summary.strip()}"
+    from .tts.text import voice_normalize
+    return voice_normalize(res, preserve_tags=False)
 
 
 
