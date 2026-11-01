@@ -1590,6 +1590,17 @@ function setFootnote() {
   if (el) el.textContent = '';
 }
 
+function dismissSplash() {
+  const splash = document.getElementById('appSplash');
+  if (splash && !splash.classList.contains('dismissed')) {
+    splash.classList.add('dismissed');
+    setTimeout(() => {
+      try { splash.remove(); } catch {}
+    }, 400);
+  }
+}
+window.dismissSplash = dismissSplash;
+
 function displayBriefing() {
   if (state.briefing) {
     player.load(state.briefing);
@@ -1607,6 +1618,7 @@ function displayBriefing() {
   updateMenuDrawer();
   const storyInfo = getTargetStoryInfo();
   if (storyInfo.story || storyInfo.title || storyInfo.audio || storyInfo.hash) handleStoryDeepLink(storyInfo);
+  dismissSplash();
 }
 window.displayBriefing = displayBriefing;
 window.updateMenuDrawer = updateMenuDrawer;
@@ -2652,6 +2664,7 @@ async function start() {
     }
   } finally {
     document.body.classList.remove('booting', 'signed-out');
+    dismissSplash();
   }
 }
 
@@ -2818,6 +2831,7 @@ async function init() {
     await enterApp();
   } finally {
     document.body.classList.remove('booting', 'signed-out');
+    dismissSplash();
   }
 }
 

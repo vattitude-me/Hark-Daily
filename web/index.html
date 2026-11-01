@@ -32,6 +32,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Hark Daily">
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+  <link rel="apple-touch-startup-image" href="/icons/logo-transparent.png">
 
   <!-- Favicons and Manifest -->
   <link rel="manifest" href="/manifest.webmanifest">
@@ -82,7 +83,7 @@
   <meta name="theme-color" content="#17120E">
   <link rel="preload" href="/fonts/plus-jakarta-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/css/styles.css?v=54">
+  <link rel="stylesheet" href="/css/styles.css?v=55">
   <script>
     try {
       const t = localStorage.getItem('mb-theme');
@@ -99,10 +100,27 @@
       if (document.body && document.body.classList.contains('booting')) {
         document.body.classList.remove('booting');
       }
-    }, 1800);
+      var s = document.getElementById('appSplash');
+      if (s && !s.classList.contains('dismissed')) {
+        s.classList.add('dismissed');
+        setTimeout(function () { try { s.remove(); } catch (e) {} }, 400);
+      }
+    }, 2200);
   </script>
 </head>
 <body class="booting">
+  <!-- Boot Splash Screen with Proper Clean Logo -->
+  <div class="app-splash" id="appSplash" role="status" aria-label="Loading Hark Daily">
+    <div class="app-splash-content">
+      <img src="/icons/logo-transparent.png" class="app-splash-logo" alt="Hark Daily" width="96" height="96">
+      <div class="app-splash-brand">
+        <span class="app-splash-name">hark</span><span class="app-splash-sub">DAILY</span>
+      </div>
+      <div class="app-splash-bar">
+        <div class="app-splash-indicator"></div>
+      </div>
+    </div>
+  </div>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
       <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" fill="currentColor"/></symbol>
@@ -175,7 +193,7 @@
     <div class="landing-shell">
       <header class="landing-bar">
         <a class="brand" href="/" aria-label="Hark Daily home">
-          <img src="/icons/icon.svg" alt="" width="36" height="36">
+          <img src="/icons/logo-transparent.png" alt="Hark logo" width="36" height="36" class="clean-brand-3d-logo">
           <span class="brand-name">Hark Daily</span>
         </a>
         <span class="landing-date overline" id="lgGreeting">Good morning</span>
@@ -312,7 +330,7 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 8h16M4 16h10"/></svg>
         </button>
         <div class="clean-brand" aria-label="Hark Daily">
-          <img src="/icons/icon.svg" class="clean-brand-flat-logo" alt="Hark logo" width="34" height="34">
+          <img src="/icons/logo-transparent.png" class="clean-brand-3d-logo" alt="Hark logo" width="36" height="36">
           <div class="clean-brand-text">
             <span class="clean-brand-name">hark</span><span class="clean-brand-sub">DAILY</span>
           </div>
@@ -412,7 +430,7 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>
           </button>
           <div class="clean-brand" aria-label="Hark Daily">
-            <img src="/icons/icon.svg" class="clean-brand-flat-logo" alt="" width="32" height="32">
+            <img src="/icons/logo-transparent.png" class="clean-brand-3d-logo" alt="Hark logo" width="32" height="32">
             <div class="clean-brand-text">
               <span class="clean-brand-name">hark</span><span class="clean-brand-sub">DAILY</span>
             </div>
@@ -974,7 +992,7 @@
   <div class="signin hidden" id="signin" role="dialog" aria-modal="true" aria-labelledby="signinTitle">
     <div class="login-card">
       <button class="icon-btn signin-close" type="button" id="signinClose" aria-label="Close"><svg><use href="#i-close"/></svg></button>
-      <img src="/icons/icon.svg" alt="" width="44" height="44" class="login-mark">
+      <img src="/icons/logo-transparent.png" alt="Hark logo" width="48" height="48" class="login-mark">
       <h2 id="signinTitle">Start your daily brief</h2>
       <p class="login-intro" id="loginHint">Sign in once. Your brief and settings follow you between the web and Android apps.</p>
       <div id="providerStep" class="login-form">
@@ -1029,6 +1047,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/vendor/supabase.min.js"></script>
-  <script type="module" src="/js/app.js?v=56"></script>
+  <script type="module" src="/js/app.js?v=57"></script>
 </body>
 </html>
