@@ -33,12 +33,11 @@ export class Player extends EventTarget {
   constructor() {
     super();
     // Dual persistent in-DOM audio elements for seamless background baton-pass handoff.
-    // Together with silentAnchor, this ensures iOS WebKit and Android Chrome never revoke
+    // This ensures iOS WebKit and Android Chrome never revoke
     // playback privileges or suspend the JavaScript background thread between clips.
     const hasDoc = typeof document !== 'undefined';
     this.audioA = (hasDoc && document.getElementById('audio')) || (typeof Audio !== 'undefined' ? new Audio() : null);
     this.audioB = (hasDoc && document.getElementById('audioB')) || (typeof Audio !== 'undefined' ? new Audio() : null);
-    this.silentAnchor = (hasDoc && document.getElementById('silentAnchor')) || null;
     this.activeAudio = this.audioA;
     this.standbyAudio = this.audioB;
     this.handingOff = false;
@@ -46,8 +45,16 @@ export class Player extends EventTarget {
     this.isPrimed = false;
     this.wakeLock = null;
 
-    if (this.audioA) this.audioA.preload = 'auto';
-    if (this.audioB) this.audioB.preload = 'auto';
+    if (this.audioA) {
+      this.audioA.preload = 'auto';
+      this.audioA.volume = 1.0;
+      this.audioA.muted = false;
+    }
+    if (this.audioB) {
+      this.audioB.preload = 'auto';
+      this.audioB.volume = 1.0;
+      this.audioB.muted = false;
+    }
 
     this.clips = null;
     this.index = 0;
@@ -244,42 +251,38 @@ export class Player extends EventTarget {
     });
   }
 
-  ensureKeepAlive() {
-    if (!this.silentAnchor) return;
-    try {
-      this.silentAnchor.volume = 0.001;
-      if (this.silentAnchor.paused) {
-        this.silentAnchor.play().catch(() => {});
-      }
-    } catch {}
-  }
-
-  pauseKeepAlive() {
-    if (!this.silentAnchor) return;
-    try {
-      this.silentAnchor.pause();
-    } catch {}
-  }
-
   primeAudioChannels() {
     if (this.isPrimed) return;
     this.isPrimed = true;
-    this.ensureKeepAlive();
+    if (this.audioA) {
+      this.audioA.volume = 1.0;
+      this.audioA.muted = false;
+    }
     // Prime standby audio channel in this user gesture so iOS/Android won't block background playback
-    if (this.standbyAudio && !this.standbyAudio.src) {
-      try {
-        this.standbyAudio.volume = 0.001;
-        this.standbyAudio.src = '/audio/gap.mp3';
-        const p = this.standbyAudio.play();
-        if (p && typeof p.then === 'function') {
-          p.then(() => {
-            this.standbyAudio.pause();
-            this.standbyAudio.volume = 1.0;
-            this.standbyAudio.removeAttribute('src');
-            delete this.standbyAudio.dataset.clip;
-          }).catch(() => {});
+    if (this.standbyAudio) {
+      this.standbyAudio.volume = 1.0;
+      this.standbyAudio.muted = false;
+      if (!this.standbyAudio.src) {
+        try {
+          this.standbyAudio.src = '/audio/gap.mp3';
+          const p = this.standbyAudio.play();
+          if (p && typeof p.then === 'function') {
+            p.then(() => {
+              this.standbyAudio.pause();
+              this.standbyAudio.volume = 1.0;
+              this.standbyAudio.muted = false;
+              this.standbyAudio.removeAttribute('src');
+              delete this.standbyAudio.dataset.clip;
+            }).catch(() => {
+              this.standbyAudio.volume = 1.0;
+              this.standbyAudio.muted = false;
+            });
+          }
+        } catch {
+          this.standbyAudio.volume = 1.0;
+          this.standbyAudio.muted = false;
         }
-      } catch {}
+      }
     }
   }
 
@@ -351,6 +354,8 @@ export class Player extends EventTarget {
     if (el.readyState >= 1) applySeek();
     else el.addEventListener('loadedmetadata', applySeek, { once: true });
     el.playbackRate = this.speed;
+    el.volume = 1.0;
+    el.muted = false;
     if (play) {
       this.primeAudioChannels();
       el.play().catch(() => {});
@@ -376,6 +381,8 @@ export class Player extends EventTarget {
       standby.preload = 'auto';
       standby.src = next.url;
       standby.playbackRate = this.speed;
+      standby.volume = 1.0;
+      standby.muted = false;
 
       // Keep a check on pre load
       const markReady = () => {
@@ -390,6 +397,8 @@ export class Player extends EventTarget {
       standby.load();
     } else if (standby.readyState >= 2) {
       this.preloadReady = true;
+      standby.volume = 1.0;
+      standby.muted = false;
     }
   }
 
@@ -424,6 +433,10 @@ export class Player extends EventTarget {
       incoming.src = nextClip.url;
     }
     incoming.playbackRate = this.speed;
+    incoming.volume = 1.0;
+    incoming.muted = false;
+    outgoing.volume = 1.0;
+    outgoing.muted = false;
 
     const finalizeHandoff = () => {
       this.index = nextIdx;
@@ -436,6 +449,8 @@ export class Player extends EventTarget {
         outgoing.pause();
         outgoing.removeAttribute('src');
         delete outgoing.dataset.clip;
+        outgoing.volume = 1.0;
+        outgoing.muted = false;
       } catch {}
 
       this.preloadNext();
@@ -470,6 +485,8 @@ export class Player extends EventTarget {
       this.activeAudio.dataset.clip = String(this.index);
       this.activeAudio.src = clip.url;
       this.activeAudio.playbackRate = this.speed;
+      this.activeAudio.volume = 1.0;
+      this.activeAudio.muted = false;
       const p = this.activeAudio.play();
       if (p && typeof p.catch === 'function') {
         p.catch((err) => {
@@ -741,10 +758,8 @@ export class Player extends EventTarget {
 
   setPlaying(on) {
     if (on) {
-      this.ensureKeepAlive();
       this.requestWakeLock();
     } else {
-      this.pauseKeepAlive();
       this.releaseWakeLock();
     }
     document.body.classList.toggle('playing', on);
@@ -1111,7 +1126,7 @@ export class Player extends EventTarget {
       if (isIntroOrBanter) {
         cleanNowVoicing.textContent = 'AI Duo · Matthew & Kelly';
       } else if (activeSpeaker) {
-        cleanNowVoicing.textContent = `AI Duo · Matthew & Kelly · ${activeSpeaker}`;
+        cleanNowVoicing.textContent = `AI Duo · ${activeSpeaker}`;
       } else if (this.briefing?.mode === 'podcast') {
         cleanNowVoicing.textContent = 'AI Duo · Matthew & Kelly';
       } else {

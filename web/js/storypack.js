@@ -565,6 +565,7 @@ export function buildBriefing(rows, settings, {
 
   /** A silent clip between two voiced ones, so a story never starts on the last word. */
   const breath = () => {
+    if (isPodcast) return;
     if (!cursor) return;
     const start = round(cursor);
     const end = round(cursor + BREATH);
