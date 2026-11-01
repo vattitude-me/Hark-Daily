@@ -31,7 +31,10 @@ export function lineup(settings) {
 
 /** The public Storage URL for a clip's object path. */
 export function clipUrl(path) {
-  return `${SUPABASE_URL}/storage/v1/object/public/briefings/${path}`;
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  const cleanPath = path.replace(/matthew_reference_kelly_reference/g, 'matthew_reference__kelly_reference');
+  return `${SUPABASE_URL}/storage/v1/object/public/briefings/${cleanPath}`;
 }
 
 const CONNECTORS = [
@@ -304,6 +307,12 @@ export function buildBriefing(rows, settings, {
   // Normalize targetStory if it is a pure 8-char key ("c80758f3") or includes a trailing hash ("ai-4-c80758f3")
   let normalizedTargetStory = targetStory ? String(targetStory).trim() : null;
   let effectiveHash = targetHash ? String(targetHash).trim().toLowerCase() : null;
+  const normAudio = (p) => (p || '').replace(/matthew_reference_kelly_reference/g, 'matthew_reference__kelly_reference');
+
+  if (!effectiveHash && targetAudio) {
+    const audioHashMatch = targetAudio.match(/-([0-9a-f]{8})\.mp3$/i);
+    if (audioHashMatch) effectiveHash = audioHashMatch[1].toLowerCase();
+  }
   if (normalizedTargetStory) {
     if (/^[0-9a-f]{8}$/i.test(normalizedTargetStory)) {
       if (!effectiveHash) effectiveHash = normalizedTargetStory.toLowerCase();
@@ -320,6 +329,7 @@ export function buildBriefing(rows, settings, {
   // If a specific story is requested via deep link:
   // 1. Try matching by unique 8-char story key first (region-agnostic reference key /s/:date/:key)
   // 2. Try matching by headline title next (resilient against morning/evening batch rank shifts)
+  // 3. Try matching by normalized audio path (handles dropped/archived morning clips)
   let targetSec = null;
   let targetRank = null;
   let matchedRow = null;
@@ -336,6 +346,12 @@ export function buildBriefing(rows, settings, {
       || (rows || []).find((r) => r.script && r.script.includes('[') && titlesMatch(r.title, targetTitle))
       || (rows || []).find((r) => (!id || r.voice === id) && titlesMatch(r.title, targetTitle))
       || (rows || []).find((r) => titlesMatch(r.title, targetTitle));
+  }
+
+  if (!matchedRow && targetAudio) {
+    const targetClean = normAudio(targetAudio);
+    matchedRow = (rows || []).find((r) => r.voice === 'matthew_reference+kelly_reference' && normAudio(r.audio_path) === targetClean)
+      || (rows || []).find((r) => normAudio(r.audio_path) === targetClean);
   }
 
   if (matchedRow) {
@@ -445,17 +461,24 @@ export function buildBriefing(rows, settings, {
 
   // 2. If the story was voiced in an earlier batch (e.g. morning) and replaced in the evening batch,
   // the audio file remains permanent in Supabase Storage. Inject it as a shared story!
-  if (targetAudio && !chosen.some((r) => (targetTitle && titlesMatch(r.title, targetTitle)) || r.audio_path === targetAudio)) {
+  const hasTargetInChosen = chosen.some((r) =>
+    (effectiveHash && (storyKey(r) === effectiveHash || r.key === effectiveHash)) ||
+    (targetTitle && titlesMatch(r.title, targetTitle)) ||
+    (targetAudio && normAudio(r.audio_path) === normAudio(targetAudio))
+  );
+
+  if (targetAudio && !hasTargetInChosen) {
     const sec = (baseTargetSec && SECTION_ORDER.includes(baseTargetSec)) ? (localTargetSec || targetSec) : editionSectionKey('top', edition);
     const cleanHash = effectiveHash || targetAudio.replace(/[^a-zA-Z0-9]/g, '').slice(-8);
     const archivedId = cleanHash || normalizedTargetStory || `shared-${sec}-${cleanHash}`;
     const existingMeta = (rows || []).find((r) =>
       (cleanHash && storyKey(r) === cleanHash) ||
       (targetTitle && titlesMatch(r.title, targetTitle)) ||
-      (targetAudio && r.audio_path === targetAudio)
+      (targetAudio && normAudio(r.audio_path) === normAudio(targetAudio))
     );
     const synImage = existingMeta?.image || targetImage || null;
     const synScript = existingMeta?.script || targetScript || null;
+    const finalAudioPath = existingMeta?.audio_path || normAudio(targetAudio);
     const syntheticRow = {
       section: sec,
       rank: 0,
@@ -466,7 +489,7 @@ export function buildBriefing(rows, settings, {
       image: synImage,
       script: synScript,
       duration: targetDur || existingMeta?.duration || 20,
-      audio_path: targetAudio || existingMeta?.audio_path,
+      audio_path: finalAudioPath,
       isSharedBonus: true,
       syntheticId: archivedId,
     };

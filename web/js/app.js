@@ -1231,6 +1231,13 @@ function handleStoryDeepLink(storyInfo) {
   document.title = `${story.headline} — Hark Daily`;
   player.seekTo(story.start || 0);
 
+  const targetChapter = player.chapters.find((c) => c.id === story.id || (story.key && c.key === story.key));
+  if (targetChapter) {
+    player.current = targetChapter.id;
+    player.updateMediaSession(targetChapter, story);
+    player.dispatchEvent(new CustomEvent('chapter', { detail: targetChapter }));
+  }
+
   const row = document.querySelector(`.story-row[data-id="${story.id}"]`);
   if (row) {
     row.classList.add('expanded', 'story-shared-target');

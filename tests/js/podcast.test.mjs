@@ -19,7 +19,7 @@ writeFileSync(join(dir, 'api.mjs'), `export const SECTIONS = {
   sports: { title: 'Sports' }, sports_us: { title: 'Sports' }, sports_in: { title: 'Cricket & Sports' }
 }; export const voiceName = (v) => v; export const fmtTime = (s) => String(s); export const h = () => ({}); export const store = { get: () => 0, set: () => {} };`);
 writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x'; export const SUPABASE_PUBLISHABLE_KEY = 'k';");
-const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor, parseDialogueTurns, pickVoice } = await import(join(dir, 'storypack.mjs'));
+const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor, parseDialogueTurns, pickVoice, clipUrl } = await import(join(dir, 'storypack.mjs'));
 
 const playerSrc = readFileSync(new URL('../../web/js/player.js', import.meta.url), 'utf8')
   .replace("'./api.js'", "'./api.mjs'")
@@ -368,6 +368,52 @@ test('parseShareSlug and buildBriefing resolve short share links by hash and ran
   assert.equal(turns[0].speaker, 'Matthew');
   assert.equal(turns[1].speaker, 'Kelly');
 });
+
+test('clipUrl normalizes voice underscores and preserves full URLs', () => {
+  const legacy = 'stories/2026-10-31/ai-4-matthew_reference_kelly_reference-c80758f3.mp3';
+  const url = clipUrl(legacy);
+  assert.ok(url.includes('matthew_reference__kelly_reference-c80758f3.mp3'), 'Single underscore normalized to double underscore');
+
+  const fullHttp = 'https://custom-storage.example.com/audio/clip.mp3';
+  assert.equal(clipUrl(fullHttp), fullHttp, 'Full HTTP URL returned as-is');
+});
+
+test('buildBriefing matches targetAudio with single underscore against double underscore in rows without duplicates', () => {
+  const sampleRow = {
+    date: '2026-10-31',
+    section: 'ai',
+    rank: 4,
+    voice: 'matthew_reference+kelly_reference',
+    title: "Anthropic expected to receive high 'junk' rating",
+    summary: 'Anthropic rating report',
+    source: 'TechCrunch',
+    duration: 25,
+    audio_path: 'stories/2026-10-31/ai-4-matthew_reference__kelly_reference-c80758f3.mp3',
+    image: 'https://images.example.com/anthropic.jpg',
+    script: '[Matthew] Anthropic rating.\n[Kelly] That is notable.',
+  };
+
+  const rows = [
+    { section: 'top', rank: 1, voice: 'matthew_reference+kelly_reference', title: 'Top 1', audio_path: 'stories/2026-10-31/top-1.mp3', duration: 20 },
+    sampleRow,
+  ];
+
+  const brief = buildBriefing(rows, { stories: { top: 1, ai: 5 } }, {
+    date: '2026-10-31',
+    mode: 'podcast',
+    targetAudio: 'stories/2026-10-31/ai-4-matthew_reference_kelly_reference-c80758f3.mp3',
+    targetHash: 'c80758f3',
+    targetTitle: "Anthropic expected to receive high 'junk' rating",
+    edition: 'ca',
+  });
+
+  assert.ok(brief);
+  const anthropicStories = brief.stories.filter((s) => s.headline.includes('Anthropic'));
+  assert.equal(anthropicStories.length, 1, 'Anthropic story is not duplicated');
+  assert.equal(anthropicStories[0].image, sampleRow.image, 'Retains original image from rows');
+  assert.equal(anthropicStories[0].audio_path, sampleRow.audio_path, 'Retains valid double-underscore audio path');
+});
+
 
 
 
