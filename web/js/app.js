@@ -2806,6 +2806,16 @@ async function init() {
   renderGuestBanner();
   renderPersonas();
   if ('serviceWorker' in navigator) {
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        // Cleanly reload to activate the latest shell if not actively playing
+        if (!window.player?.isPlaying) {
+          window.location.reload();
+        }
+      }
+    });
     navigator.serviceWorker.register('/sw.js').then((reg) => {
       reg.update().catch(() => {});
     }).catch(() => {});

@@ -338,17 +338,21 @@ export class Player extends EventTarget {
   }
 
   /** Make clip `i` active, optionally seeking within it, and pre-buffer the next one. */
-  loadClip(i, { seek = 0, autoplay = null } = {}) {
+  loadClip(i, { seek = 0, autoplay = null, forceReload = false } = {}) {
     const play = autoplay === null ? this.isPlaying : autoplay;
-    const clip = this.clips[i];
+    const clip = this.clips?.[i];
     if (!clip) return;
     this.index = i;
     this.handingOff = false;
+    this.isTransitioningClip = false;
     const el = this.activeAudio;
     if (!el) return;
-    if (el.dataset.clip !== String(i)) {
+
+    const needsLoad = forceReload || el.dataset.clip !== String(i) || !el.src || el.error;
+    if (needsLoad) {
       el.dataset.clip = String(i);
       el.src = clip.url;
+      try { el.load(); } catch {}
     }
     const applySeek = () => { try { el.currentTime = seek; } catch { /* not seekable yet */ } };
     if (el.readyState >= 1) applySeek();
@@ -358,7 +362,12 @@ export class Player extends EventTarget {
     el.muted = false;
     if (play) {
       this.primeAudioChannels();
-      el.play().catch(() => {});
+      const p = el.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch((err) => {
+          console.warn('[player] loadClip play failed:', err);
+        });
+      }
     }
     this.preloadNext();
   }
@@ -428,9 +437,10 @@ export class Player extends EventTarget {
     const outgoing = this.activeAudio;
     const incoming = this.standbyAudio;
 
-    if (incoming.dataset.clip !== String(nextIdx)) {
+    if (incoming.dataset.clip !== String(nextIdx) || !incoming.src) {
       incoming.dataset.clip = String(nextIdx);
       incoming.src = nextClip.url;
+      try { incoming.load(); } catch {}
     }
     incoming.playbackRate = this.speed;
     incoming.volume = 1.0;
@@ -438,7 +448,11 @@ export class Player extends EventTarget {
     outgoing.volume = 1.0;
     outgoing.muted = false;
 
+    let handoffDone = false;
     const finalizeHandoff = () => {
+      if (handoffDone) return;
+      handoffDone = true;
+      if (handoffTimer) clearTimeout(handoffTimer);
       this.index = nextIdx;
       this.activeAudio = incoming;
       this.standbyAudio = outgoing;
@@ -458,11 +472,21 @@ export class Player extends EventTarget {
       this.syncPositionState();
     };
 
+    const handoffTimer = setTimeout(() => {
+      if (!handoffDone && this.handingOff) {
+        console.warn('[player] baton pass incoming.play timeout (1500ms), forcing finalize');
+        finalizeHandoff();
+      }
+    }, 1500);
+
     const p = incoming.play();
     if (p && typeof p.then === 'function') {
       p.then(() => finalizeHandoff()).catch((err) => {
         console.warn('[player] baton pass play error:', err);
+        if (handoffTimer) clearTimeout(handoffTimer);
         this.handingOff = false;
+        // If incoming play was rejected (e.g. mobile gesture restriction), load directly on activeAudio
+        this.loadClip(nextIdx, { seek: 0, autoplay: true, forceReload: true });
       });
     } else {
       finalizeHandoff();
@@ -472,36 +496,17 @@ export class Player extends EventTarget {
   /** A clip finished: transition seamlessly on standby audio or fallback to active audio. */
   onEnded() {
     if (this.clips && this.index + 1 < this.clips.length) {
-      if (this.handingOff) return;
+      // If a handoff was stuck, clear the lock now that outgoing audio has ended
+      this.handingOff = false;
       const nextIdx = this.index + 1;
       const standby = this.standbyAudio;
       if (standby && standby.dataset.clip === String(nextIdx) && (this.preloadReady || standby.readyState >= 2)) {
         this.handOffToNextClip();
         return;
       }
+      // Standby not ready: fallback to loadClip directly with forceReload
       this.isTransitioningClip = true;
-      this.index += 1;
-      const clip = this.clips[this.index];
-      this.activeAudio.dataset.clip = String(this.index);
-      this.activeAudio.src = clip.url;
-      this.activeAudio.playbackRate = this.speed;
-      this.activeAudio.volume = 1.0;
-      this.activeAudio.muted = false;
-      const p = this.activeAudio.play();
-      if (p && typeof p.catch === 'function') {
-        p.catch((err) => {
-          this.isTransitioningClip = false;
-          console.warn('[player] clip transition error:', err);
-        });
-      }
-      const onPlaying = () => {
-        this.isTransitioningClip = false;
-        this.activeAudio.removeEventListener('playing', onPlaying);
-      };
-      this.activeAudio.addEventListener('playing', onPlaying, { once: true });
-      setTimeout(() => { this.isTransitioningClip = false; }, 3000);
-      this.preloadNext();
-      this.tick();
+      this.loadClip(nextIdx, { seek: 0, autoplay: true, forceReload: true });
       return;
     }
     this.setPlaying(false);
@@ -602,6 +607,9 @@ export class Player extends EventTarget {
 
   toggle() {
     if (!this.briefing) return;
+    this.handingOff = false;
+    this.isTransitioningClip = false;
+
     if (this.isPlaying) {
       this.activeAudio.pause();
     } else {
@@ -611,21 +619,33 @@ export class Player extends EventTarget {
         title: this.briefing.title,
       });
       if (this.clips && this.clips.length) {
-        const targetIdx = this.clipIndexAt(this.position);
-        if (targetIdx !== this.index || this.activeAudio.dataset.clip !== String(targetIdx) || !this.activeAudio.src) {
+        let targetIdx = this.clipIndexAt(this.position);
+        const cur = this.activeAudio;
+        const curTime = cur ? cur.currentTime : 0;
+        const curDur = cur ? (cur.duration || 0) : 0;
+
+        // If the current clip ended or is within 0.2s of its end, advance to the next clip
+        if (curDur > 0 && curTime >= curDur - 0.2 && targetIdx + 1 < this.clips.length) {
+          targetIdx += 1;
+          this.loadClip(targetIdx, { seek: 0, autoplay: true, forceReload: true });
+          return;
+        }
+
+        // If target clip is not current or activeAudio doesn't have it loaded or is in error
+        if (targetIdx !== this.index || cur.dataset.clip !== String(targetIdx) || !cur.src || cur.error) {
           const seek = Math.max(0, this.position - (this.clips[targetIdx]?.start || 0));
-          this.loadClip(targetIdx, { seek, autoplay: true });
+          this.loadClip(targetIdx, { seek, autoplay: true, forceReload: true });
           return;
         }
       }
       const p = this.activeAudio.play();
       if (p && typeof p.catch === 'function') {
         p.catch((err) => {
-          console.warn('[player] direct play rejected, reloading active clip:', err);
+          console.warn('[player] direct play rejected, force reloading active clip:', err);
           if (this.clips && this.clips.length) {
             const targetIdx = this.clipIndexAt(this.position);
             const seek = Math.max(0, this.position - (this.clips[targetIdx]?.start || 0));
-            this.loadClip(targetIdx, { seek, autoplay: true });
+            this.loadClip(targetIdx, { seek, autoplay: true, forceReload: true });
           }
         });
       }
