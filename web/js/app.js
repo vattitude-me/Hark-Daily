@@ -346,7 +346,7 @@ function renderHeader() {
     if (isPodcast) {
       const storyCount = b?.stories?.length || 35;
       const mins = Math.max(1, Math.round((b?.duration || 840) / 60));
-      sub.textContent = `${storyCount} stories, ${mins} min · Voiced by Matthew & Kelly · Listen anywhere`;
+      sub.textContent = `${storyCount} stories, ${mins} min · Voiced by AI Duo (Matthew & Kelly) · Listen anywhere`;
     } else {
       const baseSummary = b ? summaryLine(b) : 'Your news, read aloud each morning.';
       sub.textContent = b ? `${baseSummary} · Read by ${activeVoice.name}` : baseSummary;
@@ -676,7 +676,7 @@ function renderPersonas() {
   const hintEl = $('narratorSheetHint');
   if (hintEl) {
     hintEl.textContent = isPodcast
-      ? 'Podcast mode uses pre-selected co-hosts (Matthew & Kelly). Switch to Full Brief on the player to customize your narrator.'
+      ? 'Podcast mode uses pre-selected co-hosts (AI Duo: Matthew & Kelly). Switch to Full Brief on the player to customize your narrator.'
       : 'All four narrators read the daily briefing for the Full Brief edition. Pick who you\'d like to hear.';
   }
   row.replaceChildren(...VOICES.map((v) => {
