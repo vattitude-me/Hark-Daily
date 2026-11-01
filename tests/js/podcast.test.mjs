@@ -19,7 +19,7 @@ writeFileSync(join(dir, 'api.mjs'), `export const SECTIONS = {
   sports: { title: 'Sports' }, sports_us: { title: 'Sports' }, sports_in: { title: 'Cricket & Sports' }
 }; export const voiceName = (v) => v; export const fmtTime = (s) => String(s); export const h = () => ({}); export const store = { get: () => 0, set: () => {} };`);
 writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x'; export const SUPABASE_PUBLISHABLE_KEY = 'k';");
-const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor, parseDialogueTurns, pickVoice, clipUrl } = await import(join(dir, 'storypack.mjs'));
+const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor, parseDialogueTurns, pickVoice, clipUrl, voiceNormalize } = await import(join(dir, 'storypack.mjs'));
 
 const playerSrc = readFileSync(new URL('../../web/js/player.js', import.meta.url), 'utf8')
   .replace("'./api.js'", "'./api.mjs'")
@@ -413,6 +413,15 @@ test('buildBriefing matches targetAudio with single underscore against double un
   assert.equal(anthropicStories[0].image, sampleRow.image, 'Retains original image from rows');
   assert.equal(anthropicStories[0].audio_path, sampleRow.audio_path, 'Retains valid double-underscore audio path');
 });
+
+test('voiceNormalize and parseDialogueTurns convert financial and textual shorthand to spoken words', () => {
+  const raw = '[Matthew] Anthropic expects to raise $5B at a $60B valuation.\n[Kelly] That is 15% growth in Q3 vs Q2 w/ $500K profit.';
+  const turns = parseDialogueTurns(raw);
+  assert.ok(turns && turns.length === 2);
+  assert.equal(turns[0].text, 'Anthropic expects to raise 5 billion dollars at a 60 billion dollars valuation.');
+  assert.equal(turns[1].text, 'That is 15 percent growth in the third quarter versus the second quarter with 500 thousand dollars profit.');
+});
+
 
 
 

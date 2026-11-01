@@ -33,6 +33,7 @@ import httpx
 from . import audio, topics
 from .summarizer import drop_boilerplate
 from .tts import SAMPLE_RATE
+from .tts.text import voice_normalize
 from .writer import GEMINI_URL, GROQ_URL, _retry_after
 
 log = logging.getLogger(__name__)
@@ -218,10 +219,11 @@ def _preserve_case(match: re.Match, replacement: str) -> str:
 
 
 def clean_slop(text: str) -> str:
-    """Strip or normalize robotic AI slop phrases into simple, natural spoken English."""
+    """Strip or normalize robotic AI slop phrases and textual shorthand into simple, natural spoken English."""
     cleaned = text
     for pattern, repl in SLOP_PATTERNS:
         cleaned = pattern.sub(lambda m, r=repl: _preserve_case(m, r), cleaned)
+    cleaned = voice_normalize(cleaned, preserve_tags=True)
     return " ".join(cleaned.split())
 
 
@@ -274,6 +276,7 @@ STRICT ANTI-SLOP RULES (ZERO AI JARGON OR HYPE):
 - Use natural contractions ("we've", "it's", "that's", "don't", "can't").
 - Pacing: use short sentences and natural commas or ellipses `...` where a person would take a breath.
 - Use paralinguistic voice tags sparingly and naturally: [chuckle], [laugh], [sigh], [gasp]. At most {max_tags} tags per piece. Do not use tags on tragedy, death, or severe hardship.
+- VOICE-BASED SPOKEN TEXT: Everything is read aloud by neural voices. Never use textual shorthand like "$5B", "$10M", or "20%". Always write full spoken words: "5 billion dollars", "10 million dollars", "20 percent", "versus", "and".
 
 Return ONLY JSON of this shape:
 {{"open": [turns, ...{open_n} variants], "close": [turns, ...{close_n} variants],
@@ -548,9 +551,9 @@ def build_story_brief(story: dict) -> dict:
     """Extract a grounded factual brief (F1..Fn) from an enriched story dict."""
     sec = str(story.get("section") or "top")
     base_sec = sec.replace("_us", "").replace("_in", "").replace("_ca", "")
-    headline = _clean(story.get("title") or story.get("headline") or "").rstrip(".")
+    headline = voice_normalize(_clean(story.get("title") or story.get("headline") or "").rstrip("."), preserve_tags=False)
     source = _clean(story.get("source") or "News wire")
-    summary = _clean(story.get("summary") or "")
+    summary = voice_normalize(_clean(story.get("summary") or ""), preserve_tags=False)
     raw_body = str(story.get("article_text") or story.get("summary") or story.get("script") or "")
 
     candidates = _split_sentences(raw_body)
@@ -567,7 +570,7 @@ def build_story_brief(story: dict) -> dict:
         if sent.lower().rstrip(".") == head_norm:
             continue
         fid = f"F{len(facts) + 1}"
-        facts.append({"id": fid, "fact": sent})
+        facts.append({"id": fid, "fact": voice_normalize(sent, preserve_tags=False)})
         if len(facts) >= 6:
             break
 
@@ -698,6 +701,13 @@ STRICT ANTI-SLOP & PLAIN CONVERSATIONAL RULES:
    - Avoid hollow filler ("That's so interesting", "Totally agree", "Great point"). Every turn must share a real fact or question.
    - Do NOT use time-of-day words ("this morning", "tonight").
    - Paralinguistic emotion tags: {tag_instruction}
+6. VOICE-BASED TEXT (CRITICAL - SCRIPT IS SPOKEN BY NEURAL TEXT-TO-SPEECH VOICES):
+   Write exclusively for the ear as spoken aloud, NEVER visual print or textual shorthand.
+   - Money and Currency: NEVER write symbols or abbreviated shorthand like "$5B", "$10M", "$500K", "$20", "€50M", or "£10B". Always spell them out in full spoken words: "5 billion dollars", "10 million dollars", "500 thousand dollars", "20 dollars", "50 million euros", "10 billion pounds".
+   - Percentages: NEVER use the "%" symbol (e.g. "15%"). Always write "15 percent" or "fifteen percent".
+   - Numbers & Multipliers: Round numbers naturally. Say "5 times" instead of "5x", "number one" instead of "#1" or "No. 1".
+   - Acronyms & Abbreviations: Write out acronyms so text-to-speech speaks them cleanly. Say "I-P-O", "C-E-O", "first quarter" (never "Q1"), "third quarter" (never "Q3"), "versus" (never "vs" or "vs."), "and" (never "&"), "with" (never "w/"), "approximately" (never "approx.").
+   - Do not use forward slashes (say "per" or "or").
 
 Return ONLY valid JSON of this exact shape:
 {{
@@ -953,7 +963,7 @@ def format_dialogue_transcript(
     lines: list[str] = []
     for t in turns:
         speaker_name = hosts[t.speaker] if 0 <= t.speaker < len(hosts) else hosts[0]
-        clean_line = strip_tags(t.text)
+        clean_line = voice_normalize(strip_tags(t.text), preserve_tags=False)
         if clean_line:
             lines.append(f"[{speaker_name}] {clean_line}")
     return "\n".join(lines)

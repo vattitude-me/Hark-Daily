@@ -66,6 +66,45 @@ export function titlesMatch(a, b) {
 }
 
 /**
+ * Normalize textual shorthand ($5B, 15%, Q3, etc.) into speakable natural words.
+ */
+export function voiceNormalize(text) {
+  if (!text || typeof text !== 'string') return '';
+  let s = text;
+  // Currencies: $5B -> 5 billion dollars, €10M -> 10 million euros, $25 -> 25 dollars
+  s = s.replace(/(?:\b(C|CA|CAD|US|USD|U\.S\.))?(\$|€|£|₹)\s?(\d+(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s*(thousand|million|billion|trillion|crore|lakh)\b|\s*(bn|mn|tn|[kmbt])\b)?/gi, (match, prefix, sym, amount, scaleWord, scaleAbbr) => {
+    const scaleMap = { k: 'thousand', m: 'million', mn: 'million', b: 'billion', bn: 'billion', t: 'trillion', tn: 'trillion', cr: 'crore', lakh: 'lakh' };
+    const scale = scaleWord ? scaleWord.toLowerCase() : (scaleAbbr ? scaleMap[scaleAbbr.toLowerCase()] || '' : '');
+    const isSingular = amount === '1' && !scale;
+    let curr = 'dollars';
+    if (sym === '€') curr = isSingular ? 'euro' : 'euros';
+    else if (sym === '£') curr = isSingular ? 'pound' : 'pounds';
+    else if (sym === '₹') curr = isSingular ? 'rupee' : 'rupees';
+    else if (prefix && /^(C|CA|CAD)$/i.test(prefix)) curr = isSingular ? 'Canadian dollar' : 'Canadian dollars';
+    else if (prefix && /^(US|USD|U\.S\.)$/i.test(prefix)) curr = isSingular ? 'U.S. dollar' : 'U.S. dollars';
+    else curr = isSingular ? 'dollar' : 'dollars';
+    return [amount, scale, curr].filter(Boolean).join(' ');
+  });
+  // Standalone metric scales: 32B -> 32 billion
+  s = s.replace(/\b(\d+(?:\.\d+)?)\s*b\b(?!\w)/gi, '$1 billion');
+  s = s.replace(/\b(\d+(?:\.\d+)?)\s*m\b(?!\w)/gi, '$1 million');
+  s = s.replace(/\b(\d+(?:\.\d+)?)\s*k\b(?!m|g|w|hz|\w)/gi, '$1 thousand');
+  // Percentages: 15% -> 15 percent
+  s = s.replace(/(\d+(?:\.\d+)?)\s*%/g, '$1 percent');
+  // Quarters: Q3 -> the third quarter
+  const quarters = { '1': 'the first quarter', '2': 'the second quarter', '3': 'the third quarter', '4': 'the fourth quarter' };
+  s = s.replace(/\bQ([1-4])\b/g, (_, q) => quarters[q] || `quarter ${q}`);
+  // Multipliers: 5x -> 5 times
+  s = s.replace(/\b(\d+(?:\.\d+)?)x\b/gi, '$1 times');
+  // Common symbols & abbreviations
+  s = s.replace(/\bvs\.?\b/gi, 'versus');
+  s = s.replace(/\bw\/(?=\s|$)/gi, 'with');
+  s = s.replace(/\bw\/o(?=\s|$)/gi, 'without');
+  s = s.replace(/\b&\b/g, 'and');
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+/**
  * Parse speaker-labeled podcast dialogue lines (`[Matthew] ...` / `[Kelly] ...`).
  * Returns an array of `{ speaker, text }` objects when dialogue turns are present, or `null` otherwise.
  */
@@ -78,9 +117,9 @@ export function parseDialogueTurns(scriptText) {
   for (const line of lines) {
     const m = line.match(turnRe);
     if (m) {
-      turns.push({ speaker: m[1].trim(), text: m[2].trim() });
+      turns.push({ speaker: m[1].trim(), text: voiceNormalize(m[2].trim()) });
     } else if (turns.length) {
-      turns[turns.length - 1].text += ` ${line}`;
+      turns[turns.length - 1].text += ` ${voiceNormalize(line)}`;
     }
   }
   return turns.length ? turns : null;
@@ -105,7 +144,7 @@ export function stripHeadlineAndFiller(headline, scriptOrSummary) {
   if (text && text[0] === text[0].toLowerCase()) {
     text = text[0].toUpperCase() + text.slice(1);
   }
-  return text || scriptOrSummary;
+  return voiceNormalize(text || scriptOrSummary);
 }
 
 /**
