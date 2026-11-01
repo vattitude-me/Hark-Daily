@@ -204,21 +204,38 @@ html[data-text="lg"] { font-size: 112.5%; }
 
 /* -------------------------------------------------------------------- base */
 *, *::before, *::after { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; scroll-padding-top: calc(var(--topbar-h) + 16px); font-size: 16px; }
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--topbar-h) + 16px);
+  font-size: 16px;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
 html[data-text-size="sm"] { font-size: 14.5px; }
 html[data-text-size="md"] { font-size: 16px; }
 html[data-text-size="lg"] { font-size: 18.5px; }
 body {
   margin: 0;
+  height: 100%;
+  height: 100dvh;
   min-height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
   font-family: var(--font-body);
   font-size: 1rem;
   line-height: 1.5;
   color: var(--ink);
-  background: var(--bg);
+  background: #17120E;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+body.signed-out {
+  overflow-y: auto !important;
+  height: auto !important;
+  background: var(--bg);
 }
 /* The canvas: a few soft light pools for the glass to refract. */
 body::before {
@@ -2945,12 +2962,14 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   position: relative;
   width: 100%;
   max-width: 100vw;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
   background: #17120E;
   font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: #FFFFFF;
   overflow: hidden;
+  overscroll-behavior: none;
   display: flex;
   flex-direction: column;
 }
@@ -3017,15 +3036,17 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: clamp(8px, 1.4vh, 12px);
+  gap: clamp(6px, 1vh, 10px);
   max-width: 440px;
   margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
-  padding: max(12px, env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom, 0px));
-  height: 100vh;
+  padding: max(8px, env(safe-area-inset-top)) 14px max(10px, env(safe-area-inset-bottom, 0px));
+  height: 100%;
   height: 100dvh;
+  max-height: 100dvh;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 /* Top bar */
@@ -3244,11 +3265,11 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   border: 1px solid rgba(255, 255, 255, 0.10);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 20px 48px rgba(0, 0, 0, 0.45);
   flex: 1;
-  border-radius: 28px;
-  padding: clamp(12px, 1.6vh, 16px);
+  border-radius: 26px;
+  padding: clamp(10px, 1.4vh, 14px);
   display: flex;
   flex-direction: column;
-  gap: clamp(8px, 1.2vh, 12px);
+  gap: clamp(6px, 1vh, 10px);
   min-height: 0;
   overflow: hidden;
 }
@@ -3256,9 +3277,9 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
 /* Cover Image Wrap: Taller, fills space, with Share button on top right */
 .clean-cover-wrap {
   position: relative;
-  height: clamp(175px, 26vh, 250px);
+  height: clamp(140px, 22vh, 215px);
   flex: none;
-  border-radius: 20px;
+  border-radius: 18px;
   overflow: hidden;
   background: linear-gradient(135deg, #1f1812 0%, #291c10 48%, #0f1d20 100%);
   cursor: pointer;
@@ -3268,7 +3289,7 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   height: 100%;
   object-fit: cover;
   display: block;
-  border-radius: 20px;
+  border-radius: 18px;
 }
 .clean-cover-fallback {
   position: absolute;
@@ -3447,7 +3468,7 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
 .clean-story-headline {
   margin: 0;
   padding: 0 4px;
-  font-size: 20px;
+  font-size: clamp(17px, 2.2vh, 19.5px);
   line-height: 1.25;
   font-weight: 700;
   letter-spacing: -0.4px;
@@ -3461,9 +3482,8 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
 
 /* Cleaner Teleprompter: Plain text, highlighted spoken phrase, soft fade at bottom */
 .clean-teleprompter {
-  flex: 1;
-  min-height: 44px;
-  max-height: clamp(54px, 15vh, 110px);
+  flex: 1 1 auto;
+  min-height: 60px;
   overflow-y: auto;
   padding: 2px 4px;
   background: none;
@@ -3471,8 +3491,8 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
   box-shadow: none;
   scroll-behavior: smooth;
   outline: none;
-  mask-image: linear-gradient(to bottom, #000 65%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, #000 65%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 80%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 80%, transparent 100%);
 }
 .clean-sentences {
   margin: 0;
@@ -3550,10 +3570,10 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
 
 /* Pinned Bottom Card Dock: Waveform above Controls */
 .clean-card-bottom-dock {
-  margin-top: auto;
+  margin-top: 0;
   display: flex;
   flex-direction: column;
-  gap: clamp(8px, 1.2vh, 12px);
+  gap: clamp(6px, 1vh, 10px);
   flex: none;
   padding-top: 2px;
 }
@@ -3569,7 +3589,7 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 40px;
+  height: 34px;
   cursor: pointer;
   user-select: none;
   touch-action: none;
@@ -3596,8 +3616,8 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
 .clean-waveform-times {
   display: flex;
   justify-content: space-between;
-  margin-top: 5px;
-  font-size: 13px;
+  margin-top: 4px;
+  font-size: 12.5px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.72);
   font-variant-numeric: tabular-nums;
@@ -3608,15 +3628,15 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(18px, 6vw, 28px);
+  gap: clamp(16px, 5vw, 24px);
   flex: none;
-  padding: 2px 0;
+  padding: 0;
 }
 .clean-nav-btn {
   all: unset;
   box-sizing: border-box;
-  width: clamp(52px, 7.5vh, 60px);
-  height: clamp(52px, 7.5vh, 60px);
+  width: clamp(48px, 6.5vh, 56px);
+  height: clamp(48px, 6.5vh, 56px);
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(16px);
@@ -3642,8 +3662,8 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
 .clean-play-circle {
   all: unset;
   box-sizing: border-box;
-  width: clamp(74px, 10vh, 88px);
-  height: clamp(74px, 10vh, 88px);
+  width: clamp(68px, 9vh, 80px);
+  height: clamp(68px, 9vh, 80px);
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.45);
   background: #F59E0B;
