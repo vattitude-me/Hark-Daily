@@ -169,7 +169,7 @@ export default async function handler(req, res) {
   const durSec = Math.max(1, Math.round(Number(storyRow?.duration) || 25));
   const description = storyRow
     ? `${sourceName} · ${durSec}s audio · Hark Daily`
-    : 'Daily two-host audio news briefing with Matthew & Kelly.';
+    : 'Daily two-host audio news briefing with AI Duo Matthew & Kelly.';
   const canonicalUrl = date && slug ? `${origin}/s/${encodeURIComponent(date)}/${encodeURIComponent(slug)}` : `${origin}/`;
   const storyImage = storyRow?.image || null;
   const thumbUrl = storyImage || `${origin}/icons/og-thumb-dark.png`;

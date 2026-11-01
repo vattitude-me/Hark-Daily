@@ -831,7 +831,7 @@ export class Player extends EventTarget {
     const readerBadgeText = document.getElementById('readerImageBadgeText');
     if (readerBadgeText) {
       if (isIntroOrBanter) {
-        readerBadgeText.textContent = this.briefing?.mode === 'podcast' ? 'Voiced by Matthew & Kelly' : 'Daily Brief Intro';
+        readerBadgeText.textContent = this.briefing?.mode === 'podcast' ? 'Voiced by AI Duo · Matthew & Kelly' : 'Daily Brief Intro';
       } else if (story) {
         const idx = b.stories.indexOf(story) + 1;
         readerBadgeText.textContent = idx ? `Now Voicing · Story ${idx} of ${b.stories.length}` : 'Now Voicing';
@@ -869,11 +869,11 @@ export class Player extends EventTarget {
     const cleanNowVoicing = document.getElementById('playerCoverBadgeText');
     if (cleanNowVoicing) {
       if (isIntroOrBanter) {
-        cleanNowVoicing.textContent = 'Matthew & Kelly';
+        cleanNowVoicing.textContent = 'AI Duo · Matthew & Kelly';
       } else if (activeSpeaker) {
-        cleanNowVoicing.textContent = `Matthew & Kelly · ${activeSpeaker}`;
+        cleanNowVoicing.textContent = `AI Duo · Matthew & Kelly · ${activeSpeaker}`;
       } else if (this.briefing?.mode === 'podcast') {
-        cleanNowVoicing.textContent = 'Matthew & Kelly';
+        cleanNowVoicing.textContent = 'AI Duo · Matthew & Kelly';
       } else {
         cleanNowVoicing.textContent = 'Now voicing';
       }
