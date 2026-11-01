@@ -282,10 +282,27 @@ export class Player extends EventTarget {
 
   load(briefing) {
     if (!briefing) return;
+    const isSameBriefing = Boolean(
+      this.briefing &&
+      this.briefing.date === briefing.date &&
+      this.briefing.mode === briefing.mode &&
+      this.briefing.edition === briefing.edition
+    );
+    const curPos = this.position;
+
     this.briefing = briefing;
     this.chapters = (briefing.chapters || []).filter((c) => c.kind !== 'section');
-    this.current = null;
     this.clips = briefing.clips && briefing.clips.length ? briefing.clips : null;
+
+    if (isSameBriefing && this.clips && this.clips.length) {
+      // Re-align with current timeline position without tearing down playback or restarting at clip 0
+      this.index = this.clipIndexAt(curPos);
+      this.buildSegments();
+      this.tick();
+      return;
+    }
+
+    this.current = null;
     this.index = 0;
     this.audio.pause();
     delete this.audio.dataset.clip;
@@ -351,7 +368,25 @@ export class Player extends EventTarget {
         mode: this.briefing.mode || 'podcast',
         title: this.briefing.title,
       });
-      this.audio.play().catch(() => {});
+      if (this.clips && this.clips.length) {
+        const targetIdx = this.clipIndexAt(this.position);
+        if (targetIdx !== this.index || this.audio.dataset.clip !== String(targetIdx) || !this.audio.src) {
+          const seek = Math.max(0, this.position - (this.clips[targetIdx]?.start || 0));
+          this.loadClip(targetIdx, { seek, autoplay: true });
+          return;
+        }
+      }
+      const p = this.audio.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch((err) => {
+          console.warn('[player] direct play rejected, reloading active clip:', err);
+          if (this.clips && this.clips.length) {
+            const targetIdx = this.clipIndexAt(this.position);
+            const seek = Math.max(0, this.position - (this.clips[targetIdx]?.start || 0));
+            this.loadClip(targetIdx, { seek, autoplay: true });
+          }
+        });
+      }
     }
   }
 

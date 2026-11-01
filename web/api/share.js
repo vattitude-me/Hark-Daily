@@ -202,7 +202,7 @@ export default async function handler(req, res) {
     story: storyRow ? `${storyRow.section}-${storyRow.rank}` : parsed.storyId,
     hash: parsed.hash || null,
     title: storyRow?.title || null,
-    audio: storyRow?.audio_path || null,
+    audio: storyRow?.audio_path ? storyRow.audio_path.replace(/matthew_reference_kelly_reference/g, 'matthew_reference__kelly_reference') : null,
     source: storyRow?.source || null,
     dur: durSec,
     image: storyImage,
