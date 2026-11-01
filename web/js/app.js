@@ -1,4 +1,4 @@
-import { api, fmtTime, h, icon, isAdmin, recordError, sb, store, timeAgo, toast, VOICES, voiceFor, SECTIONS, DEFAULT_VOICE_ID, EDITIONS, defaultEdition, detectEditionFromIp } from './api.js';
+import { api, fmtTime, h, icon, isAdmin, recordError, sb, store, timeAgo, toast, VOICES, voiceFor, voiceName, SECTIONS, DEFAULT_VOICE_ID, EDITIONS, defaultEdition, detectEditionFromIp } from './api.js';
 import { Player, posKeyFor } from './player.js';
 import { Landing } from './landing.js';
 import { WelcomeSheet, DeleteAccountSheet, enablePush, installMode, isIOS, isInstalled, onInstallChange, promptInstall, pushSupported, requestNotificationPermission, wireSheet } from './sheets.js';

@@ -419,8 +419,6 @@
     <!-- Persistent dual audio elements for seamless background baton-pass handoff -->
     <audio id="audio" preload="auto"></audio>
     <audio id="audioB" preload="auto"></audio>
-    <!-- Silent keepalive anchor that prevents mobile OS from sleeping the background audio session -->
-    <audio id="silentAnchor" loop preload="auto" src="/audio/gap.mp3" style="display:none"></audio>
 
     <!-- Board 1: Hamburger Menu & Primary Settings Drawer -->
     <div class="clean-drawer-backdrop hidden" id="menuDrawer" role="dialog" aria-modal="true" aria-label="Settings and Menu">
@@ -1047,6 +1045,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/vendor/supabase.min.js"></script>
-  <script type="module" src="/js/app.js?v=58"></script>
+  <script type="module" src="/js/app.js?v=59"></script>
 </body>
 </html>
