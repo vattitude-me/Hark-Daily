@@ -15,6 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Pulling down triggers `refreshBriefing()`, querying the latest story pack and metadata in the background while preserving uninterrupted audio playback.
   - Seamlessly re-aligns story timeline and updates headlines, teleprompter, and section counts.
 
+### Changed
+- **Topic Selector ("Jump to a topic") UX Overhaul**:
+  - Expanded the bottom sheet from a cramped ~580px half-height container to a generous full-comfort mobile sheet (`height: min(840px, calc(var(--app-height, 100dvh) - 36px))`).
+  - Redesigned topic buttons from bulky 108px tiles into compact, sleek horizontal cards (52px), ensuring all 7 regional and global topics (Top stories, AI, Tech, Politics, Entertainment, Science, Sports) are immediately visible without hidden overflow.
+  - Added dedicated, distinctive SVG category icons for every section (star, neural spark, chip, capitol, clapperboard, beaker, trophy).
+  - Eliminated nested scroll traps: the stories list now expands dynamically (`flex: 1 1 0px; min-height: 0; overflow-y: auto;`) with ample room to browse all 35 stories.
+- **Updated Documentation & App Screenshots**:
+  - Captured fresh 2880 x 1920 Retina desktop view of the Clean Player UI with ambient aurora glow.
+  - Added modern Android application screenshots showcasing active playback with dual-host read-along, story cards feed, and topic management.
+  - Added mobile topic selector sheet preview showcasing all 7 sections.
+
 ### Fixed
 - **Fixed Bottom Player Bar Pinned to Viewport**:
   - Resolved rare Android PWA layout bug where dynamic navigation bar shifts or `100dvh` viewport calculations pushed the bottom player bar below the visible screen.
