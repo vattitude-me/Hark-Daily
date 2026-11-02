@@ -422,8 +422,12 @@ def cmd_pack(args) -> int:
                           detail=f"Took {duration_fmt} · {len(rows)} clips ({audio_mins:.1f} min audio)")
             if rows:
                 push_title = "🌙 Your Evening Brief is ready" if is_evening else "☀️ Your Morning Brief is ready"
-                notify_listeners(cfg, store, title=push_title,
-                                 body=f"{rows[0]['title']}, and the rest of the day's stories.")
+                push_body = (
+                    f"Evening edition: {rows[0]['title']}, plus the latest top stories."
+                    if is_evening
+                    else f"Morning edition: {rows[0]['title']}, plus the latest top stories."
+                )
+                notify_listeners(cfg, store, title=push_title, body=push_body)
     return 0 if rows and not incomplete else 1
 
 
