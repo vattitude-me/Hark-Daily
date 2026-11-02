@@ -9,7 +9,7 @@ const apiSrc = readFileSync(new URL('../../web/js/api.js', import.meta.url), 'ut
   .replace("'../config.js'", "'./config.mjs'");
 writeFileSync(join(dir, 'api.mjs'), apiSrc);
 writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x'; export const SUPABASE_PUBLISHABLE_KEY = 'k';");
-const { EDITIONS, defaultEdition, detectEditionFromIp } = await import(join(dir, 'api.mjs'));
+const { EDITIONS, defaultEdition, detectEditionFromIp, DEFAULT_SETTINGS, DEFAULT_STORIES, migrateStories } = await import(join(dir, 'api.mjs'));
 
 test('EDITIONS definitions contain valid SVG flags and clean labels', () => {
   for (const code of ['ca', 'us', 'in']) {
@@ -102,4 +102,30 @@ test('detectEditionFromIp maps countries and defaults outside countries to ca', 
   } finally {
     globalThis.fetch = origFetch;
   }
+});
+
+test('DEFAULT_SETTINGS and migrateStories default to 5 for top and 3 for others', () => {
+  assert.equal(DEFAULT_SETTINGS.stories.top, 5);
+  assert.equal(DEFAULT_SETTINGS.stories.ai, 3);
+  assert.equal(DEFAULT_SETTINGS.stories.tech, 3);
+  assert.equal(DEFAULT_SETTINGS.stories.politics, 3);
+  assert.equal(DEFAULT_SETTINGS.stories.entertainment, 3);
+  assert.equal(DEFAULT_SETTINGS.stories.science, 3);
+  assert.equal(DEFAULT_SETTINGS.stories.sports, 3);
+
+  // Legacy settings where everything was 5 are migrated to top: 5, others: 3
+  const legacy = { top: 5, ai: 5, tech: 5, politics: 5, entertainment: 5, science: 5, sports: 5 };
+  const migrated = migrateStories(legacy);
+  assert.equal(migrated.top, 5);
+  assert.equal(migrated.ai, 3);
+  assert.equal(migrated.tech, 3);
+  assert.equal(migrated.politics, 3);
+
+  // Custom user settings with _v: 2 are preserved
+  const custom = { top: 4, ai: 5, tech: 2, _v: 2 };
+  const preserved = migrateStories(custom);
+  assert.equal(preserved.top, 4);
+  assert.equal(preserved.ai, 5);
+  assert.equal(preserved.tech, 2);
+  assert.equal(preserved.politics, 3); // missing key gets new default
 });

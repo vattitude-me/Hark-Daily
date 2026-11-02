@@ -344,8 +344,8 @@ function renderHeader() {
   const sub = $('screenSubtitle');
   if (sub) {
     if (isPodcast) {
-      const storyCount = b?.stories?.length || 35;
-      const mins = Math.max(1, Math.round((b?.duration || 840) / 60));
+      const storyCount = b?.stories?.length || 23;
+      const mins = Math.max(1, Math.round((b?.duration || 540) / 60));
       sub.textContent = `${storyCount} stories, ${mins} min · Voiced by AI Duo (Matthew & Kelly) · Listen anywhere`;
     } else {
       const baseSummary = b ? summaryLine(b) : 'Your news, read aloud each morning.';

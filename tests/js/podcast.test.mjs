@@ -19,7 +19,7 @@ writeFileSync(join(dir, 'api.mjs'), `export const SECTIONS = {
   sports: { title: 'Sports' }, sports_us: { title: 'Sports' }, sports_in: { title: 'Cricket & Sports' }
 }; export const voiceName = (v) => v; export const fmtTime = (s) => String(s); export const h = () => ({}); export const store = { get: () => 0, set: () => {} };`);
 writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x'; export const SUPABASE_PUBLISHABLE_KEY = 'k';");
-const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor, parseDialogueTurns, pickVoice, clipUrl, voiceNormalize } = await import(join(dir, 'storypack.mjs'));
+const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor, parseDialogueTurns, pickVoice, clipUrl, voiceNormalize, lineup, MAX_PER_SECTION, DEFAULT_SECTION_COUNTS } = await import(join(dir, 'storypack.mjs'));
 
 const playerSrc = readFileSync(new URL('../../web/js/player.js', import.meta.url), 'utf8')
   .replace("'./api.js'", "'./api.mjs'")
@@ -431,6 +431,31 @@ test('podcast mode has zero gap clips for seamless continuous audio', () => {
   assert.equal(aiBridgeIdx, top2Idx + 1, 'Top stories flow directly into AI section bridge');
   assert.equal(ai1Idx, aiBridgeIdx + 1, 'AI section bridge flows directly into first AI story');
 });
+
+test('lineup defaults to 5 for top stories and 3 for other categories with max 5', () => {
+  const defaults = lineup(null);
+  assert.equal(defaults.top, 5);
+  assert.equal(defaults.ai, 3);
+  assert.equal(defaults.tech, 3);
+  assert.equal(defaults.politics, 3);
+  assert.equal(defaults.entertainment, 3);
+  assert.equal(defaults.science, 3);
+  assert.equal(defaults.sports, 3);
+
+  assert.equal(MAX_PER_SECTION, 5);
+  assert.equal(DEFAULT_SECTION_COUNTS.top, 5);
+  assert.equal(DEFAULT_SECTION_COUNTS.ai, 3);
+
+  // Untouched keys take defaults, customized keys clamp to [0, MAX_PER_SECTION]
+  const custom = lineup({ stories: { top: 4, ai: 5, tech: 10, sports: 0 } });
+  assert.equal(custom.top, 4);
+  assert.equal(custom.ai, 5, 'AI dialed up to maximum 5');
+  assert.equal(custom.tech, 5, 'Tech clamped to max 5');
+  assert.equal(custom.sports, 0, 'Sports turned off');
+  assert.equal(custom.science, 3, 'Untouched science keeps default 3');
+  assert.equal(custom.politics, 3, 'Untouched politics keeps default 3');
+});
+
 
 
 

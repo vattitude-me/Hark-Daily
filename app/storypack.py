@@ -285,22 +285,22 @@ def greeting_key(hour: int) -> str:
 
 
 def default_lineup() -> dict[str, int]:
-    """Every section on, at the maximum, until the user says otherwise."""
-    return {key: MAX_PER_SECTION for key in topics.SECTIONS}
+    """Top stories defaults to 5, other categories default to 3."""
+    return {key: (5 if key == "top" else 3) for key in topics.SECTIONS}
 
 
 def lineup(settings: dict | None, default: dict[str, int] | None = None) -> dict[str, int]:
     """The per-section story counts a user asked for (0 = off), clamped to 0..``MAX``.
 
     Read from ``profiles.settings.stories`` — the key both clients already keep, e.g.
-    ``{"top": 3, "ai": 5, "sports": 0}`` — so no settings migration is needed.
+    ``{"top": 5, "ai": 3, "sports": 0}`` — so no settings migration is needed.
     """
     chosen = (settings or {}).get("stories") or {}
     base = default or default_lineup()
     out: dict[str, int] = {}
     for key in topics.SECTIONS:
         try:
-            count = int(chosen.get(key, base.get(key, 0)))
+            count = int(chosen.get(key, base.get(key, 3 if key != "top" else 5)))
         except (TypeError, ValueError):
             count = 0
         out[key] = max(0, min(count, MAX_PER_SECTION))

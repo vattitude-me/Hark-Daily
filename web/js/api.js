@@ -245,16 +245,40 @@ export const ADMIN_EMAILS = ['vatsakrish@gmail.com'];
 export const isAdmin = (profile) =>
   !!profile && (profile.is_admin === true || ADMIN_EMAILS.includes((profile.email || '').toLowerCase()));
 
+export const DEFAULT_STORIES = {
+  top: 5,
+  ai: 3,
+  tech: 3,
+  politics: 3,
+  entertainment: 3,
+  science: 3,
+  sports: 3,
+};
+
 export const DEFAULT_SETTINGS = {
   name: '',
   voice: DEFAULT_VOICE_ID,
   speed: 1.0,
   daily: true,
-  // Every section starts on, at five stories (the full daily pack), and listeners can dial it down.
-  stories: { top: 5, ai: 5, tech: 5, politics: 5, entertainment: 5, science: 5, sports: 5 },
+  // Default is 5 stories for Top stories and 3 stories for other categories, allowing listeners to dial any up to 5.
+  stories: { ...DEFAULT_STORIES },
   color_photos: true,
   disabled_sources: [],
 };
+
+export function migrateStories(storedStories) {
+  if (!storedStories || typeof storedStories !== 'object') {
+    return { ...DEFAULT_STORIES };
+  }
+  // If stored stories are from the legacy version where every category was defaulted to 5
+  // and the user has not explicitly saved a custom story count (marked by _v: 2):
+  const otherKeys = ['ai', 'tech', 'politics', 'entertainment', 'science', 'sports'];
+  const isLegacyAllFive = otherKeys.every((k) => storedStories[k] === 5 || storedStories[k] === undefined);
+  if (isLegacyAllFive && !storedStories._v) {
+    return { ...DEFAULT_STORIES, top: storedStories.top || 5, _v: 2 };
+  }
+  return { ...DEFAULT_STORIES, ...storedStories };
+}
 
 export function recordError(err, context = '') {
   const rawMsg = typeof err === 'string' ? err : err?.message || String(err || 'Unknown error');
@@ -661,25 +685,31 @@ export const api = {
     const profile = await api.profile();
     if (profile) {
       const stored = profile.settings || {};
-      return { settings: { ...DEFAULT_SETTINGS, ...stored, stories: { ...DEFAULT_SETTINGS.stories, ...(stored.stories || {}) } } };
+      const stories = migrateStories(stored.stories);
+      return { settings: { ...DEFAULT_SETTINGS, ...stored, stories } };
     }
     const guest = store.get('guest-settings', {});
-    return { settings: { ...DEFAULT_SETTINGS, ...guest, stories: { ...DEFAULT_SETTINGS.stories, ...(guest.stories || {}) } } };
+    const stories = migrateStories(guest.stories);
+    return { settings: { ...DEFAULT_SETTINGS, ...guest, stories } };
   },
   async saveSettings(values) {
     const profile = await api.profile();
     if (profile) {
-      const settings = { ...(profile.settings || {}), ...values };
+      const current = profile.settings || {};
+      const newStories = values.stories ? { ...values.stories, _v: 2 } : current.stories;
+      const settings = { ...current, ...values, ...(values.stories ? { stories: newStories } : {}) };
       check(await sb.from('profiles').update({ settings }).eq('id', profile.id));
       me = { ...profile, settings };
       return { settings };
     }
     const guest = store.get('guest-settings', {});
+    const currentStories = migrateStories(guest.stories);
+    const newStories = values.stories ? { ...DEFAULT_STORIES, ...currentStories, ...values.stories, _v: 2 } : currentStories;
     const settings = {
       ...DEFAULT_SETTINGS,
       ...guest,
       ...values,
-      stories: { ...DEFAULT_SETTINGS.stories, ...(guest.stories || {}), ...(values.stories || {}) },
+      stories: newStories,
     };
     store.set('guest-settings', settings);
     return { settings };
