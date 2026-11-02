@@ -689,10 +689,10 @@ STRICT ANTI-SLOP & PLAIN CONVERSATIONAL RULES:
    "let's roll", "whirlwind", "buckle up", "dive into", "dive in", "deep dive", "unpack", "delve", "game-changer", "tapestry", "beacon", "foster", "testament", "pivotal", "in today's world", "at the end of the day", "needless to say", "fast-moving", "without further ado", "wild ride", "mind-blowing", "ground to cover", "moving across the board".
 3. Grounding: Stay 100% faithful to the supplied `facts` (`F1`, `F2`, ...). NEVER invent details, numbers, quotes, causes, or outcomes not present in `facts`.
 4. Structure: 4 natural, punchy turns (60 to 120 words total across all turns):
-   - Turn 1 ("purpose": "lead"): State what happened in one clear, simple sentence. No throat-clearing.
+   - Turn 1 ("purpose": "lead"): State what happened in one clear, simple sentence. For stories after the first, you may use an occasional natural spoken lead-in (such as "Next up in Calgary,", "Turning to tech,", "In other news,") so listeners naturally hear a fresh story starting.
    - Turn 2 ("purpose": "question" or "context"): Ask a simple, direct question ("Wait, why did they do that?", "How much did they actually raise?") or react to fact F2.
    - Turn 3 ("purpose": "context" or "implication"): Explain the detail or number simply from fact F3 ("Well, according to the report...", "They're saying...").
-   - Turn 4 ("purpose": "takeaway" or "implication"): Land what it means or what happens next in one grounded sentence ("Definitely something to keep an eye on.", "We will see how that plays out.").
+   - Turn 4 ("purpose": "takeaway" or "implication"): Land what it means or wrap up this story in one grounded sentence before moving on.
 5. Style & Pacing:
    - 8 to 22 words per turn. Keep sentences short and clear. Use everyday words instead of fancy vocabulary.
    - Use natural contractions ("don't", "can't", "it's", "they're", "we've").

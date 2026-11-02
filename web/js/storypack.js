@@ -193,8 +193,8 @@ const round = (n) => Math.round(n * 100) / 100;
  * the next and the two read as a single sentence. It is a real silent clip rather than a delay in
  * the player, so the timeline stays true: story times, seeking and the total all count it.
  */
-export const BREATH = 0.8;
-const GAP_URL = '/audio/gap.mp3';
+export const BREATH = 1.2;
+const GAP_URL = '/audio/separator.mp3';
 
 /**
  * The marker note a narrator's day carries once every clip and every spoken note is published
@@ -563,9 +563,8 @@ export function buildBriefing(rows, settings, {
   const counts = new Map();
   let cursor = 0;
 
-  /** A silent clip between two voiced ones, so a story never starts on the last word. */
+  /** An acoustic separator clip between stories/voiced clips so the listener has a clear boundary. */
   const breath = () => {
-    if (isPodcast) return;
     if (!cursor) return;
     const start = round(cursor);
     const end = round(cursor + BREATH);

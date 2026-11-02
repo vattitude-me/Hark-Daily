@@ -799,6 +799,18 @@ export class Player extends EventTarget {
         if (transText.dataset.storyId !== currentId) {
           transText.dataset.storyId = currentId;
           transBody.scrollTop = 0;
+          transBox.classList.remove('story-changing');
+          void transBox.offsetWidth;
+          transBox.classList.add('story-changing');
+
+          const createEndSeparator = (targetStory) => h('div', { class: 'clean-story-end-separator' },
+            h('span', { class: 'clean-story-end-line' }),
+            h('span', { class: 'clean-story-end-badge' },
+              h('span', { class: 'clean-story-end-dot' }),
+              targetStory?.source ? `End of story · ${targetStory.source.split('·')[0].trim()}` : 'End of story'
+            ),
+            h('span', { class: 'clean-story-end-line' })
+          );
 
           const dialogueTurns = parseDialogueTurns(text);
           if (dialogueTurns && dialogueTurns.length) {
@@ -812,7 +824,7 @@ export class Player extends EventTarget {
             });
 
             transText._storyData = { dialogueTurns, cumFractions };
-            transText.replaceChildren(...dialogueTurns.map((turn, idx) => {
+            const turnNodes = dialogueTurns.map((turn, idx) => {
               const spkSlug = (turn.speaker || 'host').toLowerCase().replace(/[^a-z0-9]+/g, '-');
               return h('span', {
                 class: `w clean-dialogue-turn turn-${spkSlug}`,
@@ -833,7 +845,8 @@ export class Player extends EventTarget {
               },
               h('span', { class: `clean-turn-speaker speaker-${spkSlug}` }, turn.speaker),
               h('span', { class: 'clean-turn-text' }, turn.text + ' '));
-            }));
+            });
+            transText.replaceChildren(...turnNodes, createEndSeparator(story));
           } else {
             const sentences = splitSentences(text);
             const weights = sentences.map((s) => Math.max(1, s.length));
@@ -846,7 +859,7 @@ export class Player extends EventTarget {
             });
 
             transText._storyData = { sentences, cumFractions };
-            transText.replaceChildren(...sentences.map((s, idx) => h('span', {
+            const sentNodes = sentences.map((s, idx) => h('span', {
               class: 'w',
               role: 'button',
               tabindex: '0',
@@ -862,7 +875,8 @@ export class Player extends EventTarget {
                   this.audio.play().catch(() => {});
                 }
               },
-            }, s + ' ')));
+            }, s + ' '));
+            transText.replaceChildren(...sentNodes, createEndSeparator(story));
           }
 
           if (!transBody._scrollListenersAttached) {
@@ -995,9 +1009,15 @@ export class Player extends EventTarget {
       }
     }
 
+    const isGap = Boolean(this.clips?.[this.index]?.gap);
+    const nextClip = isGap ? this.clips?.[this.index + 1] : null;
+    const nextStory = nextClip ? (this.briefing?.stories?.find((s) => s.id === nextClip.id || s.key === nextClip.key) || null) : null;
+
     const cleanNowVoicing = document.getElementById('playerCoverBadgeText');
     if (cleanNowVoicing) {
-      if (isIntroOrBanter) {
+      if (isGap) {
+        cleanNowVoicing.textContent = 'Next story starting...';
+      } else if (isIntroOrBanter) {
         cleanNowVoicing.textContent = 'AI Duo · Matthew & Kelly';
       } else if (activeSpeaker) {
         cleanNowVoicing.textContent = `AI Duo · ${activeSpeaker}`;
@@ -1011,20 +1031,35 @@ export class Player extends EventTarget {
     // Clean Player Story Metadata & Actions
     const cleanCat = document.getElementById('cleanCatBadge');
     if (cleanCat) {
-      cleanCat.textContent = (section || story?.section || 'TOP STORIES').toUpperCase();
+      if (isGap && nextStory) {
+        cleanCat.textContent = 'UP NEXT';
+      } else {
+        cleanCat.textContent = (section || story?.section || 'TOP STORIES').toUpperCase();
+      }
     }
     const cleanSrc = document.getElementById('cleanSourceTitle');
     if (cleanSrc) {
-      cleanSrc.textContent = story?.source ? story.source.split('·')[0].trim() : 'Daily News';
+      if (isGap && nextStory) {
+        cleanSrc.textContent = nextStory.source ? nextStory.source.split('·')[0].trim() : 'Up next';
+      } else {
+        cleanSrc.textContent = story?.source ? story.source.split('·')[0].trim() : 'Daily News';
+      }
     }
     const cleanCounter = document.getElementById('cleanStoryCounter');
     if (cleanCounter) {
-      const idx = story ? b.stories.indexOf(story) + 1 : 0;
+      const targetStory = (isGap && nextStory) ? nextStory : story;
+      const idx = targetStory ? b.stories.indexOf(targetStory) + 1 : 0;
       cleanCounter.textContent = idx ? `${idx} / ${b.stories.length}` : (b.stories?.length ? `1 / ${b.stories.length}` : '1 / 1');
     }
     const cleanHeadline = document.getElementById('cleanStoryHeadline');
     if (cleanHeadline) {
-      cleanHeadline.textContent = story?.headline || ch?.title || b.title;
+      const targetHeadline = (isGap && nextStory) ? nextStory.headline : (story?.headline || ch?.title || b.title);
+      if (cleanHeadline.textContent !== targetHeadline) {
+        cleanHeadline.textContent = targetHeadline;
+        cleanHeadline.classList.remove('story-changing');
+        void cleanHeadline.offsetWidth;
+        cleanHeadline.classList.add('story-changing');
+      }
     }
 
     const cleanShare = document.getElementById('cleanShareBtn');
