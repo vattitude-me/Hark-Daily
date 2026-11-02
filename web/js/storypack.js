@@ -101,6 +101,8 @@ export function voiceNormalize(text) {
   s = s.replace(/\bw\/(?=\s|$)/gi, 'with');
   s = s.replace(/\bw\/o(?=\s|$)/gi, 'without');
   s = s.replace(/\b&\b/g, 'and');
+  // Strip bracketed speech reaction tags from teleprompter / display text
+  s = s.replace(/\[(laugh|chuckle|sigh|gasp|cough|groan|sniffle|yawn)\]/gi, '');
   return s.replace(/\s+/g, ' ').trim();
 }
 

@@ -8,7 +8,7 @@ import { AdminPage } from './pages/admin.js';
 import { buildBriefing as buildPackBriefing, READY_KEY, storyKey, titlesMatch } from './storypack.js';
 import { applyPhotoMode } from './design.js';
 
-import { FEATURES } from '../config.js';
+import { FEATURES, APP_VERSION } from '../config.js';
 
 // Native Android / Capacitor shell safe-area and status bar initialization
 if (window.HarkNative || window.Capacitor?.isNativePlatform?.()) {
@@ -1842,6 +1842,11 @@ function updateMenuDrawer() {
       regionNoteEl.textContent = `Listening to ${toName} edition`;
       regionNoteEl.classList.remove('is-dirty');
     }
+  }
+
+  const versionEl = $('cleanDrawerVersion');
+  if (versionEl && APP_VERSION) {
+    versionEl.textContent = `Hark Daily ${APP_VERSION}`;
   }
 
   // Settings rows
