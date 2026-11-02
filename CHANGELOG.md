@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.5] - 2026-11-02
+
+### Reverted
+- **Reverted Acoustic Separator Pause & Restored Pure Continuous Audio**:
+  - Reverted the artificial acoustic separator pause beep (`separator.mp3`) and restored the proven, continuous audio playback architecture from commit `9527bb8`.
+  - In podcast mode, restored `if (isPodcast) return;` inside `breath()` so zero artificial gap clips are injected into the playback queue.
+  - Reverted `isGap` branching, artificial loading states, and transcript end dividers in `player.js` and `styles.css`.
+  - Bumped Service Worker cache to `hark-daily-v72` and client script to `v=63` to completely purge stale client caches and ensure immediate continuous playback in PWA and mobile browsers.
+
 ## [1.0.4] - 2026-11-02
 
 ### Fixed
