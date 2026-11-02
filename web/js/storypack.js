@@ -193,8 +193,8 @@ const round = (n) => Math.round(n * 100) / 100;
  * the next and the two read as a single sentence. It is a real silent clip rather than a delay in
  * the player, so the timeline stays true: story times, seeking and the total all count it.
  */
-export const BREATH = 1.2;
-const GAP_URL = '/audio/separator.mp3';
+export const BREATH = 0.8;
+const GAP_URL = '/audio/gap.mp3';
 
 /**
  * The marker note a narrator's day carries once every clip and every spoken note is published
@@ -563,8 +563,9 @@ export function buildBriefing(rows, settings, {
   const counts = new Map();
   let cursor = 0;
 
-  /** An acoustic separator clip between stories/voiced clips so the listener has a clear boundary. */
+  /** A silent clip between two voiced ones, so a story never starts on the last word. */
   const breath = () => {
+    if (isPodcast) return;
     if (!cursor) return;
     const start = round(cursor);
     const end = round(cursor + BREATH);
@@ -576,6 +577,7 @@ export function buildBriefing(rows, settings, {
   const sayNote = (key) => {
     const note = byKey.get(key);
     if (!note) return;
+    breath();
     const duration = Number(note.duration) || 0;
     const start = round(cursor);
     const end = round(cursor + duration);
@@ -589,6 +591,7 @@ export function buildBriefing(rows, settings, {
   /** A banter clip from the podcast hosts, placed on the timeline like a note. */
   const sayBanter = (clip, sectionKey = null) => {
     if (!clip) return;
+    breath();
     const duration = Number(clip.duration) || 0;
     const start = round(cursor);
     const end = round(cursor + duration);
@@ -606,21 +609,18 @@ export function buildBriefing(rows, settings, {
     sayNote(greetingKey(hour));
   }
 
-  let storyPlayed = false;
   let currentSection = null;
   const podHosts = isPodcast ? (pod.hosts || '').split('+').filter(Boolean) : [];
   let storyIndex = 0;
   for (const row of chosen) {
     // In rapid mode, skip section intros to deliver a swift, continuous headline flow
     if (!isRapid && row.section !== currentSection) {
-      if (storyPlayed) breath();
       const baseSec = (row.section || '').replace(/_(us|in|ca)$/, '');
       if (isPodcast) sayBanter(pod.bridges.get(row.section) || pod.bridges.get(baseSec), row.section);
       else sayNote(byKey.has(`intro_${row.section}`) ? `intro_${row.section}` : `intro_${baseSec}`);
       currentSection = row.section;
-    } else if (storyPlayed) {
-      breath();
     }
+    breath();
     // In podcast mode, prefer the two-host conversation clip (`matthew_reference+kelly_reference`),
     // or alternate between solo host recordings on legacy archive packs.
     let storyRow = row;
@@ -657,13 +657,11 @@ export function buildBriefing(rows, settings, {
       id, key, url: clipUrl(storyRow.audio_path), duration, section: storyRow.section, rank: storyRow.rank,
       title: storyRow.title, start, end,
     });
-    storyPlayed = true;
     counts.set(storyRow.section, (counts.get(storyRow.section) || 0) + 1);
     cursor += duration;
   }
 
   // The sign-off, after a breath, so the brief does not stop dead on the last story.
-  if (storyPlayed) breath();
   if (isPodcast) sayBanter(pod.close);
   else sayNote('outro');
 

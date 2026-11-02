@@ -230,13 +230,8 @@ export class Player extends EventTarget {
       this.tick();
     });
     audioEl.addEventListener('play', () => {
-      this.isTransitioningClip = false;
       this.setPlaying(true);
       this.preloadNext();
-    });
-    audioEl.addEventListener('playing', () => {
-      this.isTransitioningClip = false;
-      this.setPlaying(true);
     });
     audioEl.addEventListener('pause', () => {
       if (this.isTransitioningClip) return;
@@ -247,12 +242,6 @@ export class Player extends EventTarget {
     });
     audioEl.addEventListener('error', (e) => {
       console.warn('[player] audio error:', e);
-      const clip = this.clips?.[this.index];
-      if (clip?.gap && this.clips && this.index + 1 < this.clips.length) {
-        console.log('[player] separator gap audio error, advancing to story');
-        this.isTransitioningClip = true;
-        this.loadClip(this.index + 1, { seek: 0, autoplay: true, forceReload: true });
-      }
     });
   }
 
@@ -326,14 +315,9 @@ export class Player extends EventTarget {
     const clip = this.clips?.[i];
     if (!clip) return;
     this.index = i;
+    this.isTransitioningClip = false;
     const el = this.audio;
     if (!el) return;
-
-    if (play) {
-      this.isTransitioningClip = true;
-    } else {
-      this.isTransitioningClip = false;
-    }
 
     const needsLoad = forceReload || el.dataset.clip !== String(i) || !el.src || el.error;
     if (needsLoad) {
@@ -341,31 +325,19 @@ export class Player extends EventTarget {
       el.src = clip.url;
       try { el.load(); } catch {}
     }
-    if (seek > 0) {
-      const applySeek = () => { try { el.currentTime = seek; } catch { /* not seekable yet */ } };
-      if (el.readyState >= 1) applySeek();
-      else el.addEventListener('loadedmetadata', applySeek, { once: true });
-    }
+    const applySeek = () => { try { el.currentTime = seek; } catch { /* not seekable yet */ } };
+    if (el.readyState >= 1) applySeek();
+    else el.addEventListener('loadedmetadata', applySeek, { once: true });
     el.playbackRate = this.speed;
     el.volume = 1.0;
     el.muted = false;
     if (play) {
       this.primeAudioChannels();
       const p = el.play();
-      if (p && typeof p.then === 'function') {
-        p.then(() => {
-          this.isTransitioningClip = false;
-        }).catch((err) => {
-          this.isTransitioningClip = false;
+      if (p && typeof p.catch === 'function') {
+        p.catch((err) => {
           console.warn('[player] loadClip play failed:', err);
-          if (clip.gap && this.clips && this.index + 1 < this.clips.length) {
-            console.log('[player] separator gap play failed, advancing to story');
-            this.isTransitioningClip = true;
-            this.loadClip(this.index + 1, { seek: 0, autoplay: true, forceReload: true });
-          }
         });
-      } else {
-        this.isTransitioningClip = false;
       }
     }
     this.preloadNext();
@@ -374,10 +346,7 @@ export class Player extends EventTarget {
   /** Pre-buffer the following clip silently into cache using the secondary audio preloader. */
   preloadNext() {
     if (!this.clips || !this.isPlaying) return;
-    let nextIdx = this.index + 1;
-    while (nextIdx < this.clips.length && this.clips[nextIdx]?.gap) {
-      nextIdx++;
-    }
+    const nextIdx = this.index + 1;
     const next = this.clips[nextIdx];
     if (!next || !next.url) return;
     const preloader = this.preloader;
@@ -830,18 +799,6 @@ export class Player extends EventTarget {
         if (transText.dataset.storyId !== currentId) {
           transText.dataset.storyId = currentId;
           transBody.scrollTop = 0;
-          transBox.classList.remove('story-changing');
-          void transBox.offsetWidth;
-          transBox.classList.add('story-changing');
-
-          const createEndSeparator = (targetStory) => h('div', { class: 'clean-story-end-separator' },
-            h('span', { class: 'clean-story-end-line' }),
-            h('span', { class: 'clean-story-end-badge' },
-              h('span', { class: 'clean-story-end-dot' }),
-              targetStory?.source ? `End of story · ${targetStory.source.split('·')[0].trim()}` : 'End of story'
-            ),
-            h('span', { class: 'clean-story-end-line' })
-          );
 
           const dialogueTurns = parseDialogueTurns(text);
           if (dialogueTurns && dialogueTurns.length) {
@@ -855,7 +812,7 @@ export class Player extends EventTarget {
             });
 
             transText._storyData = { dialogueTurns, cumFractions };
-            const turnNodes = dialogueTurns.map((turn, idx) => {
+            transText.replaceChildren(...dialogueTurns.map((turn, idx) => {
               const spkSlug = (turn.speaker || 'host').toLowerCase().replace(/[^a-z0-9]+/g, '-');
               return h('span', {
                 class: `w clean-dialogue-turn turn-${spkSlug}`,
@@ -876,9 +833,7 @@ export class Player extends EventTarget {
               },
               h('span', { class: `clean-turn-speaker speaker-${spkSlug}` }, turn.speaker),
               h('span', { class: 'clean-turn-text' }, turn.text + ' '));
-            });
-            if (story) transText.replaceChildren(...turnNodes, createEndSeparator(story));
-            else transText.replaceChildren(...turnNodes);
+            }));
           } else {
             const sentences = splitSentences(text);
             const weights = sentences.map((s) => Math.max(1, s.length));
@@ -891,7 +846,7 @@ export class Player extends EventTarget {
             });
 
             transText._storyData = { sentences, cumFractions };
-            const sentNodes = sentences.map((s, idx) => h('span', {
+            transText.replaceChildren(...sentences.map((s, idx) => h('span', {
               class: 'w',
               role: 'button',
               tabindex: '0',
@@ -907,9 +862,7 @@ export class Player extends EventTarget {
                   this.audio.play().catch(() => {});
                 }
               },
-            }, s + ' '));
-            if (story) transText.replaceChildren(...sentNodes, createEndSeparator(story));
-            else transText.replaceChildren(...sentNodes);
+            }, s + ' ')));
           }
 
           if (!transBody._scrollListenersAttached) {
@@ -1042,15 +995,9 @@ export class Player extends EventTarget {
       }
     }
 
-    const isGap = Boolean(this.clips?.[this.index]?.gap);
-    const nextClip = isGap ? this.clips?.[this.index + 1] : null;
-    const nextStory = nextClip ? (this.briefing?.stories?.find((s) => s.id === nextClip.id || s.key === nextClip.key) || null) : null;
-
     const cleanNowVoicing = document.getElementById('playerCoverBadgeText');
     if (cleanNowVoicing) {
-      if (isGap) {
-        cleanNowVoicing.textContent = 'Next story starting...';
-      } else if (isIntroOrBanter) {
+      if (isIntroOrBanter) {
         cleanNowVoicing.textContent = 'AI Duo · Matthew & Kelly';
       } else if (activeSpeaker) {
         cleanNowVoicing.textContent = `AI Duo · ${activeSpeaker}`;
@@ -1064,35 +1011,20 @@ export class Player extends EventTarget {
     // Clean Player Story Metadata & Actions
     const cleanCat = document.getElementById('cleanCatBadge');
     if (cleanCat) {
-      if (isGap && nextStory) {
-        cleanCat.textContent = 'UP NEXT';
-      } else {
-        cleanCat.textContent = (section || story?.section || 'TOP STORIES').toUpperCase();
-      }
+      cleanCat.textContent = (section || story?.section || 'TOP STORIES').toUpperCase();
     }
     const cleanSrc = document.getElementById('cleanSourceTitle');
     if (cleanSrc) {
-      if (isGap && nextStory) {
-        cleanSrc.textContent = nextStory.source ? nextStory.source.split('·')[0].trim() : 'Up next';
-      } else {
-        cleanSrc.textContent = story?.source ? story.source.split('·')[0].trim() : 'Daily News';
-      }
+      cleanSrc.textContent = story?.source ? story.source.split('·')[0].trim() : 'Daily News';
     }
     const cleanCounter = document.getElementById('cleanStoryCounter');
     if (cleanCounter) {
-      const targetStory = (isGap && nextStory) ? nextStory : story;
-      const idx = targetStory ? b.stories.indexOf(targetStory) + 1 : 0;
+      const idx = story ? b.stories.indexOf(story) + 1 : 0;
       cleanCounter.textContent = idx ? `${idx} / ${b.stories.length}` : (b.stories?.length ? `1 / ${b.stories.length}` : '1 / 1');
     }
     const cleanHeadline = document.getElementById('cleanStoryHeadline');
     if (cleanHeadline) {
-      const targetHeadline = (isGap && nextStory) ? nextStory.headline : (story?.headline || ch?.title || b.title);
-      if (cleanHeadline.textContent !== targetHeadline) {
-        cleanHeadline.textContent = targetHeadline;
-        cleanHeadline.classList.remove('story-changing');
-        void cleanHeadline.offsetWidth;
-        cleanHeadline.classList.add('story-changing');
-      }
+      cleanHeadline.textContent = story?.headline || ch?.title || b.title;
     }
 
     const cleanShare = document.getElementById('cleanShareBtn');
