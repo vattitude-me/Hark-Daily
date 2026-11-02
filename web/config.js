@@ -8,3 +8,6 @@ export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_HgWQGelTuCEU6ayqFdY4Cg_F
 // published in app_status) to be on, so either side can switch it off. Rapid Fire is hidden, not
 // removed: set `rapid: true` to bring the button back.
 export const FEATURES = { podcast: true, rapid: false };
+
+// Release version displayed in drawer and settings
+export const APP_VERSION = 'v1.0.6';

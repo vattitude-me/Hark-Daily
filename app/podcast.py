@@ -64,7 +64,15 @@ TAGS = ("laugh", "chuckle", "sigh", "cough", "gasp", "groan", "sniffle", "yawn")
 MAX_TAGS = 2
 # Sections where a laugh or a sigh would be in poor taste: tags are stripped from their banter.
 SOBER_SECTIONS = frozenset({"top", "politics"})
+SOBER_KEYWORDS = frozenset({
+    "kill", "death", "die", "dead", "fatal", "crash", "shoot", "attack",
+    "casualty", "casualties", "tragedy", "victim", "victims", "murder",
+    "injury", "injured", "grief", "mourn", "funeral", "fraud", "scam",
+    "lawsuit", "sue", "sued", "suing", "layoff", "layoffs", "fired",
+    "bankrupt", "bankruptcy", "probe", "investigation", "crime", "convict",
+})
 _TAG = re.compile(r"\[(" + "|".join(TAGS) + r")\]", re.I)
+_TAG_START = re.compile(r"^\s*\[(" + "|".join(TAGS) + r")\]\s*", re.I)
 
 Turn = tuple[int, str]  # (0 or 1 for host A or B, text, which may carry [tags])
 
@@ -133,13 +141,13 @@ CLOSE_TEMPLATES: list[list[Turn]] = [
     [(1, "And that is our look at the news for today."),
      (0, "Thanks for listening. We'll talk to you on the next update.")],
     [(0, "That covers the main stories today."),
-     (1, "[chuckle] Take care, stay informed, and we'll catch you next time.")],
+     (1, "Take care, stay informed [chuckle], and we'll catch you next time.")],
 ]
 TEASE_TEMPLATES: dict[str, list[list[Turn]]] = {
     "serious": [[(0, "Here's an important story we're following: {h}."), (1, "Yeah, this one matters... here are the details.")]],
     "warm": [[(0, "In the headlines today: {h}."), (1, "Here's the background on what happened.")]],
-    "excited": [[(0, "Take a look at this in {s}: {h}."), (1, "[chuckle] Yeah, this caught a lot of attention today.")]],
-    "light": [[(0, "Here's an interesting one in {s}: {h}."), (1, "[laugh] Let's see what happened here.")]],
+    "excited": [[(0, "Take a look at this in {s}: {h}."), (1, "Yeah, this caught a lot of attention today.")]],
+    "light": [[(0, "Here's an interesting one in {s}: {h}."), (1, "Let's see what happened here.")]],
     "energetic": [[(0, "In {s} today: {h}."), (1, "Here's what you need to know.")]],
     "curious": [[(0, "This is an interesting one: {h}."), (1, "Yeah, let's look at the details.")]],
 }
@@ -275,7 +283,7 @@ STRICT ANTI-SLOP RULES (ZERO AI JARGON OR HYPE):
 - Keep language plain, simple, and direct. Avoid breathless hype, exaggerated drama, and corporate buzzwords.
 - Use natural contractions ("we've", "it's", "that's", "don't", "can't").
 - Pacing: use short sentences and natural commas or ellipses `...` where a person would take a breath.
-- Use paralinguistic voice tags sparingly and naturally: [chuckle], [laugh], [sigh], [gasp]. At most {max_tags} tags per piece. Do not use tags on tragedy, death, or severe hardship.
+- Use paralinguistic voice tags sparingly and naturally: [chuckle], [laugh], [sigh], [gasp]. Most banter pieces should have ZERO tags. Never place tags predictably at the start of a response or right after a headline. At most {max_tags} tags per piece. Do not use tags on tragedy, death, or severe hardship.
 - VOICE-BASED SPOKEN TEXT: Everything is read aloud by neural voices. Never use textual shorthand like "$5B", "$10M", or "20%". Always write full spoken words: "5 billion dollars", "10 million dollars", "20 percent", "versus", "and".
 
 Return ONLY JSON of this shape:
@@ -577,6 +585,9 @@ def build_story_brief(story: dict) -> dict:
     if len(facts) == 1 and summary and summary.lower().rstrip(".") != head_norm:
         facts.append({"id": "F2", "fact": summary if summary.endswith((".", "!", "?")) else f"{summary}."})
 
+    has_sensitive_keyword = any(kw in headline.lower() or kw in summary.lower() for kw in SOBER_KEYWORDS)
+    sober = (base_sec in SOBER_SECTIONS) or has_sensitive_keyword
+
     return {
         "story_id": str(story.get("id") or story.get("url") or f"{sec}-{story.get('rank', 1)}"),
         "section": sec,
@@ -586,7 +597,7 @@ def build_story_brief(story: dict) -> dict:
         "source": source,
         "summary": summary or headline,
         "tone": TONE.get(base_sec, "warm and informative"),
-        "sober": base_sec in SOBER_SECTIONS,
+        "sober": sober,
         "facts": facts,
     }
 
@@ -639,6 +650,13 @@ def validate_story_dialogue(
         text = _clean(item.get("text", ""))
         text = _clean(_TAG.sub(lambda m: f"[{m.group(1).lower()}]", text))
         text = clean_slop(text)
+
+        # Canned reflex reaction tag removal: if Turn 2 (the immediate response to the headline)
+        # starts with a reaction sound ([laugh], [sigh], [chuckle], etc.), strip it so the second
+        # speaker responds naturally with words rather than an automatic repetitive sound effect.
+        if len(parsed) == 1:
+            text = _clean(_TAG_START.sub("", text))
+
         words_only = strip_tags(text)
         word_count = len(words_only.split())
         if not words_only or word_count < 3 or word_count > 52 or _BAD.search(words_only):
@@ -648,6 +666,9 @@ def validate_story_dialogue(
         total_tags += tags_in_turn
         if sober:
             text = words_only
+        elif total_tags > 1 and tags_in_turn > 0:
+            text = strip_tags(text)
+            total_tags = 1
 
         purpose = str(item.get("purpose") or "context").strip().lower()
         if purpose not in VALID_PURPOSES:
@@ -847,9 +868,14 @@ def generate_story_dialogue(
         return fallback_story_dialogue(story, hosts)
 
     tag_instruction = (
-        "Do NOT use any bracketed voice tags ([laugh], [chuckle], etc.) because this is a sober news section. Express gravity and warmth through thoughtful phrasing and `...` pauses."
+        "Do NOT use any bracketed voice tags ([laugh], [chuckle], etc.) because this is a sober or serious news section. Express gravity and warmth through thoughtful phrasing and `...` pauses."
         if brief["sober"]
-        else "Include 1 to 2 natural Chatterbox emotion tags ([chuckle], [laugh], [sigh], or [gasp]) at the start of a reaction turn where it fits the story's mood."
+        else (
+            "Paralinguistic voice tags ([chuckle], [laugh], [sigh], [gasp]) are strictly OPTIONAL and must be used VERY SPARINGLY. "
+            "Most stories (over 80%) should have ZERO tags. "
+            "CRITICAL: Do NOT put an emotion tag at the beginning of the second speaker's response (Turn 2) to a headline—it sounds monotonous and fake. "
+            "Only include a tag (at most 1 in the entire story) if the news is genuinely amusing, quirky, or ironic, and place it naturally where a human would express it (such as mid-sentence or in the closing takeaway turn), or omit it completely."
+        )
     )
     sys_prompt = STORY_DIALOGUE_PROMPT.format(
         a=hosts[0],

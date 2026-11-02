@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.6] - 2026-11-02
+
+### Added
+- **Version Display in Hamburger Menu**:
+  - Added clean version indicator (`Hark Daily v1.0.6`) at the bottom of the hamburger menu drawer in `.clean-drawer-legal`, right alongside Terms of Use and Privacy Policy.
+  - Linked `APP_VERSION` dynamically from `config.js` into drawer and settings.
+
+### Changed
+- **Natural Spoken Expressions & Elimination of Canned Reflex Sounds in Speech Notes**:
+  - Eliminated the mandatory instruction that forced a canned reaction tag (`[laugh]`, `[sigh]`, `[chuckle]`) at the start of the second speaker's turn immediately after the headline.
+  - Emotion tags are now strictly optional and used very sparingly (at most 1 per story, with >80% of stories having zero tags), reserved only for genuinely amusing or quirky stories in natural spots (mid-sentence or closing takeaway).
+  - Added automatic sanitization in `validate_story_dialogue` to strip any canned leading tag at the start of Turn 2 so speakers respond naturally with their words.
+  - Added keyword sensitivity (`SOBER_KEYWORDS`) automatically suppressing reaction sounds on serious, legal, layoff, or tragedy topics.
+  - Removed canned opening chuckle/laugh from `TEASE_TEMPLATES`.
+  - Stripped bracketed emotion tag artifacts from the teleprompter text in `storypack.js` so written scripts render clean, readable sentences.
+  - Bumped Service Worker cache to `hark-daily-v73` and client script to `v=64`.
+
 ## [1.0.5] - 2026-11-02
 
 ### Reverted

@@ -285,7 +285,7 @@ def test_validate_story_dialogue_enforces_alternation_and_sober_tags():
     good_raw = {
         "turns": [
             {"speaker": "a", "purpose": "lead", "fact_refs": ["F1"], "text": "A new 32 billion parameter open model just landed with frontier coding scores."},
-            {"speaker": "b", "purpose": "question", "fact_refs": ["F2"], "text": "[chuckle] And it actually runs on a single workstation under an Apache license?"},
+            {"speaker": "b", "purpose": "question", "fact_refs": ["F2"], "text": "And it actually runs on a single workstation [chuckle] under an Apache license?"},
             {"speaker": "a", "purpose": "context", "fact_refs": ["F2", "F3"], "text": "Yes, the team published the full training recipe alongside the weights."},
             {"speaker": "b", "purpose": "takeaway", "fact_refs": ["F3"], "text": "That gives smaller developer teams a serious local alternative, according to TechCrunch."},
         ]
@@ -295,6 +295,20 @@ def test_validate_story_dialogue_enforces_alternation_and_sober_tags():
     assert [t.speaker for t in turns] == [0, 1, 0, 1]
     assert "[chuckle]" in turns[1].text
     assert turns[1].pause_after == podcast.PURPOSE_PAUSES["question"]
+
+    # Canned reflex tag at start of Turn 2 is stripped automatically
+    leading_raw = {
+        "turns": [
+            {"speaker": "a", "purpose": "lead", "fact_refs": ["F1"], "text": "A new 32 billion parameter open model just landed with frontier coding scores."},
+            {"speaker": "b", "purpose": "question", "fact_refs": ["F2"], "text": "[laugh] And it actually runs on a single workstation under an Apache license?"},
+            {"speaker": "a", "purpose": "context", "fact_refs": ["F2", "F3"], "text": "Yes, the team published the full training recipe alongside the weights."},
+            {"speaker": "b", "purpose": "takeaway", "fact_refs": ["F3"], "text": "That gives smaller developer teams a serious local alternative, according to TechCrunch."},
+        ]
+    }
+    cleaned_turns = podcast.validate_story_dialogue(leading_raw, brief)
+    assert cleaned_turns is not None
+    assert not cleaned_turns[1].text.startswith("[laugh]")
+    assert cleaned_turns[1].text.startswith("And it actually runs")
 
     # Sober section strips paralinguistic tags
     sober_brief = podcast.build_story_brief({**SAMPLE_STORY, "section": "top"})
