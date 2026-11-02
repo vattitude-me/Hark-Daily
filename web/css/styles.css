@@ -3571,6 +3571,56 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
   display: inline;
 }
 
+/* End-of-article visual separator in teleprompter */
+.clean-story-end-separator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 14px 4px 6px;
+  padding: 6px 0;
+  opacity: 0.75;
+}
+.clean-story-end-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+}
+.clean-story-end-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-head);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
+}
+.clean-story-end-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
+}
+
+/* Subtle cross-fade animation when moving to a new story */
+@keyframes storyEntranceFade {
+  from {
+    opacity: 0.35;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.story-changing {
+  animation: storyEntranceFade 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 /* Pinned Bottom Card Dock: Waveform above Controls */
 .clean-card-bottom-dock {
   margin-top: 0;
