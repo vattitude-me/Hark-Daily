@@ -422,6 +422,38 @@ test('voiceNormalize and parseDialogueTurns convert financial and textual shorth
   assert.equal(turns[1].text, 'That is 15 percent growth in the third quarter versus the second quarter with 500 thousand dollars profit.');
 });
 
+test('acoustic separator placement: no duplicate gaps, bridge flows directly into story, gap follows story', () => {
+  const b = build({ top: 2, ai: 1 });
+  const allClips = b.clips;
+
+  // No two consecutive gap clips anywhere in the briefing queue
+  const hasConsecutiveGaps = allClips.some((c, i) => c.gap && allClips[i + 1]?.gap);
+  assert.equal(hasConsecutiveGaps, false, 'No back-to-back gap clips exist in the queue');
+
+  const top1Idx = allClips.findIndex((c) => c.id === 'top-1');
+  const top2Idx = allClips.findIndex((c) => c.id === 'top-2');
+  const aiBridgeIdx = allClips.findIndex((c) => c.id === 'pod_bridge_ai');
+  const ai1Idx = allClips.findIndex((c) => c.id === 'ai-1');
+  const closeIdx = allClips.findIndex((c) => c.id.startsWith('pod_close'));
+
+  // Prior to the first story, no separator interrupts opening banter or section intro
+  assert.ok(top1Idx > 0);
+  assert.equal(allClips[top1Idx - 1].gap, undefined, 'No gap immediately before the first story');
+
+  // Separator between top-1 and top-2
+  assert.ok(allClips[top2Idx - 1]?.gap, 'Gap separator exists between top-1 and top-2');
+
+  // Separator between top-2 and section bridge into AI
+  assert.ok(aiBridgeIdx > top2Idx);
+  assert.ok(allClips[aiBridgeIdx - 1]?.gap, 'Gap separator exists between top-2 and AI section bridge');
+
+  // AI section bridge leads directly into ai-1 without an intervening gap
+  assert.equal(ai1Idx, aiBridgeIdx + 1, 'AI section bridge transitions directly into first AI story without a gap');
+
+  // Separator between ai-1 and podcast close
+  assert.ok(allClips[closeIdx - 1]?.gap, 'Gap separator exists between last story and podcast close');
+});
+
 
 
 
