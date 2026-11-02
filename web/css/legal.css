@@ -1,11 +1,96 @@
 /* Privacy and Terms: plain reading pages that share the app's colours and fonts. */
-.legal { max-width: 720px; margin: 0 auto; padding: 32px var(--gutter) 64px; line-height: 1.6; }
-.legal-top { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; color: var(--ink); text-decoration: none; font-weight: 600; }
-.legal h1 { font-family: var(--font-head); font-size: clamp(28px, 6vw, 40px); line-height: 1.15; margin: 0 0 6px; }
-.legal h2 { font-family: var(--font-head); font-size: 22px; margin: 32px 0 8px; }
-.legal p, .legal li { color: var(--ink-2); }
-.legal ul { padding-left: 20px; }
-.legal li { margin: 6px 0; }
-.legal a { color: var(--accent); }
-.legal .updated { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
-.legal-foot { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+html, body {
+  height: auto !important;
+  min-height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+body {
+  background: var(--bg) !important;
+  color: var(--ink) !important;
+  padding-bottom: env(safe-area-inset-bottom, 32px);
+}
+
+.legal {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: clamp(28px, 5vw, 44px) var(--gutter) clamp(56px, 8vw, 88px);
+  line-height: 1.65;
+}
+
+.legal-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+  color: var(--ink);
+  text-decoration: none;
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: 1.125rem;
+  transition: color .15s ease;
+}
+
+.legal-top:hover {
+  color: var(--accent-text);
+}
+
+.legal-top img {
+  display: block;
+  border-radius: var(--r-sm, 8px);
+}
+
+.legal h1 {
+  font-family: var(--font-head);
+  font-size: clamp(28px, 6vw, 40px);
+  line-height: 1.15;
+  margin: 0 0 8px;
+  color: var(--ink);
+}
+
+.legal h2 {
+  font-family: var(--font-head);
+  font-size: 22px;
+  margin: 36px 0 10px;
+  color: var(--ink);
+}
+
+.legal p, .legal li {
+  color: var(--ink-2);
+}
+
+.legal ul {
+  padding-left: 20px;
+}
+
+.legal li {
+  margin: 8px 0;
+}
+
+.legal a {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color .15s ease;
+}
+
+.legal a:hover {
+  color: var(--accent-strong);
+}
+
+.legal .updated {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0 0 28px;
+}
+
+.legal-foot {
+  margin-top: 52px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 14px;
+}
