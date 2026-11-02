@@ -17,8 +17,8 @@ def _rows(section: str, ranks=(1, 2, 3, 4, 5), voice: str = VOICE) -> list[dict]
             for r in ranks]
 
 
-def test_lineup_defaults_to_five_per_section():
-    assert lineup(None) == {key: 5 for key in topics.SECTIONS}
+def test_lineup_defaults_to_five_for_top_and_three_for_others():
+    assert lineup(None) == {key: (5 if key == "top" else 3) for key in topics.SECTIONS}
     assert default_lineup() == lineup({})
 
 
@@ -29,7 +29,7 @@ def test_lineup_clamps_and_ignores_rubbish():
     assert chosen["tech"] == 0    # clamped to off
     assert chosen["sports"] == 0  # unparsable counts as off
     assert "nope" not in chosen   # only the seven known sections
-    assert chosen["science"] == 5  # untouched sections keep the default
+    assert chosen["science"] == 3  # untouched sections keep the default (3)
 
 
 def test_clips_follow_section_order_then_rank_and_skip_zero_counts():

@@ -17,14 +17,28 @@ export function editionSectionKey(logicalKey, edition = 'ca') {
   return logicalKey;
 }
 
-/** The per-section story counts a user asked for (0 = off), clamped to 0..MAX. Defaults to MAX_PER_SECTION. */
+export const DEFAULT_SECTION_COUNTS = {
+  top: 5,
+  ai: 3,
+  tech: 3,
+  politics: 3,
+  entertainment: 3,
+  science: 3,
+  sports: 3,
+};
+
+export function defaultStoriesForSection(key) {
+  return DEFAULT_SECTION_COUNTS[key] ?? (key === 'top' ? 5 : 3);
+}
+
+/** The per-section story counts a user asked for (0 = off), clamped to 0..MAX. Defaults: top=5, others=3. */
 export function lineup(settings) {
   const chosen = (settings && settings.stories) || {};
   const out = {};
   for (const key of SECTION_ORDER) {
     const raw = chosen[key];
-    const n = raw !== undefined ? Number.parseInt(raw, 10) : MAX_PER_SECTION;
-    out[key] = Number.isFinite(n) ? Math.max(0, Math.min(n, MAX_PER_SECTION)) : MAX_PER_SECTION;
+    const n = raw !== undefined ? Number.parseInt(raw, 10) : defaultStoriesForSection(key);
+    out[key] = Number.isFinite(n) ? Math.max(0, Math.min(n, MAX_PER_SECTION)) : defaultStoriesForSection(key);
   }
   return out;
 }

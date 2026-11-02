@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.8] - 2026-11-02
+
+### Changed
+- **Default Category Story Counts (5 for Top Stories, 3 for Other Categories)**:
+  - Configured default briefing story counts to **5 for Top stories** and **3 for other categories** (AI, Tech, Politics, Entertainment, Science, Sports), delivering a tightly curated, high-freshness ~9-minute brief (23 stories).
+  - Maintained category ceilings at **5 stories per section** (`MAX_PER_SECTION = 5`), enabling listeners to dial up any topic to 4 or 5 via the Sources customizer if they want to hear more.
+  - Implemented automatic settings migration for existing listeners so reloads cleanly adopt the 5/3 default while preserving explicit user customizations.
+
 ## [1.0.7] - 2026-11-02
 
 ### Added
