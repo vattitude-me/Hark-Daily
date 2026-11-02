@@ -49,16 +49,15 @@ Works across desktop, tablet, and mobile browsers with background playback, offl
 
 <div align="center">
 
-### Mobile PWA (Podcast Duo Mode & Settings Drawer)
+### Mobile PWA (Podcast Duo Mode, Topic Selector & Drawer)
 <p align="center">
-  <img src="docs/screenshots/clean-player-podcast.png" alt="Hark Daily Podcast Player" width="310" style="border-radius: 20px; box-shadow: 0 14px 40px rgba(0,0,0,0.5); margin: 10px;" />
-  <img src="docs/screenshots/clean-player-menu.png" alt="Hark Daily Menu & Drawer" width="310" style="border-radius: 20px; box-shadow: 0 14px 40px rgba(0,0,0,0.5); margin: 10px;" />
+  <img src="docs/screenshots/clean-player-podcast.png" alt="Hark Daily Podcast Player" width="260" style="border-radius: 20px; box-shadow: 0 14px 40px rgba(0,0,0,0.5); margin: 8px;" />
+  <img src="docs/screenshots/clean-player-topics.png" alt="Hark Daily Topic Selector" width="260" style="border-radius: 20px; box-shadow: 0 14px 40px rgba(0,0,0,0.5); margin: 8px;" />
+  <img src="docs/screenshots/clean-player-menu.png" alt="Hark Daily Menu & Drawer" width="260" style="border-radius: 20px; box-shadow: 0 14px 40px rgba(0,0,0,0.5); margin: 8px;" />
 </p>
 
 ### Desktop View (Today's Briefing & Podcast Player)
-<img src="docs/screenshots/web-desktop-dark.png" alt="Hark Daily Web Desktop Dark Mode" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); margin-bottom: 16px;" />
-
-<img src="docs/screenshots/web-desktop-light.png" alt="Hark Daily Web Desktop Light Mode" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); margin-bottom: 16px;" />
+<img src="docs/screenshots/web-desktop-dark.png" alt="Hark Daily Web Desktop" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); margin-bottom: 16px;" />
 
 </div>
 
@@ -72,9 +71,9 @@ Native Android application built with Jetpack Compose, Compose Material3 tokens,
 
 <div align="center">
 
-| Active Playback (Dark) | Today's Briefing | Topics & Sources | Settings & Voices |
+| Active Playback | Today's Briefing | Story Feed | Topics & Sources |
 | :---: | :---: | :---: | :---: |
-| <img src="docs/screenshots/android-playing-dark.png" width="220" alt="Android Playing Dark" /> | <img src="docs/screenshots/android-today-light.png" width="220" alt="Android Today Light" /> | <img src="docs/screenshots/android-sources-light.png" width="220" alt="Android Sources Light" /> | <img src="docs/screenshots/android-settings-light.png" width="220" alt="Android Settings Light" /> |
+| <img src="docs/screenshots/android-playing.png" width="200" alt="Android Playing" /> | <img src="docs/screenshots/android-today.png" width="200" alt="Android Today" /> | <img src="docs/screenshots/android-feed.png" width="200" alt="Android Story Feed" /> | <img src="docs/screenshots/android-sources.png" width="200" alt="Android Sources & Topics" /> |
 
 </div>
 
