@@ -2777,6 +2777,195 @@ async function handleNativeAuthCallback(rawUrl) {
 }
 window.handleNativeAuthCallback = handleNativeAuthCallback;
 
+/* -------------------------------------------------------- dynamic viewport */
+function syncViewportHeight() {
+  const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  if (vh && vh > 0) {
+    document.documentElement.style.setProperty('--app-height', `${Math.round(vh)}px`);
+  }
+}
+window.addEventListener('resize', syncViewportHeight, { passive: true });
+window.addEventListener('orientationchange', syncViewportHeight, { passive: true });
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', syncViewportHeight, { passive: true });
+}
+syncViewportHeight();
+
+/* -------------------------------------------------------- pull to refresh */
+export async function refreshBriefing() {
+  const { todayStr: today } = getLocalDateInfo();
+  const targetDate = state.selectedDate || today;
+
+  try {
+    const [status, profile, freshBriefing] = await Promise.all([
+      api.status().catch(() => ({})),
+      api.profile().catch(() => null),
+      loadStoryPack(targetDate)
+    ]);
+    if (status) state.status = status;
+    if (profile) state.profile = profile;
+
+    let briefing = freshBriefing;
+    if (!briefing && targetDate !== today) {
+      briefing = await loadStoryPack(today);
+    }
+    if (!briefing) {
+      const latest = await api.latestStoryDate();
+      if (latest && latest !== today) {
+        briefing = await loadStoryPack(latest);
+      }
+    }
+
+    if (briefing) {
+      state.briefing = briefing;
+      displayBriefing();
+      return { success: true, count: briefing.stories?.length || 0 };
+    }
+    return { success: true, count: 0 };
+  } catch (err) {
+    console.warn('refreshBriefing error:', err);
+    throw err;
+  }
+}
+window.refreshBriefing = refreshBriefing;
+
+function initPullToRefresh() {
+  const shell = document.getElementById('cleanShell');
+  const pullEl = document.getElementById('cleanPullRefresh');
+  const iconEl = document.getElementById('cleanPullIcon');
+  const spinnerEl = document.getElementById('cleanPullSpinner');
+  const checkEl = document.getElementById('cleanPullCheck');
+  const textEl = document.getElementById('cleanPullText');
+  const teleprompter = document.getElementById('transcriptBody');
+
+  if (!shell || !pullEl) return;
+
+  let startY = 0;
+  let startX = 0;
+  let isTracking = false;
+  let isRefreshing = false;
+  let currentPull = 0;
+  const PULL_THRESHOLD = 54;
+  const MAX_PULL = 80;
+
+  function resetPullUI() {
+    pullEl.classList.remove('active');
+    pullEl.classList.add('settled');
+    pullEl.style.opacity = '0';
+    pullEl.style.transform = 'translateY(-48px)';
+    if (iconEl) iconEl.style.transform = 'rotate(0deg)';
+    setTimeout(() => {
+      if (!isRefreshing) {
+        if (iconEl) iconEl.classList.remove('hidden');
+        if (spinnerEl) spinnerEl.classList.add('hidden');
+        if (checkEl) checkEl.classList.add('hidden');
+        if (textEl) textEl.textContent = 'Pull to refresh';
+      }
+    }, 250);
+  }
+
+  shell.addEventListener('touchstart', (e) => {
+    if (isRefreshing || e.touches.length !== 1) return;
+
+    // Do not trigger if modal/drawer/sheet is open
+    const menuOpen = !document.getElementById('menuDrawer')?.classList.contains('hidden');
+    const storiesOpen = !document.getElementById('allStoriesSheet')?.classList.contains('hidden');
+    if (menuOpen || storiesOpen) return;
+
+    // If touching inside teleprompter, only allow pull if scrolled to top
+    if (teleprompter && teleprompter.contains(e.target) && teleprompter.scrollTop > 2) {
+      return;
+    }
+
+    startY = e.touches[0].clientY;
+    startX = e.touches[0].clientX;
+    isTracking = true;
+    currentPull = 0;
+  }, { passive: true });
+
+  shell.addEventListener('touchmove', (e) => {
+    if (!isTracking || isRefreshing || e.touches.length !== 1) return;
+
+    const currentY = e.touches[0].clientY;
+    const currentX = e.touches[0].clientX;
+    const deltaY = currentY - startY;
+    const deltaX = currentX - startX;
+
+    // Ignore upward drag or dominant horizontal swipe
+    if (deltaY <= 0 || Math.abs(deltaX) > Math.abs(deltaY)) {
+      return;
+    }
+
+    // If teleprompter has scrolled down, ignore
+    if (teleprompter && teleprompter.contains(e.target) && teleprompter.scrollTop > 2) {
+      isTracking = false;
+      return;
+    }
+
+    currentPull = Math.min(MAX_PULL, Math.pow(deltaY, 0.82));
+
+    if (currentPull > 8) {
+      if (e.cancelable) e.preventDefault();
+      pullEl.classList.add('active');
+      pullEl.classList.remove('settled');
+      pullEl.style.opacity = `${Math.min(1, currentPull / 32)}`;
+      pullEl.style.transform = `translateY(${currentPull}px)`;
+
+      const progress = Math.min(1, currentPull / PULL_THRESHOLD);
+      if (iconEl) iconEl.style.transform = `rotate(${progress * 180}deg)`;
+
+      if (currentPull >= PULL_THRESHOLD) {
+        if (textEl && textEl.textContent !== 'Release to refresh') {
+          textEl.textContent = 'Release to refresh';
+          try { navigator.vibrate?.(10); } catch {}
+        }
+      } else {
+        if (textEl && textEl.textContent !== 'Pull to refresh') {
+          textEl.textContent = 'Pull to refresh';
+        }
+      }
+    }
+  }, { passive: false });
+
+  async function handleEnd() {
+    if (!isTracking || isRefreshing) return;
+    isTracking = false;
+
+    if (currentPull >= PULL_THRESHOLD) {
+      isRefreshing = true;
+      pullEl.classList.remove('active');
+      pullEl.classList.add('settled');
+      pullEl.style.opacity = '1';
+      pullEl.style.transform = 'translateY(52px)';
+
+      if (iconEl) iconEl.classList.add('hidden');
+      if (spinnerEl) spinnerEl.classList.remove('hidden');
+      if (textEl) textEl.textContent = 'Checking for updates…';
+
+      try {
+        await refreshBriefing();
+        try { navigator.vibrate?.(15); } catch {}
+        if (spinnerEl) spinnerEl.classList.add('hidden');
+        if (checkEl) checkEl.classList.remove('hidden');
+        if (textEl) textEl.textContent = 'Up to date';
+      } catch (err) {
+        console.warn('Pull refresh error:', err);
+        if (textEl) textEl.textContent = 'Refresh failed';
+      }
+
+      setTimeout(() => {
+        isRefreshing = false;
+        resetPullUI();
+      }, 650);
+    } else {
+      resetPullUI();
+    }
+  }
+
+  shell.addEventListener('touchend', handleEnd, { passive: true });
+  shell.addEventListener('touchcancel', handleEnd, { passive: true });
+}
+
 async function init() {
   window.addEventListener('error', (e) => { recordError(e.error || e.message, 'window.onerror'); });
   window.addEventListener('unhandledrejection', (e) => { recordError(e.reason, 'window.unhandledrejection'); });
@@ -2806,6 +2995,7 @@ async function init() {
     }).catch(() => {});
   }
   initConsentPopup();
+  initPullToRefresh();
   renderHeader();
   renderNotice();
   renderGuestBanner();

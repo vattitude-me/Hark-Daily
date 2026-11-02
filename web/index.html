@@ -324,6 +324,23 @@
 
     <!-- Board 0: Primary Player Experience -->
     <div class="clean-shell" id="cleanShell">
+      <!-- Pull-to-refresh indicator (tactile glass floating pill) -->
+      <div class="clean-pull-refresh" id="cleanPullRefresh" aria-hidden="true">
+        <div class="clean-pull-refresh-pill">
+          <svg class="clean-pull-icon" id="cleanPullIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14M5 12l7 7 7-7"/>
+          </svg>
+          <svg class="clean-pull-spinner hidden" id="cleanPullSpinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.5" stroke-opacity="0.25"/>
+            <path d="M12 3a9 9 0 0 1 9 9" stroke="#F59E0B" stroke-width="2.5"/>
+          </svg>
+          <svg class="clean-pull-check hidden" id="cleanPullCheck" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 6L9 17l-5-5"/>
+          </svg>
+          <span class="clean-pull-text" id="cleanPullText">Pull to refresh</span>
+        </div>
+      </div>
+
       <!-- Top Bar with Flat Mark + Typography -->
       <header class="clean-topbar" id="cleanTopbar">
         <button class="clean-glass-circle" id="openMenuBtn" type="button" aria-label="Open menu">
@@ -546,7 +563,7 @@
               <span class="clean-drawer-legal-dot" aria-hidden="true">·</span>
               <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>
             </div>
-            <div class="clean-drawer-version" id="cleanDrawerVersion">Hark Daily v1.0.6</div>
+            <div class="clean-drawer-version" id="cleanDrawerVersion">Hark Daily v1.0.7</div>
           </div>
         </div>
 
@@ -1046,6 +1063,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/vendor/supabase.min.js"></script>
-  <script type="module" src="/js/app.js?v=64"></script>
+  <script type="module" src="/js/app.js?v=65"></script>
 </body>
 </html>

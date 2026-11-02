@@ -41,6 +41,7 @@
   --blur: blur(20px) saturate(150%);
   --safe-area-inset-top: 0px;
   --safe-area-inset-bottom: 0px;
+  --app-height: 100dvh;
 
   /* Light — warm paper, white glass */
   --bg: #f3f2ee;
@@ -209,7 +210,8 @@ html {
   scroll-padding-top: calc(var(--topbar-h) + 16px);
   font-size: 16px;
   height: 100%;
-  height: 100dvh;
+  height: var(--app-height, 100dvh);
+  max-height: var(--app-height, 100dvh);
   overflow: hidden;
   overscroll-behavior: none;
 }
@@ -219,8 +221,9 @@ html[data-text-size="lg"] { font-size: 18.5px; }
 body {
   margin: 0;
   height: 100%;
-  height: 100dvh;
-  min-height: 100dvh;
+  height: var(--app-height, 100dvh);
+  min-height: var(--app-height, 100dvh);
+  max-height: var(--app-height, 100dvh);
   overflow: hidden;
   overscroll-behavior: none;
   font-family: var(--font-body);
@@ -2963,8 +2966,8 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   width: 100%;
   max-width: 100vw;
   height: 100%;
-  height: 100dvh;
-  max-height: 100dvh;
+  height: var(--app-height, 100dvh);
+  max-height: var(--app-height, 100dvh);
   background: #17120E;
   font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: #FFFFFF;
@@ -3036,17 +3039,82 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: clamp(6px, 1vh, 10px);
+  gap: clamp(4px, 0.8vh, 8px);
   max-width: 440px;
   margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
-  padding: max(8px, env(safe-area-inset-top)) 14px max(10px, env(safe-area-inset-bottom, 0px));
+  padding: max(8px, env(safe-area-inset-top)) 14px max(12px, env(safe-area-inset-bottom, 12px));
   height: 100%;
-  height: 100dvh;
-  max-height: 100dvh;
+  height: var(--app-height, 100dvh);
+  max-height: var(--app-height, 100dvh);
   overflow: hidden;
   overscroll-behavior: none;
+}
+
+@media all and (display-mode: standalone) {
+  .clean-shell {
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
+  }
+}
+
+/* Pull-Down-to-Refresh Indicator */
+.clean-pull-refresh {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-48px);
+  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform, opacity;
+}
+.clean-pull-refresh.active {
+  transition: none;
+}
+.clean-pull-refresh.settled {
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease;
+}
+.clean-pull-refresh-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(23, 18, 14, 0.92);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  color: #FFFFFF;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+.clean-pull-icon {
+  flex: none;
+  color: #F59E0B;
+  transition: transform 0.15s ease;
+}
+.clean-pull-spinner {
+  flex: none;
+  animation: cleanPullSpin 0.75s linear infinite;
+}
+@keyframes cleanPullSpin {
+  100% { transform: rotate(360deg); }
+}
+.clean-pull-check {
+  flex: none;
+  color: #10B981;
+}
+.clean-pull-text {
+  white-space: nowrap;
 }
 
 /* Top bar */
@@ -3275,13 +3343,15 @@ dialog.sheet::backdrop { background: rgba(5, 8, 14, .55); -webkit-backdrop-filte
   gap: clamp(6px, 1vh, 10px);
   min-height: 0;
   overflow: hidden;
+  position: relative;
 }
 
 /* Cover Image Wrap: Taller, fills space, with Share button on top right */
 .clean-cover-wrap {
   position: relative;
-  height: clamp(140px, 22vh, 215px);
-  flex: none;
+  height: clamp(90px, 18vh, 215px);
+  min-height: 80px;
+  flex: 0 1 auto;
   border-radius: 18px;
   overflow: hidden;
   background: linear-gradient(135deg, #1f1812 0%, #291c10 48%, #0f1d20 100%);
@@ -3485,8 +3555,8 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
 
 /* Cleaner Teleprompter: Plain text, highlighted spoken phrase, soft fade at bottom */
 .clean-teleprompter {
-  flex: 1 1 auto;
-  min-height: 60px;
+  flex: 1 1 0px;
+  min-height: 0;
   overflow-y: auto;
   padding: 2px 4px;
   background: none;
@@ -3573,12 +3643,17 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
 
 /* Pinned Bottom Card Dock: Waveform above Controls */
 .clean-card-bottom-dock {
-  margin-top: 0;
+  margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: clamp(6px, 1vh, 10px);
-  flex: none;
-  padding-top: 2px;
+  flex-shrink: 0;
+  padding-top: 4px;
+  padding-bottom: 2px;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  width: 100%;
 }
 
 /* 40-Bar Acoustic Waveform Scrubber */

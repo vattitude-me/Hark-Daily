@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.7] - 2026-11-02
+
+### Added
+- **Pull-Down-to-Refresh Gesture in Web PWA**:
+  - Implemented tactile pull-down-to-refresh on mobile web and installed PWA with rubber-band damping curve, rotating arrow indicator, and haptic feedback.
+  - Pulling down triggers `refreshBriefing()`, querying the latest story pack and metadata in the background while preserving uninterrupted audio playback.
+  - Seamlessly re-aligns story timeline and updates headlines, teleprompter, and section counts.
+
+### Fixed
+- **Fixed Bottom Player Bar Pinned to Viewport**:
+  - Resolved rare Android PWA layout bug where dynamic navigation bar shifts or `100dvh` viewport calculations pushed the bottom player bar below the visible screen.
+  - Added continuous `--app-height` viewport tracking in JS using `visualViewport.height` to guarantee full-screen containment on any screen resize, keyboard toggle, or orientation change.
+  - Re-anchored `.clean-card-bottom-dock` with `position: sticky; bottom: 0; flex-shrink: 0; margin-top: auto;`, locking playback controls and the 40-bar acoustic waveform firmly in view.
+  - Set `.clean-teleprompter` to `flex: 1 1 0px; min-height: 0;` and `.clean-cover-wrap` to `min-height: 80px; flex: 0 1 auto;`, allowing middle content to absorb viewport shifts while keeping the player dock completely invariant.
+  - Added standalone display mode bottom clearance padding (`max(16px, env(safe-area-inset-bottom, 16px))`) above Android gesture navigation pills.
+  - Bumped Service Worker cache to `hark-daily-v74` and client script to `v=65`.
+
 ## [1.0.6] - 2026-11-02
 
 ### Added

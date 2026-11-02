@@ -5,13 +5,13 @@
 # 🎙️ Hark Daily
 
 **The news you hear, not just read.**  
-A concise daily audio briefing covering **Canada**, the **United States**, and **India** from **CBC News**, **The New York Times**, **NPR**, **The Hindu**, **The Indian Express**, **TechCrunch**, **ScienceDaily**, and **ESPNcricinfo**, voiced by neural personas anchored by flagship narrator **C-3PO** alongside modular neural voices.  
+A concise daily audio briefing covering **Canada**, the **United States**, and **India** from **CBC News**, **The New York Times**, **NPR**, **The Hindu**, **The Indian Express**, **TechCrunch**, **ScienceDaily**, and **ESPNcricinfo**. Voiced by a duo-host neural podcast team (Matthew & Kelly) alongside solo narrator personas.  
 No ads. Fast audio briefings. Zero doom-scrolling. 24-hour listening.
 
 [![Web PWA](https://img.shields.io/badge/Web-Live_Demo-2f6fed?style=flat-square&logo=googlechrome&logoColor=white)](https://hark.vattitude.ca)
 [![Android App](https://img.shields.io/badge/Android-APK_v1.0.3-1a9b5b?style=flat-square&logo=android&logoColor=white)](https://github.com/vattitude-me/Hark-Daily/releases/tag/android-v1.0.3)
 [![Neural Voice](https://img.shields.io/badge/Voice-Chatterbox--Turbo-6a4cf5?style=flat-square)](voice_service/)
-[![Changelog](https://img.shields.io/badge/Changelog-v1.0.3-orange?style=flat-square)](CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/Changelog-v1.0.7-orange?style=flat-square)](CHANGELOG.md)
 [![Privacy First](https://img.shields.io/badge/Privacy-No_Ads_%7C_Privacy_First-0D0D0D?style=flat-square)](web/privacy.html)
 
 [**Web PWA**](#-web-pwa) · [**Android App**](#-android-app) · [**Features**](#-features) · [**Privacy**](web/privacy.html) · [**Terms**](web/terms.html) · [**Changelog**](CHANGELOG.md) · [**Technical Guide**](docs/TECHNICAL.md)
@@ -22,52 +22,47 @@ No ads. Fast audio briefings. Zero doom-scrolling. 24-hour listening.
 
 ## ☕ Features
 
-* **Multi-Country Editions (🇨🇦 Canada, 🇺🇸 US, 🇮🇳 India)**: Verified regional reporting coupled with shared global tech and science:
+* **Duo-Host AI Podcast (Default)**: Matthew & Kelly break down the day's stories in a natural two-host dialogue. Host 1 introduces the headline and context; Host 2 adds the angle, implication, and takeaway. Natural banter, section teases, and zero canned laughs.
+* **Full Brief Mode**: Prefer a solo news anchor? Switch to continuous radio-style narration voiced by C-3PO or chosen neural personas.
+* **Multi-Country Editions (🇨🇦 Canada, 🇺🇸 US, 🇮🇳 India)**:
   * 🇨🇦 **Canada** — CBC News (Top, Politics, Arts, Sports) & BetaKit (Tech).
   * 🇺🇸 **United States** — The New York Times (Top), NPR Politics, Variety (Entertainment), CBS Sports.
   * 🇮🇳 **India** — The Hindu (Top/National), The Indian Express (Politics, Arts), ESPNcricinfo (Cricket/Sports).
-  * 🌐 **Global Universals** — TechCrunch (AI), BetaKit/Verge (Tech), ScienceDaily (Science). Voiced once and shared across all countries.
-* **Instant Edition Switcher**: Auto-detects local edition from the user's timezone with a 0ms topbar switcher (`🇨🇦 CA ▾`, `🇺🇸 US ▾`, `🇮🇳 IN ▾`) and fallback resilience.
-* **Time-Neutral 24-Hour Listening**: Clean, day-neutral broadcast scripts and podcast banter. Listen at 7:00 AM, 3:00 PM, or 10:00 PM without hearing time-locked "Good morning" or "morning coffee" phrases.
-* **Deep-Link Story Sharing**: Share any story card via Web Share API or direct link (`?story={section}-{rank}&date={YYYY-MM-DD}`). Receivers land directly on the shared audio clip even if it falls outside their default lineup.
-* **Neural Voices**: Voiced by C-3PO alongside co-hosts Matthew & Kelly via local Chatterbox-Turbo TTS on Apple Silicon MPS.
-* **Instant Playback**: Listen immediately on the web at [hark.vattitude.ca](https://hark.vattitude.ca) without sign-up.
-* **Two Listening Modes**:
-  * **Podcast (Default)** — Duo-host conversation with Matthew & Kelly tailored to your selected topics, with natural cadence, pauses, and broadcast titles.
-  * **Full Brief** — Continuous radio-style narration across all chosen stories.
-* **Two-Tier Timezone Scheduling**:
+  * 🌐 **Global Universals** — TechCrunch (AI), BetaKit/Verge (Tech), ScienceDaily (Science). Voiced once and shared across all editions.
+* **Pull-Down-to-Refresh**: Tactile pull gesture on both the Web PWA and Android app to check for updated packs and fresh editions on demand.
+* **Pinned Player Bar**: 40-bar acoustic waveform scrubber and media transport stay locked to the viewport on any screen size, orientation change, or virtual keyboard shift.
+* **Read-Along Teleprompter**: Spoken text highlights in real time with host badges (Matthew in amber, Kelly in teal). Tap any sentence to seek directly to that moment.
+* **Time-Neutral 24-Hour Listening**: Broadcast scripts avoid time-locked morning phrases. Listen at 7:00 AM, 2:00 PM, or 11:00 PM without hearing stale morning greetings.
+* **Instant Edition Switcher**: Auto-detects local edition from timezone with a 0ms topbar switcher (`🇨🇦 CA`, `🇺🇸 US`, `🇮🇳 IN`).
+* **Deep-Link Story Sharing**: Share any story card via direct link (`?story={section}-{rank}&date={YYYY-MM-DD}`). Receivers land directly on the shared audio clip.
+* **Two-Tier Daily Synthesis**:
   * **Morning Batch (~6:00 AM EDT)**: Synthesizes Canada & US local sections + universal AI, Tech, Science.
-  * **Evening Batch (~6:00 PM EDT / 3:30 AM IST)**: Synthesizes India local sections ahead of Indian morning wake-up (~6:00 AM IST) while reusing today's universal AI, Tech, and Science audio.
-* **Privacy-Respecting Analytics**: Optional Google Analytics 4 integration with a lightweight cookie consent banner (Accept / Reject) for tracking story reach, shared link visits, and edition engagement without tracking across sites or advertising.
-* **Cached Static Audio**: Reusable intros and sign-offs are stored permanently in Supabase, saving synthesis time on each batch.
-* **Read-Along Teleprompter**: Subtitles and story cards follow the narrator in real time. Tap any card to seek to it.
-* **Pull-to-Refresh**: Native pull gesture on Android to check for fresh editions on demand.
-* **Custom Lineup**: Reorder topics and toggle categories to build your personal lineup.
-* **Local Apple Silicon Synthesis**: Runs locally on macOS with PyTorch Metal Performance Shaders (MPS) and automated `launchd` scheduling. Zero cloud GPU costs.
-* **No Ads or Sponsored Feeds**: No sponsored stories, third-party advertising, or algorithmic feeds.
+  * **Evening Batch (~6:00 PM EDT / 3:30 AM IST)**: Synthesizes India local sections ahead of Indian morning commute while reusing today's universal AI, Tech, and Science audio.
+* **Local Apple Silicon Synthesis**: Runs on macOS via PyTorch Metal Performance Shaders (MPS) and automated `launchd` scheduling. Zero cloud GPU costs.
+* **Zero Accounts, Zero Ads**: Open [hark.vattitude.ca](https://hark.vattitude.ca) and hit play. No sign-up required, no paywalls, and no sponsored feeds.
 
 ---
 
 ## 🖥️ Web PWA
 
-Works in modern browsers on desktop, tablet, and mobile with light and dark themes, background playback, and zero forced login.
+Works across desktop, tablet, and mobile browsers with background playback, offline caching, and zero forced login.
 
 <div align="center">
 
-### Desktop View (Today's Briefing & Podcast Player)
-<img src="docs/screenshots/web-desktop-dark.png" alt="Hark Daily Web Desktop Dark Mode" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-bottom: 16px;" />
-
-<img src="docs/screenshots/web-desktop-light.png" alt="Hark Daily Web Desktop Light Mode" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-bottom: 16px;" />
-
-### Mobile PWA (Dark & Light)
+### Mobile PWA (Podcast Duo Mode & Settings Drawer)
 <p align="center">
-  <img src="docs/screenshots/web-mobile-dark.png" alt="Hark Daily Web Mobile Dark" width="340" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin: 8px;" />
-  <img src="docs/screenshots/web-mobile-light.png" alt="Hark Daily Web Mobile Light" width="340" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin: 8px;" />
+  <img src="docs/screenshots/clean-player-podcast.png" alt="Hark Daily Podcast Player" width="310" style="border-radius: 20px; box-shadow: 0 14px 40px rgba(0,0,0,0.5); margin: 10px;" />
+  <img src="docs/screenshots/clean-player-menu.png" alt="Hark Daily Menu & Drawer" width="310" style="border-radius: 20px; box-shadow: 0 14px 40px rgba(0,0,0,0.5); margin: 10px;" />
 </p>
+
+### Desktop View (Today's Briefing & Podcast Player)
+<img src="docs/screenshots/web-desktop-dark.png" alt="Hark Daily Web Desktop Dark Mode" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); margin-bottom: 16px;" />
+
+<img src="docs/screenshots/web-desktop-light.png" alt="Hark Daily Web Desktop Light Mode" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); margin-bottom: 16px;" />
 
 </div>
 
-Install as a Progressive Web App (PWA) on Chrome, Edge, or Safari for offline caching, background playback, and web push notifications.
+Install as a Progressive Web App (PWA) on Chrome, Edge, or Safari for background audio playback, offline caching, and home screen launch.
 
 ---
 
@@ -86,7 +81,7 @@ Native Android application built with Jetpack Compose, Compose Material3 tokens,
 - **Pull-Down-to-Refresh**: Smooth native pull gesture to refresh stories and audio packs on demand.
 - **Background Playback**: Android Media3 notification and lock-screen playback controls with scrubber.
 - **Narrator Switcher**: Instant switching between active voice personas without losing playback position.
-- **Custom Category Sorting**: Prioritize and toggle categories according to your morning routine.
+- **Custom Category Sorting**: Prioritize and toggle categories according to your daily routine.
 - **Device & Cloud Playback**: Stream cloud-voiced editions or run on-device audio offline.
 
 ---
@@ -97,13 +92,13 @@ Native Android application built with Jetpack Compose, Compose Material3 tokens,
 1. Open the live web app at [**hark.vattitude.ca**](https://hark.vattitude.ca) (or local [web/](web/)).
 2. Click **Play** on today’s edition—no account or sign-up required.
 3. Switch your country edition anytime via the topbar flag chip (`🇨🇦 CA`, `🇺🇸 US`, `🇮🇳 IN`).
-4. Tap the voice chips in the player to audition and switch narrators on the fly.
-5. Sign in with Google or magic link if you wish to sync custom topic preferences across devices.
+4. Pull down anytime on mobile to refresh today's briefing.
+5. Tap voice chips in the drawer to audition and switch personas.
 
 ### Android
 1. Download the latest signed APK from [GitHub Releases](https://github.com/vattitude-me/Hark-Daily/releases).
 2. Install on any device running Android 10+ (API 29+).
-3. Select your preferred country edition and voice narrator in Settings, then start listening.
+3. Select your country edition and voice narrator in Settings, then start listening.
 
 ### Command-Line CLI Operations
 ```bash
