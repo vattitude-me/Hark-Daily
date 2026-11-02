@@ -1,6 +1,6 @@
 // Offline shell: stale-while-revalidate for static shell assets, network-first for HTML.
 // Supabase (data, audio) and CDN requests are cross-origin and go straight to the network.
-const CACHE = 'hark-daily-v70';
+const CACHE = 'hark-daily-v71';
 const SHELL = [
   '/', '/config.js', '/css/styles.css', '/css/legal.css', '/manifest.webmanifest', '/audio/gap.mp3', '/audio/separator.mp3',
   '/fonts/plus-jakarta-sans.woff2', '/fonts/space-grotesk.woff2',
@@ -23,14 +23,17 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  // Audio streams with range requests; let the browser handle it directly.
-  if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.endsWith('.mp3')) return;
+  // Dynamic audio streams (packs, stories) stream with range requests; bypass SW.
+  // Static shell audio (/audio/separator.mp3, /audio/gap.mp3) is served from cache.
+  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  if (url.pathname.endsWith('.mp3') && !url.pathname.startsWith('/audio/')) return;
 
   // Stale-while-revalidate for static assets (instant load from local device cache)
   const isStatic = url.pathname.startsWith('/fonts/') ||
                    url.pathname.startsWith('/js/') ||
                    url.pathname.startsWith('/css/') ||
                    url.pathname.startsWith('/icons/') ||
+                   url.pathname.startsWith('/audio/') ||
                    url.pathname === '/manifest.webmanifest';
 
   if (isStatic) {

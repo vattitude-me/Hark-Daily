@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.4] - 2026-11-02
+
+### Fixed
+- **Seamless Continuous Playback at Section Boundaries**:
+  - Eliminated duplicate `separator.mp3` clips sandwiching host section bridge clips (`"Here are the Top stories"`, `"Moving over to AI"`): acoustic separators now only play after a story has finished, never between opening banter and never between a section bridge and the story it introduces.
+  - Hardened clip transition lifecycle in `player.js`: preserved `isTransitioningClip = true` across `audio.src` changes and `audio.load()`, ignoring the browser's intermediate `pause` events so mobile Chrome and Android foreground services never drop into a paused state during clip swaps.
+  - Prevented preloader URL contention: updated `preloadNext()` to skip `gap` clips and pre-buffer the upcoming real story MP3 on `#audioB`, eliminating lock contention with `#audio` on `separator.mp3`.
+  - Added fail-safe auto-skip: if a `gap` separator clip ever errors or fails `play()`, the player automatically advances to the story clip rather than stalling the briefing.
+  - Service Worker static audio cache: served `/audio/separator.mp3` and `/audio/gap.mp3` directly from the SW `SHELL` cache rather than bypassing SW on `.mp3`.
+  - Cleaned up transcript dividers: omitted `• End of story` badges on host bridge and intro clips.
+  - Bumped web app shell cache to `hark-daily-v71` and app script to `v=62`.
+
 ## [1.0.3] - 2026-10-29
 
 ### Fixed
