@@ -97,4 +97,8 @@ if [ -x "$ROOT/scripts/schedule_wake.sh" ]; then
   "$ROOT/scripts/schedule_wake.sh" evening 2>&1 | tee -a "$LOG_FILE" || true
 fi
 
+# Generate and dispatch the automated Daily Run Report (saves report, macOS banner, email/webhook if configured)
+log "Generating and dispatching Morning Run Report..."
+"$ROOT/.venv/bin/python" -m app.run_report --edition morning --send >> "$LOG_FILE" 2>&1 || true
+
 log "============================================================"

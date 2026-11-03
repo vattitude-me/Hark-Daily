@@ -388,6 +388,7 @@ export class AdminPage {
       }),
       Hairline(),
       h('div', { class: 'admin-actions' }, button),
+      Hint('Live Production Protection: Automated morning (05:00) and evening (18:00) runs voice stories locally with zero downtime. Live users stream from this storage bucket. Only rebuild if a scheduled run reported failure.'),
     );
   }
 
@@ -538,6 +539,13 @@ export class AdminPage {
   }
 
   async queue() {
+    const isLiveConfirmed = window.confirm(
+      "⚠️ Live Production Protection\n\n" +
+      "Hark Daily is live with active listeners. Rebuilding this podcast will overwrite live audio files and may interrupt users currently streaming.\n\n" +
+      "Are you sure you want to trigger a manual rebuild?"
+    );
+    if (!isLiveConfirmed) return;
+
     const voices = this.voices.size ? [...this.voices] : ['matthew_reference+kelly_reference'];
     try {
       const id = await api.queuePack({

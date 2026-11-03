@@ -476,6 +476,11 @@ def main() -> None:
     pack.add_argument("--prune", action="store_true",
                       help="delete the audio of the days before --day (the nightly pack does this itself)")
     sub.add_parser("check", help="test the Supabase and Groq connections")
+    rep_cmd = sub.add_parser("report", help="generate and send the daily run report")
+    rep_cmd.add_argument("--day", default="", help="Report date (YYYY-MM-DD); defaults to today")
+    rep_cmd.add_argument("--edition", default="morning", choices=["morning", "evening", "all"], help="Edition to report")
+    rep_cmd.add_argument("--send", action="store_true", help="Send notifications (macOS desktop banner, email, webhook)")
+    rep_cmd.add_argument("--json", action="store_true", help="Print report as raw JSON")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -493,6 +498,9 @@ def main() -> None:
         sys.exit(cmd_pack(args))
     elif args.cmd == "check":
         sys.exit(cmd_check())
+    elif args.cmd == "report":
+        from .run_report import run_and_dispatch
+        sys.exit(run_and_dispatch(day=args.day, edition=args.edition, send=args.send, json_output=args.json))
 
 
 if __name__ == "__main__":
