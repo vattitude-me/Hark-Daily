@@ -30,16 +30,17 @@ export const posKeyFor = (b) => {
 };
 
 export class Player extends EventTarget {
-  constructor() {
+  constructor({ audio, preloader } = {}) {
     super();
     // Authoritative single audio element for playback to ensure stable mobile AudioFocus,
     // lock-screen MediaSession ownership, and continuous background play.
     // Secondary element audioB is used strictly as a silent cache preloader.
     const hasDoc = typeof document !== 'undefined';
-    this.audio = (hasDoc && document.getElementById('audio')) || (typeof Audio !== 'undefined' ? new Audio() : null);
-    this.preloader = (hasDoc && document.getElementById('audioB')) || (typeof Audio !== 'undefined' ? new Audio() : null);
+    this.audio = audio || (hasDoc && document.getElementById('audio')) || (typeof Audio !== 'undefined' ? new Audio() : null);
+    this.preloader = preloader || (hasDoc && document.getElementById('audioB')) || (typeof Audio !== 'undefined' ? new Audio() : null);
     this.isPrimed = false;
     this.wakeLock = null;
+    this.isTransitioningClip = false;
 
     if (this.audio) {
       this.audio.preload = 'auto';
@@ -230,8 +231,15 @@ export class Player extends EventTarget {
       this.tick();
     });
     audioEl.addEventListener('play', () => {
+      if (this._transitionSafetyTimer) clearTimeout(this._transitionSafetyTimer);
+      this.isTransitioningClip = false;
       this.setPlaying(true);
       this.preloadNext();
+    });
+    audioEl.addEventListener('playing', () => {
+      if (this._transitionSafetyTimer) clearTimeout(this._transitionSafetyTimer);
+      this.isTransitioningClip = false;
+      this.setPlaying(true);
     });
     audioEl.addEventListener('pause', () => {
       if (this.isTransitioningClip) return;
@@ -242,6 +250,12 @@ export class Player extends EventTarget {
     });
     audioEl.addEventListener('error', (e) => {
       console.warn('[player] audio error:', e);
+      const clip = this.clips?.[this.index];
+      if ((clip?.gap || clip?.banter || clip?.note) && this.clips && this.index + 1 < this.clips.length) {
+        console.log('[player] transition audio error, advancing to next clip');
+        this.isTransitioningClip = true;
+        this.loadClip(this.index + 1, { seek: 0, autoplay: true, forceReload: true });
+      }
     });
   }
 
@@ -315,9 +329,26 @@ export class Player extends EventTarget {
     const clip = this.clips?.[i];
     if (!clip) return;
     this.index = i;
-    this.isTransitioningClip = false;
     const el = this.audio;
     if (!el) return;
+
+    if (this._transitionSafetyTimer) clearTimeout(this._transitionSafetyTimer);
+    if (play) {
+      this.isTransitioningClip = true;
+      this._transitionSafetyTimer = setTimeout(() => {
+        this.isTransitioningClip = false;
+      }, 5000);
+    } else {
+      this.isTransitioningClip = false;
+    }
+
+    if (this.preloader && this.preloader.dataset.clip === String(i)) {
+      try {
+        this.preloader.pause();
+        this.preloader.removeAttribute('src');
+        delete this.preloader.dataset.clip;
+      } catch {}
+    }
 
     const needsLoad = forceReload || el.dataset.clip !== String(i) || !el.src || el.error;
     if (needsLoad) {
@@ -325,19 +356,34 @@ export class Player extends EventTarget {
       el.src = clip.url;
       try { el.load(); } catch {}
     }
-    const applySeek = () => { try { el.currentTime = seek; } catch { /* not seekable yet */ } };
-    if (el.readyState >= 1) applySeek();
-    else el.addEventListener('loadedmetadata', applySeek, { once: true });
+    if (seek > 0) {
+      const applySeek = () => { try { el.currentTime = seek; } catch { /* not seekable yet */ } };
+      if (el.readyState >= 1) applySeek();
+      else el.addEventListener('loadedmetadata', applySeek, { once: true });
+    }
     el.playbackRate = this.speed;
     el.volume = 1.0;
     el.muted = false;
     if (play) {
       this.primeAudioChannels();
       const p = el.play();
-      if (p && typeof p.catch === 'function') {
-        p.catch((err) => {
+      if (p && typeof p.then === 'function') {
+        p.then(() => {
+          if (this._transitionSafetyTimer) clearTimeout(this._transitionSafetyTimer);
+          this.isTransitioningClip = false;
+        }).catch((err) => {
+          if (this._transitionSafetyTimer) clearTimeout(this._transitionSafetyTimer);
+          this.isTransitioningClip = false;
           console.warn('[player] loadClip play failed:', err);
+          if ((clip?.gap || clip?.banter || clip?.note) && this.clips && this.index + 1 < this.clips.length) {
+            console.log('[player] transition audio play failed, advancing to next clip');
+            this.isTransitioningClip = true;
+            this.loadClip(this.index + 1, { seek: 0, autoplay: true, forceReload: true });
+          }
         });
+      } else {
+        if (this._transitionSafetyTimer) clearTimeout(this._transitionSafetyTimer);
+        this.isTransitioningClip = false;
       }
     }
     this.preloadNext();
@@ -346,7 +392,10 @@ export class Player extends EventTarget {
   /** Pre-buffer the following clip silently into cache using the secondary audio preloader. */
   preloadNext() {
     if (!this.clips || !this.isPlaying) return;
-    const nextIdx = this.index + 1;
+    let nextIdx = this.index + 1;
+    while (nextIdx < this.clips.length && this.clips[nextIdx]?.gap) {
+      nextIdx++;
+    }
     const next = this.clips[nextIdx];
     if (!next || !next.url) return;
     const preloader = this.preloader;

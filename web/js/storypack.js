@@ -593,7 +593,6 @@ export function buildBriefing(rows, settings, {
   const sayNote = (key) => {
     const note = byKey.get(key);
     if (!note) return;
-    breath();
     const duration = Number(note.duration) || 0;
     const start = round(cursor);
     const end = round(cursor + duration);
@@ -607,7 +606,6 @@ export function buildBriefing(rows, settings, {
   /** A banter clip from the podcast hosts, placed on the timeline like a note. */
   const sayBanter = (clip, sectionKey = null) => {
     if (!clip) return;
-    breath();
     const duration = Number(clip.duration) || 0;
     const start = round(cursor);
     const end = round(cursor + duration);
@@ -625,18 +623,21 @@ export function buildBriefing(rows, settings, {
     sayNote(greetingKey(hour));
   }
 
+  let storyPlayed = false;
   let currentSection = null;
   const podHosts = isPodcast ? (pod.hosts || '').split('+').filter(Boolean) : [];
   let storyIndex = 0;
   for (const row of chosen) {
     // In rapid mode, skip section intros to deliver a swift, continuous headline flow
     if (!isRapid && row.section !== currentSection) {
+      if (storyPlayed) breath();
       const baseSec = (row.section || '').replace(/_(us|in|ca)$/, '');
       if (isPodcast) sayBanter(pod.bridges.get(row.section) || pod.bridges.get(baseSec), row.section);
       else sayNote(byKey.has(`intro_${row.section}`) ? `intro_${row.section}` : `intro_${baseSec}`);
       currentSection = row.section;
+    } else if (storyPlayed) {
+      breath();
     }
-    breath();
     // In podcast mode, prefer the two-host conversation clip (`matthew_reference+kelly_reference`),
     // or alternate between solo host recordings on legacy archive packs.
     let storyRow = row;
@@ -673,11 +674,13 @@ export function buildBriefing(rows, settings, {
       id, key, url: clipUrl(storyRow.audio_path), duration, section: storyRow.section, rank: storyRow.rank,
       title: storyRow.title, start, end,
     });
+    storyPlayed = true;
     counts.set(storyRow.section, (counts.get(storyRow.section) || 0) + 1);
     cursor += duration;
   }
 
   // The sign-off, after a breath, so the brief does not stop dead on the last story.
+  if (storyPlayed) breath();
   if (isPodcast) sayBanter(pod.close);
   else sayNote('outro');
 
