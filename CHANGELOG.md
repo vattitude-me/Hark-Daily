@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.10] - 2026-11-03
+
+### Added
+- **Modern Admin Mission Control & Operations Console**:
+  - Re-architected outdated monolithic admin page into a high-signal, tabbed Mission Control console:
+    - **📡 Overview & Telemetry**: High-level glassmorphic KPI cards for live broadcast health, active editions (CA, US, IN), two-host synthesis engine (Matthew & Kelly), and automated batch schedules (05:00 Morning & 18:00 Evening EDT).
+    - **📋 Daily Run Reports**: High-signal breakdown for morning and evening pipeline executions, tracking story counts, duration, LLM writer breakdown, and narrator readiness. Includes single-click **"Copy Executive Run Report"** formatted for instant sharing via WhatsApp or Email.
+    - **🎙️ Broadcast & Editions Matrix**: Deep-dive audio inspector for Canada, United States, and India editions covering all 7 categories (`top`, `ai`, `tech`, `politics`, `entertainment`, `science`, `sports`), plus podcast banter clips (cold open, topic teasers, category handoffs, sign-off) with an in-line **interactive audio audition previewer**.
+    - **⚡ Production Operations & Safe Rebuild**: Multi-tier rebuild controls with live-listener protection warnings, granular edition targets (All, CA, US, IN), and selective scopes (`framing only`, `incremental missing`, `full force re-record`).
+    - **🛠️ Diagnostics**: Real-time client and network exception tracking with single-click clipboard export and log clearing.
+  - **Strict Security Gatekeeping**: Gated to authorized Hark administrators (`vatsakrish@gmail.com` or `is_admin = true`), rendering an unauthorized shield screen and suppressing telemetry queries for unauthenticated callers.
+  - **Automated Unit Tests**: Added unit tests in `tests/js/admin.test.mjs` verifying security gatekeeping, executive report generation, edition coverage, duration formatting, and tab state management.
+
+---
+
 ## [1.0.9] - 2026-11-03
 
 ### Fixed
