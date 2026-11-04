@@ -25,7 +25,7 @@ const playerSrc = readFileSync(new URL('../../web/js/player.js', import.meta.url
   .replace("'./api.js'", "'./api.mjs'")
   .replace("'./storypack.js'", "'./storypack.mjs'");
 writeFileSync(join(dir, 'player.mjs'), playerSrc);
-const { posKeyFor } = await import(join(dir, 'player.mjs'));
+const { posKeyFor, Player } = await import(join(dir, 'player.mjs'));
 
 const row = (section, rank) => ({ date: 'd', section, rank, voice: 'v', title: `${section}${rank}`, url: 'u', source: 's', script: 'x', duration: 20, audio_path: `s/${section}${rank}.mp3` });
 const rows = [row('top', 1), row('top', 2), row('ai', 1), row('tech', 1), row('sports', 1)];
@@ -454,6 +454,133 @@ test('lineup defaults to 5 for top stories and 3 for other categories with max 5
   assert.equal(custom.sports, 0, 'Sports turned off');
   assert.equal(custom.science, 3, 'Untouched science keeps default 3');
   assert.equal(custom.politics, 3, 'Untouched politics keeps default 3');
+});
+
+test('Player transition lock: ignores intermediate browser pause events during clip transitions', async () => {
+  class MockAudio extends EventTarget {
+    constructor() {
+      super();
+      this.dataset = {};
+      this.src = '';
+      this.currentTime = 0;
+      this.playbackRate = 1;
+      this.volume = 1;
+      this.muted = false;
+      this.paused = true;
+      this.ended = false;
+      this.readyState = 4;
+    }
+    load() {
+      // Browsers fire pause when src changes or load() resets media element
+      this.paused = true;
+      this.dispatchEvent(new Event('pause'));
+    }
+    async play() {
+      this.paused = false;
+      this.dispatchEvent(new Event('play'));
+      this.dispatchEvent(new Event('playing'));
+    }
+    pause() {
+      this.paused = true;
+      this.dispatchEvent(new Event('pause'));
+    }
+  }
+
+  const audio = new MockAudio();
+  const preloader = new MockAudio();
+  const player = new Player({ audio, preloader, el: {} });
+  player.setupAudioElement(audio);
+
+  const stateChanges = [];
+  player.setPlaying = (on) => {
+    stateChanges.push(on);
+  };
+
+  player.clips = [
+    { id: 'story-1', url: 'https://cdn/story1.mp3', duration: 25 },
+    { id: 'pod_bridge_ai', url: 'https://cdn/bridge.mp3', duration: 1.2, banter: true },
+    { id: 'ai-1', url: 'https://cdn/ai1.mp3', duration: 25 },
+  ];
+  player.briefing = { stories: [] };
+
+  // Simulate story-1 finishing and transitioning to pod_bridge_ai
+  audio.paused = false; // Player was actively playing
+  stateChanges.length = 0;
+
+  player.loadClip(1, { seek: 0, autoplay: true, forceReload: true });
+
+  // During loadClip, audio.load() dispatches 'pause', but because isTransitioningClip is true,
+  // setPlaying(false) MUST NOT have been called.
+  assert.ok(!stateChanges.includes(false), 'setPlaying(false) must not be called during clip transition');
+
+  // After play resolves, isTransitioningClip is cleared and playing state remains true
+  await Promise.resolve();
+  assert.equal(player.isTransitioningClip, false);
+  assert.equal(stateChanges.at(-1), true);
+
+  // Now simulate an explicit user pause (not during transition)
+  audio.pause();
+  assert.equal(stateChanges.at(-1), false, 'Explicit user pause must call setPlaying(false)');
+});
+
+test('Player fail-safe: auto-advances if transition bridge clip rejects play or errors', async () => {
+  class MockFailingAudio extends EventTarget {
+    constructor() {
+      super();
+      this.dataset = {};
+      this.src = '';
+      this.currentTime = 0;
+      this.playbackRate = 1;
+      this.volume = 1;
+      this.muted = false;
+      this.paused = true;
+      this.ended = false;
+      this.readyState = 4;
+    }
+    load() {}
+    async play() {
+      if (this.dataset.clip === '1') {
+        throw new Error('Decode error on short bridge');
+      }
+      this.paused = false;
+      this.dispatchEvent(new Event('play'));
+    }
+  }
+
+  const audio = new MockFailingAudio();
+  const preloader = new MockFailingAudio();
+  const player = new Player({ audio, preloader, el: {} });
+  player.setupAudioElement(audio);
+  player.setPlaying = () => {};
+
+  player.clips = [
+    { id: 'story-1', url: 'https://cdn/story1.mp3', duration: 25 },
+    { id: 'pod_bridge_ai', url: 'https://cdn/bridge.mp3', duration: 1.2, banter: true },
+    { id: 'ai-1', url: 'https://cdn/ai1.mp3', duration: 25 },
+  ];
+  player.briefing = { stories: [] };
+
+  // Attempting to transition to clip 1 (which fails)
+  player.loadClip(1, { seek: 0, autoplay: true, forceReload: true });
+  await new Promise((r) => setTimeout(r, 10));
+
+  // Player must have recovered and advanced to clip 2 ('ai-1')
+  assert.equal(player.index, 2, 'Player auto-advanced to story clip after bridge error');
+  assert.equal(audio.dataset.clip, '2');
+});
+
+test('Non-podcast mode queue: breaths only placed between stories, never between section intro and story', () => {
+  const b = build({ top: 2, ai: 1 }, pod, 'full');
+  assert.equal(b.mode, 'full');
+
+  // Verify there is no gap clip immediately following intro_top or intro_ai
+  for (let i = 0; i < b.clips.length; i++) {
+    const c = b.clips[i];
+    if (c.id && c.id.startsWith('intro_')) {
+      const next = b.clips[i + 1];
+      assert.ok(next && !next.gap, `Section intro ${c.id} must flow straight into story without gap`);
+    }
+  }
 });
 
 

@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.8] - 2026-11-02
+## [1.0.9] - 2026-11-03
+
+### Fixed
+- **Seamless Continuous Playback at Category Boundaries**:
+  - Hardened clip transition lock (`isTransitioningClip`) in `player.js`: preserved lock across audio `src` changes and `el.load()`, ignoring transient browser `pause` events during automated transitions so mobile Safari, Android Chrome, and background WebViews never drop audio focus or release wake locks.
+  - Eliminated redundant zero-seeks: omitted `currentTime = 0` seeks on freshly loaded clips (`if (seek > 0)`), preventing WebKit/Blink decode buffer flush and seek pipeline stalls.
+  - Preloader socket isolation: automatically detached and paused secondary preloader `#audioB` when `#audio` loads the clip `#audioB` was pre-buffering, preventing Range-request socket contention on the exact same audio stream.
+  - Fail-safe auto-advance: if an intermediate section bridge or banter clip fails to decode or rejects `play()`, the player immediately recovers and auto-advances to the category's first story rather than halting playback.
+  - Streamlined non-podcast queue: ensured breaths only occur between played stories, preventing unnecessary gaps between section introductions and their stories.
+  - Added comprehensive automated unit test coverage for transition locking, pause rejection, and fail-safe recovery in `tests/js/podcast.test.mjs`.
 
 ### Changed
 - **Default Category Story Counts (5 for Top Stories, 3 for Other Categories)**:
