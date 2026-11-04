@@ -518,10 +518,12 @@ export class Player extends EventTarget {
       this.audio.pause();
     } else {
       this.primeAudioChannels();
-      window.trackEvent?.('play_briefing', {
-        mode: this.briefing.mode || 'podcast',
-        title: this.briefing.title,
-      });
+      if (typeof window !== 'undefined') {
+        window.trackEvent?.('play_briefing', {
+          mode: this.briefing.mode || 'podcast',
+          title: this.briefing.title,
+        });
+      }
       if (this.clips && this.clips.length) {
         let targetIdx = this.clipIndexAt(this.position);
         const cur = this.audio;
@@ -565,11 +567,13 @@ export class Player extends EventTarget {
     const ch = this.chapters.find((c) => c.id === id);
     if (!ch) return;
     this.primeAudioChannels();
-    window.trackEvent?.('play_story', {
-      story_id: id,
-      title: ch.title,
-      section: ch.section,
-    });
+    if (typeof window !== 'undefined') {
+      window.trackEvent?.('play_story', {
+        story_id: id,
+        title: ch.title,
+        section: ch.section,
+      });
+    }
     this.seekTo(ch.start);
     this.audio.play().catch(() => {});
   }
@@ -605,8 +609,21 @@ export class Player extends EventTarget {
   prevChapter() {
     const ch = this.currentChapter();
     const i = this.chapters.indexOf(ch);
-    if (ch && this.position - ch.start > 3) this.playChapter(ch.id);
-    else if (i > 0) this.playChapter(this.chapters[i - 1].id);
+    if (ch && this.position - ch.start > 3) {
+      this.playChapter(ch.id);
+    } else if (i > 0) {
+      this.playChapter(this.chapters[i - 1].id);
+    } else {
+      this.seekTo(0);
+    }
+  }
+
+  restart() {
+    this.seekTo(0);
+    if (!this.isPlaying) {
+      this.toggle();
+    }
+    this.tick();
   }
 
   setupCleanWaveform() {
@@ -716,16 +733,20 @@ export class Player extends EventTarget {
       this.syncPositionState();
     }
 
+    if (typeof document === 'undefined') return;
+
     // Segments + thumb.
-    const segs = el.seg.querySelectorAll('.seg');
-    this.segments.forEach((s, i) => {
-      const f = s.end > s.start ? Math.min(1, Math.max(0, (t - s.start) / (s.end - s.start))) : 0;
-      const fill = segs[i]?.firstChild;
-      if (fill) fill.style.width = `${f * 100}%`;
-    });
-    const frac = dur ? t / dur : 0;
-    el.thumb.style.left = `${frac * 100}%`;
-    el.seg.setAttribute('aria-valuenow', String(Math.round(frac * 100)));
+    if (el.seg) {
+      const segs = el.seg.querySelectorAll('.seg');
+      this.segments.forEach((s, i) => {
+        const f = s.end > s.start ? Math.min(1, Math.max(0, (t - s.start) / (s.end - s.start))) : 0;
+        const fill = segs[i]?.firstChild;
+        if (fill) fill.style.width = `${f * 100}%`;
+      });
+      const frac = dur ? t / dur : 0;
+      if (el.thumb) el.thumb.style.left = `${frac * 100}%`;
+      el.seg.setAttribute('aria-valuenow', String(Math.round(frac * 100)));
+    }
 
     // Times: elapsed and remaining.
     if (el.cur) el.cur.textContent = fmtTime(t);

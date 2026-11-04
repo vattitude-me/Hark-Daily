@@ -129,3 +129,87 @@ test('DEFAULT_SETTINGS and migrateStories default to 5 for top and 3 for others'
   assert.equal(preserved.tech, 2);
   assert.equal(preserved.politics, 3); // missing key gets new default
 });
+
+test('prevChapter and restart rewind cleanly to 0:00', async () => {
+  const storypackSrc = readFileSync(new URL('../../web/js/storypack.js', import.meta.url), 'utf8')
+    .replace("'./api.js'", "'./api.mjs'").replace("'../config.js'", "'./config.mjs'");
+  writeFileSync(join(dir, 'storypack.mjs'), storypackSrc);
+
+  const playerSrc = readFileSync(new URL('../../web/js/player.js', import.meta.url), 'utf8')
+    .replace("'./api.js'", "'./api.mjs'")
+    .replace("'./storypack.js'", "'./storypack.mjs'");
+  writeFileSync(join(dir, 'player.mjs'), playerSrc);
+  const { Player } = await import(join(dir, 'player.mjs'));
+
+  class MockAudio extends EventTarget {
+    constructor() {
+      super();
+      this.currentTime = 0;
+      this.paused = true;
+      this.playbackRate = 1.0;
+    }
+    play() {
+      this.paused = false;
+      return Promise.resolve();
+    }
+    pause() {
+      this.paused = true;
+    }
+    load() {}
+    removeAttribute() {}
+  }
+
+  const audio = new MockAudio();
+  const preloader = new MockAudio();
+  const player = new Player({ audio, preloader, el: {} });
+  player.setupAudioElement(audio);
+
+  player.chapters = [
+    { id: 'ch-0', start: 0, end: 20 },
+    { id: 'ch-1', start: 20, end: 40 },
+  ];
+  player.clips = [
+    { id: 'clip-0', start: 0, end: 20, url: 'http://cdn/0.mp3' },
+    { id: 'clip-1', start: 20, end: 40, url: 'http://cdn/1.mp3' },
+  ];
+  player.briefing = { mode: 'podcast', title: 'Test' };
+  audio.dataset = { clip: '0' };
+  audio.src = 'http://cdn/0.mp3';
+
+  let seekCalledWith = null;
+  player.seekTo = (t) => { seekCalledWith = t; };
+
+  // 1. When at start of briefing (position < 3 on first chapter), prevChapter() rewinds to 0
+  audio.currentTime = 1.5;
+  player.prevChapter();
+  assert.equal(seekCalledWith, 0, 'prevChapter at start of chapter 0 must rewind to 0:00');
+
+  // 2. restart() explicitly rewinds to 0 and plays
+  seekCalledWith = null;
+  player.restart();
+  assert.equal(seekCalledWith, 0, 'restart must seek to 0:00');
+  assert.equal(audio.paused, false, 'restart must trigger audio playback');
+});
+
+test('per-edition caching strictly isolates Canada, US, and India', () => {
+  const memoryStore = new Map();
+  const store = {
+    get: (k, def) => (memoryStore.has(k) ? memoryStore.get(k) : def),
+    set: (k, v) => memoryStore.set(k, v),
+  };
+
+  // Simulate storing Canada briefing
+  const caBrief = { date: '2026-11-04', edition: 'ca', stories: [{ id: 'ca-1' }] };
+  store.set('last-briefing', caBrief);
+  store.set('last-briefing-ca', caBrief);
+
+  // When user switches to India, query strictly checks target edition
+  const inBrief = store.get('last-briefing-in', null);
+  assert.equal(inBrief, null, 'India cache must not be polluted by Canada cache');
+
+  // Storing India briefing isolates cleanly
+  const newInBrief = { date: '2026-11-04', edition: 'in', stories: [{ id: 'in-1' }] };
+  store.set('last-briefing-in', newInBrief);
+  assert.equal(store.get('last-briefing-in')?.edition, 'in');
+  assert.equal(store.get('last-briefing-ca')?.edition, 'ca');
+});

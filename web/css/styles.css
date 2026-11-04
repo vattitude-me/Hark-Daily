@@ -4365,13 +4365,16 @@ body.playing .clean-play-circle .clean-pause-icon {
   margin-top: 1px;
 }
 
-/* Bottom Footer Bar: Discard / Close & Save changes */
+/* Bottom Footer Bar: Close (default) / Discard & Save changes (when dirty) */
 .clean-drawer-foot {
   display: grid;
-  grid-template-columns: 1fr 1.35fr;
+  grid-template-columns: 1fr;
   gap: 12px;
   flex: none;
   padding-top: 2px;
+}
+.clean-drawer-foot.has-changes {
+  grid-template-columns: 1fr 1.35fr;
 }
 .clean-foot-discard,
 .clean-foot-save {
