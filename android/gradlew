@@ -117,6 +117,18 @@ esac
 CLASSPATH="\\\"\\\""
 
 
+# Automatically resolve JDK 21 on macOS if not set
+if [ -z "$JAVA_HOME" ] ; then
+    if [ -d "/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home" ] ; then
+        export JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"
+    elif [ -d "/opt/homebrew/opt/openjdk@21" ] ; then
+        export JAVA_HOME="/opt/homebrew/opt/openjdk@21"
+    fi
+fi
+if [ -n "$JAVA_HOME" ] ; then
+    GRADLE_OPTS="-Dorg.gradle.java.home=$JAVA_HOME $GRADLE_OPTS"
+fi
+
 # Determine the Java command to use to start the JVM.
 if [ -n "$JAVA_HOME" ] ; then
     if [ -x "$JAVA_HOME/jre/sh/java" ] ; then
