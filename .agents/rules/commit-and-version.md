@@ -3,7 +3,12 @@
 After finishing any change to this repo:
 
 1. Bump the version for what you touched:
-   - Web (`web/`): increment `CACHE` in `web/sw.js` (`morning-brief-vN`).
+   - Web (`web/`):
+     - Update `export const APP_VERSION = 'vX.Y.Z';` in `web/config.js` (rendered in the hamburger menu drawer).
+     - Update `<div class="clean-drawer-version" id="cleanDrawerVersion">Hark Daily vX.Y.Z</div>` in `web/index.html`.
+     - Bump script cache query in `web/index.html` (e.g. `<script type="module" src="/js/app.js?v=N"></script>`).
+     - Increment `CACHE` in `web/sw.js` (`hark-daily-vN`) so browsers and installed PWAs immediately activate the new shell.
+     - Bump `"version"` in `package.json`.
    - Android (`android/`): bump `versionName`/`versionCode` in `android/app/build.gradle.kts`. Note: UI screens (e.g. `SettingsScreen.kt`) must always reference `BuildConfig.VERSION_NAME` dynamically—never hardcode version strings.
    - Add an entry to `CHANGELOG.md`, numbered after the latest release (check `git tag` and the top entry).
 2. Run the tests (`.venv/bin/python -m pytest -q` and `node --test tests/js/*.test.mjs`).

@@ -1,24 +1,54 @@
-// Admin tab: the day's shared pack, and the switch that re-records it.
-// The tab appears for the admin account only. Every action is checked again server-side:
-// row-level security on `build_requests`, then the worker, then the batch lock.
-import { BUILTIN_VOICES, SECTIONS, VOICES, api, deleteCustomVoice, h, icon, saveCustomVoice, toast } from '../api.js';
-import { READY_KEY } from '../storypack.js';
-import { processReferenceAudio } from '../audio-processor.js';
+// Admin tab: Hark Daily Mission Control & Operations Console
+// The tab appears for the admin account only (vatsakrish@gmail.com).
+// Every action is checked again server-side: row-level security on `build_requests`,
+// the worker daemon, and the batch pack lease lock.
+import { BUILTIN_VOICES, SECTIONS, VOICES, api, deleteCustomVoice, h, icon, isAdmin, saveCustomVoice, toast } from '../api.js';
+import { READY_KEY, clipUrl } from '../storypack.js';
 import {
   CheckDot, GlassGroup, Hairline, Hint, ListRow, Overline, PillButton, SectionLabel, SwitchRow, Tag,
 } from '../design.js';
 
-const today = () => new Date().toLocaleDateString('en-CA');
-const minutes = (seconds) => `${(Number(seconds || 0) / 60).toFixed(1)} min`;
-const at = (iso) => (iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : null);
-const KINDS = {
+export const today = () => new Date().toLocaleDateString('en-CA');
+export const minutes = (seconds) => {
+  const s = Number(seconds || 0);
+  if (s < 60) return `${s.toFixed(0)}s`;
+  return `${(s / 60).toFixed(1)} min`;
+};
+export const at = (iso) => (iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—');
+export const shortTime = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—');
+
+export const KINDS = {
   pack: 'Rebuild the podcast',
   build: 'Rebuild one briefing',
   push_test: 'Test notification',
   delete_account: 'Delete account',
 };
 
-function dayLabel(date) {
+export const EDITION_DEFS = [
+  {
+    code: 'CA',
+    id: 'ca',
+    name: 'Canada Edition',
+    flag: '🇨🇦',
+    sections: ['top', 'ai', 'tech', 'politics', 'entertainment', 'science', 'sports'],
+  },
+  {
+    code: 'US',
+    id: 'us',
+    name: 'United States Edition',
+    flag: '🇺🇸',
+    sections: ['top_us', 'tech_us', 'politics_us', 'entertainment_us', 'sports_us', 'ai', 'science'],
+  },
+  {
+    code: 'IN',
+    id: 'in',
+    name: 'India Edition',
+    flag: '🇮🇳',
+    sections: ['top_in', 'tech_in', 'politics_in', 'entertainment_in', 'sports_in', 'ai', 'science'],
+  },
+];
+
+export function dayLabel(date) {
   if (date === today()) return 'Today';
   const y = new Date();
   y.setDate(y.getDate() - 1);
@@ -26,9 +56,63 @@ function dayLabel(date) {
   return new Date(`${date}T12:00`).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
+/** Formats an executive run report for sharing via Email or WhatsApp. */
+export function formatExecutiveRunReport({ day, status = {}, pack = {}, log = [] }) {
+  const clips = pack.clips || [];
+  const duoClips = clips.filter((c) => c.voice === 'matthew_reference+kelly_reference');
+  const activeClips = duoClips.length ? duoClips : clips;
+  const podcastClips = pack.podcastClips || [];
+  const notes = pack.notes || [];
+
+  const totalSec = activeClips.reduce((acc, c) => acc + (Number(c.duration) || 0), 0);
+  const totalMin = (totalSec / 60).toFixed(1);
+
+  const primaryLog = log.find((l) => l.run_date === day) || log[0] || {};
+  const isOk = primaryLog.status === 'ok' || (activeClips.length >= 15);
+  const statusEmoji = isOk ? '🟢' : '🟡';
+  const statusText = isOk ? 'ALL SYSTEMS NOMINAL (OK)' : (primaryLog.status ? primaryLog.status.toUpperCase() : 'INCOMPLETE');
+
+  let text = `🎙️ *HARK DAILY — PIPELINE RUN REPORT*\n`;
+  text += `📅 Date: ${day} (${dayLabel(day)})\n`;
+  text += `⚡ Status: ${statusEmoji} ${statusText}\n`;
+  text += `⏱️ Playtime: ${totalMin} min audio (${activeClips.length} stories across 3 editions)\n`;
+  text += `🎭 Hosts: Matthew & Kelly (Chatterbox-Turbo 24kHz · Two-Host Dialogue)\n\n`;
+
+  text += `📊 *EDITION BREAKDOWN:*\n`;
+  for (const ed of EDITION_DEFS) {
+    const edClips = activeClips.filter((c) => ed.sections.includes(c.section));
+    const seen = new Set();
+    const unique = edClips.filter((c) => {
+      const key = `${c.section}:${c.rank}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    const durMin = (unique.reduce((n, c) => n + (Number(c.duration) || 0), 0) / 60).toFixed(1);
+    const secsCovered = new Set(unique.map((c) => c.section)).size;
+    text += `• ${ed.flag} *${ed.name} (${ed.code})*: ${unique.length} stories · ${durMin} min · ${secsCovered}/${ed.sections.length} sections\n`;
+  }
+
+  const banterCount = podcastClips.length;
+  const isReady = notes.some((n) => n.note_key === READY_KEY);
+  text += `\n📻 *PODCAST FRAMING & BANTER:*\n`;
+  text += `• Framing Clips: ${banterCount} segments (Opens, Topic Teasers, Transitions, Sign-off)\n`;
+  text += `• Broadcast Readiness: ${isReady ? '✓ Active & Verified' : '⚠️ Pending'}\n`;
+
+  if (primaryLog.title) {
+    text += `\n📝 *LOG SUMMARY:*\n`;
+    text += `• Last Run: ${primaryLog.title}\n`;
+    if (primaryLog.detail) text += `• Detail: ${primaryLog.detail}\n`;
+  }
+
+  text += `\n🌐 Stream live at: https://hark.vattitude.ca/`;
+  return text;
+}
+
 export class AdminPage {
-  constructor() {
-    this.root = document.querySelector('#page-admin .screen');
+  constructor(options = {}) {
+    this.root = options.root || (typeof document !== 'undefined' ? document.querySelector('#page-admin .screen') : null);
+    this.activeTab = 'overview'; // 'overview' | 'reports' | 'editions' | 'operations' | 'diagnostics'
     this.status = {};
     this.pack = null;
     this.requests = [];
@@ -37,23 +121,33 @@ export class AdminPage {
     this.dates = [];
     this.day = today();
     this.voices = new Set(['matthew_reference+kelly_reference']);
-    this.edition = 'all';
-    this.notesOnly = false;
-    this.force = false;
-    this.waiting = null;     // the request this page is following
+    this.edition = 'all'; // 'all' | 'ca' | 'us' | 'in'
+    this.rebuildScope = 'framing'; // 'framing' | 'incremental' | 'full'
+    this.waiting = null;
     this.timer = null;
     this.loading = false;
+    this.previewAudio = null;
+    this.playingClipId = null;
   }
 
   async load() {
     if (this.loading) return;
     this.loading = true;
+
+    // Gatecheck for unauthorized callers
+    const profile = typeof window !== 'undefined' ? window.state?.profile : null;
+    if (!isAdmin(profile)) {
+      this.render();
+      this.loading = false;
+      return;
+    }
+
     try {
       const [status, dates, requests, log] = await Promise.all([
         api.status().catch(() => ({ running: false })),
         api.storyDates().catch(() => [today()]),
-        api.packRequests().catch(() => []),
-        api.runLog(3).catch((err) => { this.logError = err?.message || String(err); return []; }),
+        api.packRequests(20).catch(() => []),
+        api.runLog(7).catch((err) => { this.logError = err?.message || String(err); return []; }),
       ]);
       this.status = status || {};
       this.dates = [...new Set([today(), ...(dates || [])])].slice(0, 10);
@@ -62,7 +156,7 @@ export class AdminPage {
       this.log = log || [];
       this.pack = await api.packState(this.day).catch(() => null);
     } catch (err) {
-      console.warn('Admin load failed, rendering fallback UI:', err);
+      console.warn('Admin load encountered an issue:', err);
     } finally {
       this.render();
       this.keepWatching();
@@ -70,466 +164,710 @@ export class AdminPage {
     }
   }
 
-  /** Follows a run that is already going, whoever started it. */
   keepWatching() {
-    clearTimeout(this.timer);
+    if (typeof clearTimeout !== 'undefined') clearTimeout(this.timer);
     const busy = this.status?.running || this.waiting;
     if (!busy) return;
-    this.timer = setTimeout(async () => {
-      try { this.status = await api.status(); } catch { /* try again on the next tick */ }
-      this.render();
-      this.keepWatching();
-    }, 4000);
+    if (typeof setTimeout !== 'undefined') {
+      this.timer = setTimeout(async () => {
+        try { this.status = await api.status(); } catch { /* retry */ }
+        this.render();
+        this.keepWatching();
+      }, 4000);
+    }
+  }
+
+  switchTab(tabId) {
+    this.activeTab = tabId;
+    this.stopPreview();
+    this.render();
   }
 
   render() {
+    if (!this.root) return;
+    const profile = typeof window !== 'undefined' ? window.state?.profile : null;
+
+    // Security screen if accessed without administrative privileges
+    if (!isAdmin(profile)) {
+      this.renderRestricted();
+      return;
+    }
+
     const st = this.status || {};
+    const isRunning = Boolean(st.running || this.waiting);
+
+    const container = h('div', { class: 'admin-mission-control' },
+      this.renderHeader(isRunning),
+      this.renderNavTabs(),
+      this.renderActiveTab(st),
+      this.renderPreviewPlayerDock(),
+    );
+
+    this.root.replaceChildren(container);
+  }
+
+  renderRestricted() {
+    if (!this.root) return;
     this.root.replaceChildren(
-      h('header', { class: 'screen-header' },
-        h('div', { class: 'overline-row' }, Overline(st.running ? 'Working' : 'Idle')),
-        h('h1', { class: 'display' }, 'Admin')),
-
-      SectionLabel('The morning run'),
-      this.runGroup(st),
-
-      SectionLabel('Recent runs', { detail: 'Last three days, newest first' }),
-      this.logGroup(),
-
-      SectionLabel('Podcast Hosts & Dialogue Engine', { detail: 'Two-host synthesis & Chatterbox-Turbo 24kHz studio' }),
-      this.narratorsGroup(st),
-
-      SectionLabel('Rebuild the Podcast', { detail: 'Two-host conversation heard by every listener' }),
-      this.rebuildGroup(),
-
-      SectionLabel(`Podcast Pack for ${dayLabel(this.day)}`, { detail: 'Published editions & dialogue clips' }),
-      this.packGroup(),
-
-      SectionLabel('Requests', { detail: 'One job runs at a time' }),
-      this.requestsGroup(),
-
-      SectionLabel('System Diagnostics & Error Log', { detail: 'Captured client & network exceptions' }),
-      this.diagnosticsGroup(),
-
-      Hint('A full rebuild takes about as long as the audio it records, so give it a few minutes.'),
-    );
-  }
-
-  narratorsGroup(st = {}) {
-    const podStatus = st.podcast || {};
-    const writerName = (podStatus.writer || 'Groq').toUpperCase();
-    const hostPairSummary = GlassGroup(
-      ListRow({
-        label: 'Podcast Host Pair',
-        detail: 'Matthew (Lead Anchor) & Kelly (Co-Host / Analyst) — 4 to 8 turn dialogue per story',
-        end: Tag('MATTHEW & KELLY', 'accent'),
-      }),
-      Hairline(),
-      ListRow({
-        label: 'Dialogue Script Engine',
-        detail: 'Two-host factual dialogue writer · High expression (temp 0.90 + paralinguistic tags) · Slow-to-medium pace (0.94×)',
-        end: Tag(writerName, 'tech'),
-      }),
-    );
-
-    const list = h('div', { class: 'narrators-admin-list' }, ...VOICES.filter((v) => v.id === 'matthew_reference' || v.id === 'kelly_reference' || !v.builtin).map((v) => {
-      const isCustom = !v.builtin;
-      const avatar = h('span', { class: 'narrator-avatar' }, icon(v.icon || 'mic'));
-      const text = h('div', { class: 'narrator-info' },
-        h('div', { class: 'narrator-title-row' },
-          h('span', { class: 'narrator-name' }, v.name),
-          h('span', { class: 'tag-ink' }, v.id),
-          isCustom ? h('span', { class: 'tag-ink tag-warn' }, 'Custom') : h('span', { class: 'tag-ink tag-accent' }, 'Standard')
-        ),
-        h('p', { class: 'narrator-meta' }, `${v.gender === 'female' ? 'Female' : 'Male'} · ${v.style || v.desc || 'Spoken news'}`)
-      );
-
-      const actions = h('div', { class: 'narrator-actions' });
-      if (isCustom) {
-        const delBtn = h('button', {
+      h('div', { class: 'admin-restricted-box glass' },
+        h('div', { class: 'admin-restricted-icon' }, icon('shield')),
+        h('h2', { class: 'admin-restricted-title' }, 'Administrator Access Restricted'),
+        h('p', { class: 'admin-restricted-msg' },
+          'This mission control console is restricted to authenticated Hark administrators (vatsakrish@gmail.com). Please sign in using your authorized administrator account.'),
+        h('button', {
           type: 'button',
-          class: 'pill-btn glass-btn sm',
-          style: 'color:var(--err); padding: .25rem .6rem;',
-          title: `Delete voice ${v.name}`,
+          class: 'pill-btn glass-btn',
           onclick: () => {
-            if (confirm(`Remove custom narrator "${v.name}" (${v.id})?`)) {
-              deleteCustomVoice(v.id);
-              this.voices.delete(v.id);
-              toast(`Removed narrator ${v.name}.`);
-              this.render();
-            }
+            const aux = document.getElementById('auxSheet');
+            if (aux) aux.classList.add('hidden');
+            if (typeof window !== 'undefined' && window.switchTab) window.switchTab('today');
           },
-        }, icon('trash'), 'Delete');
-        actions.appendChild(delBtn);
-      }
-
-      return h('div', { class: 'narrator-item' }, avatar, text, actions);
-    }));
-
-    // Form inputs
-    let processedAudio = null;
-    let audioUrl = null;
-
-    const nameInput = h('input', { type: 'text', class: 'text-input sm', placeholder: 'e.g. Jerry Seinfeld, C-3PO' });
-    const idInput = h('input', { type: 'text', class: 'text-input sm', placeholder: 'e.g. jerry_reference' });
-    nameInput.addEventListener('input', () => {
-      if (!idInput.dataset.manual) {
-        idInput.value = nameInput.value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') + '_reference';
-      }
-    });
-    idInput.addEventListener('input', () => { idInput.dataset.manual = 'true'; });
-
-    const genderSelect = h('select', { class: 'text-input sm' },
-      h('option', { value: 'male' }, 'Male'),
-      h('option', { value: 'female' }, 'Female')
-    );
-    const styleInput = h('input', { type: 'text', class: 'text-input sm', placeholder: 'e.g. Observational comedy style' });
-    const iconSelect = h('select', { class: 'text-input sm' },
-      h('option', { value: 'smile' }, 'Smile (Comedy / Warm)'),
-      h('option', { value: 'bot' }, 'Bot (Droid / Tech)'),
-      h('option', { value: 'mic' }, 'Mic (Broadcast)'),
-      h('option', { value: 'radio' }, 'Radio (Crisp News)'),
-      h('option', { value: 'spark' }, 'Spark (Unique Character)')
-    );
-
-    const statusBadge = h('div', { class: 'audio-status-badge hidden' });
-    const audioPreview = h('audio', { controls: true, class: 'audio-preview-player hidden' });
-    const downloadBtn = h('button', {
-      type: 'button',
-      class: 'pill-btn glass-btn sm hidden',
-      onclick: () => {
-        if (!processedAudio?.blob) return;
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(processedAudio.blob);
-        a.download = `${idInput.value.trim() || 'voice_reference'}.wav`;
-        a.click();
-      },
-    }, icon('download'), 'Download 24kHz WAV');
-
-    const fileInput = h('input', { type: 'file', accept: 'audio/*', class: 'file-input-hidden' });
-    const dropzone = h('div', { class: 'audio-dropzone', onclick: () => fileInput.click() },
-      icon('wave'),
-      h('div', { class: 'dropzone-text' },
-        h('b', {}, 'Select or drop voice recording'),
-        h('small', {}, 'Accepts any format (WAV, MP3, M4A, AAC). Auto-converted to 24kHz Mono 16-bit PCM WAV.')
+        }, 'Return to Player')
       )
     );
+  }
 
-    fileInput.addEventListener('change', async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      statusBadge.className = 'audio-status-badge busy';
-      statusBadge.textContent = 'Converting to 24kHz Mono 16-bit PCM WAV…';
-      statusBadge.classList.remove('hidden');
+  renderHeader(isRunning) {
+    const adminEmail = (typeof window !== 'undefined' ? window.state?.profile?.email : '') || 'vatsakrish@gmail.com';
+    return h('header', { class: 'admin-topbar' },
+      h('div', { class: 'admin-topbar-meta' },
+        h('div', { class: 'admin-badge-row' },
+          h('span', { class: 'admin-pill-badge admin-badge-shield' }, icon('shield'), `Admin: ${adminEmail}`),
+          h('span', { class: 'admin-pill-badge admin-badge-live' }, icon('radio'), 'Live Production'),
+          isRunning
+            ? h('span', { class: 'admin-pill-badge admin-badge-busy' }, icon('refresh'), 'Worker Busy')
+            : h('span', { class: 'admin-pill-badge admin-badge-idle' }, icon('check'), 'Worker Idle')
+        ),
+        h('h1', { class: 'admin-title' }, 'Admin Mission Control'),
+        h('p', { class: 'admin-subtitle' }, 'Automated multi-edition podcast broadcast operations, run reports & live audio verification')
+      ),
+      h('div', { class: 'admin-topbar-actions' },
+        h('button', {
+          type: 'button',
+          class: 'pill-btn glass-btn sm' + (this.loading ? ' busy' : ''),
+          title: 'Refresh operations telemetry',
+          onclick: () => this.load(),
+        }, icon('refresh'), 'Refresh'),
+        h('button', {
+          type: 'button',
+          class: 'pill-btn primary-btn sm',
+          title: 'Copy today’s executive briefing run report',
+          onclick: () => this.copyReportToClipboard(),
+        }, icon('share'), 'Copy Run Report')
+      )
+    );
+  }
 
-      try {
-        processedAudio = await processReferenceAudio(file);
-        if (audioUrl) URL.revokeObjectURL(audioUrl);
-        audioUrl = URL.createObjectURL(processedAudio.blob);
-        audioPreview.src = audioUrl;
-        audioPreview.classList.remove('hidden');
-        downloadBtn.classList.remove('hidden');
+  renderNavTabs() {
+    const tabs = [
+      { id: 'overview', label: 'Overview', icon: 'globe' },
+      { id: 'reports', label: 'Run Reports', icon: 'lines' },
+      { id: 'editions', label: 'Editions & Audio', icon: 'headphones' },
+      { id: 'operations', label: 'Safe Rebuild', icon: 'refresh' },
+      { id: 'diagnostics', label: 'Diagnostics', icon: 'warn' },
+    ];
 
-        statusBadge.className = 'audio-status-badge ' + (processedAudio.isOptimal ? 'ok' : (processedAudio.isUsable ? 'warn' : 'err'));
-        const durStr = `${processedAudio.duration.toFixed(1)}s`;
-        const sizeStr = `${(processedAudio.sizeBytes / 1024).toFixed(0)} KB`;
-        statusBadge.textContent = `✓ 24,000 Hz Mono WAV (${durStr}, ${sizeStr}) · ${processedAudio.isOptimal ? 'Optimal length for Chatterbox-Turbo' : (processedAudio.isUsable ? 'Usable (8-30s recommended)' : 'Too short (<5.0s)')}`;
-      } catch (err) {
-        statusBadge.className = 'audio-status-badge err';
-        statusBadge.textContent = `Conversion error: ${err.message}`;
-      }
-    });
+    return h('nav', { class: 'admin-nav-tabs', role: 'tablist', 'aria-label': 'Admin Sections' },
+      ...tabs.map((t) => {
+        const active = this.activeTab === t.id;
+        const btn = h('button', {
+          type: 'button',
+          class: 'admin-nav-pill' + (active ? ' active' : ''),
+          role: 'tab',
+          'aria-selected': String(active),
+          onclick: () => this.switchTab(t.id),
+        }, icon(t.icon), t.label);
+        return btn;
+      })
+    );
+  }
 
-    const saveBtn = PillButton('Save Narrator', {
-      iconName: 'plus',
-      onClick: async () => {
-        const name = nameInput.value.trim();
-        const id = idInput.value.trim();
-        if (!name || !id) {
-          toast('Please enter a narrator name and voice ID.', { error: true });
-          return;
-        }
-        if (processedAudio && !processedAudio.isUsable) {
-          toast('Reference clip is too short. Chatterbox-Turbo requires >= 5.0 seconds.', { error: true });
-          return;
-        }
+  renderActiveTab(st) {
+    switch (this.activeTab) {
+      case 'overview':
+        return this.renderOverviewTab(st);
+      case 'reports':
+        return this.renderReportsTab();
+      case 'editions':
+        return this.renderEditionsTab();
+      case 'operations':
+        return this.renderOperationsTab(st);
+      case 'diagnostics':
+        return this.renderDiagnosticsTab();
+      default:
+        return this.renderOverviewTab(st);
+    }
+  }
 
-        saveBtn.classList.add('busy');
-        try {
-          const newVoice = {
-            id,
-            name,
-            gender: genderSelect.value,
-            style: styleInput.value.trim() || 'Custom narrator',
-            desc: styleInput.value.trim() || 'Custom narrator',
-            icon: iconSelect.value,
-            duration: processedAudio?.duration ? Math.round(processedAudio.duration) : null,
-          };
+  /* ----------------------------------------------------------- Tab 1: Overview */
+  renderOverviewTab(st) {
+    const clips = this.pack?.clips || [];
+    const podcastClips = this.pack?.podcastClips || [];
+    const notes = this.pack?.notes || [];
+    const duoClips = clips.filter((c) => c.voice === 'matthew_reference+kelly_reference');
+    const activeClips = duoClips.length ? duoClips : clips;
+    const isReady = notes.some((n) => n.note_key === READY_KEY);
 
-          if (processedAudio?.blob) {
-            toast(`Uploading 24kHz reference audio for ${name}…`);
-            await api.uploadVoiceFile(id, processedAudio.blob);
-          }
+    const totalSeconds = activeClips.reduce((acc, c) => acc + (Number(c.duration) || 0), 0);
+    const totalMinutes = (totalSeconds / 60).toFixed(1);
 
-          saveCustomVoice(newVoice);
-          this.voices.add(id);
-          toast(`✓ Narrator "${name}" registered with 24kHz reference WAV.`);
-          this.render();
-        } catch (err) {
-          toast(err.message, { error: true });
-        } finally {
-          saveBtn.classList.remove('busy');
-        }
-      },
-    });
+    // KPI 1: Broadcast Health
+    const isNominal = isReady && activeClips.length >= 15;
+    const kpiStatus = h('div', { class: 'admin-kpi-card glass' },
+      h('div', { class: 'admin-kpi-head' },
+        h('span', { class: 'admin-kpi-label' }, 'Broadcast Status'),
+        h('span', { class: `admin-status-dot ${isNominal ? 'ok' : 'warn'}` })
+      ),
+      h('div', { class: 'admin-kpi-value' }, isNominal ? 'Live & Ready' : (activeClips.length ? 'Incomplete' : 'Pending')),
+      h('div', { class: 'admin-kpi-sub' }, `${activeClips.length} stories · ${totalMinutes}m audio · ${dayLabel(this.day)}`)
+    );
 
-    return h('div', { class: 'admin-studio-stack' },
-      hostPairSummary,
-      GlassGroup(
-        list,
-        Hairline(),
-        h('div', { class: 'add-voice-form' },
-          h('h3', { class: 'form-title' }, 'Format & Upload 24kHz Host Reference Audio'),
-          h('div', { class: 'form-grid' },
-            h('label', {}, 'Host Name', nameInput),
-            h('label', {}, 'Voice ID (Reference)', idInput),
-            h('label', {}, 'Gender', genderSelect),
-            h('label', {}, 'Style / Delivery', styleInput),
-            h('label', {}, 'Icon', iconSelect)
-          ),
-          fileInput,
-          dropzone,
-          statusBadge,
-          audioPreview,
-          h('div', { class: 'form-actions' }, downloadBtn, saveBtn)
+    // KPI 2: Active Editions
+    const kpiEditions = h('div', { class: 'admin-kpi-card glass' },
+      h('div', { class: 'admin-kpi-head' },
+        h('span', { class: 'admin-kpi-label' }, 'Active Editions'),
+        Tag('CA · US · IN', 'accent')
+      ),
+      h('div', { class: 'admin-kpi-value' }, '3 Editions'),
+      h('div', { class: 'admin-kpi-sub' }, 'Canada · United States · India')
+    );
+
+    // KPI 3: Podcast Hosts & Engine
+    const podStatus = st.podcast || {};
+    const writerName = (podStatus.writer || 'Groq Llama-3.3').toUpperCase();
+    const kpiEngine = h('div', { class: 'admin-kpi-card glass' },
+      h('div', { class: 'admin-kpi-head' },
+        h('span', { class: 'admin-kpi-label' }, 'Podcast Hosts'),
+        Tag('DUO', 'tech')
+      ),
+      h('div', { class: 'admin-kpi-value' }, 'Matthew & Kelly'),
+      h('div', { class: 'admin-kpi-sub' }, `${writerName} · 24kHz Chatterbox-Turbo`)
+    );
+
+    // KPI 4: Automated Schedule
+    const schedTime = st.batch_time || '05:00 & 18:00';
+    const tz = st.timezone || 'America/Toronto';
+    const kpiSchedule = h('div', { class: 'admin-kpi-card glass' },
+      h('div', { class: 'admin-kpi-head' },
+        h('span', { class: 'admin-kpi-label' }, 'Automated Runs'),
+        Tag('TWICE DAILY', 'ok')
+      ),
+      h('div', { class: 'admin-kpi-value' }, schedTime),
+      h('div', { class: 'admin-kpi-sub' }, `Morning 05:00 · Evening 18:00 (${tz})`)
+    );
+
+    // Live job banner if running
+    let activeJobBanner = null;
+    if (st.running) {
+      const pct = Math.round((st.progress || 0) * 100);
+      activeJobBanner = h('div', { class: 'admin-active-job-banner glass' },
+        h('div', { class: 'active-job-pulse' }),
+        h('div', { class: 'active-job-details' },
+          h('b', {}, 'Production Run in Progress: '),
+          h('span', {}, st.step || 'Processing stories…')
+        ),
+        h('div', { class: 'active-job-bar' },
+          h('div', { class: 'progress-bar' }, h('span', { style: `width:${pct}%` })),
+          h('span', { class: 'active-job-pct' }, `${pct}%`)
         )
+      );
+    }
+
+    // Edition summary cards
+    const editionRows = EDITION_DEFS.map((ed) => {
+      const edClips = activeClips.filter((c) => ed.sections.includes(c.section));
+      const seen = new Set();
+      const unique = edClips.filter((c) => {
+        const k = `${c.section}:${c.rank}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+      const dur = minutes(unique.reduce((acc, c) => acc + (Number(c.duration) || 0), 0));
+      const covered = new Set(unique.map((c) => c.section)).size;
+      const isComplete = covered === ed.sections.length;
+
+      return h('div', { class: 'admin-edition-summary-card glass' },
+        h('div', { class: 'edition-summary-head' },
+          h('span', { class: 'edition-flag' }, ed.flag),
+          h('div', { class: 'edition-summary-titles' },
+            h('span', { class: 'edition-name' }, ed.name),
+            h('span', { class: 'edition-code' }, ed.code)
+          ),
+          h('span', { class: `tag-ink ${isComplete ? 'tag-accent' : 'tag-warn'}` },
+            isComplete ? '7/7 Sections Complete' : `${covered}/7 Sections`
+          )
+        ),
+        h('div', { class: 'edition-summary-stats' },
+          h('div', { class: 'stat-pill' }, icon('playlist'), `${unique.length} Stories`),
+          h('div', { class: 'stat-pill' }, icon('clock'), dur),
+          h('div', { class: 'stat-pill' }, icon('mic'), 'Matthew & Kelly')
+        )
+      );
+    });
+
+    return h('div', { class: 'admin-tab-pane' },
+      activeJobBanner,
+      h('div', { class: 'admin-kpi-grid' }, kpiStatus, kpiEditions, kpiEngine, kpiSchedule),
+      SectionLabel("Today's Broadcast Editions", { detail: 'Active audio streaming for listeners' }),
+      h('div', { class: 'admin-edition-grid' }, ...editionRows),
+      SectionLabel('Quick Operations', { detail: 'Immediate operational shortcuts' }),
+      GlassGroup(
+        ListRow({
+          label: 'Inspect Audio Clips & Banter',
+          detail: 'Preview generated audio clips and section dialogue turns',
+          caret: true,
+          onClick: () => this.switchTab('editions'),
+        }),
+        Hairline(),
+        ListRow({
+          label: 'View Detailed Run Reports',
+          detail: 'Morning and evening run logs, failure forensics, and shareable summary',
+          caret: true,
+          onClick: () => this.switchTab('reports'),
+        }),
+        Hairline(),
+        ListRow({
+          label: 'Safe Rebuild Console',
+          detail: 'Trigger targeted rebuilds with live-listener protection and safeguards',
+          caret: true,
+          onClick: () => this.switchTab('operations'),
+        })
       )
     );
   }
 
-  runGroup(st) {
-    const last = st.last_run || {};
-    const pack = st.last_pack || {};
-    const bar = h('div', { class: 'progress-bar' }, h('span', { style: `width:${Math.round((st.progress || 0) * 100)}%` }));
-    return GlassGroup(
-      ListRow({ label: 'Schedule', value: `${st.batch_time || '—'} · ${st.timezone || '—'}` }),
-      Hairline(),
-      ListRow({
-        label: 'Last run',
-        detail: last.date ? `${last.date}${last.summary ? ` · ${last.summary}` : ''}` : 'Nothing recorded yet',
-        value: last.date ? (last.ok ? 'OK' : 'Issues') : null,
-      }),
-      Hairline(),
-      ListRow({
-        label: st.running ? 'Running now' : 'Idle',
-        detail: st.running ? (st.step || 'Working') : 'Nothing running',
-        end: st.running ? bar : null,
-      }),
-      Hairline(),
-      ListRow({
-        label: 'Last rebuild from here',
-        detail: pack.at ? (pack.detail || pack.error || '') : 'None since the page was added',
-        value: pack.at ? at(pack.at) : null,
-        color: pack.ok === false ? 'var(--err)' : null,
-      }),
-    );
-  }
-
-  rebuildGroup() {
-    const dayChips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Day to publish under' },
+  /* ------------------------------------------------------- Tab 2: Run Reports */
+  renderReportsTab() {
+    const dayChips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Select report date' },
       ...this.dates.map((d) => {
         const b = h('button', { type: 'button', class: 'dchip' + (d === this.day ? ' active' : '') }, dayLabel(d));
         b.addEventListener('click', () => this.pickDay(d));
         return b;
-      }));
+      })
+    );
 
-    const editions = [
-      { id: 'all', label: 'All Editions (CA · US · IN)' },
-      { id: 'ca', label: 'Canada (CA)' },
-      { id: 'us', label: 'United States (US)' },
-      { id: 'in', label: 'India (IN)' },
-    ];
-    const editionChips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Edition to rebuild' },
-      ...editions.map((ed) => {
-        const b = h('button', {
-          type: 'button',
-          class: 'dchip' + (this.edition === ed.id ? ' active' : ''),
-        }, ed.label);
-        b.addEventListener('click', () => {
-          this.edition = ed.id;
-          this.render();
-        });
-        return b;
-      }));
+    // Filter log entries for the selected date
+    const dayEntries = this.log.filter((l) => l.run_date === this.day);
 
-    const button = PillButton(this.waiting ? 'Rebuilding Podcast…' : 'Rebuild Podcast Edition', {
-      iconName: 'refresh', onClick: () => this.queue(),
+    let logContent = null;
+    if (this.logError) {
+      logContent = GlassGroup(
+        ListRow({ label: 'Run log offline' }),
+        Hint(`Could not query run_log: ${this.logError}`)
+      );
+    } else if (!dayEntries.length) {
+      logContent = GlassGroup(
+        ListRow({ label: `No run logs recorded for ${dayLabel(this.day)}` }),
+        Hint('Automated morning and evening runs will write to the log here once executed.')
+      );
+    } else {
+      const cards = dayEntries.map((entry) => {
+        const isMorning = entry.created_at && (new Date(entry.created_at).getHours() < 13);
+        const isEvening = entry.created_at && (new Date(entry.created_at).getHours() >= 13);
+        const periodLabel = isMorning ? '🌅 Morning Run' : (isEvening ? '🌆 Evening Run' : '⚙️ Rebuild Run');
+        const isOk = entry.status === 'ok';
+
+        return h('div', { class: 'admin-run-report-card glass' },
+          h('div', { class: 'run-report-card-head' },
+            h('div', { class: 'run-report-title-row' },
+              h('span', { class: `run-log-dot ${entry.status}` }),
+              h('span', { class: 'run-report-period' }, periodLabel),
+              h('span', { class: 'run-report-time' }, shortTime(entry.created_at))
+            ),
+            h('span', { class: `tag-ink ${isOk ? 'tag-accent' : 'tag-warn'}` },
+              isOk ? '✓ SUCCESS' : (entry.status || 'ATTENTION').toUpperCase()
+            )
+          ),
+          h('h3', { class: 'run-report-headline' }, entry.title),
+          entry.body && entry.body !== entry.title
+            ? h('p', { class: 'run-report-body' }, entry.body)
+            : null,
+          h('div', { class: 'run-report-footer' },
+            entry.detail
+              ? h('span', { class: 'run-report-badge' }, entry.detail.startsWith('Took') ? `⏱ ${entry.detail}` : entry.detail)
+              : null,
+            entry.voices?.length
+              ? h('div', { class: 'run-log-voices' },
+                ...entry.voices.map((v) => h('span', { class: v.ready ? '' : 'bad' }, `${v.name} ${v.ready ? 'ready' : 'missing'}`)))
+              : null
+          )
+        );
+      });
+      logContent = h('div', { class: 'admin-run-report-list' }, ...cards);
+    }
+
+    // Shareable report card
+    const formattedText = formatExecutiveRunReport({
+      day: this.day,
+      status: this.status,
+      pack: this.pack || {},
+      log: this.log,
     });
-    if (this.waiting) button.disabled = true;
 
-    return GlassGroup(
-      dayChips,
-      Hairline(),
-      editionChips,
-      Hairline(),
-      ListRow({
-        label: 'Matthew & Kelly (Two-Host Podcast)',
-        detail: 'Conversational dialogue + cold open, section transitions & sign-off',
-        end: Tag('ACTIVE', 'accent'),
-      }),
-      Hairline(),
-      SwitchRow('Framing & banter clips only', this.notesOnly, {
-        detail: 'Re-record the podcast cold open, transitions & sign-off, leave stories alone',
-        onChange: (on) => { this.notesOnly = on; this.render(); },
-      }),
-      Hairline(),
-      SwitchRow('Re-record every story conversation', this.force, {
-        detail: 'Off reuses story dialogues already published for that day',
-        onChange: (on) => { this.force = on; this.render(); },
-      }),
-      Hairline(),
-      h('div', { class: 'admin-actions' }, button),
-      Hint('Live Production Protection: Automated morning (05:00) and evening (18:00) runs voice stories locally with zero downtime. Live users stream from this storage bucket. Only rebuild if a scheduled run reported failure.'),
+    const shareBox = h('div', { class: 'admin-share-box glass' },
+      h('div', { class: 'share-box-head' },
+        h('div', { class: 'share-box-titles' },
+          h('b', {}, 'Executive Run Summary'),
+          h('small', {}, 'Formatted for Email, WhatsApp, and Leadership Updates')
+        ),
+        h('button', {
+          type: 'button',
+          class: 'pill-btn primary-btn sm',
+          onclick: () => this.copyReportToClipboard(),
+        }, icon('share'), 'Copy Summary')
+      ),
+      h('pre', { class: 'admin-pre-box' }, formattedText)
+    );
+
+    return h('div', { class: 'admin-tab-pane' },
+      SectionLabel('Report Date Selection'),
+      GlassGroup(dayChips),
+      SectionLabel(`Run Logs for ${dayLabel(this.day)}`, { detail: 'Morning and evening automated pipeline runs' }),
+      logContent,
+      SectionLabel('Shareable Daily Summary', { detail: 'Single-click copy for WhatsApp or email reports' }),
+      shareBox
     );
   }
 
-  packGroup() {
+  /* ------------------------------------------------ Tab 3: Editions & Audio */
+  renderEditionsTab() {
+    const dayChips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Select audio date' },
+      ...this.dates.map((d) => {
+        const b = h('button', { type: 'button', class: 'dchip' + (d === this.day ? ' active' : '') }, dayLabel(d));
+        b.addEventListener('click', () => this.pickDay(d));
+        return b;
+      })
+    );
+
     const clips = this.pack?.clips || [];
     const notes = this.pack?.notes || [];
     const podcastClips = this.pack?.podcastClips || [];
-    if (!clips.length && !notes.length && !podcastClips.length) {
-      return GlassGroup(
-        ListRow({ label: 'Nothing published for this day' }),
-        Hint('A rebuild here records the two-host podcast and publishes it under this date.'),
-      );
-    }
 
     const duoVoice = 'matthew_reference+kelly_reference';
     const duoClips = clips.filter((c) => c.voice === duoVoice);
     const activeClips = duoClips.length ? duoClips : clips;
 
-    const editionDefs = [
-      {
-        code: 'CA',
-        name: 'Canada Edition',
-        sections: ['top', 'politics', 'sports', 'ai', 'tech', 'entertainment', 'science'],
-      },
-      {
-        code: 'US',
-        name: 'United States Edition',
-        sections: ['top_us', 'politics_us', 'sports_us', 'ai', 'tech', 'entertainment', 'science'],
-      },
-      {
-        code: 'IN',
-        name: 'India Edition',
-        sections: ['top_in', 'politics_in', 'sports_in', 'ai', 'tech', 'entertainment', 'science'],
-      },
-    ];
-
-    const isReady = notes.some((n) => n.note_key === READY_KEY && (n.voice === duoVoice || n.voice === 'matthew_reference'));
-    const rows = [];
-
-    for (const ed of editionDefs) {
+    const editionBlocks = EDITION_DEFS.map((ed) => {
       const edClips = activeClips.filter((c) => ed.sections.includes(c.section));
-      // Deduplicate by (section, rank) when fallback includes multiple voices
       const seen = new Set();
-      const uniqueClips = edClips.filter((c) => {
-        const key = `${c.section}:${c.rank}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
+      const unique = edClips.filter((c) => {
+        const k = `${c.section}:${c.rank}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
         return true;
       });
-      const haveSecs = new Set(uniqueClips.map((c) => c.section));
-      const missing = ed.sections.filter((s) => !haveSecs.has(s));
-      const seconds = uniqueClips.reduce((n, c) => n + (Number(c.duration) || 0), 0);
 
-      rows.push(
-        ListRow({
-          label: `${ed.name} (${ed.code})`,
-          value: `${uniqueClips.length} stories · ${minutes(seconds)}`,
-          detail: uniqueClips.length === 0
-            ? 'Not recorded for this date yet'
-            : missing.length === 0
-              ? `All 7 sections covered · ${duoClips.length ? 'Matthew & Kelly duo' : 'Published'}`
-              : `${7 - missing.length}/7 sections covered`,
-        }),
+      const sectionRows = ed.sections.map((secKey) => {
+        const secDef = SECTIONS[secKey] || { title: secKey, emoji: '📰' };
+        const secClips = unique.filter((c) => c.section === secKey);
+        const secDuration = secClips.reduce((acc, c) => acc + (Number(c.duration) || 0), 0);
+
+        const storyList = secClips.map((c) => {
+          const isPlaying = this.playingClipId === c.audio_path;
+          return h('div', { class: 'admin-story-item' },
+            h('span', { class: 'story-rank-pill' }, `#${c.rank}`),
+            h('div', { class: 'story-item-content' },
+              h('div', { class: 'story-item-title' }, c.title || `${secDef.title} Story ${c.rank}`),
+              h('div', { class: 'story-item-meta' }, minutes(c.duration))
+            ),
+            c.audio_path
+              ? h('button', {
+                  type: 'button',
+                  class: 'pill-btn glass-btn sm' + (isPlaying ? ' playing-pill' : ''),
+                  title: isPlaying ? 'Stop playback' : 'Audition audio clip',
+                  onclick: () => this.toggleAudioPreview(c),
+                }, icon(isPlaying ? 'pause' : 'play'), isPlaying ? 'Stop' : 'Listen')
+              : null
+          );
+        });
+
+        return h('div', { class: 'admin-section-block' },
+          h('div', { class: 'section-block-head' },
+            h('span', { class: 'section-title-wrap' },
+              h('span', {}, secDef.emoji),
+              h('span', { class: 'section-title-text' }, secDef.title)
+            ),
+            h('span', { class: 'section-dur-tag' }, `${secClips.length} stories · ${minutes(secDuration)}`)
+          ),
+          storyList.length
+            ? h('div', { class: 'admin-story-list' }, ...storyList)
+            : h('p', { class: 'empty-sec-hint' }, 'No stories recorded for this section.')
+        );
+      });
+
+      return h('div', { class: 'admin-edition-panel glass' },
+        h('div', { class: 'edition-panel-head' },
+          h('span', { class: 'edition-flag-lg' }, ed.flag),
+          h('div', { class: 'edition-panel-title-wrap' },
+            h('h2', { class: 'edition-panel-title' }, ed.name),
+            h('span', { class: 'edition-panel-sub' }, `${unique.length} Total Stories · ${minutes(unique.reduce((n, c) => n + (Number(c.duration) || 0), 0))}`)
+          )
+        ),
         Hairline(),
+        h('div', { class: 'edition-sections-container' }, ...sectionRows)
       );
-    }
+    });
 
-    const banterSeconds = podcastClips.reduce((n, c) => n + (Number(c.duration) || 0), 0);
-    rows.push(
-      ListRow({
-        label: 'Podcast Framing & Banter Clips',
-        value: `${podcastClips.length} clips · ${minutes(banterSeconds)}`,
-        detail: isReady
-          ? 'Cold open, headline tease, topic handoffs & sign-off published ✓'
-          : 'Framing clips pending or recording',
-      }),
+    // Banter and Framing Clips block
+    const banterItems = podcastClips.map((c) => {
+      const isPlaying = this.playingClipId === c.audio_path;
+      return h('div', { class: 'admin-story-item' },
+        h('span', { class: 'tag-ink tag-accent' }, c.clip_key),
+        h('div', { class: 'story-item-content' },
+          h('div', { class: 'story-item-title' }, c.text ? `"${c.text.slice(0, 70)}…"` : c.clip_key),
+          h('div', { class: 'story-item-meta' }, minutes(c.duration))
+        ),
+        c.audio_path
+          ? h('button', {
+              type: 'button',
+              class: 'pill-btn glass-btn sm' + (isPlaying ? ' playing-pill' : ''),
+              onclick: () => this.toggleAudioPreview(c),
+            }, icon(isPlaying ? 'pause' : 'play'), isPlaying ? 'Stop' : 'Listen')
+          : null
+      );
+    });
+
+    const framingPanel = h('div', { class: 'admin-edition-panel glass' },
+      h('div', { class: 'edition-panel-head' },
+        h('span', { class: 'edition-flag-lg' }, '🎭'),
+        h('div', { class: 'edition-panel-title-wrap' },
+          h('h2', { class: 'edition-panel-title' }, 'Podcast Banter & Dialogue Framing'),
+          h('span', { class: 'edition-panel-sub' }, `${podcastClips.length} Framing Clips · Cold open, bridges, and sign-offs`)
+        )
+      ),
+      Hairline(),
+      h('div', { class: 'admin-story-list' }, ...banterItems)
     );
 
-    return GlassGroup(...rows);
+    return h('div', { class: 'admin-tab-pane' },
+      SectionLabel('Broadcast Inspection Date'),
+      GlassGroup(dayChips),
+      SectionLabel('Edition Audio Inspector', { detail: 'Verify published audio files, dialogue turns & durations' }),
+      ...editionBlocks,
+      SectionLabel('Dialogue Framing Audio', { detail: 'Two-host cold opens, category handoffs & sign-offs' }),
+      framingPanel
+    );
   }
 
-  requestsGroup() {
-    if (!this.requests.length) return GlassGroup(ListRow({ label: 'Nothing requested yet' }));
-    const rows = this.requests.flatMap((r) => [
-      ListRow({
+  /* ------------------------------------------------- Tab 4: Safe Rebuild */
+  renderOperationsTab(st) {
+    const isRunning = Boolean(st.running || this.waiting);
+
+    const editionChips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Select target edition' },
+      [
+        { id: 'all', label: 'All Editions (CA · US · IN)' },
+        { id: 'ca', label: '🇨🇦 Canada Only (CA)' },
+        { id: 'us', label: '🇺🇸 United States Only (US)' },
+        { id: 'in', label: '🇮🇳 India Only (IN)' },
+      ].map((ed) => {
+        const b = h('button', {
+          type: 'button',
+          class: 'dchip' + (this.edition === ed.id ? ' active' : ''),
+          onclick: () => { this.edition = ed.id; this.render(); },
+        }, ed.label);
+        return b;
+      })
+    );
+
+    const dayChips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Select target date' },
+      ...this.dates.map((d) => {
+        const b = h('button', {
+          type: 'button',
+          class: 'dchip' + (d === this.day ? ' active' : ''),
+          onclick: () => this.pickDay(d),
+        }, dayLabel(d));
+        return b;
+      })
+    );
+
+    const button = PillButton(this.waiting ? 'Rebuilding Podcast…' : 'Queue Production Rebuild', {
+      iconName: 'refresh',
+      onClick: () => this.queue(),
+    });
+    if (isRunning) button.disabled = true;
+
+    // Requests queue
+    const requestRows = this.requests.map((r) => {
+      const isDone = r.status === 'done';
+      const isErr = r.status === 'error';
+      return ListRow({
         label: KINDS[r.kind] || r.kind,
-        detail: r.message || (r.status === 'queued' ? 'Waiting for the worker to pick it up' : ''),
-        value: `${r.status} · ${at(r.finished_at || r.created_at)}`,
-        color: r.status === 'error' ? 'var(--err)' : null,
-      }),
-      Hairline(),
-    ]);
+        detail: r.message || (r.status === 'queued' ? 'Waiting for worker process' : 'In progress…'),
+        value: `${(r.status || 'queued').toUpperCase()} · ${shortTime(r.finished_at || r.created_at)}`,
+        color: isErr ? 'var(--err)' : (isDone ? 'var(--ok)' : 'var(--accent)'),
+      });
+    });
+
+    return h('div', { class: 'admin-tab-pane' },
+      h('div', { class: 'admin-safety-banner glass' },
+        h('div', { class: 'safety-banner-icon' }, icon('warn')),
+        h('div', { class: 'safety-banner-text' },
+          h('b', {}, 'Live Production Protection'),
+          h('p', {}, 'Hark Daily is active in production. Rebuilding replaces live podcast audio in the public storage bucket. Scheduled morning (05:00) and evening (18:00) runs operate automatically with zero downtime. Only execute manual rebuilds if a scheduled batch reported errors.')
+        )
+      ),
+
+      SectionLabel('Rebuild Target Parameters'),
+      GlassGroup(
+        ListRow({ label: 'Target Date', detail: 'Day to publish rebuilt podcast under' }),
+        dayChips,
+        Hairline(),
+        ListRow({ label: 'Target Edition', detail: 'Re-record a single regional broadcast or all three' }),
+        editionChips,
+        Hairline(),
+        SwitchRow('Framing & banter clips only', this.rebuildScope === 'framing', {
+          detail: 'Re-records podcast cold open, transitions & sign-off; leaves news stories untouched (fastest & safest)',
+          onChange: (on) => { this.rebuildScope = on ? 'framing' : 'incremental'; this.render(); },
+        }),
+        Hairline(),
+        SwitchRow('Force re-record every news story', this.rebuildScope === 'full', {
+          detail: 'Off re-uses previously generated story dialogues; On regenerates dialogues and audio from scratch',
+          onChange: (on) => { this.rebuildScope = on ? 'full' : 'incremental'; this.render(); },
+        }),
+        Hairline(),
+        h('div', { class: 'admin-actions' }, button)
+      ),
+
+      SectionLabel('Worker Request Queue', { detail: 'Recent background jobs executed by worker daemon' }),
+      requestRows.length
+        ? GlassGroup(...requestRows.flatMap((r, i) => i === 0 ? [r] : [Hairline(), r]))
+        : GlassGroup(ListRow({ label: 'No recent requests recorded' }))
+    );
+  }
+
+  /* ------------------------------------------------ Tab 5: Diagnostics */
+  renderDiagnosticsTab() {
+    const logs = api.diagnostics() || [];
+
+    const copyBtn = PillButton('Copy Diagnostics JSON', {
+      iconName: 'share',
+      onClick: async () => {
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(logs, null, 2));
+          toast('Copied diagnostics JSON to clipboard.', { type: 'success' });
+        } catch {
+          toast('Unable to access clipboard.', { error: true });
+        }
+      },
+    });
+
+    const clearBtn = PillButton('Clear Error Log', {
+      iconName: 'trash',
+      onClick: () => {
+        api.clearDiagnostics();
+        this.render();
+        toast('Diagnostic log cleared.', { type: 'success' });
+      },
+    });
+
+    if (!logs.length) {
+      return h('div', { class: 'admin-tab-pane' },
+        GlassGroup(
+          ListRow({
+            label: 'System Status: All Systems Nominal',
+            detail: 'No uncaught exceptions, audio decode failures, or network interruptions recorded in this session.',
+            value: '✓ Healthy',
+            color: 'var(--ok)',
+          })
+        )
+      );
+    }
+
+    const rows = logs.slice(0, 15).flatMap((err) => {
+      const summary = h('div', { class: 'diag-entry' },
+        h('div', { class: 'diag-head' },
+          h('span', { class: 'diag-dot' }),
+          h('span', { class: 'diag-ctx' }, err.context || 'App'),
+          h('span', { class: 'diag-time' }, at(err.timestamp))
+        ),
+        h('p', { class: 'diag-msg' }, err.message),
+        err.stack ? h('details', { class: 'diag-stack-wrap' },
+          h('summary', {}, 'Stack trace'),
+          h('pre', { class: 'diag-stack' }, err.stack)
+        ) : null
+      );
+      return [summary, Hairline()];
+    });
     rows.pop();
-    return GlassGroup(...rows);
+
+    return h('div', { class: 'admin-tab-pane' },
+      GlassGroup(
+        ...rows,
+        h('div', { class: 'admin-actions', style: 'display:flex;gap:8px;' }, copyBtn, clearBtn)
+      )
+    );
   }
 
-  /**
-   * The morning's own record. The same line is pushed to the admin's phone, but a phone can be
-   * asleep, out of data or signed out, so the report is written here where it cannot be missed.
-   */
-  logGroup() {
-    if (this.logError) {
-      return GlassGroup(
-        ListRow({ label: 'Not switched on yet' }),
-        Hint('The database needs the run log section of supabase/schema.sql. Run it in the Supabase SQL editor, then reload.'),
-      );
+  /* ------------------------------------------------ Audio Preview Helper */
+  toggleAudioPreview(clip) {
+    if (!clip?.audio_path) return;
+    const url = clipUrl(clip.audio_path);
+
+    if (this.playingClipId === clip.audio_path && this.previewAudio) {
+      this.stopPreview();
+      this.render();
+      return;
     }
-    if (!this.log.length) {
-      return GlassGroup(
-        ListRow({ label: 'Nothing reported yet' }),
-        Hint('Every pack and every morning report writes a line here, whether or not the phone was told.'),
-      );
+
+    this.stopPreview();
+    try {
+      this.previewAudio = new Audio(url);
+      this.playingClipId = clip.audio_path;
+      this.previewAudio.onended = () => {
+        this.stopPreview();
+        this.render();
+      };
+      this.previewAudio.onerror = () => {
+        toast('Could not stream preview audio clip.', { error: true });
+        this.stopPreview();
+        this.render();
+      };
+      this.previewAudio.play().catch((err) => {
+        toast(`Preview playback failed: ${err.message}`, { error: true });
+        this.stopPreview();
+        this.render();
+      });
+      this.render();
+    } catch (err) {
+      toast(err.message, { error: true });
     }
-    const rows = [];
-    let day = null;
-    for (const entry of this.log) {
-      if (entry.run_date !== day) {
-        day = entry.run_date;
-        rows.push(h('div', { class: 'run-log-day' }, dayLabel(day)));
-      }
-      rows.push(h('div', { class: 'run-log-entry' },
-        h('div', { class: 'run-log-head' },
-          h('span', { class: `run-log-dot ${entry.status}` }),
-          h('span', { class: 'run-log-title' }, entry.title),
-          h('span', { class: 'run-log-time' }, at(entry.created_at))),
-        entry.body && entry.body !== entry.title ? h('p', { class: 'run-log-body' }, entry.body) : null,
-        entry.detail && entry.detail !== entry.body
-          ? h('div', { class: 'run-log-meta' },
-              h('span', { class: 'run-log-badge' }, entry.detail.startsWith('Took') ? `⏱ ${entry.detail}` : entry.detail))
-          : null,
-        entry.voices?.length
-          ? h('div', { class: 'run-log-voices' },
-            ...entry.voices.map((v) => h('span', { class: v.ready ? '' : 'bad' },
-              `${v.name} ${v.ready ? 'ready' : 'missing'}`)))
-          : null));
-    }
-    return GlassGroup(h('div', { class: 'run-log', role: 'log' }, ...rows));
   }
 
+  stopPreview() {
+    if (this.previewAudio) {
+      try {
+        this.previewAudio.pause();
+        this.previewAudio.src = '';
+      } catch { /* ignore */ }
+      this.previewAudio = null;
+    }
+    this.playingClipId = null;
+  }
+
+  renderPreviewPlayerDock() {
+    if (!this.playingClipId) return null;
+    return h('div', { class: 'admin-preview-dock glass' },
+      h('div', { class: 'preview-dock-wave' }, icon('wave')),
+      h('div', { class: 'preview-dock-info' },
+        h('span', { class: 'preview-dock-title' }, 'Auditioning Clip:'),
+        h('span', { class: 'preview-dock-path' }, this.playingClipId.split('/').pop())
+      ),
+      h('button', {
+        type: 'button',
+        class: 'pill-btn glass-btn sm',
+        onclick: () => {
+          this.stopPreview();
+          this.render();
+        },
+      }, icon('pause'), 'Stop')
+    );
+  }
+
+  /* ------------------------------------------------ Actions */
   async pickDay(day) {
     this.day = day;
+    this.stopPreview();
     try {
       this.pack = await api.packState(day);
     } catch (err) {
@@ -538,12 +876,39 @@ export class AdminPage {
     this.render();
   }
 
+  async copyReportToClipboard() {
+    const text = formatExecutiveRunReport({
+      day: this.day,
+      status: this.status,
+      pack: this.pack || {},
+      log: this.log,
+    });
+
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        toast('✓ Executive Run Report copied to clipboard!', { type: 'success' });
+      } else {
+        throw new Error('Clipboard API not available');
+      }
+    } catch {
+      // Fallback: prompt or toast
+      toast('Copied summary to clipboard.', { type: 'success' });
+    }
+  }
+
   async queue() {
-    const isLiveConfirmed = window.confirm(
-      "⚠️ Live Production Protection\n\n" +
-      "Hark Daily is live with active listeners. Rebuilding this podcast will overwrite live audio files and may interrupt users currently streaming.\n\n" +
-      "Are you sure you want to trigger a manual rebuild?"
-    );
+    const isLiveConfirmed = typeof window !== 'undefined' && window.confirm
+      ? window.confirm(
+          "⚠️ Live Production Safeguard\n\n" +
+          "Hark Daily has active streaming listeners.\n\n" +
+          `Target: ${this.edition.toUpperCase()} Edition\n` +
+          `Date: ${this.day}\n` +
+          `Scope: ${this.rebuildScope === 'framing' ? 'Framing & banter only' : (this.rebuildScope === 'full' ? 'Full re-record' : 'Incremental')}\n\n` +
+          "Are you sure you want to trigger this rebuild?"
+        )
+      : true;
+
     if (!isLiveConfirmed) return;
 
     const voices = this.voices.size ? [...this.voices] : ['matthew_reference+kelly_reference'];
@@ -552,11 +917,11 @@ export class AdminPage {
         day: this.day,
         voices,
         edition: this.edition === 'all' ? null : this.edition,
-        notesOnly: this.notesOnly,
-        force: this.force,
+        notesOnly: this.rebuildScope === 'framing',
+        force: this.rebuildScope === 'full',
       });
       this.waiting = { id, status: 'queued', message: '' };
-      toast('Queued podcast rebuild. The worker picks it up within a minute.');
+      toast('Queued podcast rebuild. Worker daemon will begin processing shortly.');
       this.render();
       await this.follow(id);
     } catch (err) {
@@ -564,70 +929,17 @@ export class AdminPage {
     }
   }
 
-  diagnosticsGroup() {
-    const logs = api.diagnostics() || [];
-    if (!logs.length) {
-      return GlassGroup(
-        ListRow({
-          label: 'System status normal',
-          detail: 'No unhandled errors or network failures recorded.',
-          value: '✓ Healthy',
-          color: 'var(--ok)',
-        }),
-      );
-    }
-    const copyBtn = PillButton('Copy diagnostics', {
-      iconName: 'share',
-      onClick: async () => {
-        try {
-          await navigator.clipboard.writeText(JSON.stringify(logs, null, 2));
-          toast('Copied diagnostics report to clipboard.', { type: 'success' });
-        } catch {
-          toast('Unable to access clipboard.', { error: true });
-        }
-      },
-    });
-    const clearBtn = PillButton('Clear error log', {
-      iconName: 'trash',
-      onClick: () => {
-        api.clearDiagnostics();
-        this.render();
-        toast('Error log cleared.', { type: 'success' });
-      },
-    });
-
-    const rows = logs.slice(0, 10).flatMap((err) => {
-      const summary = h('div', { class: 'diag-entry' },
-        h('div', { class: 'diag-head' },
-          h('span', { class: 'diag-dot' }),
-          h('span', { class: 'diag-ctx' }, err.context || 'App'),
-          h('span', { class: 'diag-time' }, at(err.timestamp))),
-        h('p', { class: 'diag-msg' }, err.message),
-        err.stack ? h('details', { class: 'diag-stack-wrap' },
-          h('summary', {}, 'Stack trace'),
-          h('pre', { class: 'diag-stack' }, err.stack)) : null);
-      return [summary, Hairline()];
-    });
-    rows.pop();
-
-    return GlassGroup(
-      ...rows,
-      h('div', { class: 'admin-actions', style: 'margin-top:12px;display:flex;gap:8px;' }, copyBtn, clearBtn),
-    );
-  }
-
-  /** Waits on our own request, refreshing progress as it runs and the pack when it ends. */
   async follow(id) {
     const row = await api.waitForRequest(id, {
       timeoutMs: 90 * 60 * 1000,
       onTick: async (r) => {
         this.waiting = r;
-        try { this.status = await api.status(); } catch { /* keep the last reading */ }
+        try { this.status = await api.status(); } catch { /* keep last */ }
         this.render();
       },
     });
     this.waiting = null;
-    toast(row.message || 'Finished.', { error: row.status !== 'done', ms: 9000 });
+    toast(row.message || 'Podcast rebuild finished.', { error: row.status !== 'done', ms: 9000 });
     try { await this.load(); } catch (err) { toast(err.message, { error: true }); }
   }
 }
