@@ -547,9 +547,9 @@ export const api = {
   /** One day of the shared pack: every clip, note, and podcast banter clip, so the admin page can summarise it. */
   async packState(day) {
     const [clips, notes, podcastClips] = await Promise.all([
-      check(await sb.from('story_audio').select('section,rank,voice,duration').eq('date', day)) || [],
-      check(await sb.from('voice_notes').select('voice,note_key,duration').eq('date', day)) || [],
-      sb.from('podcast_clips').select('hosts,clip_key,duration').eq('date', day).then((r) => r.data || []).catch(() => []),
+      check(await sb.from('story_audio').select('section,rank,voice,title,duration,audio_path').eq('date', day)) || [],
+      check(await sb.from('voice_notes').select('voice,note_key,duration,audio_path').eq('date', day)) || [],
+      sb.from('podcast_clips').select('hosts,clip_key,duration,audio_path,text').eq('date', day).then((r) => r.data || []).catch(() => []),
     ]);
     return { clips, notes, podcastClips };
   },

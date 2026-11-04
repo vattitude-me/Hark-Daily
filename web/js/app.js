@@ -1967,7 +1967,7 @@ function openAuxSheet(tab) {
   const aux = $('auxSheet');
   const title = $('auxTitle');
   if (title) {
-    title.textContent = tab === 'sources' ? 'Sources & Topics' : 'Admin';
+    title.textContent = tab === 'sources' ? 'Sources & Topics' : 'Admin Mission Control';
   }
   if (aux) aux.classList.remove('hidden');
   switchTab(tab);
