@@ -1,6 +1,6 @@
 {
   "name": "morning_brief",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "<div align=\"center\">",
   "main": "index.js",
   "directories": {
@@ -8,7 +8,12 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "sync": "cap sync",
+    "build:android": "cap sync android && cd android && ./gradlew assembleRelease",
+    "build:android:debug": "cap sync android && cd android && ./gradlew assembleDebug",
+    "build:android:bundle": "cap sync android && cd android && ./gradlew bundleRelease",
+    "build:ios": "cap sync ios && cd ios/App && xcodebuild -project App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS'",
+    "test": "node --test tests/js/*.test.mjs"
   },
   "repository": {
     "type": "git",
@@ -27,6 +32,7 @@
     "@capacitor/android": "^8.6.0",
     "@capacitor/cli": "^8.6.0",
     "@capacitor/core": "^8.6.0",
+    "@capacitor/ios": "^8.6.0",
     "@capacitor/local-notifications": "^8.3.1",
     "@capacitor/push-notifications": "^8.1.3"
   }

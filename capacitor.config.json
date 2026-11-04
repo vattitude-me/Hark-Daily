@@ -14,6 +14,12 @@
     "allowMixedContent": true,
     "backgroundColor": "#0d0d0d"
   },
+  "ios": {
+    "contentInset": "automatic",
+    "preferredContentMode": "mobile",
+    "scheme": "me.vattitude.morningbrief",
+    "backgroundColor": "#0d0d0d"
+  },
   "plugins": {
     "SystemBars": {
       "initialViewportFitValueHint": "cover"
