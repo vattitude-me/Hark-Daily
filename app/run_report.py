@@ -417,18 +417,48 @@ def send_email_report(rep: dict, cfg: Config) -> bool:
 
 def send_webhook_report(rep: dict) -> bool:
     """Sends the run report via webhook (Slack, Discord, or custom endpoint) if configured."""
-    webhook_url = os.getenv("REPORT_WEBHOOK_URL")
+    webhook_url = os.getenv("REPORT_WEBHOOK_URL") or os.getenv("DISCORD_WEBHOOK_URL")
     if not webhook_url:
         return False
     try:
         import urllib.request
-        payload = {
-            "text": f"*{rep['title']}*\n{rep['detail']}\nStories: {rep['stories']['total_count']} ({rep['stories']['total_duration_min']}m) · Date: {rep['date']}",
-            "report": rep,
-        }
+        is_discord = "discord.com" in webhook_url
+        if is_discord:
+            color = 0x2BD67B if rep.get("status") == "ok" else 0xEF4444
+            payload = {
+                "username": "Hark Primary Runner",
+                "avatar_url": "https://hark.vattitude.ca/icons/icon-192.png",
+                "embeds": [
+                    {
+                        "title": f"🎙️ Hark Daily {rep.get('edition', 'all').title()} Edition Finished",
+                        "description": f"**{rep.get('title', '')}**\n{rep.get('detail', '')}",
+                        "color": color,
+                        "fields": [
+                            {"name": "Date", "value": rep.get("date", ""), "inline": True},
+                            {"name": "Stories", "value": f"{rep.get('stories', {}).get('total_count', 0)} ({rep.get('stories', {}).get('total_duration_min', 0)}m)", "inline": True},
+                            {"name": "Banter", "value": "Ready" if rep.get("podcast", {}).get("ready") else "Missing", "inline": True},
+                            {"name": "Status", "value": "✓ Finished on Mac" if rep.get("status") == "ok" else "⚠️ Check Logs", "inline": True},
+                        ],
+                        "footer": {"text": "Hark Daily Primary Runner (Mac 10.0.0.15)"},
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                ],
+            }
+        else:
+            payload = {
+                "text": f"*{rep['title']}*\n{rep['detail']}\nStories: {rep['stories']['total_count']} ({rep['stories']['total_duration_min']}m) · Date: {rep['date']}",
+                "report": rep,
+            }
         data = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(webhook_url, data=data, headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        req = urllib.request.Request(
+            webhook_url,
+            data=data,
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "HarkDaily/1.0",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
             return resp.status in (200, 204)
     except Exception as exc:  # noqa: BLE001
         log.warning("Failed to send webhook report: %s", exc)
