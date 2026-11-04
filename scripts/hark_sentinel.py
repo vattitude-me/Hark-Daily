@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Hark Daily — 24/7 NAS Watchdog Sentinel & Disaster Recovery Alert.
+"""Hark Daily — 24/7 NAS Sentinel Watchdog & Disaster Recovery Alert.
 
-Runs on the always-on NAS (10.0.0.233). Operates as an independent Dead Man's Switch:
+Runs on the always-on Ubuntu NAS (10.0.0.233). Operates as an independent Dead Man's Switch:
 Checks Supabase at 05:45 AM (morning) and 18:45 PM (evening) to verify whether
 the day's audio pack was successfully published by the primary Mac (10.0.0.15).
 
-If Healthy: Sends a clean green run summary to your phone (Discord, Telegram, WhatsApp).
-If Missing: Pings Mac, detects sleep/crash, and fires an IMMEDIATE RED DR ALERT.
+If Healthy: Sends a clean green run summary card to Discord.
+If Missing: Pings Mac, sends Wake-on-LAN magic packet, and fires an IMMEDIATE RED DR ALERT.
 
 Usage:
     python3 hark_sentinel.py --edition morning
     python3 hark_sentinel.py --edition evening
     python3 hark_sentinel.py --test
+    python3 hark_sentinel.py --wol
 """
 from __future__ import annotations
 
@@ -19,26 +20,37 @@ import argparse
 import json
 import logging
 import os
+import socket
 import subprocess
 import sys
-import urllib.parse
 import urllib.request
 from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(message)s")
 log = logging.getLogger("sentinel")
 
-# Default configurations (can be overridden by environment variables)
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://qfmsqhlwvyvnhxecfvpy.supabase.co")
-SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+# Load .env if present in same directory or parent
+for candidate in (Path(__file__).parent / ".env", Path(__file__).resolve().parent.parent / ".env"):
+    if candidate.exists():
+        for line in candidate.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, _, v = line.partition("=")
+                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+        break
+
+# Target configurations
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://oohbmeffdncyzujmeqcz.supabase.co")
+SUPABASE_KEY = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_ANON_KEY", "")
 MAC_IP = os.getenv("MAC_IP", "10.0.0.15")
+MAC_HW_ADDR = os.getenv("MAC_HW_ADDR", "80:a9:97:13:97:a7")
+BROADCAST_IP = os.getenv("BROADCAST_IP", "10.0.0.255")
 TIMEZONE = os.getenv("TIMEZONE", "America/Toronto")
 ADMIN_URL = os.getenv("ADMIN_URL", "https://hark.vattitude.ca/")
 
-DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK_URL", "")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK_URL") or os.getenv("REPORT_WEBHOOK_URL", "")
 
 
 def get_today_str() -> str:
@@ -51,6 +63,25 @@ def ping_mac(ip: str = MAC_IP) -> bool:
         res = subprocess.run(["ping", "-c", "2", "-W", "2", ip], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return res.returncode == 0
     except Exception:
+        return False
+
+
+def send_magic_packet(mac: str = MAC_HW_ADDR, broadcast: str = BROADCAST_IP, port: int = 9) -> bool:
+    """Sends a Wake-on-LAN magic packet over the local broadcast address to wake the Mac."""
+    try:
+        mac_clean = mac.replace(":", "").replace("-", "")
+        if len(mac_clean) != 12:
+            log.warning("Invalid MAC address length for WoL: %s", mac)
+            return False
+        mac_bytes = bytes.fromhex(mac_clean)
+        payload = b"\xff" * 6 + mac_bytes * 16
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            sock.sendto(payload, (broadcast, port))
+        log.info("✓ Wake-on-LAN magic packet sent to %s via %s:%d", mac, broadcast, port)
+        return True
+    except Exception as exc:
+        log.warning("Failed to send WoL magic packet: %s", exc)
         return False
 
 
@@ -101,66 +132,33 @@ def query_supabase_pack(day: str) -> dict:
 
 def send_discord(title: str, description: str, color: int, fields: list[dict] | None = None) -> bool:
     """Sends a rich embed alert to Discord."""
-    if not DISCORD_WEBHOOK:
+    webhook = DISCORD_WEBHOOK
+    if not webhook:
+        log.warning("No Discord Webhook configured. Alert skipped.")
         return False
+
     payload = {
+        "username": "Hark Sentinel",
+        "avatar_url": "https://hark.vattitude.ca/icons/icon-192.png",
         "embeds": [
             {
                 "title": title,
                 "description": description,
                 "color": color,  # 0x2bd67b (green) or 0xef4444 (red)
                 "fields": fields or [],
-                "footer": {"text": "Hark Daily 24/7 NAS Sentinel (10.0.0.233)"},
+                "footer": {"text": "24/7 Watchdog on NAS (10.0.0.233) • Hark Daily"},
                 "timestamp": datetime.now(ZoneInfo(TIMEZONE)).isoformat(),
             }
         ]
     }
     try:
         data = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(DISCORD_WEBHOOK, data=data, headers={"Content-Type": "application/json"})
+        req = urllib.request.Request(webhook, data=data, headers={"Content-Type": "application/json", "User-Agent": "HarkSentinel/1.0"})
         with urllib.request.urlopen(req, timeout=10) as resp:
             return resp.status in (200, 204)
     except Exception as exc:
         log.error("Failed to send Discord alert: %s", exc)
         return False
-
-
-def send_telegram(text: str) -> bool:
-    """Sends a message via Telegram Bot."""
-    if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID):
-        return False
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = urllib.parse.urlencode({
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": text,
-        "parse_mode": "Markdown",
-        "disable_web_page_preview": "true",
-    }).encode("utf-8")
-    try:
-        req = urllib.request.Request(url, data=payload)
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return resp.status == 200
-    except Exception as exc:
-        log.error("Failed to send Telegram alert: %s", exc)
-        return False
-
-
-def dispatch_notification(healthy: bool, title: str, description: str, fields: list[dict]) -> None:
-    """Dispatches to all configured channels (Discord / Telegram)."""
-    color = 0x2BD67B if healthy else 0xEF4444
-
-    # Discord Dispatch
-    if DISCORD_WEBHOOK:
-        send_discord(title, description, color, fields)
-        log.info("✓ Dispatched to Discord")
-
-    # Telegram Dispatch
-    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
-        tg_text = f"*{title}*\n\n{description}\n\n"
-        for f in fields:
-            tg_text += f"• *{f['name']}*: {f['value']}\n"
-        send_telegram(tg_text)
-        log.info("✓ Dispatched to Telegram")
 
 
 def check_and_alert(edition: str = "morning") -> int:
@@ -175,33 +173,38 @@ def check_and_alert(edition: str = "morning") -> int:
         regions_str = ", ".join(sorted(pack["regions"])) or "All"
         banter_str = "Duo Banter Live" if pack["podcast_ready"] else "Mono/Standard"
 
-        title = f"✅ Hark Daily {edition.title()} Run Complete"
-        desc = f"Today's {edition} briefing pack is live and ready for listeners."
+        title = f"🎙️ Hark Daily — {edition.title()} Run Complete"
+        desc = f"Today's {edition} briefing pack is live and verified in Supabase."
         fields = [
             {"name": "Date", "value": today, "inline": True},
             {"name": "Stories", "value": f"{pack['stories_count']} voiced ({mins}m)", "inline": True},
             {"name": "Banter", "value": banter_str, "inline": True},
             {"name": "Editions", "value": regions_str, "inline": True},
+            {"name": "Producer", "value": f"Mac ({MAC_IP})", "inline": True},
             {"name": "Status", "value": "🟢 All Systems Nominal", "inline": True},
-            {"name": "Admin Mission Control", "value": f"[Open Mission Control]({ADMIN_URL})", "inline": False},
         ]
-        dispatch_notification(True, title, desc, fields)
-        log.info("Run confirmed healthy.")
+        send_discord(title, desc, 0x2BD67B, fields)
+        log.info("Run confirmed healthy and green report dispatched.")
         return 0
 
     # FAILURE / DR EVENT
     mac_online = ping_mac()
-    mac_status = "Online (Pingable)" if mac_online else "OFFLINE / Sleeping / Unreachable"
+    mac_status = "Online (Pingable, but pack stalled)" if mac_online else "OFFLINE / Sleeping / Unreachable"
 
-    title = f"🚨 DR ALERT: {edition.title()} Pack Missing!"
+    # Level 1 DR: Attempt Wake-on-LAN if Mac is sleeping/offline
+    wol_attempted = False
+    if not mac_online:
+        wol_attempted = send_magic_packet()
+
+    title = f"🚨 DR ALERT: {edition.title()} Pack Not Published!"
     desc = f"By scheduled cutoff time, today's {edition} edition was **not published** to Supabase."
     fields = [
         {"name": "Target Date", "value": today, "inline": True},
-        {"name": "Mac Status (10.0.0.15)", "value": f"**{mac_status}**", "inline": True},
-        {"name": "Diagnosis", "value": "Mac went to sleep or generation halted midway" if mac_online else "Mac is powered off or sleeping with lid closed", "inline": False},
-        {"name": "Required Action", "value": f"1. Wake Mac / check logs\n2. Or trigger [Safe Rebuild via Admin Console]({ADMIN_URL})", "inline": False},
+        {"name": "Mac Status", "value": f"**{mac_status}** ({MAC_IP})", "inline": True},
+        {"name": "Automated DR Action", "value": "✓ Sent Wake-on-LAN magic packet to wake Mac" if wol_attempted else "Mac is pingable; pack may have encountered an error midway", "inline": False},
+        {"name": "Manual Investigation", "value": f"Please wake Mac ({MAC_IP}) or inspect `logs/{edition}_pack.log`", "inline": False},
     ]
-    dispatch_notification(False, title, desc, fields)
+    send_discord(title, desc, 0xEF4444, fields)
     log.error("Run failed! DR Alert dispatched.")
     return 1
 
@@ -209,19 +212,36 @@ def check_and_alert(edition: str = "morning") -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Hark Daily 24/7 NAS Sentinel Watchdog")
     parser.add_argument("--edition", choices=["morning", "evening"], default="morning", help="Edition to check")
-    parser.add_argument("--test", action="store_true", help="Send a test notification to verify webhook/bot")
+    parser.add_argument("--test", action="store_true", help="Send a test notification to verify Discord webhook")
+    parser.add_argument("--wol", action="store_true", help="Send a test Wake-on-LAN packet to the Mac")
+    parser.add_argument("--webhook", help="Override Discord Webhook URL for testing")
     args = parser.parse_args()
 
-    if args.test:
-        log.info("Sending test notification...")
-        fields = [
-            {"name": "Host", "value": "NAS (10.0.0.233)", "inline": True},
-            {"name": "Mac Target", "value": f"{MAC_IP} ({'Up' if ping_mac() else 'Unreachable'})", "inline": True},
-            {"name": "Status", "value": "Sentinel Watchdog Connected", "inline": True},
-        ]
-        dispatch_notification(True, "🛡️ Hark Sentinel Watchdog Test", "Your 24/7 NAS monitoring alert channel is active and functioning.", fields)
-        print("✓ Test notification dispatched.")
+    global DISCORD_WEBHOOK
+    if args.webhook:
+        DISCORD_WEBHOOK = args.webhook
+
+    if args.wol:
+        send_magic_packet()
+        print("✓ WoL magic packet sent to Mac.")
         return 0
+
+    if args.test:
+        log.info("Sending test notification to Discord...")
+        mac_up = ping_mac()
+        fields = [
+            {"name": "Watchdog Host", "value": "NAS (10.0.0.233)", "inline": True},
+            {"name": "Mac Ping Status", "value": f"{MAC_IP} ({'🟢 Online' if mac_up else '🔴 Offline'})", "inline": True},
+            {"name": "Wake-on-LAN Target", "value": f"{MAC_HW_ADDR}", "inline": True},
+            {"name": "Status", "value": "🛡️ Sentinel Connected", "inline": True},
+        ]
+        ok = send_discord("🛡️ Hark Sentinel Watchdog Test", "Your 24/7 NAS monitoring alert channel is active and functioning.", 0x58A6FF, fields)
+        if ok:
+            print("✓ Test notification delivered to Discord successfully!")
+            return 0
+        else:
+            print("✗ Failed to deliver. Did you set DISCORD_WEBHOOK_URL?")
+            return 1
 
     return check_and_alert(args.edition)
 
