@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.11] - 2026-11-04
+
+### Added
+- **Capacitor 8 Mobile Native Shells (Android & iOS)**:
+  - **Android**: Streamlined Gradle build configuration with auto-detection for OpenJDK 21; verified signed production APK (`hark-daily-1.0.11.apk`) and Google Play App Bundle (`hark-daily-release.aab`).
+  - **iOS**: Initialized Capacitor 8 iOS platform using Swift Package Manager (SPM); configured `AVAudioSession` `.playback` category for lock screen, Control Center, Dynamic Island, and CarPlay background playback; configured `UIBackgroundModes` (`audio`, `fetch`, `remote-notification`), custom URL scheme (`me.vattitude.morningbrief://`), 1024×1024 Universal AppIcon, and 2732×2732 splash assets.
+- **Briefing Restart Option**:
+  - Tapping **Previous Chapter** (`prevChapter()`) on the scrubber rewinds to `0:00` when on story 1 or `< 3s` into playback.
+  - Added dedicated **"Restart briefing"** action in hamburger drawer settings.
+- **NAS Watchdog Sentinel & Discord DR Monitoring**:
+  - Deployed `hark_sentinel.py` to always-on Linux NAS (`10.0.0.233`) with automated Wake-on-LAN magic packet dispatch to the producer Mac and Discord webhook rich embeds for pipeline status.
+
+### Fixed
+- **Drawer Footer Action Bar & Staged Changes Flow**:
+  - Redesigned hamburger drawer footer: shows a single full-width **"Close"** button by default.
+  - Dynamically morphs into **"Discard"** and **"Save changes"** as soon as an edition or setting is staged, preventing accidental changes or confusion.
+- **Deep Hardware Audio Decoder & Pipeline Reset**:
+  - Enforced full audio pipeline flush (`pause()`, `removeAttribute('src')`, `load()`, preloader purge) on edition switch, clearing browser hardware audio buffers so previous edition audio never bleeds into new regions.
+- **Strict Per-Edition Caching**:
+  - Isolated cache keys by edition (`last-briefing-ca`, `last-briefing-us`, `last-briefing-in`).
+  - Prevented stale Canadian stories from optimistically painting or playing when India or US is selected.
+
+---
+
 ## [1.0.10] - 2026-11-03
 
 ### Added
