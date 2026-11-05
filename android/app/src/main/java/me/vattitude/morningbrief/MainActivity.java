@@ -27,6 +27,7 @@ public class MainActivity extends BridgeActivity {
 
     public static WeakReference<MainActivity> activeInstance;
     private String pendingAuthUri = null;
+    private String pendingDeepLinkUri = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,6 +39,7 @@ public class MainActivity extends BridgeActivity {
         setupWindowInsets();
         configureSmartShell();
         handleAuthIntent(getIntent());
+        handleDeepLinkIntent(getIntent());
     }
 
     @Override
@@ -45,6 +47,7 @@ public class MainActivity extends BridgeActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleAuthIntent(intent);
+        handleDeepLinkIntent(intent);
     }
 
     private void handleAuthIntent(Intent intent) {
@@ -74,6 +77,40 @@ public class MainActivity extends BridgeActivity {
                         null
                     );
                 });
+            }
+        }
+    }
+
+    private void handleDeepLinkIntent(Intent intent) {
+        if (intent == null) return;
+        Uri uri = intent.getData();
+        if (uri == null) return;
+
+        String scheme = uri.getScheme();
+        String host = uri.getHost();
+
+        boolean isAppScheme = ("me.vattitude.morningbrief".equalsIgnoreCase(scheme) || getPackageName().equalsIgnoreCase(scheme));
+        boolean isHttpsHost = "https".equalsIgnoreCase(scheme) && "hark.vattitude.ca".equalsIgnoreCase(host);
+
+        if (isAppScheme || isHttpsHost) {
+            String path = uri.getPath();
+            boolean isStoryLink = (path != null && path.startsWith("/s/"))
+                    || uri.getQueryParameter("story") != null
+                    || uri.getQueryParameter("date") != null;
+
+            if (isStoryLink) {
+                String fullUri = uri.toString();
+                pendingDeepLinkUri = fullUri;
+                WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+                if (webView != null) {
+                    webView.post(() -> {
+                        String safeUri = fullUri.replace("\\", "\\\\").replace("'", "\\'");
+                        webView.evaluateJavascript(
+                            "window.handleDeepLinkUrl && window.handleDeepLinkUrl('" + safeUri + "');",
+                            null
+                        );
+                    });
+                }
             }
         }
     }
@@ -392,6 +429,17 @@ public class MainActivity extends BridgeActivity {
             if (act != null && act.pendingAuthUri != null) {
                 String u = act.pendingAuthUri;
                 act.pendingAuthUri = null;
+                return u;
+            }
+            return "";
+        }
+
+        @JavascriptInterface
+        public String getPendingDeepLinkUri() {
+            MainActivity act = activityRef.get();
+            if (act != null && act.pendingDeepLinkUri != null) {
+                String u = act.pendingDeepLinkUri;
+                act.pendingDeepLinkUri = null;
                 return u;
             }
             return "";
