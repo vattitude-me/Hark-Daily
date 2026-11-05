@@ -28,3 +28,20 @@ Always follow these rules when modifying the player (`web/js/player.js`), playli
 
 ## 5. Fail-Safe Auto-Advance on Transition Audio Errors
 - If a section bridge, banter, or gap clip fails to decode or rejects `play()`, immediately catch and advance to `this.index + 1` so the news briefing never halts before a category.
+
+## 6. Player Loop Fault Isolation & Variable Scoping Discipline
+The player's `tick()` method executes 4 to 5 times per second on `timeupdate` events. A single unhandled runtime error (e.g. `ReferenceError` or `TypeError`) halts the JavaScript execution thread for that frame, freezing UI updates (headlines, counters, teleprompter words) while background audio keeps playing.
+
+Always adhere to these rules in `web/js/player.js`:
+- **Top-Level Loop Scoping**: Any math, timestamp, or progress ratio variable accessed across multiple components (e.g., `frac = dur ? Math.min(1, Math.max(0, t / dur)) : 0`, `dur`, `t`) must be declared at the top of `tick()`. Never declare progress variables within localized conditional blocks like `if (el.seg)`.
+- **Fault-Isolated UI Updates**: Partition independent UI subsystems (waveform bars, teleprompter scroll, media session, floating mini-player) into defensive blocks or safe guards. A failure in an optional cosmetic feature (e.g. waveform rendering) must NEVER prevent the headline, category badge, and story counter from rendering.
+- **Immediate State Hydration (No Placeholder Lingering)**: When `player.load(briefing)` is called, synchronously hydrate the clean player card and teleprompter using safe story fallbacks (`story?.headline || ch?.title || b.stories?.[0]?.headline || b.title`). Never rely exclusively on asynchronous `timeupdate` ticks to replace default HTML placeholders like `"Loading today's briefing…"`.
+
+## 7. Mandatory DOM Loop Unit Test Coverage
+Because Node.js test runners lack a native browser DOM (`typeof document === 'undefined'`), DOM manipulation code in `tick()` is bypassed unless explicitly mocked.
+- Any change to `Player.tick()`, `Player.bind()`, or reader teleprompter controls must maintain test coverage in `tests/js/podcast.test.mjs`.
+- Tests must pass a mocked DOM environment to `player.tick()` and assert that:
+  1. `tick()` executes without throwing any unhandled exceptions.
+  2. Headline (`#cleanStoryHeadline`) updates away from placeholder text.
+  3. Elapsed and remaining durations (`#cleanCurTime`, `#cleanDurTime`) update accurately.
+  4. Waveform scrubber active bar states update with playback fraction.
