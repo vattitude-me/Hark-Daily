@@ -17,7 +17,7 @@ writeFileSync(join(dir, 'api.mjs'), `export const SECTIONS = {
   politics: { title: 'Politics' }, politics_us: { title: 'Politics' }, politics_in: { title: 'Politics' },
   entertainment: { title: 'Entertainment' }, entertainment_us: { title: 'Entertainment' }, entertainment_in: { title: 'Entertainment' },
   sports: { title: 'Sports' }, sports_us: { title: 'Sports' }, sports_in: { title: 'Cricket & Sports' }
-}; export const voiceName = (v) => v; export const fmtTime = (s) => String(s); export const h = () => ({}); export const store = { get: () => 0, set: () => {} };`);
+}; export const voiceName = (v) => v; export const fmtTime = (s) => String(s); export const h = () => ({ addEventListener: () => {}, classList: { toggle: () => {} } }); export const store = { get: () => 0, set: () => {} };`);
 writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x'; export const SUPABASE_PUBLISHABLE_KEY = 'k';");
 const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor, parseDialogueTurns, pickVoice, clipUrl, voiceNormalize, lineup, MAX_PER_SECTION, DEFAULT_SECTION_COUNTS } = await import(join(dir, 'storypack.mjs'));
 
@@ -582,6 +582,67 @@ test('Non-podcast mode queue: breaths only placed between stories, never between
     }
   }
 });
+
+test('Player tick() clean player DOM updates and waveform scoping', () => {
+  const domElements = new Map();
+  const mockEl = (id) => {
+    if (!domElements.has(id)) {
+      domElements.set(id, {
+        id,
+        textContent: '',
+        style: {},
+        classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+        dataset: {},
+        setAttribute: () => {},
+        addEventListener: () => {},
+        replaceChildren: () => {},
+        querySelectorAll: () => [],
+      });
+    }
+    return domElements.get(id);
+  };
+
+  const waveBars = Array.from({ length: 40 }, () => ({
+    classList: { toggle: (cls, on) => {} },
+  }));
+
+  globalThis.document = {
+    createElement: () => mockEl('created'),
+    getElementById: (id) => mockEl(id),
+    querySelectorAll: (sel) => {
+      if (sel.includes('clean-wave-bar')) return waveBars;
+      return [];
+    },
+    addEventListener: () => {},
+    body: { classList: { toggle: () => {} } },
+  };
+
+  const b = build({ top: 2, ai: 1 });
+  const audio = { pause: () => {}, play: async () => {}, playbackRate: 1, currentTime: 0, duration: 100, addEventListener: () => {} };
+  const player = new Player({ audio, el: {} });
+  b.duration = 489; // 8:09
+  player.briefing = b;
+  audio.currentTime = 10;
+  player.chapters = b.chapters || [];
+
+  // This must execute cleanly without "ReferenceError: frac is not defined"
+  assert.doesNotThrow(() => {
+    player.tick();
+  });
+
+  const headline = mockEl('cleanStoryHeadline').textContent;
+  assert.ok(headline && headline.length > 0, 'Clean story headline must be populated');
+  assert.notEqual(headline, "Loading today's briefing…");
+
+  const curTime = mockEl('cleanCurTime').textContent;
+  assert.equal(curTime, '10', 'cleanCurTime should be updated');
+
+  const durTime = mockEl('cleanDurTime').textContent;
+  assert.equal(durTime, '-90', 'cleanDurTime should reflect remaining duration');
+
+  delete globalThis.document;
+});
+
 
 
 
