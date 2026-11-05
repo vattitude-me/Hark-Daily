@@ -39,12 +39,12 @@ Hark Daily's Android application uses a **Smart Native Shell** architecture powe
 
 ### Assembling Release APK
 ```bash
-./gradlew assembleRelease -PversionName=1.0.0 -PversionCode=10000
+./gradlew assembleRelease -PversionName=1.0.11 -PversionCode=10011
 ```
-Output: `app/build/outputs/apk/release/morning-brief-1.0.0.apk`
+Output: `app/build/outputs/apk/release/hark-daily-1.0.11.apk`
 
 ### Assembling Release App Bundle (Google Play)
 ```bash
-./gradlew bundleRelease -PversionName=1.0.0 -PversionCode=10000
+./gradlew bundleRelease -PversionName=1.0.11 -PversionCode=10011
 ```
-Output: `app/build/outputs/bundle/release/morning-brief-release.aab`
+Output: `app/build/outputs/bundle/release/hark-daily-release.aab`
