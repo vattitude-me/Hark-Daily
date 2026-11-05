@@ -83,7 +83,7 @@
   <meta name="theme-color" content="#17120E">
   <link rel="preload" href="/fonts/plus-jakarta-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/css/styles.css?v=56">
+  <link rel="stylesheet" href="/css/styles.css?v=57">
   <script>
     try {
       const t = localStorage.getItem('mb-theme');
@@ -522,6 +522,13 @@
               <svg class="clean-menu-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
             </button>
 
+            <button class="clean-menu-item" type="button" id="menuRestartBtn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              <span class="clean-menu-label">Restart briefing</span>
+              <span class="clean-menu-val">From start</span>
+              <svg class="clean-menu-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+
             <button class="clean-menu-item" type="button" id="menuPushBtn" role="switch" aria-checked="false">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
               <span class="clean-menu-label">Morning alerts</span>
@@ -563,14 +570,14 @@
               <span class="clean-drawer-legal-dot" aria-hidden="true">·</span>
               <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>
             </div>
-            <div class="clean-drawer-version" id="cleanDrawerVersion">Hark Daily v1.0.10</div>
+            <div class="clean-drawer-version" id="cleanDrawerVersion">Hark Daily v1.0.11</div>
           </div>
         </div>
 
-        <!-- Bottom Action Bar: Discard / Close & Save changes -->
+        <!-- Bottom Action Bar: Close (default) / Discard & Save changes (when dirty) -->
         <div class="clean-drawer-foot" id="menuFooterBar">
           <button class="clean-foot-discard" type="button" id="menuDiscardBtn">Close</button>
-          <button class="clean-foot-save" type="button" id="menuSaveBtn">Save changes</button>
+          <button class="clean-foot-save hidden" type="button" id="menuSaveBtn">Save changes</button>
         </div>
       </div>
     </div>
@@ -1063,6 +1070,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/vendor/supabase.min.js"></script>
-  <script type="module" src="/js/app.js?v=69"></script>
+  <script type="module" src="/js/app.js?v=70"></script>
 </body>
 </html>

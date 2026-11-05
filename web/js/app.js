@@ -571,13 +571,16 @@ export async function setEdition(edition) {
   if (!EDITIONS[edition]) return;
   const wasPlaying = player.isPlaying;
 
-  // Stop currently playing audio immediately and reset timeline
+  // Flush hardware audio decoder & buffer completely
   player.audio.pause();
-  player.audio.currentTime = 0;
+  player.audio.removeAttribute('src');
+  try { player.audio.load(); } catch {}
+  player.currentTime = 0;
   player.index = 0;
   if (player.preloader) {
     delete player.preloader.dataset.clip;
     player.preloader.removeAttribute('src');
+    try { player.preloader.load(); } catch {}
   }
 
   state.edition = edition;
@@ -588,77 +591,50 @@ export async function setEdition(edition) {
 
   const { todayStr: today } = getLocalDateInfo();
   const targetDay = state.selectedDate || today;
-  const currentRows = state.packContext?.rows || [];
-  const targetNeedsLoad =
-    state.packContext?.date !== targetDay ||
-    (edition === 'in' && !currentRows.some((r) => r.section && r.section.endsWith('_in'))) ||
-    (edition === 'us' && !currentRows.some((r) => r.section && r.section.endsWith('_us'))) ||
-    (edition === 'ca' && state.briefing?.date !== targetDay && currentRows.some((r) => r.section && r.section.endsWith('_in')));
 
-  if (targetNeedsLoad) {
-    const pack = await loadStoryPack(targetDay);
-    if (pack) {
-      state.briefing = pack;
-      const posKey = posKeyFor(pack);
-      store.set(posKey, 0);
-      displayBriefing();
-      if (wasPlaying) {
-        player.loadClip(0, { seek: 0, autoplay: true });
-      } else {
-        player.loadClip(0, { seek: 0, autoplay: false });
-        player.tick();
-      }
-      const ed = EDITIONS[edition];
-      toast(`Switched to ${ed?.name || edition} ${ed?.flag || ''}`);
-      return;
-    }
-  }
+  state.briefingLoading = true;
+  renderNotice();
 
-  if (state.packContext) {
-    const { rows, settings, date, notes, fresh, podcastClips } = state.packContext;
-    const targetInfo = getTargetStoryInfo();
-    const briefing = buildPackBriefing(rows, settings, {
-      date,
-      voice: settings.voice,
-      notes,
-      mode: activeMode(),
-      podcastClips,
-      targetStory: targetInfo.story,
-      targetTitle: targetInfo.title,
-      targetAudio: targetInfo.audio,
-      targetSource: targetInfo.source,
-      targetDur: targetInfo.dur,
-      targetHash: targetInfo.hash,
-      targetImage: targetInfo.image,
-      targetScript: targetInfo.script,
-      edition: state.edition,
-    });
-    if (briefing && briefing.stories && briefing.stories.length > 0) {
-      briefing.fresh = fresh;
-      briefing.edition = edition;
-
-      // Reset saved position for this edition so we restart fresh
-      const posKey = posKeyFor(briefing);
-      store.set(posKey, 0);
-
-      state.briefing = briefing;
-      displayBriefing();
-
-      // Restart player with the new country's content from the beginning (Story 1 / clip 0)
-      if (wasPlaying) {
-        player.loadClip(0, { seek: 0, autoplay: true });
-      } else {
-        player.loadClip(0, { seek: 0, autoplay: false });
-        player.tick();
-      }
-
-      const ed = EDITIONS[edition];
-      toast(`Switched to ${ed?.name || edition} ${ed?.flag || ''}`);
+  const pack = await loadStoryPack(targetDay);
+  if (pack) {
+    state.briefing = pack;
+    state.briefingLoading = false;
+    const posKey = posKeyFor(pack);
+    store.set(posKey, 0);
+    displayBriefing();
+    if (wasPlaying) {
+      player.loadClip(0, { seek: 0, autoplay: true });
     } else {
-      const ed = EDITIONS[edition];
-      toast(`${ed?.name || edition} stories are not available yet.`, { error: true });
+      player.loadClip(0, { seek: 0, autoplay: false });
+      player.tick();
     }
+    const ed = EDITIONS[edition];
+    toast(`Switched to ${ed?.name || edition} ${ed?.flag || ''}`);
+    return;
   }
+
+  // Fallback to per-edition cache if offline
+  const cached = store.get(`last-briefing-${edition}`, null);
+  if (cached && (cached.stories?.length || cached.clips?.length)) {
+    state.briefing = cached;
+    state.briefingLoading = false;
+    const posKey = posKeyFor(cached);
+    store.set(posKey, 0);
+    displayBriefing();
+    if (wasPlaying) {
+      player.loadClip(0, { seek: 0, autoplay: true });
+    } else {
+      player.loadClip(0, { seek: 0, autoplay: false });
+      player.tick();
+    }
+    const ed = EDITIONS[edition];
+    toast(`Switched to ${ed?.name || edition} ${ed?.flag || ''}`);
+    return;
+  }
+
+  state.briefingLoading = false;
+  renderNotice();
+  toast(`No briefing available yet for ${EDITIONS[edition]?.name || edition}`, { error: true });
 }
 window.setEdition = setEdition;
 
@@ -1604,7 +1580,12 @@ window.dismissSplash = dismissSplash;
 function displayBriefing() {
   if (state.briefing) {
     player.load(state.briefing);
-    try { store.set('last-briefing', { ...state.briefing, edition: state.edition }); } catch { /* ignore storage error */ }
+    try {
+      const ed = state.edition || 'ca';
+      const cachedData = { ...state.briefing, edition: ed };
+      store.set('last-briefing', cachedData);
+      store.set(`last-briefing-${ed}`, cachedData);
+    } catch { /* ignore storage error */ }
   }
   setFootnote();
   renderHeader();
@@ -1905,10 +1886,20 @@ function updateMenuDrawer() {
     adminBtn.classList.toggle('hidden', !isAdmin(state.profile));
   }
 
-  // Bottom Footer Bar (Discard / Close & Save changes)
+  // Bottom Footer Bar (Close by default; Discard & Save changes when dirty)
+  const isDirty = hasPendingMenuChanges();
+  const footerBar = $('menuFooterBar');
+  const saveBtn = $('menuSaveBtn');
   const discardBtn = $('menuDiscardBtn');
+
+  if (footerBar) {
+    footerBar.classList.toggle('has-changes', isDirty);
+  }
+  if (saveBtn) {
+    saveBtn.classList.toggle('hidden', !isDirty);
+  }
   if (discardBtn) {
-    discardBtn.textContent = hasPendingMenuChanges() ? 'Discard' : 'Close';
+    discardBtn.textContent = isDirty ? 'Discard' : 'Close';
   }
 }
 
@@ -1957,6 +1948,7 @@ async function discardMenuChanges() {
   }
   updateMenuDrawer();
   toast('Changes discarded');
+  closeMenuDrawer();
 }
 
 function openAuxSheet(tab) {
@@ -2133,6 +2125,11 @@ function bindEvents() {
     openAuxSheet('sources');
   });
   $('menuSpeedBtn')?.addEventListener('click', cyclePlaybackSpeed);
+  $('menuRestartBtn')?.addEventListener('click', () => {
+    closeMenuDrawer();
+    player.restart();
+    toast('Restarted briefing from start ↺');
+  });
   $('menuPushBtn')?.addEventListener('click', async () => {
     await bannerSetupPush();
     updateMenuDrawer();
@@ -2592,9 +2589,10 @@ async function start() {
 
   // 1. Instant optimistic paint from cached briefing (0 ms!)
   if (!state.briefing) {
-    const cached = store.get('last-briefing', null);
+    const curEd = state.edition || 'ca';
+    const cached = store.get(`last-briefing-${curEd}`, null) || store.get('last-briefing', null);
     const canUseCache = cached && (!(targetInfo.date || urlParams.get('date')) || cached.date === targetDate)
-      && (!cached.edition || cached.edition === state.edition)
+      && (cached.edition === curEd)
       && (!targetInfo.hash || cached.stories?.some((s) => (s.key && s.key === targetInfo.hash) || storyKey(s) === targetInfo.hash))
       && (!targetInfo.title || cached.stories?.some((s) => titlesMatch(s.headline, targetInfo.title)))
       && (!targetInfo.story || cached.stories?.some((s) => s.id === targetInfo.story || s.key === targetInfo.story));
@@ -2653,8 +2651,9 @@ async function start() {
   } catch (err) {
     state.briefingLoading = false;
     recordError(err, 'loadBriefing');
-    const cached = store.get('last-briefing', null);
-    if (cached && (cached.audio_url?.startsWith('http') || cached.stories?.length)) {
+    const curEd = state.edition || 'ca';
+    const cached = store.get(`last-briefing-${curEd}`, null) || store.get('last-briefing', null);
+    if (cached && (cached.edition === curEd) && (cached.audio_url?.startsWith('http') || cached.stories?.length)) {
       state.briefing = cached;
       displayBriefing();
       toast('Offline mode active. Showing your saved briefing.', { error: true, ms: 5000 });
