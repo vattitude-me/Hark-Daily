@@ -3165,6 +3165,13 @@ async function init() {
   }
 }
 
-if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.getElementById?.('shell')) {
-  init();
+window.initApp = init;
+
+const isNodeEnv = typeof process !== 'undefined' && Boolean(process?.versions?.node);
+if (typeof window !== 'undefined' && typeof document !== 'undefined' && !isNodeEnv) {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => init());
+  } else {
+    init();
+  }
 }
