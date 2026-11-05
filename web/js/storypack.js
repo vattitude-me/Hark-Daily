@@ -667,6 +667,7 @@ export function buildBriefing(rows, settings, {
       image: storyRow.image || targetImage || null, start, end, rapid: isRapid,
       audio_path: storyRow.audio_path,
       isSharedBonus: Boolean(storyRow.isSharedBonus),
+      date: storyRow.date || date,
       script: storyRow.script || targetScript || storyRow.summary || '',
     });
     chapters.push({ id, key, kind: 'story', title: storyRow.title, start, end, section: storyRow.section });

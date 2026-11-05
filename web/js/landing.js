@@ -233,7 +233,10 @@ export class Landing {
                 if (window.openShareModal) {
                   window.openShareModal(s);
                 } else {
-                  const url = `${window.location.origin}/?story=${encodeURIComponent(s.id)}`;
+                  const d = s.date || new Date().toLocaleDateString('en-CA');
+                  const hash = s.key || '';
+                  const slug = hash ? (s.id?.endsWith(`-${hash}`) ? s.id : `${s.id}-${hash}`) : (s.id || 'story');
+                  const url = `${window.location.origin}/s/${d}/${encodeURIComponent(slug)}`;
                   navigator.clipboard?.writeText(url).then(() => toast('Link copied to clipboard!'));
                 }
               },
