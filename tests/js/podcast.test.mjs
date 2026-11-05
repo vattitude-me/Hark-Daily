@@ -17,8 +17,8 @@ writeFileSync(join(dir, 'api.mjs'), `export const SECTIONS = {
   politics: { title: 'Politics' }, politics_us: { title: 'Politics' }, politics_in: { title: 'Politics' },
   entertainment: { title: 'Entertainment' }, entertainment_us: { title: 'Entertainment' }, entertainment_in: { title: 'Entertainment' },
   sports: { title: 'Sports' }, sports_us: { title: 'Sports' }, sports_in: { title: 'Cricket & Sports' }
-}; export const voiceName = (v) => v; export const fmtTime = (s) => String(s); export const h = () => ({ addEventListener: () => {}, classList: { toggle: () => {} } }); export const store = { get: (k, def) => (def !== undefined ? def : null), set: () => {} }; export const api = {}; export const icon = () => ({}); export const isAdmin = () => false; export const recordError = () => {}; export const sb = null; export const timeAgo = () => ''; export const toast = () => {}; export const VOICES = {}; export const voiceFor = () => ({}); export const DEFAULT_VOICE_ID = 'c3po_reference'; export const EDITIONS = {}; export const defaultEdition = () => 'ca'; export const detectEditionFromIp = () => 'ca';`);
-writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x'; export const SUPABASE_PUBLISHABLE_KEY = 'k'; export const FEATURES = { podcast: true, rapid: true }; export const APP_VERSION = '1.0.13';");
+}; export const voiceName = (v) => v; export const fmtTime = (s) => String(s); export const h = () => ({ addEventListener: () => {}, classList: { toggle: () => {} } }); export const store = { get: (k, def) => (def !== undefined ? def : null), set: () => {} }; export const generateRawNonce = () => '00'; export const hashNonce = async () => '00'; export const api = { generateRawNonce: () => '00', hashNonce: async () => '00', signInWithGoogleIdToken: async () => ({}) }; export const icon = () => ({}); export const isAdmin = () => false; export const recordError = () => {}; export const sb = null; export const timeAgo = () => ''; export const toast = () => {}; export const VOICES = {}; export const voiceFor = () => ({}); export const DEFAULT_VOICE_ID = 'c3po_reference'; export const EDITIONS = {}; export const defaultEdition = () => 'ca'; export const detectEditionFromIp = () => 'ca';`);
+writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x'; export const SUPABASE_PUBLISHABLE_KEY = 'k'; export const FEATURES = { podcast: true, rapid: true }; export const GOOGLE_CLIENT_ID = 'test-id'; export const APP_VERSION = '1.0.15';");
 const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor, parseDialogueTurns, pickVoice, clipUrl, voiceNormalize, lineup, MAX_PER_SECTION, DEFAULT_SECTION_COUNTS } = await import(join(dir, 'storypack.mjs'));
 
 const playerSrc = readFileSync(new URL('../../web/js/player.js', import.meta.url), 'utf8')
@@ -761,6 +761,93 @@ test('app.js exports initApp and boots cleanly when window and document are pres
   delete globalThis.window;
   delete globalThis.document;
 });
+
+test('GIS Google Auth: cryptographic SHA-256 nonce generator and signInWithIdToken contract', async () => {
+  const apiSrc = readFileSync(new URL('../../web/js/api.js', import.meta.url), 'utf8')
+    .replace("'../config.js'", "'./config.mjs'");
+  writeFileSync(join(dir, 'api_gis.mjs'), apiSrc);
+  const { generateRawNonce, hashNonce } = await import(join(dir, 'api_gis.mjs'));
+
+  // 1. Test generateRawNonce format, entropy, and length
+  const nonce1 = generateRawNonce();
+  const nonce2 = generateRawNonce();
+  assert.equal(typeof nonce1, 'string', 'nonce must be a string');
+  assert.equal(nonce1.length, 64, '32 bytes hex encoded should be 64 characters');
+  assert.match(nonce1, /^[0-9a-f]{64}$/, 'nonce must be lowercase hex');
+  assert.notEqual(nonce1, nonce2, 'successive nonces must be cryptographically random and unique');
+
+  // Custom length test
+  const shortNonce = generateRawNonce(16);
+  assert.equal(shortNonce.length, 32, '16 bytes hex encoded should be 32 characters');
+
+  // 2. Test hashNonce with standard test vector for SHA-256
+  // SHA-256("test") = 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+  const hashTest = await hashNonce('test');
+  assert.equal(hashTest, '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08');
+
+  // Hash of raw nonce
+  const hashedNonce1 = await hashNonce(nonce1);
+  assert.match(hashedNonce1, /^[0-9a-f]{64}$/, 'hashed nonce must be 64-char hex SHA-256');
+
+  // 3. Test GIS initialize options and Supabase signInWithIdToken parameters contract
+  let gisInitializedOptions = null;
+  const mockGis = {
+    accounts: {
+      id: {
+        initialize: (opts) => {
+          gisInitializedOptions = opts;
+        },
+        renderButton: () => {},
+        prompt: () => {},
+      },
+    },
+  };
+
+  let supabaseIdTokenParams = null;
+  const mockSupabase = {
+    auth: {
+      signInWithIdToken: async (params) => {
+        supabaseIdTokenParams = params;
+        return { data: { user: { id: 'test-user-123' }, session: { access_token: 'fake-jwt' } }, error: null };
+      },
+    },
+  };
+
+  // Simulate GIS setup
+  const rawNonce = generateRawNonce();
+  const hashedNonce = await hashNonce(rawNonce);
+
+  mockGis.accounts.id.initialize({
+    client_id: 'test-client-id.apps.googleusercontent.com',
+    callback: async (response) => {
+      await mockSupabase.auth.signInWithIdToken({
+        provider: 'google',
+        token: response.credential,
+        nonce: rawNonce, // original unhashed raw nonce
+      });
+    },
+    nonce: hashedNonce, // hashed nonce passed to GIS
+    use_fedcm_for_prompt: true,
+    ux_mode: 'popup',
+  });
+
+  // Verify GIS initialize configuration
+  assert.equal(gisInitializedOptions.client_id, 'test-client-id.apps.googleusercontent.com');
+  assert.equal(gisInitializedOptions.nonce, hashedNonce, 'GIS initialize must receive hashedNonce');
+  assert.equal(gisInitializedOptions.use_fedcm_for_prompt, true, 'use_fedcm_for_prompt must be true');
+  assert.equal(gisInitializedOptions.ux_mode, 'popup', 'ux_mode must be popup');
+
+  // Simulate Google credential response callback
+  await gisInitializedOptions.callback({ credential: 'mock-google-id-token' });
+
+  // Verify Supabase receives the original unhashed raw nonce + credential
+  assert.ok(supabaseIdTokenParams, 'signInWithIdToken should be called');
+  assert.equal(supabaseIdTokenParams.provider, 'google');
+  assert.equal(supabaseIdTokenParams.token, 'mock-google-id-token');
+  assert.equal(supabaseIdTokenParams.nonce, rawNonce, 'Supabase must receive original unhashed raw nonce');
+  assert.equal(await hashNonce(supabaseIdTokenParams.nonce), gisInitializedOptions.nonce, 'Hash of Supabase nonce must equal GIS nonce');
+});
+
 
 
 

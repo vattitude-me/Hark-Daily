@@ -442,6 +442,7 @@ export class Landing {
         : DEFAULT_INTRO;
     }
     if (!$('emailForm').classList.contains('hidden')) setTimeout(() => $('loginEmail').focus(), 50);
+    window.setupGoogleIdentityServices?.();
   }
 
   closeSignIn() { $('signin').classList.add('hidden'); }
@@ -521,17 +522,19 @@ export class Landing {
 
     const INTRO = "Enter your email and we'll send you a link. New here? That creates your account.";
 
-    $('googleBtn').addEventListener('click', async () => {
+    $('googleBtn')?.addEventListener('click', async () => {
       this.error();
-      $('googleBtn').disabled = true;
-      $('googleLabel').textContent = 'Opening Google…';
+      const btn = $('googleBtn');
+      const lbl = $('googleLabel');
+      if (btn) btn.disabled = true;
+      if (lbl) lbl.textContent = 'Opening Google…';
       try {
         await api.signInWithGoogle(); // leaves the page; the session is picked up when Google sends us back
       } catch (ex) {
         this.error(/provider is not enabled|unsupported provider/i.test(ex.message)
           ? 'Google sign-in is not switched on yet. Use email instead.' : ex.message);
-        $('googleBtn').disabled = false;
-        $('googleLabel').textContent = 'Continue with Google';
+        if (btn) btn.disabled = false;
+        if (lbl) lbl.textContent = 'Continue with Google';
       }
     });
 
