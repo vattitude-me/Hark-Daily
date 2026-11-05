@@ -100,12 +100,13 @@ export class Player extends EventTarget {
   }
 
   bind() {
+    if (typeof document === 'undefined') return;
     const { el } = this;
-    if (!el?.play) return;
-    el.play.addEventListener('click', () => this.toggle());
+    if (!el) return;
+    el.play?.addEventListener('click', () => this.toggle());
     document.getElementById('miniPlay')?.addEventListener('click', () => this.toggle());
-    el.prev.addEventListener('click', () => this.prevChapter());
-    el.next.addEventListener('click', () => this.nextChapter());
+    el.prev?.addEventListener('click', () => this.prevChapter());
+    el.next?.addEventListener('click', () => this.nextChapter());
     document.getElementById('miniNext')?.addEventListener('click', () => this.nextChapter());
     document.getElementById('miniPrev')?.addEventListener('click', () => this.prevChapter());
     document.getElementById('back15')?.addEventListener('click', () => this.skip(-15));
@@ -168,22 +169,24 @@ export class Player extends EventTarget {
     this.renderSpeedPills();
 
     // Tap or drag the segmented bar to seek.
-    const seekToEvent = (e) => {
-      const r = el.seg.getBoundingClientRect();
-      const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-      this.seekTo(f * (this.total || 0));
-      el.seg.setAttribute('aria-valuenow', String(Math.round(f * 100)));
-    };
-    let dragging = false;
-    el.seg.addEventListener('pointerdown', (e) => { dragging = true; el.seg.setPointerCapture(e.pointerId); seekToEvent(e); });
-    el.seg.addEventListener('pointermove', (e) => { if (dragging) seekToEvent(e); });
-    el.seg.addEventListener('pointerup', () => { dragging = false; });
-    el.seg.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowRight') this.skip(10);
-      else if (e.key === 'ArrowLeft') this.skip(-10);
-      else return;
-      e.preventDefault();
-    });
+    if (el?.seg) {
+      const seekToEvent = (e) => {
+        const r = el.seg.getBoundingClientRect();
+        const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+        this.seekTo(f * (this.total || 0));
+        el.seg.setAttribute('aria-valuenow', String(Math.round(f * 100)));
+      };
+      let dragging = false;
+      el.seg.addEventListener('pointerdown', (e) => { dragging = true; el.seg.setPointerCapture(e.pointerId); seekToEvent(e); });
+      el.seg.addEventListener('pointermove', (e) => { if (dragging) seekToEvent(e); });
+      el.seg.addEventListener('pointerup', () => { dragging = false; });
+      el.seg.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight') this.skip(10);
+        else if (e.key === 'ArrowLeft') this.skip(-10);
+        else return;
+        e.preventDefault();
+      });
+    }
 
     // Setup authoritative playback audio element
     this.setupAudioElement(this.audio);
@@ -674,7 +677,7 @@ export class Player extends EventTarget {
         type: 'button',
         class: 'seg-opt' + (Math.abs(this.speed - s) < 0.05 ? ' on' : ''),
       }, `${s}x`);
-      b.addEventListener('click', () => this.setRate(s));
+      b.addEventListener?.('click', () => this.setRate(s));
       return b;
     }));
   }
@@ -708,7 +711,7 @@ export class Player extends EventTarget {
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = on ? 'playing' : 'paused';
     const liveStatus = document.getElementById('liveStatus');
     if (liveStatus) liveStatus.textContent = on ? 'Playing' : 'Paused';
-    if (window.HarkNative) {
+    if (typeof window !== 'undefined' && window.HarkNative) {
       try {
         window.HarkNative.setKeepScreenOn(on);
         const story = this.briefing?.stories?.[this.storyIndex];
@@ -727,6 +730,7 @@ export class Player extends EventTarget {
     if (!b) return;
     const dur = this.total || b.duration || 0;
     const t = this.position;
+    const frac = dur ? Math.min(1, Math.max(0, t / dur)) : 0;
     if (t > 0 && Math.round(t) % 5 === 0) {
       const posKey = posKeyFor(b);
       store.set(posKey, t);
@@ -736,14 +740,13 @@ export class Player extends EventTarget {
     if (typeof document === 'undefined') return;
 
     // Segments + thumb.
-    if (el.seg) {
+    if (el.seg && typeof el.seg.querySelectorAll === 'function') {
       const segs = el.seg.querySelectorAll('.seg');
       this.segments.forEach((s, i) => {
         const f = s.end > s.start ? Math.min(1, Math.max(0, (t - s.start) / (s.end - s.start))) : 0;
         const fill = segs[i]?.firstChild;
         if (fill) fill.style.width = `${f * 100}%`;
       });
-      const frac = dur ? t / dur : 0;
       if (el.thumb) el.thumb.style.left = `${frac * 100}%`;
       el.seg.setAttribute('aria-valuenow', String(Math.round(frac * 100)));
     }
@@ -770,10 +773,14 @@ export class Player extends EventTarget {
     const story = this.storyFor(ch);
     const section = this.sectionTitle(ch);
     const started = t >= 0.5;
-    el.state.textContent = !started && !this.isPlaying
-      ? `Ready · ${b.stories.length} ${b.stories.length === 1 ? 'story' : 'stories'}`
-      : (this.isPlaying ? 'Now playing' : 'Paused');
-    el.title.textContent = story?.headline || ch?.title || b.title;
+    if (el.state) {
+      el.state.textContent = !started && !this.isPlaying
+        ? `Ready · ${b.stories.length} ${b.stories.length === 1 ? 'story' : 'stories'}`
+        : (this.isPlaying ? 'Now playing' : 'Paused');
+    }
+    if (el.title) {
+      el.title.textContent = story?.headline || ch?.title || b.stories?.[0]?.headline || b.title;
+    }
 
     // Hero section label & count
     const heroSection = document.getElementById('heroSection');
@@ -862,7 +869,7 @@ export class Player extends EventTarget {
 
     let activeSpeaker = null;
     if (transBox && transText && transBody) {
-      const text = story?.script || story?.summary || story?.headline || ch?.text || ch?.title || '';
+      const text = story?.script || story?.summary || story?.headline || ch?.text || ch?.title || b.stories?.[0]?.script || b.stories?.[0]?.summary || '';
       if (text) {
         transBox.classList.remove('hidden');
         const currentId = story?.id || ch?.id || '';
@@ -1081,36 +1088,38 @@ export class Player extends EventTarget {
     // Clean Player Story Metadata & Actions
     const cleanCat = document.getElementById('cleanCatBadge');
     if (cleanCat) {
-      cleanCat.textContent = (section || story?.section || 'TOP STORIES').toUpperCase();
+      cleanCat.textContent = (section || story?.section || b.stories?.[0]?.section || 'TOP STORIES').toUpperCase();
     }
     const cleanSrc = document.getElementById('cleanSourceTitle');
     if (cleanSrc) {
-      cleanSrc.textContent = story?.source ? story.source.split('·')[0].trim() : 'Daily News';
+      const srcRaw = story?.source || b.stories?.[0]?.source;
+      cleanSrc.textContent = srcRaw ? srcRaw.split('·')[0].trim() : 'Daily News';
     }
     const cleanCounter = document.getElementById('cleanStoryCounter');
     if (cleanCounter) {
-      const idx = story ? b.stories.indexOf(story) + 1 : 0;
-      cleanCounter.textContent = idx ? `${idx} / ${b.stories.length}` : (b.stories?.length ? `1 / ${b.stories.length}` : '1 / 1');
+      const idx = story ? b.stories.indexOf(story) + 1 : 1;
+      cleanCounter.textContent = `${idx} / ${b.stories?.length || 1}`;
     }
     const cleanHeadline = document.getElementById('cleanStoryHeadline');
     if (cleanHeadline) {
-      cleanHeadline.textContent = story?.headline || ch?.title || b.title;
+      cleanHeadline.textContent = story?.headline || ch?.title || b.stories?.[0]?.headline || b.title;
     }
 
     const cleanShare = document.getElementById('cleanShareBtn');
-    if (cleanShare && story) {
+    if (cleanShare && (story || b.stories?.[0])) {
       cleanShare.onclick = (e) => {
         e.stopPropagation();
-        window.openShareModal?.(story);
+        window.openShareModal?.(story || b.stories[0]);
       };
     }
 
     const cleanSourceLink = document.getElementById('cleanSourceLink');
     const cleanSourceLinkName = document.getElementById('cleanSourceLinkName');
     if (cleanSourceLink) {
-      if (story?.url) {
-        cleanSourceLink.href = story.url;
-        const srcName = story?.source ? story.source.split('·')[0].trim() : 'original source';
+      const sTarget = story || b.stories?.[0];
+      if (sTarget?.url) {
+        cleanSourceLink.href = sTarget.url;
+        const srcName = sTarget?.source ? sTarget.source.split('·')[0].trim() : 'original source';
         if (cleanSourceLinkName) cleanSourceLinkName.textContent = `Read on ${srcName}`;
         cleanSourceLink.classList.remove('hidden');
       } else {
@@ -1119,11 +1128,18 @@ export class Player extends EventTarget {
     }
 
     // Floating Mini player docked above toolbar
-    el.miniTitle.textContent = story?.headline || ch?.title || b.title;
-    el.miniSub.textContent = [section, `${fmtTime(t)} / ${fmtTime(dur)}`].filter(Boolean).join(' · ');
-    el.miniBar.style.width = `${frac * 100}%`;
-    if (img && el.miniCover.dataset.src !== img) { el.miniCover.dataset.src = img; el.miniCover.src = img; el.miniCover.classList.remove('hidden'); el.miniEq.classList.add('hidden'); }
-    else if (!img) { el.miniCover.classList.add('hidden'); el.miniEq.classList.remove('hidden'); }
+    if (el.miniTitle) el.miniTitle.textContent = story?.headline || ch?.title || b.stories?.[0]?.headline || b.title;
+    if (el.miniSub) el.miniSub.textContent = [section, `${fmtTime(t)} / ${fmtTime(dur)}`].filter(Boolean).join(' · ');
+    if (el.miniBar) el.miniBar.style.width = `${frac * 100}%`;
+    if (img && el.miniCover && el.miniCover.dataset.src !== img) {
+      el.miniCover.dataset.src = img;
+      el.miniCover.src = img;
+      el.miniCover.classList.remove('hidden');
+      el.miniEq?.classList.add('hidden');
+    } else if (!img && el.miniCover) {
+      el.miniCover.classList.add('hidden');
+      el.miniEq?.classList.remove('hidden');
+    }
     this.showMini();
 
     if (ch && ch.id !== this.current && (t > 0 || this.isPlaying)) {
@@ -1134,7 +1150,7 @@ export class Player extends EventTarget {
   }
 
   updateMediaSession(ch, story) {
-    if (window.HarkNative && this.isPlaying) {
+    if (typeof window !== 'undefined' && window.HarkNative && this.isPlaying) {
       try {
         const title = ch?.title || story?.headline || this.briefing?.title || 'Hark Daily';
         const artist = 'Hark Daily \u2022 ' + (this.briefing?.title || 'Briefing');
