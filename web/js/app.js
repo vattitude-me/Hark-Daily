@@ -11,7 +11,7 @@ import { applyPhotoMode } from './design.js';
 import { FEATURES, APP_VERSION } from '../config.js';
 
 // Native Android / Capacitor shell safe-area and status bar initialization
-if (window.HarkNative || window.Capacitor?.isNativePlatform?.()) {
+if (typeof window !== 'undefined' && (window.HarkNative || window.Capacitor?.isNativePlatform?.())) {
   document.documentElement.classList.add('native-shell');
   try {
     const top = window.HarkNative?.getSafeAreaTop?.();
@@ -925,14 +925,14 @@ export function buildStoryShareUrl(story, date, origin = window.location.origin)
   const hash = storyKey(story) || '';
   const baseId = story?.id || 'story';
   const slug = hash ? (baseId.endsWith(`-${hash}`) ? baseId : `${baseId}-${hash}`) : baseId;
-  if (date) return `${origin}/s/${date}/${slug}`;
+  const effectiveDate = date || story?.date || state.briefing?.date || getLocalDateInfo().todayStr;
+  if (effectiveDate) return `${origin}/s/${effectiveDate}/${slug}`;
   return `${origin}/?story=${encodeURIComponent(slug)}`;
 }
 
 export async function openShareModal(story) {
   if (!story) return;
-  const briefing = state.briefing;
-  const date = briefing?.date || '';
+  const date = story.date || state.briefing?.date || getLocalDateInfo().todayStr;
   const shareUrl = buildStoryShareUrl(story, date);
 
   const shareData = {
@@ -1089,7 +1089,84 @@ function showShareSheet(story, shareUrl, shareData) {
   sheet.showModal();
 }
 
+export function parseDeepLinkUrl(urlStr) {
+  if (!urlStr) return null;
+  try {
+    const origin = (typeof window !== 'undefined' && window.location?.origin) || 'https://hark.vattitude.ca';
+    let cleanUrl = String(urlStr).trim();
+    if (cleanUrl.startsWith('me.vattitude.morningbrief://')) {
+      cleanUrl = cleanUrl.replace('me.vattitude.morningbrief://', `${origin}/`);
+    }
+    const u = new URL(cleanUrl, origin);
+    const sMatch = u.pathname.match(/^\/s\/(\d{4}-\d{2}-\d{2})\/([^/?#]+)/);
+    if (sMatch) {
+      const [, pathDate, rawSlug] = sMatch;
+      const decodedSlug = decodeURIComponent(rawSlug);
+      if (/^[0-9a-f]{8}$/i.test(decodedSlug)) {
+        const key = decodedSlug.toLowerCase();
+        return {
+          story: key,
+          title: null,
+          audio: null,
+          dur: 20,
+          source: null,
+          date: pathDate,
+          hash: key,
+          image: null,
+          script: null,
+        };
+      }
+      const slugMatch = decodedSlug.match(/^([a-z0-9_]+-\d+)(?:-([0-9a-f]{8}))?$/i);
+      return {
+        story: slugMatch ? slugMatch[1] : decodedSlug,
+        title: null,
+        audio: null,
+        dur: 20,
+        source: null,
+        date: pathDate,
+        hash: slugMatch && slugMatch[2] ? slugMatch[2].toLowerCase() : null,
+        image: null,
+        script: null,
+      };
+    }
+    const story = u.searchParams.get('story');
+    const title = u.searchParams.get('title') || u.searchParams.get('t');
+    const audio = u.searchParams.get('audio') || u.searchParams.get('a');
+    const dur = Number.parseInt(u.searchParams.get('dur') || '20', 10);
+    const source = u.searchParams.get('src') || u.searchParams.get('source');
+    const date = u.searchParams.get('date');
+    const image = u.searchParams.get('img') || u.searchParams.get('image');
+    const script = u.searchParams.get('script');
+    const hashMatch = (audio || story || '').match(/(?:-|^)([0-9a-f]{8})(?:\.mp3)?$/i);
+    if (story || date || title || audio) {
+      return {
+        story,
+        title,
+        audio,
+        dur,
+        source,
+        date,
+        hash: hashMatch ? hashMatch[1].toLowerCase() : null,
+        image,
+        script,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function getTargetStoryInfo() {
+  if (window.HarkNative?.getPendingDeepLinkUri) {
+    try {
+      const nativeUri = window.HarkNative.getPendingDeepLinkUri();
+      if (nativeUri) {
+        const parsed = parseDeepLinkUrl(nativeUri);
+        if (parsed) return parsed;
+      }
+    } catch {}
+  }
   if (window.__SHARED_STORY__) {
     const s = window.__SHARED_STORY__;
     const hashMatch = (s.hash || s.key || s.audio || s.slug || s.story || '').match(/(?:-|^)([0-9a-f]{8})(?:\.mp3)?$/i);
@@ -1108,32 +1185,8 @@ function getTargetStoryInfo() {
   }
   const pathMatch = window.location.pathname.match(/^\/s\/(\d{4}-\d{2}-\d{2})\/([^/?#]+)/);
   if (pathMatch) {
-    const [, pathDate, rawSlug] = pathMatch;
-    if (/^[0-9a-f]{8}$/i.test(rawSlug)) {
-      const key = rawSlug.toLowerCase();
-      return {
-        story: key,
-        title: null,
-        audio: null,
-        dur: 20,
-        source: null,
-        date: pathDate,
-        hash: key,
-        image: null,
-        script: null,
-      };
-    }
-    const slugMatch = rawSlug.match(/^([a-z0-9_]+-\d+)(?:-([0-9a-f]{8}))?$/i);
-    return {
-      story: slugMatch ? slugMatch[1] : rawSlug,
-      title: null,
-      audio: null,
-      dur: 20,
-      source: null,
-      date: pathDate,
-      hash: slugMatch && slugMatch[2] ? slugMatch[2].toLowerCase() : null,
-      image: null,
-      script: null,
+    return parseDeepLinkUrl(window.location.href) || {
+      story: null, title: null, audio: null, dur: 20, source: null, date: pathMatch[1], hash: null, image: null, script: null,
     };
   }
   const urlParams = new URLSearchParams(window.location.search);
@@ -1161,9 +1214,28 @@ function getTargetStoryInfo() {
 }
 
 let lastDeepLinkedStory = null;
-function handleStoryDeepLink(storyInfo) {
-  if (!storyInfo || !state.briefing?.stories?.length) return;
-  const { story: storyId, title, audio, hash } = typeof storyInfo === 'string' ? { story: storyInfo } : storyInfo;
+export async function handleStoryDeepLink(storyInfo) {
+  if (!storyInfo) return;
+  const info = typeof storyInfo === 'string' ? { story: storyInfo } : storyInfo;
+  const { story: storyId, title, audio, hash, date: targetDate } = info;
+
+  // If a specific target date is requested and differs from currently loaded briefing date,
+  // load the target date's pack first so we don't display or match against today's briefing!
+  if (targetDate && state.briefing && state.briefing.date !== targetDate) {
+    try {
+      const pack = await loadStoryPack(targetDate);
+      if (pack) {
+        state.briefing = pack;
+        state.selectedDate = targetDate;
+        displayBriefing();
+        return;
+      }
+    } catch (e) {
+      console.warn('Failed to switch date for deep link:', e);
+    }
+  }
+
+  if (!state.briefing?.stories?.length) return;
 
   // 1. Match by unique 8-char story key first (region-agnostic reference key /s/:date/:key)
   let story = hash
@@ -1173,8 +1245,13 @@ function handleStoryDeepLink(storyInfo) {
   if (!story && title) story = state.briefing.stories.find((s) => titlesMatch(s.headline, title));
   // 3. Match by exact audio path (handles dropped/archived morning clips)
   if (!story && audio) story = state.briefing.stories.find((s) => s.audio_path === audio);
-  // 4. Fallback to ID or key
-  if (!story && storyId) story = state.briefing.stories.find((s) => s.id === storyId || s.key === storyId);
+  // 4. Fallback to ID or key ONLY IF dates match (never match generic rank IDs like top-1 across dates!)
+  if (!story && storyId) {
+    const isGenericRank = /^[a-z_]+-\d+$/i.test(storyId);
+    if (!isGenericRank || !targetDate || state.briefing.date === targetDate) {
+      story = state.briefing.stories.find((s) => s.id === storyId || s.key === storyId);
+    }
+  }
 
   if (!story) {
     if (storyId || title) {
@@ -1275,6 +1352,52 @@ function handleStoryDeepLink(storyInfo) {
     });
     banner.classList.remove('hidden');
   }
+}
+
+export async function handleDeepLinkUrl(urlStr) {
+  if (!urlStr) return;
+  const info = parseDeepLinkUrl(urlStr);
+  if (!info) return;
+
+  if (info.date && (!state.briefing || state.briefing.date !== info.date)) {
+    state.briefingLoading = true;
+    renderNotice();
+    const pack = await loadStoryPack(info.date);
+    state.briefingLoading = false;
+    if (pack) {
+      state.briefing = pack;
+      state.selectedDate = info.date;
+      displayBriefing();
+    }
+  }
+
+  await handleStoryDeepLink(info);
+
+  if (info.hash || info.story) {
+    const s = info.hash
+      ? state.briefing?.stories?.find((st) => (st.key && st.key === info.hash) || storyKey(st) === info.hash)
+      : state.briefing?.stories?.find((st) => st.id === info.story || st.key === info.story);
+    if (s) {
+      player.seekTo(s.start || 0);
+      if (!player.isPlaying) {
+        player.play().catch(() => {});
+      }
+    }
+  }
+}
+window.handleDeepLinkUrl = handleDeepLinkUrl;
+
+if (typeof window !== 'undefined') {
+  if (window.Capacitor?.Plugins?.App) {
+    try {
+      window.Capacitor.Plugins.App.addListener('appUrlOpen', (event) => {
+        if (event?.url) handleDeepLinkUrl(event.url);
+      });
+    } catch {}
+  }
+  window.addEventListener('appUrlOpen', (event) => {
+    if (event?.detail?.url) handleDeepLinkUrl(event.detail.url);
+  });
 }
 
 function renderSections() {
@@ -2968,7 +3091,11 @@ async function init() {
   window.addEventListener('error', (e) => { recordError(e.error || e.message, 'window.onerror'); });
   window.addEventListener('unhandledrejection', (e) => { recordError(e.reason, 'window.unhandledrejection'); });
   syncThemeIcon();
-  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncThemeIcon);
+  if (typeof matchMedia === 'function') {
+    try {
+      matchMedia('(prefers-color-scheme: dark)')?.addEventListener?.('change', syncThemeIcon);
+    } catch {}
+  }
   setTextSize(localStorage.getItem('mb-text-size') || 'md');
   bindEvents();
   syncInstallBtn();
@@ -3038,4 +3165,6 @@ async function init() {
   }
 }
 
-init();
+if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.getElementById?.('shell')) {
+  init();
+}
