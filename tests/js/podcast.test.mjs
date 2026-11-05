@@ -714,6 +714,54 @@ test('parseDeepLinkUrl and buildStoryShareUrl handle cross-date and native deep 
   delete globalThis.document;
 });
 
+test('app.js exports initApp and boots cleanly when window and document are present', async () => {
+  const removedClasses = [];
+  globalThis.window = {
+    location: { origin: 'https://hark.vattitude.ca', search: '', hash: '', pathname: '/' },
+    addEventListener: () => {},
+    matchMedia: () => ({ addEventListener: () => {} }),
+    player: { isPlaying: false },
+  };
+  globalThis.document = {
+    readyState: 'complete',
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    getElementById: (id) => {
+      if (id === 'appSplash') return { classList: { add: () => {}, contains: () => false }, remove: () => {} };
+      return null;
+    },
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    documentElement: { classList: { add: () => {} }, style: { setProperty: () => {} } },
+    body: {
+      classList: {
+        contains: (cls) => cls === 'booting',
+        remove: (cls) => removedClasses.push(cls),
+        add: () => {},
+      },
+    },
+  };
+
+  const appSrc = readFileSync(new URL('../../web/js/app.js', import.meta.url), 'utf8')
+    .replace("'./api.js'", "'./api.mjs'")
+    .replace("'./storypack.js'", "'./storypack.mjs'")
+    .replace("'./player.js'", "'./player.mjs'")
+    .replace("'./sheets.js'", "'./sheets.mjs'")
+    .replace("'./landing.js'", "'./landing.mjs'")
+    .replace("'./pages/sources.js'", "'./pages.mjs'")
+    .replace("'./pages/settings.js'", "'./pages.mjs'")
+    .replace("'./pages/admin.js'", "'./pages.mjs'")
+    .replace("'./design.js'", "'./design.mjs'")
+    .replace("'../config.js'", "'./config.mjs'");
+  writeFileSync(join(dir, 'app_boot_test.mjs'), appSrc);
+
+  await import(join(dir, 'app_boot_test.mjs'));
+  assert.equal(typeof globalThis.window.initApp, 'function', 'window.initApp must be defined');
+
+  delete globalThis.window;
+  delete globalThis.document;
+});
+
 
 
 
