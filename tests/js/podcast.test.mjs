@@ -848,6 +848,83 @@ test('GIS Google Auth: cryptographic SHA-256 nonce generator and signInWithIdTok
   assert.equal(await hashNonce(supabaseIdTokenParams.nonce), gisInitializedOptions.nonce, 'Hash of Supabase nonce must equal GIS nonce');
 });
 
+test('GIS WebView & Native isolation prevents GIS execution in Android APK', async () => {
+  const origUa = globalThis.navigator?.userAgent;
+  const setUa = (ua) => {
+    Object.defineProperty(globalThis.navigator, 'userAgent', {
+      value: ua,
+      configurable: true,
+      writable: true,
+    });
+  };
+
+  globalThis.window = {
+    location: { origin: 'https://hark.vattitude.ca', search: '', hash: '', pathname: '/' },
+    addEventListener: () => {},
+    matchMedia: () => ({ addEventListener: () => {} }),
+    player: { isPlaying: false },
+    HarkNative: null,
+    Capacitor: null,
+  };
+  globalThis.document = {
+    readyState: 'complete',
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    getElementById: () => null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    documentElement: { classList: { add: () => {} }, style: { setProperty: () => {} } },
+    body: { classList: { contains: () => false, remove: () => {}, add: () => {} } },
+  };
+
+  const appSrc = readFileSync(new URL('../../web/js/app.js', import.meta.url), 'utf8')
+    .replace("'./api.js'", "'./api.mjs'")
+    .replace("'./storypack.js'", "'./storypack.mjs'")
+    .replace("'./player.js'", "'./player.mjs'")
+    .replace("'./sheets.js'", "'./sheets.mjs'")
+    .replace("'./landing.js'", "'./landing.mjs'")
+    .replace("'./pages/sources.js'", "'./pages.mjs'")
+    .replace("'./pages/settings.js'", "'./pages.mjs'")
+    .replace("'./pages/admin.js'", "'./pages.mjs'")
+    .replace("'./design.js'", "'./design.mjs'")
+    .replace("'../config.js'", "'./config.mjs'");
+  writeFileSync(join(dir, 'app_webview_test.mjs'), appSrc);
+
+  const { isNativeOrWebView } = await import(join(dir, 'app_webview_test.mjs'));
+
+  // 1. Standard web browser: false
+  globalThis.window.HarkNative = null;
+  globalThis.window.Capacitor = null;
+  setUa('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+  assert.equal(isNativeOrWebView(), false, 'Standard desktop Chrome must not be detected as WebView');
+
+  // 2. Android Chrome browser: false
+  setUa('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36');
+  assert.equal(isNativeOrWebView(), false, 'Mobile Chrome browser must not be detected as WebView');
+
+  // 3. Android WebView with '; wv)': true
+  setUa('Mozilla/5.0 (Linux; U; Android 14; en-us; Pixel 8 Build/UQ1A; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36');
+  assert.equal(isNativeOrWebView(), true, 'Android WebView with wv must be detected as WebView');
+
+  // 4. Android WebView with Version/4.0: true
+  setUa('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36');
+  assert.equal(isNativeOrWebView(), true, 'Android WebView with Version/ must be detected as WebView');
+
+  // 5. Capacitor native platform: true
+  setUa('Mozilla/5.0');
+  globalThis.window.Capacitor = { isNativePlatform: () => true };
+  assert.equal(isNativeOrWebView(), true, 'Capacitor native platform must be detected');
+
+  // 6. HarkNative bridge: true
+  globalThis.window.Capacitor = null;
+  globalThis.window.HarkNative = { isNativeShell: () => true };
+  assert.equal(isNativeOrWebView(), true, 'HarkNative bridge must be detected');
+
+  if (origUa !== undefined) setUa(origUa);
+  delete globalThis.window;
+  delete globalThis.document;
+});
+
 
 
 

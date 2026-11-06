@@ -381,7 +381,13 @@ export const api = {
   session: async () => (await sb.auth.getSession()).data?.session || null,
   // Signs in, or creates the account on first use. The email links back here (plus a code if the template has one).
   sendCode: async (email) => {
-    const isNative = Boolean(typeof window !== 'undefined' && (window.HarkNative?.isNativeShell?.() || window.Capacitor?.isNativePlatform?.()));
+    const isNative = Boolean(typeof window !== 'undefined' && (
+      window.HarkNative?.isNativeShell?.() ||
+      window.HarkNative ||
+      window.Capacitor?.isNativePlatform?.() ||
+      /;\s*wv\)/i.test(navigator?.userAgent || '') ||
+      (navigator?.userAgent?.includes('Android') && navigator?.userAgent?.includes('Version/'))
+    ));
     const redirectUrl = (typeof window !== 'undefined' && window.HarkNative?.getAuthRedirectUrl?.())
       || (isNative ? 'me.vattitude.morningbrief://auth' : location.origin);
     return check(await sb.auth.signInWithOtp({
@@ -390,7 +396,13 @@ export const api = {
   },
   // Redirects to Google, then back here with a session in the URL (detectSessionInUrl picks it up).
   signInWithGoogle: async () => {
-    const isNative = Boolean(typeof window !== 'undefined' && (window.HarkNative?.isNativeShell?.() || window.Capacitor?.isNativePlatform?.()));
+    const isNative = Boolean(typeof window !== 'undefined' && (
+      window.HarkNative?.isNativeShell?.() ||
+      window.HarkNative ||
+      window.Capacitor?.isNativePlatform?.() ||
+      /;\s*wv\)/i.test(navigator?.userAgent || '') ||
+      (navigator?.userAgent?.includes('Android') && navigator?.userAgent?.includes('Version/'))
+    ));
     const redirectUrl = (typeof window !== 'undefined' && window.HarkNative?.getAuthRedirectUrl?.())
       || (isNative ? 'me.vattitude.morningbrief://auth' : location.origin);
 
