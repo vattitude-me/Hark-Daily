@@ -407,6 +407,15 @@ function renderNotice() {
 /* ------------------------------------------------------------- guest & auth */
 let gisRawNonce = null;
 
+export function isNativeOrWebView() {
+  if (typeof window === 'undefined') return false;
+  if (window.HarkNative?.isNativeShell?.() || window.HarkNative) return true;
+  if (window.Capacitor?.isNativePlatform?.() || window.Capacitor) return true;
+  const ua = navigator?.userAgent || '';
+  if (/;\s*wv\)/i.test(ua) || (ua.includes('Android') && ua.includes('Version/'))) return true;
+  return false;
+}
+
 function ensureGisLoaded(timeoutMs = 5000) {
   if (typeof window === 'undefined') return Promise.resolve(null);
   if (window.google?.accounts?.id) return Promise.resolve(window.google.accounts.id);
@@ -435,17 +444,31 @@ function ensureGisLoaded(timeoutMs = 5000) {
 async function setupGoogleIdentityServices() {
   const container = $('googleBtnContainer');
   const fallbackBtn = $('googleBtn');
+
+  // Google Identity Services (GIS) Web SDK is explicitly blocked by Google inside embedded WebViews.
+  // In native Android APK / WebViews, preserve the native Chrome Custom Tabs OAuth flow.
+  if (isNativeOrWebView()) {
+    if (container) {
+      container.classList.add('hidden');
+      container.innerHTML = '';
+    }
+    if (fallbackBtn) fallbackBtn.classList.remove('hidden');
+    return;
+  }
+
   if (!container) return;
 
   if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.includes('your-google-client-id') || GOOGLE_CLIENT_ID.includes('YOUR_CLIENT_ID')) {
-    if (fallbackBtn) fallbackBtn.style.display = '';
+    if (container) container.classList.add('hidden');
+    if (fallbackBtn) fallbackBtn.classList.remove('hidden');
     return;
   }
 
   try {
     const gis = await ensureGisLoaded();
     if (!gis || !window.google?.accounts?.id) {
-      if (fallbackBtn) fallbackBtn.style.display = '';
+      if (container) container.classList.add('hidden');
+      if (fallbackBtn) fallbackBtn.classList.remove('hidden');
       return;
     }
 
@@ -501,10 +524,12 @@ async function setupGoogleIdentityServices() {
       width: Math.min(300, container.offsetWidth || 280),
     });
 
-    if (fallbackBtn) fallbackBtn.style.display = 'none';
+    container.classList.remove('hidden');
+    if (fallbackBtn) fallbackBtn.classList.add('hidden');
   } catch (err) {
     console.warn('[GIS] Failed to initialize Google Identity Services:', err);
-    if (fallbackBtn) fallbackBtn.style.display = '';
+    if (container) container.classList.add('hidden');
+    if (fallbackBtn) fallbackBtn.classList.remove('hidden');
   }
 }
 window.setupGoogleIdentityServices = setupGoogleIdentityServices;
@@ -529,17 +554,21 @@ function openSignIn(reason = 'default') {
   $('emailForm')?.classList.add('hidden');
   $('sentStep')?.classList.add('hidden');
 
-  setupGoogleIdentityServices().then(() => {
-    if (GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.includes('YOUR_CLIENT_ID') && !GOOGLE_CLIENT_ID.includes('your-google-client-id')) {
-      window.google?.accounts?.id?.prompt?.((notification) => {
-        if (notification?.isNotDisplayed?.()) {
-          console.info('[GIS] One Tap not displayed:', notification.getNotDisplayedReason?.());
-        } else if (notification?.isSkippedMoment?.()) {
-          console.info('[GIS] One Tap skipped:', notification.getSkippedReason?.());
-        }
-      });
-    }
-  }).catch(() => {});
+  if (!isNativeOrWebView()) {
+    setupGoogleIdentityServices().then(() => {
+      if (GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.includes('YOUR_CLIENT_ID') && !GOOGLE_CLIENT_ID.includes('your-google-client-id')) {
+        window.google?.accounts?.id?.prompt?.((notification) => {
+          if (notification?.isNotDisplayed?.()) {
+            console.info('[GIS] One Tap not displayed:', notification.getNotDisplayedReason?.());
+          } else if (notification?.isSkippedMoment?.()) {
+            console.info('[GIS] One Tap skipped:', notification.getSkippedReason?.());
+          }
+        });
+      }
+    }).catch(() => {});
+  } else {
+    setupGoogleIdentityServices();
+  }
 }
 
 function closeSignIn() {
