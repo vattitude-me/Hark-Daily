@@ -376,6 +376,7 @@ function renderHeader() {
 /** Sleek, compact status bar when today's brief isn't ready or is loading. */
 function renderNotice() {
   const box = $('notice');
+  if (!box) return;
   if (state.briefingLoading) {
     box.replaceChildren(h('div', { class: 'glass notice-compact loading-card', role: 'status' },
       h('span', { class: 'spinner', 'aria-hidden': 'true' }),
@@ -655,6 +656,7 @@ function syncModePicker() {
 
 function setBriefingMode(mode) {
   if (state.mode === mode) return;
+  clearDeepLink();
   state.mode = mode;
   store.set('brief-mode', mode);
   syncModePicker();
@@ -714,6 +716,7 @@ function syncEditionPicker() {
 
 export async function setEdition(edition) {
   if (!EDITIONS[edition]) return;
+  clearDeepLink();
   const wasPlaying = player.isPlaying;
 
   // Flush hardware audio decoder & buffer completely
@@ -937,6 +940,7 @@ function renderDateChips() {
 
 async function selectDate(date) {
   try {
+    clearDeepLink();
     const { todayStr, yesterdayStr, todaySub, yesterdaySub } = getLocalDateInfo();
     state.selectedDate = date;
     let pack = await loadStoryPack(date);
@@ -1302,7 +1306,31 @@ export function parseDeepLinkUrl(urlStr) {
   }
 }
 
+export function clearDeepLink() {
+  state.targetStoryConsumed = true;
+  window.__SHARED_STORY__ = null;
+  lastDeepLinkedStory = null;
+  if (typeof window !== 'undefined' && window.history?.replaceState) {
+    try {
+      const isDeepLinkUrl = window.location.pathname.startsWith('/s/') ||
+        window.location.search.includes('story=') ||
+        window.location.search.includes('date=');
+      if (isDeepLinkUrl) {
+        window.history.replaceState(null, '', '/');
+      }
+    } catch {}
+  }
+  const banner = $('sharedStoryBanner');
+  if (banner) banner.classList.add('hidden');
+}
+window.clearDeepLink = clearDeepLink;
+
 function getTargetStoryInfo() {
+  if (state.targetStoryConsumed) {
+    return {
+      story: null, title: null, audio: null, dur: 20, source: null, date: null, hash: null, image: null, script: null,
+    };
+  }
   if (window.HarkNative?.getPendingDeepLinkUri) {
     try {
       const nativeUri = window.HarkNative.getPendingDeepLinkUri();
@@ -1497,12 +1525,27 @@ export async function handleStoryDeepLink(storyInfo) {
     });
     banner.classList.remove('hidden');
   }
+
+  // Once the shared story has been applied, clean URL and mark consumed
+  // so refreshing or navigating doesn't trap the user in this story forever
+  state.targetStoryConsumed = true;
+  if (typeof window !== 'undefined' && window.history?.replaceState) {
+    try {
+      const isDeepLinkUrl = window.location.pathname.startsWith('/s/') ||
+        window.location.search.includes('story=') ||
+        window.location.search.includes('date=');
+      if (isDeepLinkUrl) {
+        window.history.replaceState(null, '', '/');
+      }
+    } catch {}
+  }
 }
 
 export async function handleDeepLinkUrl(urlStr) {
   if (!urlStr) return;
   const info = parseDeepLinkUrl(urlStr);
   if (!info) return;
+  state.targetStoryConsumed = false;
 
   if (info.date && (!state.briefing || state.briefing.date !== info.date)) {
     state.briefingLoading = true;
@@ -1529,6 +1572,8 @@ export async function handleDeepLinkUrl(urlStr) {
       }
     }
   }
+
+  state.targetStoryConsumed = true;
 }
 window.handleDeepLinkUrl = handleDeepLinkUrl;
 
@@ -2843,8 +2888,8 @@ async function enterApp() {
   store.set('pending-voice', null);
   syncAdminTab();
   const st = state.profile?.settings || {};
-  if (state.profile && !st.onboarded && !st.name) welcome.open(state.status);
-  else if (state.profile && !st.push_offered && pushSupported() && (window.HarkNative ? !window.HarkNative.hasNotificationPermission() : (typeof Notification !== 'undefined' && Notification.permission === 'default'))) welcome.open(state.status, { askName: false });
+  if (state.profile && !st.onboarded) welcome.open(state.status);
+  else if (state.profile && !st.push_offered && pushSupported() && (window.HarkNative ? !window.HarkNative.hasNotificationPermission() : (typeof Notification !== 'undefined' && Notification.permission === 'default'))) welcome.open(state.status);
 }
 window.enterApp = enterApp;
 
