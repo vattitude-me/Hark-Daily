@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.15] - 2026-11-05
+
+### Added
+- **Google Identity Services (GIS) Sign-In & One Tap**:
+  - Replaced legacy OAuth full-page redirect through Supabase with Google Identity Services (GIS) and `supabase.auth.signInWithIdToken`.
+  - Added cryptographic SHA-256 raw/hashed nonce generator using Web Crypto API (`crypto.subtle.digest`) for secure token verification.
+  - Rendered native Google Sign-In button container matching light/dark theme with `use_fedcm_for_prompt: true` and `ux_mode: 'popup'` for smooth mobile and desktop PWA experience.
+  - Activated Google Web Client ID for branded Hark Daily sign-in without external URL redirects.
+
+---
+
+## [1.0.14] - 2026-11-05
+
+### Fixed
+- **TTS Sampling Temperature & Pronunciation Lexicon**:
+  - Calibrated default Chatterbox-Turbo voice synthesis temperature from `0.92` to `0.87` for stability while retaining lively cadence.
+  - Added phonetic normalization dictionary for Canadian political and regional proper nouns (e.g., Carney -> Car-nee, Poilievre -> Pwal-ee-ev, Trudeau -> Troo-doh, Saskatchewan -> Suh-skatch-uh-wun).
+
+---
+
 ## [1.0.10] - 2026-11-03
 
 ### Added

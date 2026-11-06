@@ -535,6 +535,22 @@ kbd { font-family: var(--font-head); font-size: .7rem; padding: .05rem .4rem; bo
 .btn-danger:disabled { opacity: .4; }
 .btn-google { background: var(--glass-solid); border-color: var(--line-2); }
 
+.google-btn-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+}
+.google-btn-container > div {
+  width: 100% !important;
+  display: flex;
+  justify-content: center;
+}
+.google-btn-container iframe {
+  margin: 0 auto !important;
+}
+
 .icon-btn {
   display: inline-grid; place-items: center;
   flex: 0 0 auto !important; aspect-ratio: 1 / 1 !important;

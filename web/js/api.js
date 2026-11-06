@@ -418,6 +418,16 @@ export const api = {
       },
     }));
   },
+  // Exchanges a Google ID Token (from Google Identity Services) and unhashed nonce with Supabase Auth
+  signInWithGoogleIdToken: async (idToken, rawNonce) => {
+    return check(await sb.auth.signInWithIdToken({
+      provider: 'google',
+      token: idToken,
+      nonce: rawNonce,
+    }));
+  },
+  generateRawNonce: (bytesLength = 32) => generateRawNonce(bytesLength),
+  hashNonce: (rawNonce) => hashNonce(rawNonce),
   verifyCode: async (email, token) => check(await sb.auth.verifyOtp({ email, token, type: 'email' })),
   signOut: async () => {
     me = null;
@@ -764,6 +774,29 @@ export const fmtTime = (s) => {
   const m = Math.floor(s / 60);
   return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 };
+
+/** Generate a random raw nonce string for Google Identity Services. */
+export function generateRawNonce(bytesLength = 32) {
+  const bytes = new Uint8Array(bytesLength);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytesLength; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Cryptographically hash a raw nonce with SHA-256 (hex-encoded) for GIS verification. */
+export async function hashNonce(rawNonce) {
+  if (typeof crypto !== 'undefined' && crypto.subtle?.digest && typeof TextEncoder !== 'undefined') {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(rawNonce);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  throw new Error('Web Crypto API (crypto.subtle.digest) is not available');
+}
 
 export function timeAgo(iso) {
   if (!iso) return '';
