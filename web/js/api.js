@@ -409,6 +409,12 @@ export const api = {
     const redirectUrl = (typeof window !== 'undefined' && window.HarkNative?.getAuthRedirectUrl?.())
       || (isNative ? 'me.vattitude.morningbrief://auth' : location.origin);
 
+    // Try native Google Sign-In on Android smart shell first (bypasses Chrome Custom Tabs)
+    if (isNative && window.HarkNative?.launchGoogleSignIn) {
+      window.HarkNative.launchGoogleSignIn();
+      return { native: true };
+    }
+
     if (isNative && window.HarkNative?.openAuthUrl) {
       const { data, error } = await sb.auth.signInWithOAuth({
         provider: 'google',
@@ -433,13 +439,41 @@ export const api = {
       },
     }));
   },
-  // Exchanges a Google ID Token (from Google Identity Services) and unhashed nonce with Supabase Auth
+  // Fallback to external Chrome Custom Tab OAuth if native Google Sign-In encounters configuration error
+  fallbackToExternalOAuth: async () => {
+    const isNative = Boolean(typeof window !== 'undefined' && (
+      window.HarkNative?.isNativeShell?.() ||
+      window.HarkNative ||
+      window.Capacitor?.isNativePlatform?.() ||
+      /;\s*wv\)/i.test(navigator?.userAgent || '') ||
+      (navigator?.userAgent?.includes('Android') && navigator?.userAgent?.includes('Version/'))
+    ));
+    const redirectUrl = (typeof window !== 'undefined' && window.HarkNative?.getAuthRedirectUrl?.())
+      || (isNative ? 'me.vattitude.morningbrief://auth' : location.origin);
+
+    const { data, error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectUrl,
+        queryParams: { prompt: 'select_account' },
+        skipBrowserRedirect: true,
+      },
+    });
+    if (error) throw error;
+    if (data?.url && window.HarkNative?.openAuthUrl) {
+      window.HarkNative.openAuthUrl(data.url);
+      return data;
+    }
+    return data;
+  },
+  // Exchanges a Google ID Token (from Google Identity Services or Android Play Services) with Supabase Auth
   signInWithGoogleIdToken: async (idToken, rawNonce) => {
-    return check(await sb.auth.signInWithIdToken({
+    const params = {
       provider: 'google',
       token: idToken,
-      nonce: rawNonce,
-    }));
+    };
+    if (rawNonce) params.nonce = rawNonce;
+    return check(await sb.auth.signInWithIdToken(params));
   },
   generateRawNonce: (bytesLength = 32) => generateRawNonce(bytesLength),
   hashNonce: (rawNonce) => hashNonce(rawNonce),

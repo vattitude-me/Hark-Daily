@@ -18,12 +18,21 @@ import androidx.browser.customtabs.CustomTabsIntent;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import com.getcapacitor.BridgeActivity;
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInClient;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.common.api.CommonStatusCodes;
+import com.google.android.gms.tasks.Task;
 import java.lang.ref.WeakReference;
 
 public class MainActivity extends BridgeActivity {
     public static final String BRIEFING_CHANNEL_ID = "hark_daily_briefing";
     public static final int NOTIFICATION_PERMISSION_REQUEST = 1001;
     public static final int BRIEFING_NOTIFICATION_ID = 3001;
+    public static final int RC_GOOGLE_SIGN_IN = 9002;
+    public static final String GOOGLE_WEB_CLIENT_ID = "345556028045-h61lt911l04gttt66ludkvsqr90cg9b0.apps.googleusercontent.com";
 
     public static WeakReference<MainActivity> activeInstance;
     private String pendingAuthUri = null;
@@ -127,6 +136,87 @@ public class MainActivity extends BridgeActivity {
                 Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                 startActivity(browserIntent);
             } catch (Exception ignored) {}
+        }
+    }
+
+    public void launchNativeGoogleSignIn() {
+        runOnUiThread(() -> {
+            try {
+                GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                        .requestIdToken(GOOGLE_WEB_CLIENT_ID)
+                        .requestEmail()
+                        .build();
+                GoogleSignInClient client = GoogleSignIn.getClient(this, gso);
+                client.signOut().addOnCompleteListener(this, task -> {
+                    Intent signInIntent = client.getSignInIntent();
+                    startActivityForResult(signInIntent, RC_GOOGLE_SIGN_IN);
+                });
+            } catch (Exception e) {
+                dispatchNativeAuthError(0, "Failed to launch native Google Sign-In: " + e.getMessage());
+            }
+        });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == RC_GOOGLE_SIGN_IN) {
+            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+            try {
+                GoogleSignInAccount account = task.getResult(ApiException.class);
+                if (account != null && account.getIdToken() != null && !account.getIdToken().isEmpty()) {
+                    dispatchNativeGoogleIdToken(account.getIdToken());
+                } else {
+                    dispatchNativeAuthError(0, "Google Sign-In did not return an ID token");
+                }
+            } catch (ApiException e) {
+                int statusCode = e.getStatusCode();
+                if (statusCode == CommonStatusCodes.SIGN_IN_REQUIRED || statusCode == CommonStatusCodes.CANCELED || statusCode == 12501) {
+                    dispatchNativeAuthCanceled();
+                } else {
+                    dispatchNativeAuthError(statusCode, "Google Sign-In failed (code " + statusCode + "): " + e.getMessage());
+                }
+            } catch (Exception e) {
+                dispatchNativeAuthError(0, "Google Sign-In error: " + e.getMessage());
+            }
+        }
+    }
+
+    public void dispatchNativeGoogleIdToken(String idToken) {
+        WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+        if (webView != null) {
+            webView.post(() -> {
+                String safeToken = idToken.replace("\\", "\\\\").replace("'", "\\'");
+                webView.evaluateJavascript(
+                    "window.handleNativeGoogleIdToken && window.handleNativeGoogleIdToken('" + safeToken + "');",
+                    null
+                );
+            });
+        }
+    }
+
+    public void dispatchNativeAuthCanceled() {
+        WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+        if (webView != null) {
+            webView.post(() -> {
+                webView.evaluateJavascript(
+                    "window.handleNativeAuthCanceled && window.handleNativeAuthCanceled();",
+                    null
+                );
+            });
+        }
+    }
+
+    public void dispatchNativeAuthError(int statusCode, String errorMsg) {
+        WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+        if (webView != null) {
+            webView.post(() -> {
+                String safeMsg = errorMsg != null ? errorMsg.replace("\\", "\\\\").replace("'", "\\'") : "Unknown error";
+                webView.evaluateJavascript(
+                    "window.handleNativeAuthError && window.handleNativeAuthError(" + statusCode + ", '" + safeMsg + "');",
+                    null
+                );
+            });
         }
     }
 
@@ -450,6 +540,14 @@ public class MainActivity extends BridgeActivity {
             MainActivity act = activityRef.get();
             if (act != null && url != null && !url.isEmpty()) {
                 act.runOnUiThread(() -> act.openExternalAuth(url));
+            }
+        }
+
+        @JavascriptInterface
+        public void launchGoogleSignIn() {
+            MainActivity act = activityRef.get();
+            if (act != null) {
+                act.launchNativeGoogleSignIn();
             }
         }
     }

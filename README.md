@@ -9,11 +9,11 @@ A concise daily audio briefing covering **Canada**, the **United States**, and *
 No ads. Fast audio briefings. Zero doom-scrolling. 24-hour listening.
 
 [![Web PWA](https://img.shields.io/badge/Web-Live_PWA-2f6fed?style=flat-square&logo=googlechrome&logoColor=white)](https://hark.vattitude.ca)
-[![Android App](https://img.shields.io/badge/Android-APK_v1.0.20-1a9b5b?style=flat-square&logo=android&logoColor=white)](https://github.com/vattitude-me/Hark-Daily/releases)
+[![Android App](https://img.shields.io/badge/Android-APK_v1.0.21-1a9b5b?style=flat-square&logo=android&logoColor=white)](https://github.com/vattitude-me/Hark-Daily/releases)
 [![iOS App](https://img.shields.io/badge/iOS-Native_Shell-007AFF?style=flat-square&logo=apple&logoColor=white)](ios/README.md)
 [![Capacitor](https://img.shields.io/badge/Capacitor-Cross--Platform-1192E8?style=flat-square&logo=capacitor&logoColor=white)](capacitor.config.json)
 [![Neural Voice](https://img.shields.io/badge/Voice-Chatterbox--Turbo-6a4cf5?style=flat-square)](voice_service/)
-[![Changelog](https://img.shields.io/badge/Changelog-v1.0.20-orange?style=flat-square)](CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/Changelog-v1.0.21-orange?style=flat-square)](CHANGELOG.md)
 [![Privacy First](https://img.shields.io/badge/Privacy-No_Ads_%7C_Privacy_First-0D0D0D?style=flat-square)](web/privacy.html)
 
 [**Cross-Platform Apps**](#-cross-platform-apps-web-pwa-android--ios) · [**Features**](#-features) · [**Getting Started**](#-getting-started) · [**Building Mobile Shells**](#-building-mobile-shells-with-capacitor) · [**Privacy**](web/privacy.html) · [**Terms**](web/terms.html) · [**Changelog**](CHANGELOG.md) · [**Technical Guide**](docs/TECHNICAL.md)

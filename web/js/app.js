@@ -3153,6 +3153,60 @@ export async function handleNativeAuthCallback(rawUrl) {
 }
 window.handleNativeAuthCallback = handleNativeAuthCallback;
 
+export async function handleNativeGoogleIdToken(idToken) {
+  const btn = $('googleBtn');
+  const lbl = $('googleLabel');
+  try {
+    const data = await api.signInWithGoogleIdToken(idToken);
+    if (data?.session || data?.user) {
+      toast('Signed in with Google! 👋');
+      closeSignIn();
+      $('menuDrawer')?.classList.add('hidden');
+      setTimeout(enterApp, 0);
+      return;
+    }
+    closeSignIn();
+    setTimeout(enterApp, 0);
+  } catch (err) {
+    console.error('handleNativeGoogleIdToken error:', err);
+    if (btn) btn.disabled = false;
+    if (lbl) lbl.textContent = 'Continue with Google';
+    toast(err.message || 'Google sign-in failed.', { error: true });
+  }
+}
+window.handleNativeGoogleIdToken = handleNativeGoogleIdToken;
+
+export function handleNativeAuthCanceled() {
+  const btn = $('googleBtn');
+  const lbl = $('googleLabel');
+  if (btn) btn.disabled = false;
+  if (lbl) lbl.textContent = 'Continue with Google';
+}
+window.handleNativeAuthCanceled = handleNativeAuthCanceled;
+
+export async function handleNativeAuthError(statusCode, errMsg) {
+  const btn = $('googleBtn');
+  const lbl = $('googleLabel');
+  console.warn('Native Google Sign-In error:', statusCode, errMsg);
+
+  // If code 10 (DEVELOPER_ERROR: keystore SHA-1 not linked in Google Console) or Play Services error,
+  // fall back gracefully to the external Chrome Custom Tab OAuth so user is never blocked!
+  if (statusCode === 10 || statusCode === 12500 || (errMsg && /code 10|developer_error/i.test(errMsg))) {
+    try {
+      if (lbl) lbl.textContent = 'Opening sign-in…';
+      await api.fallbackToExternalOAuth();
+      return;
+    } catch (fallbackErr) {
+      console.error('Fallback OAuth error:', fallbackErr);
+    }
+  }
+
+  if (btn) btn.disabled = false;
+  if (lbl) lbl.textContent = 'Continue with Google';
+  toast(errMsg || 'Sign-in was not completed.', { error: true });
+}
+window.handleNativeAuthError = handleNativeAuthError;
+
 /* -------------------------------------------------------- dynamic viewport */
 function syncViewportHeight() {
   const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;

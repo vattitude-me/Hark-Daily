@@ -553,12 +553,12 @@ export class Landing {
       }
     });
 
-    $('useEmail').addEventListener('click', () => {
+    $('useEmail')?.addEventListener('click', () => {
       this.error();
-      $('providerStep').classList.add('hidden');
-      $('emailForm').classList.remove('hidden');
-      $('loginHint').textContent = INTRO;
-      $('loginEmail').focus();
+      $('providerStep')?.classList.add('hidden');
+      $('emailForm')?.classList.remove('hidden');
+      $('loginHint') && ($('loginHint').textContent = INTRO);
+      $('loginEmail')?.focus();
     });
 
     const send = async () => {
@@ -575,10 +575,10 @@ export class Landing {
           ? 'Sign-in emails are busy right now. Use the last link you received, or try again in a little while.'
           : ex.message);
 
-    $('emailForm').addEventListener('submit', async (e) => {
+    $('emailForm')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       this.error();
-      this.email = $('loginEmail').value.trim().toLowerCase();
+      this.email = $('loginEmail')?.value.trim().toLowerCase() || '';
       busy($('sendCodeBtn'), true, 'Sending…');
       try {
         await send();
@@ -590,20 +590,20 @@ export class Landing {
       }
     });
 
-    $('resendBtn').addEventListener('click', async () => {
+    $('resendBtn')?.addEventListener('click', async () => {
       this.error();
       try { await send(); toast('Sent a new link. Use the newest email.'); } catch (ex) { sendError(ex); }
     });
 
-    $('showCode').addEventListener('click', () => {
-      $('codeForm').classList.toggle('hidden');
-      if (!$('codeForm').classList.contains('hidden')) $('loginCode').focus();
+    $('showCode')?.addEventListener('click', () => {
+      $('codeForm')?.classList.toggle('hidden');
+      if ($('codeForm') && !$('codeForm').classList.contains('hidden')) $('loginCode')?.focus();
     });
 
-    $('codeForm').addEventListener('submit', async (e) => {
+    $('codeForm')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       this.error();
-      const code = $('loginCode').value.trim();
+      const code = $('loginCode')?.value.trim();
       if (!code) return;
       busy($('verifyBtn'), true, 'Signing in…');
       try {
@@ -616,13 +616,13 @@ export class Landing {
       }
     });
 
-    $('changeEmail').addEventListener('click', () => {
+    $('changeEmail')?.addEventListener('click', () => {
       this.error();
       this.stopWaiting();
-      $('sentStep').classList.add('hidden');
-      $('emailForm').classList.remove('hidden');
-      $('signinTitle').textContent = 'Get started';
-      $('loginHint').textContent = INTRO;
+      $('sentStep')?.classList.add('hidden');
+      $('emailForm')?.classList.remove('hidden');
+      $('signinTitle') && ($('signinTitle').textContent = 'Get started');
+      $('loginHint') && ($('loginHint').textContent = INTRO);
     });
   }
 
