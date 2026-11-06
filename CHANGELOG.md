@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.16] - 2026-11-05
+
+### Fixed
+- **Google Identity Services (GIS) WebView & Android APK Isolation**:
+  - Detected Android WebView and native Capacitor/HarkNative environments (`isNativeOrWebView`) to avoid loading Web GIS in WebViews where Google blocks requests at `https://accounts.google.com/gsi/transform`.
+  - Separated `googleBtnContainer` and `googleBtn` in HTML so the native fallback button is never destroyed from DOM, preserving event listeners.
+  - Ensured native APK uses Chrome Custom Tabs OAuth flow (`window.HarkNative.openAuthUrl`) while Web and PWA continue to use branded GIS and ID tokens.
+
+---
+
 ## [1.0.15] - 2026-11-05
 
 ### Added
