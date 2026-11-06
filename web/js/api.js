@@ -360,7 +360,10 @@ export async function publicPack(date = null) {
 
   for (const url of urls) {
     try {
-      const res = await fetch(url);
+      const signal = (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function')
+        ? AbortSignal.timeout(4000)
+        : undefined;
+      const res = await fetch(url, signal ? { signal } : undefined);
       if (res.ok) {
         const obj = await res.json();
         if (obj && (obj.story_audio || obj.rows || obj.briefing)) {

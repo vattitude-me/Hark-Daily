@@ -791,8 +791,14 @@ export async function setEdition(edition) {
 window.setEdition = setEdition;
 
 function renderHero() {
-  $('hero').classList.toggle('hidden', !state.briefing);
+  $('hero')?.classList.toggle('hidden', !state.briefing);
   syncModePicker();
+  if (!state.briefing && !state.briefingLoading) {
+    const headline = $('cleanStoryHeadline');
+    if (headline) headline.textContent = "Today's briefing isn't ready yet";
+    const text = $('transcriptText');
+    if (text) text.textContent = 'Pull down or tap to check again.';
+  }
 }
 
 function renderPersonas() {
@@ -1852,14 +1858,14 @@ async function loadStoryPack(day) {
     if (!briefing) return null;
     // A day is playable only once its narrator's clips and framing are all published. Without this
     // a pack that is mid-recording, or being re-recorded, plays two voices inside one brief.
+    // For single narrators (e.g. C-3PO), enforce framing notes readiness in voice_notes.
+    // For podcast / duo briefings, readiness is governed by podcast_clips and story_audio rows.
+    const isPodcast = activeMode() === 'podcast' || briefing.mode === 'podcast';
+    const hosts = (briefing.voice?.id || '').split('+').filter(Boolean);
     const hasReadyMarkers = actualNotes.some((n) => n.note_key === READY_KEY);
-    if (hasReadyMarkers) {
+    if (hasReadyMarkers && !isPodcast && hosts.length <= 1) {
       const voiceId = briefing.voice?.id || '';
-      const hosts = voiceId.split('+').filter(Boolean);
-      const isReady = actualNotes.some((n) => n.note_key === READY_KEY && n.voice === voiceId) || (
-        hosts.length > 0 &&
-        hosts.every((h) => actualNotes.some((n) => n.note_key === READY_KEY && n.voice === h))
-      );
+      const isReady = actualNotes.some((n) => n.note_key === READY_KEY && n.voice === voiceId);
       if (!isReady) {
         if (targetDay === today) {
           const latest = await api.latestStoryDate(targetEd);
@@ -1896,7 +1902,11 @@ window.dismissSplash = dismissSplash;
 
 function displayBriefing() {
   if (state.briefing) {
-    player.load(state.briefing);
+    try {
+      player.load(state.briefing);
+    } catch (err) {
+      console.warn('[app] player.load caught error:', err);
+    }
     try {
       const ed = state.edition || 'ca';
       const cachedData = { ...state.briefing, edition: ed };
@@ -2944,11 +2954,17 @@ async function start() {
   }
 
   try {
-    // 2. Fetch status, profile, AND requested date's pack in parallel
+    const withTimeout = (promise, ms, fallback = null) =>
+      Promise.race([
+        promise,
+        new Promise((resolve) => setTimeout(() => resolve(fallback), ms))
+      ]);
+
+    // 2. Fetch status, profile, AND requested date's pack in parallel with fail-safe timeouts
     const [status, profile, freshBriefing] = await Promise.all([
       api.status().catch(() => ({})),
       api.profile().catch(() => null),
-      loadStoryPack(targetDate)
+      withTimeout(loadStoryPack(targetDate), 8000, null)
     ]);
     state.status = status;
     state.profile = profile;
@@ -2961,12 +2977,12 @@ async function start() {
     // 3. Fallback to today / latest date if target date is not ready
     let briefing = freshBriefing;
     if (!briefing && targetDate !== today) {
-      briefing = await loadStoryPack(today);
+      briefing = await withTimeout(loadStoryPack(today), 6000, null);
     }
     if (!briefing) {
-      const latest = await api.latestStoryDate();
+      const latest = await withTimeout(api.latestStoryDate(state.edition), 4000, null);
       if (latest && latest !== today) {
-        briefing = await loadStoryPack(latest);
+        briefing = await withTimeout(loadStoryPack(latest), 6000, null);
       }
     }
 
@@ -2975,6 +2991,22 @@ async function start() {
       state.briefing = briefing;
       if (state.briefing?.podcastFallback) toast("Podcast isn't ready today, so here's the full brief.");
       displayBriefing();
+    } else {
+      // Fallback: If no briefing could be loaded from network, seamlessly display the latest cached briefing
+      const curEd = state.edition || 'ca';
+      const cached = store.get(`last-briefing-${curEd}`, null) || store.get('last-briefing', null);
+      if (cached && (cached.stories?.length || cached.clips?.length)) {
+        state.briefing = cached;
+        displayBriefing();
+        toast('Showing your saved briefing.', { ms: 3000 });
+      } else {
+        renderHeader();
+        renderNotice();
+        renderGuestBanner();
+        renderHero();
+        renderSections();
+        toast("Couldn't reach the briefing service. Pull down to retry.", { error: true, ms: 5000 });
+      }
     }
 
     // 4. Defer archive loading to background idle time (non-blocking!)
@@ -3140,22 +3172,28 @@ export async function refreshBriefing() {
   const targetDate = state.selectedDate || today;
 
   try {
+    const withTimeout = (promise, ms, fallback = null) =>
+      Promise.race([
+        promise,
+        new Promise((resolve) => setTimeout(() => resolve(fallback), ms))
+      ]);
+
     const [status, profile, freshBriefing] = await Promise.all([
       api.status().catch(() => ({})),
       api.profile().catch(() => null),
-      loadStoryPack(targetDate)
+      withTimeout(loadStoryPack(targetDate), 8000, null)
     ]);
     if (status) state.status = status;
     if (profile) state.profile = profile;
 
     let briefing = freshBriefing;
     if (!briefing && targetDate !== today) {
-      briefing = await loadStoryPack(today);
+      briefing = await withTimeout(loadStoryPack(today), 6000, null);
     }
     if (!briefing) {
-      const latest = await api.latestStoryDate();
+      const latest = await withTimeout(api.latestStoryDate(state.edition), 4000, null);
       if (latest && latest !== today) {
-        briefing = await loadStoryPack(latest);
+        briefing = await withTimeout(loadStoryPack(latest), 6000, null);
       }
     }
 
@@ -3164,6 +3202,15 @@ export async function refreshBriefing() {
       displayBriefing();
       return { success: true, count: briefing.stories?.length || 0 };
     }
+    const curEd = state.edition || 'ca';
+    const cached = store.get(`last-briefing-${curEd}`, null) || store.get('last-briefing', null);
+    if (cached && (cached.stories?.length || cached.clips?.length)) {
+      state.briefing = cached;
+      displayBriefing();
+      return { success: true, count: cached.stories?.length || 0 };
+    }
+    renderHero();
+    renderSections();
     return { success: true, count: 0 };
   } catch (err) {
     console.warn('refreshBriefing error:', err);
