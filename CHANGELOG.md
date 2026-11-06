@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.18] - 2026-11-06
+
+### Fixed
+- **Android APK Post-Login Sign-In Modal Dismissal**:
+  - Fixed a critical bug in `handleNativeAuthCallback` where the returned OAuth intent attempted to hide a non-existent element ID (`loginModal`) rather than `signin` (`closeSignIn()`), causing the "Sign in to Hark Daily" modal dialog to remain stuck on screen over the player after authentication.
+  - Added explicit `closeSignIn()` invocation in `enterApp()` and `sb.auth.onAuthStateChange` to guarantee immediate modal closure whenever a session is active.
+- **Android APK Google Auth Button State Recovery**:
+  - Hardened `closeSignIn()` across `app.js` and `landing.js` to restore `googleBtn.disabled = false` and reset label to "Continue with Google".
+  - Added window `focus` event listener so that if a user opens Chrome Custom Tabs and subsequently dismisses or cancels it (by tapping 'X' or back), the Google button automatically re-enables and resets from "Opening Google…".
+  - Handled auth callback error states to safely restore button interactivity and display informative toast feedback.
+- **Node Test Environment Resilience**:
+  - Added defensive `typeof window !== 'undefined'` and `window.location?.hash` checks in `enterApp()` to guard hash cleanups against ReferenceErrors in headless test runs.
+  - Added unit test suite in `tests/js/podcast.test.mjs` verifying clean modal dismissal, session exchange, and button state reset upon native auth callback.
+
+---
+
 ## [1.0.17] - 2026-11-05
 
 ### Fixed

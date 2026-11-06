@@ -445,7 +445,13 @@ export class Landing {
     window.setupGoogleIdentityServices?.();
   }
 
-  closeSignIn() { $('signin').classList.add('hidden'); }
+  closeSignIn() {
+    $('signin')?.classList.add('hidden');
+    const btn = $('googleBtn');
+    if (btn) btn.disabled = false;
+    const lbl = $('googleLabel');
+    if (lbl) lbl.textContent = 'Continue with Google';
+  }
 
   error(msg) {
     $('loginError').textContent = msg || '';
@@ -534,6 +540,15 @@ export class Landing {
         this.error(/provider is not enabled|unsupported provider/i.test(ex.message)
           ? 'Google sign-in is not switched on yet. Use email instead.' : ex.message);
         if (btn) btn.disabled = false;
+        if (lbl) lbl.textContent = 'Continue with Google';
+      }
+    });
+
+    window.addEventListener('focus', () => {
+      const btn = $('googleBtn');
+      const lbl = $('googleLabel');
+      if (btn && btn.disabled) {
+        btn.disabled = false;
         if (lbl) lbl.textContent = 'Continue with Google';
       }
     });
