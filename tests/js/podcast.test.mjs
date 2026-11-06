@@ -1153,6 +1153,27 @@ test('podcast mode is not discarded by single-narrator voice_notes pack_ready ma
   assert.equal(isC3poReady, true, 'C-3PO should be ready when marker is present');
 });
 
+test('app version and drawer version synchronization across config, index.html, and package.json', () => {
+  const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+  const configText = readFileSync(new URL('../../web/config.js', import.meta.url), 'utf8');
+  const indexHtml = readFileSync(new URL('../../web/index.html', import.meta.url), 'utf8');
+
+  const configVersionMatch = configText.match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
+  assert.ok(configVersionMatch, 'APP_VERSION must be defined in web/config.js');
+  const configVersion = configVersionMatch[1];
+  const cleanConfigVersion = configVersion.replace(/^v/, '');
+
+  assert.equal(cleanConfigVersion, pkg.version, 'web/config.js APP_VERSION must match package.json version');
+
+  const formattedVer = configVersion.startsWith('v') ? configVersion : `v${configVersion}`;
+  const expectedDrawerHtml = `<div class="clean-drawer-version" id="cleanDrawerVersion">Hark Daily ${formattedVer}</div>`;
+  assert.ok(
+    indexHtml.includes(expectedDrawerHtml),
+    `web/index.html must include the current drawer version element: ${expectedDrawerHtml}`
+  );
+});
+
+
 
 
 
