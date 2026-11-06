@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Bumped script cache-buster in `web/index.html` to `?v=79`.
   - Incremented version metadata in `package.json` to `1.0.20` and in `android/app/build.gradle` to `1.0.20` (code `10020`).
   - Added unit test in `tests/js/podcast.test.mjs` verifying strict synchronization between `config.js`, `index.html`, and `package.json`.
+- **Unified Cross-Platform Documentation & Legacy Asset Archival**:
+  - Consolidated `README.md` to document the unified **Capacitor** cross-platform architecture merging Web PWA, Android Smart Native Shell, and iOS Smart Native Shell with synchronized build workflows.
+  - Archived pre-Capacitor blueprints, legacy HTML mockups, promo audio experiments, and unused screenshot variants into the versioned archive folder `docs/archive/v1.0/`.
 
 ---
 
