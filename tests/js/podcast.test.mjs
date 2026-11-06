@@ -724,6 +724,7 @@ test('app.js exports initApp and boots cleanly when window and document are pres
   };
   globalThis.document = {
     readyState: 'complete',
+    createElement: () => ({ classList: { add: () => {}, remove: () => {} }, style: {}, appendChild: () => {}, dataset: {} }),
     querySelector: () => null,
     querySelectorAll: () => [],
     getElementById: (id) => {
@@ -868,6 +869,7 @@ test('GIS WebView & Native isolation prevents GIS execution in Android APK', asy
   };
   globalThis.document = {
     readyState: 'complete',
+    createElement: () => ({ classList: { add: () => {}, remove: () => {} }, style: {}, appendChild: () => {}, dataset: {} }),
     querySelector: () => null,
     querySelectorAll: () => [],
     getElementById: () => null,
@@ -947,6 +949,7 @@ test('clearDeepLink clears deep link parameters and prevents session locking', a
   };
   globalThis.document = {
     readyState: 'complete',
+    createElement: () => ({ classList: { add: () => {}, remove: () => {} }, style: {}, appendChild: () => {}, dataset: {} }),
     querySelector: () => null,
     querySelectorAll: () => [],
     getElementById: () => null,
@@ -982,6 +985,141 @@ test('clearDeepLink clears deep link parameters and prevents session locking', a
   delete globalThis.window;
   delete globalThis.document;
 });
+
+test('handleNativeAuthCallback and closeSignIn dismiss sign-in modal cleanly and reset button state', async () => {
+  const elements = {
+    signin: { classList: new Set() },
+    googleBtn: { disabled: true },
+    googleLabel: { textContent: 'Opening Google…' },
+    menuDrawer: { classList: new Set() },
+  };
+
+  globalThis.window = {
+    location: { origin: 'https://hark.vattitude.ca', search: '', hash: '', pathname: '/' },
+    history: { replaceState: () => {} },
+    addEventListener: () => {},
+    matchMedia: () => ({ addEventListener: () => {} }),
+    player: { isPlaying: false },
+    HarkNative: null,
+    Capacitor: null,
+    toast: () => {},
+    enterApp: () => {},
+  };
+  globalThis.localStorage = {
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {},
+  };
+  globalThis.document = {
+    readyState: 'complete',
+    createElement: () => ({ classList: { add: () => {}, remove: () => {} }, style: {}, appendChild: () => {}, dataset: {} }),
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    getElementById: (id) => {
+      const el = elements[id];
+      if (el) {
+        return {
+          get disabled() { return el.disabled; },
+          set disabled(v) { el.disabled = v; },
+          get textContent() { return el.textContent; },
+          set textContent(v) { el.textContent = v; },
+          classList: {
+            add: (cls) => el.classList.add(cls),
+            remove: (cls) => el.classList.delete(cls),
+            contains: (cls) => el.classList.has(cls),
+          },
+          replaceChildren: () => {},
+          setAttribute: () => {},
+          getAttribute: () => null,
+          appendChild: () => {},
+          addEventListener: () => {},
+          querySelector: () => null,
+          querySelectorAll: () => [],
+          style: {},
+        };
+      }
+      return {
+        classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
+        replaceChildren: () => {},
+        setAttribute: () => {},
+        getAttribute: () => null,
+        appendChild: () => {},
+        addEventListener: () => {},
+        querySelector: () => null,
+        querySelectorAll: () => [],
+        style: {},
+      };
+    },
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    documentElement: { classList: { add: () => {} }, style: { setProperty: () => {} } },
+    body: { classList: { contains: () => false, remove: () => {}, add: () => {} } },
+  };
+
+  let sessionPayload = null;
+  globalThis.mockSb = {
+    auth: {
+      setSession: async (params) => {
+        sessionPayload = params;
+        return { data: { session: { access_token: params.access_token } }, error: null };
+      },
+      exchangeCodeForSession: async () => ({ data: null, error: new Error('not tested') }),
+    },
+  };
+
+  writeFileSync(join(dir, 'api_auth.mjs'), `export const SECTIONS = {}; export const voiceName = (v) => v; export const fmtTime = (s) => String(s); export const h = () => ({ addEventListener: () => {}, classList: { toggle: () => {} } }); export const store = { get: (k, def) => (def !== undefined ? def : null), set: () => {} }; export const generateRawNonce = () => '00'; export const hashNonce = async () => '00'; export const api = { generateRawNonce: () => '00', hashNonce: async () => '00', signInWithGoogleIdToken: async () => ({}) }; export const icon = () => ({}); export const isAdmin = () => false; export const recordError = () => {}; export const sb = globalThis.mockSb; export const timeAgo = () => ''; export const toast = () => {}; export const VOICES = {}; export const voiceFor = () => ({}); export const DEFAULT_VOICE_ID = 'c3po_reference'; export const EDITIONS = {}; export const defaultEdition = () => 'ca'; export const detectEditionFromIp = () => 'ca';`);
+
+  const appSrc = readFileSync(new URL('../../web/js/app.js', import.meta.url), 'utf8')
+    .replace("'./api.js'", "'./api_auth.mjs'")
+    .replace("'./storypack.js'", "'./storypack.mjs'")
+    .replace("'./player.js'", "'./player.mjs'")
+    .replace("'./sheets.js'", "'./sheets.mjs'")
+    .replace("'./landing.js'", "'./landing.mjs'")
+    .replace("'./pages/sources.js'", "'./pages.mjs'")
+    .replace("'./pages/settings.js'", "'./pages.mjs'")
+    .replace("'./pages/admin.js'", "'./pages.mjs'")
+    .replace("'./design.js'", "'./design.mjs'")
+    .replace("'../config.js'", "'./config.mjs'");
+  writeFileSync(join(dir, 'app_auth_test.mjs'), appSrc);
+
+  const { closeSignIn, handleNativeAuthCallback } = await import(join(dir, 'app_auth_test.mjs'));
+
+  // Test 1: closeSignIn hides modal and resets button
+  closeSignIn();
+  assert.equal(elements.signin.classList.has('hidden'), true, 'closeSignIn must hide signin modal');
+  assert.equal(elements.googleBtn.disabled, false, 'closeSignIn must re-enable Google button');
+  assert.equal(elements.googleLabel.textContent, 'Continue with Google', 'closeSignIn must restore button text');
+
+  // Set modal back to open and button to busy
+  elements.signin.classList.delete('hidden');
+  elements.googleBtn.disabled = true;
+  elements.googleLabel.textContent = 'Opening Google…';
+
+  // Test 2: handleNativeAuthCallback with valid tokens dismisses modal
+  await handleNativeAuthCallback('me.vattitude.morningbrief://auth#access_token=my_access_token&refresh_token=my_refresh_token');
+  assert.ok(sessionPayload, 'setSession must be invoked');
+  assert.equal(sessionPayload.access_token, 'my_access_token');
+  assert.equal(sessionPayload.refresh_token, 'my_refresh_token');
+  assert.equal(elements.signin.classList.has('hidden'), true, 'handleNativeAuthCallback must hide signin modal after successful auth');
+  assert.equal(elements.googleBtn.disabled, false, 'handleNativeAuthCallback must reset button disabled state');
+  assert.equal(elements.googleLabel.textContent, 'Continue with Google');
+
+  // Test 3: handleNativeAuthCallback with error resets button
+  elements.googleBtn.disabled = true;
+  elements.googleLabel.textContent = 'Opening Google…';
+  await handleNativeAuthCallback('me.vattitude.morningbrief://auth?error=access_denied&error_description=User+cancelled');
+  assert.equal(elements.googleBtn.disabled, false, 'handleNativeAuthCallback must re-enable button on error');
+  assert.equal(elements.googleLabel.textContent, 'Continue with Google');
+
+  // Wait for setTimeout(enterApp, 0) to flush before deleting globals
+  await new Promise((r) => setTimeout(r, 20));
+
+  delete globalThis.window;
+  delete globalThis.document;
+  delete globalThis.mockSb;
+  delete globalThis.localStorage;
+});
+
 
 
 

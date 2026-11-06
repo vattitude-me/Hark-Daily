@@ -572,9 +572,13 @@ function openSignIn(reason = 'default') {
   }
 }
 
-function closeSignIn() {
+export function closeSignIn() {
   const modal = $('signin');
   if (modal) modal.classList.add('hidden');
+  const btn = $('googleBtn');
+  if (btn) btn.disabled = false;
+  const lbl = $('googleLabel');
+  if (lbl) lbl.textContent = 'Continue with Google';
 }
 window.openSignIn = openSignIn;
 window.closeSignIn = closeSignIn;
@@ -2763,6 +2767,19 @@ function bindSignInModal() {
     }
   });
 
+  // If the user launched Chrome Custom Tabs or switched apps and returned without completing auth,
+  // ensure the Google button is re-enabled so they aren't stuck on "Opening Google…".
+  window.addEventListener('focus', () => {
+    if (!state.profile) {
+      const btn = $('googleBtn');
+      const lbl = $('googleLabel');
+      if (btn && btn.disabled) {
+        btn.disabled = false;
+        if (lbl) lbl.textContent = 'Continue with Google';
+      }
+    }
+  });
+
   $('useEmail')?.addEventListener('click', () => {
     showErr();
     $('providerStep')?.classList.add('hidden');
@@ -2864,7 +2881,10 @@ async function enterApp() {
   landing?.stop();
   document.body.classList.remove('booting', 'signed-out');
   $('login')?.classList.add('hidden');
-  if (location.hash.includes('access_token')) history.replaceState(null, '', location.pathname);
+  closeSignIn();
+  if (typeof window !== 'undefined' && window.location?.hash?.includes('access_token')) {
+    window.history?.replaceState?.(null, '', window.location.pathname);
+  }
   if (started) {
     try {
       state.profile = await api.profile();
@@ -3020,8 +3040,14 @@ function initConsentPopup() {
   });
 }
 
-async function handleNativeAuthCallback(rawUrl) {
+export async function handleNativeAuthCallback(rawUrl) {
   if (!rawUrl || typeof rawUrl !== 'string') return;
+  const resetBtn = () => {
+    const btn = $('googleBtn');
+    const lbl = $('googleLabel');
+    if (btn) btn.disabled = false;
+    if (lbl) lbl.textContent = 'Continue with Google';
+  };
   try {
     let search = '';
     let hash = '';
@@ -3040,6 +3066,7 @@ async function handleNativeAuthCallback(rawUrl) {
     const errorDesc = params.get('error_description') || hashParams.get('error_description')
       || params.get('error') || hashParams.get('error');
     if (errorDesc) {
+      resetBtn();
       toast(errorDesc, { error: true });
       return;
     }
@@ -3050,12 +3077,13 @@ async function handleNativeAuthCallback(rawUrl) {
       const { data, error } = await sb.auth.exchangeCodeForSession(code);
       if (error) {
         console.error('exchangeCodeForSession error:', error);
+        resetBtn();
         toast(error.message || 'Authentication failed. Please try again.', { error: true });
         return;
       }
       if (data?.session) {
         toast('Signed in successfully! 👋');
-        $('loginModal')?.classList.add('hidden');
+        closeSignIn();
         $('menuDrawer')?.classList.add('hidden');
         setTimeout(enterApp, 0);
         return;
@@ -3072,12 +3100,13 @@ async function handleNativeAuthCallback(rawUrl) {
       });
       if (error) {
         console.error('setSession error:', error);
+        resetBtn();
         toast(error.message || 'Authentication failed. Please try again.', { error: true });
         return;
       }
       if (data?.session) {
         toast('Signed in successfully! 👋');
-        $('loginModal')?.classList.add('hidden');
+        closeSignIn();
         $('menuDrawer')?.classList.add('hidden');
         setTimeout(enterApp, 0);
         return;
@@ -3085,6 +3114,7 @@ async function handleNativeAuthCallback(rawUrl) {
     }
   } catch (err) {
     console.error('handleNativeAuthCallback error:', err);
+    resetBtn();
     toast(err.message || 'Authentication failed.', { error: true });
   }
 }
@@ -3341,6 +3371,7 @@ async function init() {
       renderGuestBanner();
       toast('Signed out. Continuing in guest mode.');
     } else if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
+      closeSignIn();
       setTimeout(enterApp, 0);
     }
   });
