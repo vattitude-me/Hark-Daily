@@ -1173,6 +1173,21 @@ test('app version and drawer version synchronization across config, index.html, 
   );
 });
 
+test('streamlined Google sign-in modal structure: single 1-tap Google action without email forms', () => {
+  const indexHtml = readFileSync(new URL('../../web/index.html', import.meta.url), 'utf8');
+
+  // Verify Google button exists
+  assert.ok(indexHtml.includes('id="googleBtn"'), 'Sign-in modal must contain googleBtn');
+  assert.ok(indexHtml.includes('id="googleBtnContainer"'), 'Sign-in modal must contain googleBtnContainer');
+
+  // Verify email forms and magic link elements are removed
+  assert.ok(!indexHtml.includes('id="emailForm"'), 'Sign-in modal must not contain emailForm');
+  assert.ok(!indexHtml.includes('id="useEmail"'), 'Sign-in modal must not contain useEmail');
+  assert.ok(!indexHtml.includes('id="sentStep"'), 'Sign-in modal must not contain sentStep');
+  assert.ok(!indexHtml.includes('id="codeForm"'), 'Sign-in modal must not contain codeForm');
+});
+
+
 
 
 

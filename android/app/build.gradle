@@ -1,7 +1,7 @@
 apply plugin: 'com.android.application'
 
-def appVersionName = project.findProperty("versionName") ?: "1.0.20"
-def appVersionCode = project.findProperty("versionCode") ? project.findProperty("versionCode").toInteger() : 10020
+def appVersionName = project.findProperty("versionName") ?: "1.0.21"
+def appVersionCode = project.findProperty("versionCode") ? project.findProperty("versionCode").toInteger() : 10021
 
 android {
     namespace "me.vattitude.morningbrief"
@@ -91,6 +91,7 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation "androidx.browser:browser:1.8.0"
+    implementation "com.google.android.gms:play-services-auth:21.2.0"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"

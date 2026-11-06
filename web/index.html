@@ -571,7 +571,7 @@
               <span class="clean-drawer-legal-dot" aria-hidden="true">·</span>
               <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>
             </div>
-            <div class="clean-drawer-version" id="cleanDrawerVersion">Hark Daily v1.0.20</div>
+            <div class="clean-drawer-version" id="cleanDrawerVersion">Hark Daily v1.0.21</div>
           </div>
         </div>
 
@@ -974,36 +974,14 @@
     <div class="login-card">
       <button class="icon-btn signin-close" type="button" id="signinClose" aria-label="Close"><svg><use href="#i-close"/></svg></button>
       <img src="/icons/logo-transparent.png" alt="Hark logo" width="48" height="48" class="login-mark">
-      <h2 id="signinTitle">Start your daily brief</h2>
-      <p class="login-intro" id="loginHint">Sign in once. Your brief and settings follow you between the web and Android apps.</p>
+      <h2 id="signinTitle">Sign in to Hark Daily</h2>
+      <p class="login-intro" id="loginHint">Sign in to sync your preferences and sources across your devices and the Android app.</p>
       <div id="providerStep" class="login-form">
         <div id="googleBtnContainer" class="google-btn-container hidden"></div>
         <button class="btn btn-lg btn-google" type="button" id="googleBtn">
           <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.5 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
           <span id="googleLabel">Continue with Google</span>
         </button>
-        <button class="btn btn-ghost btn-lg" type="button" id="useEmail">Continue with email</button>
-      </div>
-      <form id="emailForm" class="login-form hidden">
-        <label class="sr-only" for="loginEmail">Email</label>
-        <input type="email" id="loginEmail" class="text-input" placeholder="you@example.com" autocomplete="email" required>
-        <button class="btn btn-primary btn-lg" type="submit" id="sendCodeBtn">Email me a sign-in link</button>
-      </form>
-      <div id="sentStep" class="login-form hidden">
-        <div class="sent-waiting" aria-live="polite"><span class="spinner" aria-hidden="true"></span>Waiting for you to tap the link…</div>
-        <a class="btn btn-primary btn-lg hidden" id="openMail" target="_blank" rel="noopener">Open Gmail</a>
-        <div class="sent-actions">
-          <button class="link-btn" type="button" id="resendBtn">Resend email</button>
-          <span aria-hidden="true">·</span>
-          <button class="link-btn" type="button" id="changeEmail">Use a different email</button>
-        </div>
-        <button class="link-btn" type="button" id="showCode">Have a code instead?</button>
-        <form id="codeForm" class="login-form hidden">
-          <label class="sr-only" for="loginCode">Code from the email</label>
-          <input type="text" id="loginCode" class="text-input code-input" inputmode="numeric" autocomplete="one-time-code"
-                 pattern="[0-9]{6,10}" maxlength="10" placeholder="123456">
-          <button class="btn btn-ghost" type="submit" id="verifyBtn">Sign in with code</button>
-        </form>
       </div>
       <p class="error hidden" id="loginError" role="alert"></p>
     </div>
@@ -1029,6 +1007,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/vendor/supabase.min.js"></script>
-  <script type="module" src="/js/app.js?v=79"></script>
+  <script type="module" src="/js/app.js?v=80"></script>
 </body>
 </html>

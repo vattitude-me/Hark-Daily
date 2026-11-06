@@ -15,4 +15,4 @@ export const GOOGLE_CLIENT_ID = (typeof window !== 'undefined' && (window.__GOOG
   || '345556028045-h61lt911l04gttt66ludkvsqr90cg9b0.apps.googleusercontent.com';
 
 // Release version displayed in drawer and settings
-export const APP_VERSION = 'v1.0.20';
+export const APP_VERSION = 'v1.0.21';
