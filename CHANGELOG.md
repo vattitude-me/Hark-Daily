@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.20] - 2026-11-06
+
+### Changed
+- **Synchronized Hamburger Drawer Version & App Release Versioning**:
+  - Bound the hamburger drawer version indicator (`cleanDrawerVersion`) dynamically to canonical `APP_VERSION` from `web/config.js` both on early app boot (`init()`) and during drawer state changes (`updateMenuDrawer()`), normalizing prefix formatting (`vX.Y.Z`).
+  - Updated fallback static HTML markup in `web/index.html` to `Hark Daily v1.0.20`.
+  - Updated canonical app release configuration in `web/config.js` to `v1.0.20`.
+  - Bumped service worker cache identifier in `web/sw.js` to `hark-daily-v88` ensuring PWA and Android APK clients discard stale shell assets and immediately acquire updated configurations on refresh.
+  - Bumped script cache-buster in `web/index.html` to `?v=79`.
+  - Incremented version metadata in `package.json` to `1.0.20` and in `android/app/build.gradle` to `1.0.20` (code `10020`).
+  - Added unit test in `tests/js/podcast.test.mjs` verifying strict synchronization between `config.js`, `index.html`, and `package.json`.
+
+---
+
 ## [1.0.19] - 2026-11-06
 
 ### Fixed

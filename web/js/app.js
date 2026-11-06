@@ -2154,7 +2154,8 @@ function updateMenuDrawer() {
 
   const versionEl = $('cleanDrawerVersion');
   if (versionEl && APP_VERSION) {
-    versionEl.textContent = `Hark Daily ${APP_VERSION}`;
+    const formattedVer = APP_VERSION.startsWith('v') ? APP_VERSION : `v${APP_VERSION}`;
+    versionEl.textContent = `Hark Daily ${formattedVer}`;
   }
 
   // Settings rows
@@ -3370,6 +3371,11 @@ async function init() {
   syncInstallBtn();
   syncAdminTab();
   syncEditionPicker();
+  const drawerVer = $('cleanDrawerVersion');
+  if (drawerVer && APP_VERSION) {
+    const formattedVer = APP_VERSION.startsWith('v') ? APP_VERSION : `v${APP_VERSION}`;
+    drawerVer.textContent = `Hark Daily ${formattedVer}`;
+  }
 
   if (window.HarkNative?.getPendingAuthUri) {
     try {
