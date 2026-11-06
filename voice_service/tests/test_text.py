@@ -70,3 +70,10 @@ def test_empty_input_has_no_spans():
 
 def test_whitespace_is_tidied_within_a_span():
     assert spans("Hello    \n  world.") == ["Hello world."]
+
+
+def test_phonetic_overrides_normalize_proper_nouns():
+    items = parse("Carney's second budget will be presented by Mark Carney.")
+    assert len(items) == 1
+    assert items[0].text == "Car-nee's second budget will be presented by Mark Car-nee."
+
