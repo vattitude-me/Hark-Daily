@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.17] - 2026-11-05
+
+### Fixed
+- **Shared Story Deep Link Session Locking**:
+  - Implemented `clearDeepLink()` with `history.replaceState` and `state.targetStoryConsumed` flag so that shared links apply on initial load but do not trap the session.
+  - Switching editions, clicking date chips (e.g. "Today"), or refreshing cleanly loads the requested briefing without re-injecting or locking back onto the shared clip.
+- **Onboarding Sheet Streamlining**:
+  - Removed obsolete `welcomeName` step ("What should we call you?") that was not used in audio briefings or stored in settings, eliminating repeat onboarding prompts triggered by `!st.name`.
+  - Removed legacy "Full Brief" mode chooser from the welcome dialog, streamlining onboarding to a single-card briefing readiness and morning notification setup.
+
+---
+
 ## [1.0.16] - 2026-11-05
 
 ### Fixed
