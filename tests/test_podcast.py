@@ -397,6 +397,15 @@ def test_voice_normalize_converts_financial_and_textual_shorthand():
     assert voice_normalize("[chuckle] The stock gained $25.") == "[chuckle] The stock gained 25 dollars."
 
 
+def test_voice_phonetic_normalize_fixes_proper_noun_pronunciation():
+    from app.tts.text import voice_phonetic_normalize
+    assert voice_phonetic_normalize("Carney's 2nd budget earmarks billions.") == "Car-nee's 2nd budget earmarks billions."
+    assert voice_phonetic_normalize("Prime Minister Mark Carney announced funding.") == "Prime Minister Mark Car-nee announced funding."
+    assert voice_phonetic_normalize("Pierre Poilievre criticized the budget.") == "Pierre Pwal-ee-ev criticized the budget."
+    assert voice_phonetic_normalize("Justin Trudeau and Chrystia Freeland spoke.") == "Justin Troo-doh and Kris-tya Freeland spoke."
+    assert voice_phonetic_normalize("Visiting Calgary and Saskatchewan next week.") == "Visiting Cal-gree and Suh-skatch-uh-wun next week."
+
+
 def test_prompt_demands_voice_based_spoken_text():
     assert "VOICE-BASED TEXT" in podcast.STORY_DIALOGUE_PROMPT
     assert "$5B" in podcast.STORY_DIALOGUE_PROMPT

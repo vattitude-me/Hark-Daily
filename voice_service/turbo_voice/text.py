@@ -30,6 +30,39 @@ from dataclasses import dataclass
 # typo shows up in the audio instead of disappearing.
 TAGS = frozenset({"sigh", "chuckle", "laugh", "cough", "gasp", "groan", "sniffle", "yawn"})
 
+# Phonetic respelling dictionary for proper nouns, Canadian/world political figures,
+# and tricky names so neural TTS models (Chatterbox) pronounce them with 100% precision.
+PRONUNCIATION_OVERRIDES = {
+    # Canadian political & economic figures
+    r"\bCarney's\b": "Car-nee's",
+    r"\bCarney\b": "Car-nee",
+    r"\bPoilievre's\b": "Pwal-ee-ev's",
+    r"\bPoilievre\b": "Pwal-ee-ev",
+    r"\bTrudeau's\b": "Troo-doh's",
+    r"\bTrudeau\b": "Troo-doh",
+    r"\bChrystia\b": "Kris-tya",
+    r"\bJagmeet\b": "Jug-meet",
+    r"\bLegault's\b": "Leh-goh's",
+    r"\bLegault\b": "Leh-goh",
+    r"\bBlanchet\b": "Blahn-shay",
+    # Canadian & Regional Geography
+    r"\bSaskatchewan\b": "Suh-skatch-uh-wun",
+    r"\bCalgary\b": "Cal-gree",
+    r"\bEdmonton\b": "Ed-mun-tun",
+    # Global Tech / Business entities
+    r"\bByteDance\b": "Bite-dance",
+    r"\bHuawei\b": "Hwah-way",
+}
+
+
+def voice_phonetic_normalize(text: str) -> str:
+    """Normalize tricky proper nouns into phonetic spellings specifically for audio speech synthesis."""
+    if not text:
+        return ""
+    for pattern, repl in PRONUNCIATION_OVERRIDES.items():
+        text = re.sub(pattern, repl, text)
+    return text
+
 _PAUSE = re.compile(r"\[\[\s*pause\s*:\s*(\d+(?:\.\d+)?)\s*\]\]", re.I)
 _ELLIPSIS = re.compile(r"\s*(?:\.\.\.+|…)\s*")
 _PARAGRAPH = re.compile(r"\n\s*\n+")
@@ -68,6 +101,9 @@ def parse(text: str, *, beat: float = DEFAULT_BEAT) -> list[Say | Pause]:
     text = (text or "").strip()
     if not text:
         return []
+
+    # Phonetic pronunciation overrides for tricky proper nouns
+    text = voice_phonetic_normalize(text)
 
     # Em-dashes and en-dashes cause Chatterbox's punc_norm to convert them to
     # hyphens, making the voice rush through without breathing. Replace them
