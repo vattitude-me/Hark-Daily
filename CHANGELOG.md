@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.21] - 2026-11-06
+
+### Added
+- **Native Android Google Play Services Sign-In**:
+  - Integrated `com.google.android.gms:play-services-auth` in `MainActivity.java` to launch the native Android system Google account chooser directly from the device.
+  - Native layer retrieves the Google ID Token (`idToken`) and dispatches it directly to the WebView (`window.handleNativeGoogleIdToken`), completing authentication with `sb.auth.signInWithIdToken()`.
+  - Eliminates the Chrome Custom Tabs redirect through Supabase's auth servers on Android, removing the `oohbmeffdncyzujmeqcz.supabase.co` text from the Google Sign-in screen.
+  - Added resilient fallback (`api.fallbackToExternalOAuth`) in case of Google Cloud Console developer error (e.g. Code 10 / unlinked SHA-1) so users are never blocked from signing in.
+
+### Changed
+- **Streamlined Friction-Free Sign-In Modal**:
+  - Removed "Continue with email", email text input, magic link polling, and OTP code entry forms from `web/index.html` to eliminate mobile magic link failures and in-app browser redirection issues.
+  - Simplified the sign-in dialog to a single-action, 1-tap **"Continue with Google"** prompt across Web and Android APK.
+- **App Version & Cache Bumps**:
+  - Bumped version to `1.0.21` across `web/config.js`, `web/index.html`, `package.json`, and `android/app/build.gradle` (code `10021`).
+  - Bumped Service Worker cache identifier to `hark-daily-v89` in `web/sw.js` and script query string to `?v=80`.
+
+---
+
 ## [1.0.20] - 2026-11-06
 
 ### Changed
