@@ -12,7 +12,7 @@ export const FEATURES = { podcast: true, rapid: false };
 // Google Identity Services (GIS) Web Client ID for branded OAuth & One Tap
 export const GOOGLE_CLIENT_ID = (typeof window !== 'undefined' && (window.__GOOGLE_CLIENT_ID__ || window.GOOGLE_CLIENT_ID))
   || (typeof process !== 'undefined' && (process.env?.GOOGLE_CLIENT_ID || process.env?.VITE_GOOGLE_CLIENT_ID || process.env?.NEXT_PUBLIC_GOOGLE_CLIENT_ID))
-  || '';
+  || '345556028045-h61lt911l04gttt66ludkvsqr90cg9b0.apps.googleusercontent.com';
 
 // Release version displayed in drawer and settings
 export const APP_VERSION = 'v1.0.15';

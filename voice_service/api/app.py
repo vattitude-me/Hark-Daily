@@ -167,7 +167,7 @@ class SynthRequest(BaseModel):
     text: str = Field(..., min_length=1)
     beat: float | None = Field(None, gt=0, le=5.0)
     voice: str | None = Field(None, description="Clip name from /voices; defaults to reference.wav")
-    temperature: float | None = Field(None, gt=0.1, le=1.5, description="Sampling temperature for expressiveness (default 0.90)")
+    temperature: float | None = Field(None, gt=0.1, le=1.5, description="Sampling temperature for expressiveness (default 0.87)")
     top_p: float | None = Field(None, gt=0.1, le=1.0, description="Nucleus sampling top_p (default 0.98)")
     repetition_penalty: float | None = Field(None, ge=1.0, le=2.0)
     pace: float | None = Field(None, ge=0.75, le=1.25, description="Speech tempo factor: <1.0 is slower (default 0.94 slow-to-medium)")

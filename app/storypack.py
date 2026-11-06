@@ -39,6 +39,7 @@ from . import topics
 from .errors import DeadlineReached, PackBusy, PackIncomplete, VoiceServiceDown
 from .store import StoreError
 from .summarizer import strip_headline_and_filler
+from .tts.text import voice_phonetic_normalize
 
 log = logging.getLogger(__name__)
 
@@ -545,7 +546,8 @@ async def synthesise(client: httpx.AsyncClient, base: str, text: str, voice: str
     instead of timing out clip after clip; any other refusal is about this clip alone.
     """
     # Remove em-dashes and en-dashes so TTS voices pause naturally instead of rushing
-    clean_text = re.sub(r"\s*[—–]\s*", ", ", text)
+    clean_text = voice_phonetic_normalize(text)
+    clean_text = re.sub(r"\s*[—–]\s*", ", ", clean_text)
     clean_text = re.sub(r"\s+-\s+", ", ", clean_text)
     clean_text = re.sub(r",\s*,+", ",", clean_text)
     clean_text = re.sub(r",\s*([.!?])", r"\1", clean_text)

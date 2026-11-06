@@ -62,6 +62,39 @@ ABBREVIATIONS = {
     r"\bCOO\b": "C O O",
 }
 
+# Phonetic respelling dictionary for proper nouns, Canadian/world political figures,
+# and tricky names so neural TTS models (Chatterbox, Edge) pronounce them with 100% precision.
+PRONUNCIATION_OVERRIDES = {
+    # Canadian political & economic figures
+    r"\bCarney's\b": "Car-nee's",
+    r"\bCarney\b": "Car-nee",
+    r"\bPoilievre's\b": "Pwal-ee-ev's",
+    r"\bPoilievre\b": "Pwal-ee-ev",
+    r"\bTrudeau's\b": "Troo-doh's",
+    r"\bTrudeau\b": "Troo-doh",
+    r"\bChrystia\b": "Kris-tya",
+    r"\bJagmeet\b": "Jug-meet",
+    r"\bLegault's\b": "Leh-goh's",
+    r"\bLegault\b": "Leh-goh",
+    r"\bBlanchet\b": "Blahn-shay",
+    # Canadian & Regional Geography
+    r"\bSaskatchewan\b": "Suh-skatch-uh-wun",
+    r"\bCalgary\b": "Cal-gree",
+    r"\bEdmonton\b": "Ed-mun-tun",
+    # Global Tech / Business entities
+    r"\bByteDance\b": "Bite-dance",
+    r"\bHuawei\b": "Hwah-way",
+}
+
+
+def voice_phonetic_normalize(text: str) -> str:
+    """Normalize tricky proper nouns into phonetic spellings specifically for audio speech synthesis."""
+    if not text:
+        return ""
+    for pattern, repl in PRONUNCIATION_OVERRIDES.items():
+        text = re.sub(pattern, repl, text)
+    return text
+
 EMOJI = re.compile(r"[\U0001F000-\U0001FAFF\U00002600-\U000027BF\U0001F1E6-\U0001F1FF‍️]")
 
 CURRENCY_RE = re.compile(
@@ -160,6 +193,7 @@ def speakable(text: str) -> str:
     """Full TTS pipeline text cleaning for solo narrators (strips all brackets and guarantees end punctuation)."""
     text = re.sub(r"https?://\S+", "", text)
     text = voice_normalize(text, preserve_tags=False)
+    text = voice_phonetic_normalize(text)
     text = re.sub(r"\s*[\[\]()]\s*", ", ", text)
     text = re.sub(r"[*_#|<>]", " ", text)
     text = re.sub(r"\s+,", ",", text)
