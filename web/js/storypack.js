@@ -277,19 +277,30 @@ export function planPodcast(clips, sections, seed = '') {
   if (!open || !close) return null;
   const length = (c) => Number(c.duration) || 0;
   let used = length(open) + length(close);
-  const teasers = [];
-  for (const key of sections.slice(0, MAX_TEASERS)) {
-    const baseKey = key.replace(/_(us|in|ca)$/, '');
-    const c = byKey.get(`pod_tease_${key}`) || byKey.get(`pod_tease_${baseKey}`);
-    if (c && used + length(c) <= PODCAST_BUDGET) { teasers.push(c); used += length(c); }
+
+  // 1. Regional opener teaser for the very first section (e.g. US/India/Canada top stories)
+  // Instead of playing multiple consecutive teasers at the start, only this single regional tease plays
+  // before jumping directly into the top stories.
+  const firstSec = (sections || [])[0];
+  const baseFirstSec = firstSec ? firstSec.replace(/_(us|in|ca)$/, '') : '';
+  let regionalTease = (firstSec ? (byKey.get(`pod_tease_${firstSec}`) || byKey.get(`pod_tease_${baseFirstSec}`)) : null) || null;
+  if (regionalTease && used + length(regionalTease) <= PODCAST_BUDGET) {
+    used += length(regionalTease);
+  } else {
+    regionalTease = null;
   }
+  const teasers = regionalTease ? [regionalTease] : [];
+
   const bridges = new Map();
-  for (const key of sections) {
+  for (const key of (sections || [])) {
     const baseKey = key.replace(/_(us|in|ca)$/, '');
     const c = byKey.get(`pod_bridge_${key}`) || byKey.get(`pod_bridge_${baseKey}`);
-    if (c && used + length(c) <= PODCAST_BUDGET) { bridges.set(key, c); used += length(c); }
+    if (c && used + length(c) <= PODCAST_BUDGET) {
+      bridges.set(key, c);
+      used += length(c);
+    }
   }
-  return { hosts, open, teasers, bridges, close, banter: used };
+  return { hosts, open, regionalTease, teasers, bridges, close, banter: used };
 }
 
 export function banterTitle(clipKey, sectionKey = null) {
@@ -299,7 +310,10 @@ export function banterTitle(clipKey, sectionKey = null) {
   }
   if (clipKey.startsWith('pod_tease')) {
     const sec = sectionKey || clipKey.replace(/^pod_tease_/, '');
-    const secName = SECTIONS[sec]?.title || SECTIONS[sec.replace(/_(us|in|ca)$/, '')]?.title || sec;
+    let secName = SECTIONS[sec]?.title || SECTIONS[sec.replace(/_(us|in|ca)$/, '')]?.title || sec;
+    if (sec === 'top_us') secName = 'US Top stories';
+    else if (sec === 'top_in') secName = 'India Top stories';
+    else if (sec === 'top' || sec === 'top_ca') secName = 'Canada Top stories';
     return `Coming up · ${secName}`;
   }
   if (clipKey.startsWith('pod_bridge')) {
@@ -618,7 +632,9 @@ export function buildBriefing(rows, settings, {
 
   if (isPodcast) {
     sayBanter(pod.open);
-    pod.teasers.forEach((t) => sayBanter(t));
+    if (pod.regionalTease) {
+      sayBanter(pod.regionalTease, targetSections[0]);
+    }
   } else {
     sayNote(greetingKey(hour));
   }
@@ -632,8 +648,17 @@ export function buildBriefing(rows, settings, {
     if (!isRapid && row.section !== currentSection) {
       if (storyPlayed) breath();
       const baseSec = (row.section || '').replace(/_(us|in|ca)$/, '');
-      if (isPodcast) sayBanter(pod.bridges.get(row.section) || pod.bridges.get(baseSec), row.section);
-      else sayNote(byKey.has(`intro_${row.section}`) ? `intro_${row.section}` : `intro_${baseSec}`);
+      if (isPodcast) {
+        // If this is the first section and regionalTease already played at the start,
+        // jump directly into the top stories without repeating an intro.
+        const isFirstSec = currentSection === null;
+        if (!isFirstSec || !pod.regionalTease) {
+          const intro = pod.bridges.get(row.section) || pod.bridges.get(baseSec);
+          if (intro) sayBanter(intro, row.section);
+        }
+      } else {
+        sayNote(byKey.has(`intro_${row.section}`) ? `intro_${row.section}` : `intro_${baseSec}`);
+      }
       currentSection = row.section;
     } else if (storyPlayed) {
       breath();

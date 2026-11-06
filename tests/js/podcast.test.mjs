@@ -38,14 +38,16 @@ const build = (stories, podcastClips = pod, mode = 'podcast') => buildBriefing(r
 const ids = (b) => b.clips.filter((c) => !c.gap).map((c) => c.id);
 const banter = (b) => b.clips.filter((c) => c.banter).reduce((n, c) => n + c.duration, 0);
 
-test('podcast brief: open, teasers, bridges before stories, close; no narrator intros', () => {
+test('podcast brief: open, regional teaser directly into top stories, bridges for next sections, close', () => {
   const b = build({ top: 2, ai: 1 });
   assert.equal(b.mode, 'podcast');
   const list = ids(b);
   assert.match(list[0], /^pod_open_/);
   assert.match(list.at(-1), /^pod_close_/);
-  assert.ok(list.indexOf('pod_bridge_top') < list.indexOf('top-1'));
-  assert.ok(list.indexOf('pod_bridge_ai') < list.indexOf('ai-1'));
+  assert.equal(list[1], 'pod_tease_top');
+  assert.equal(list[2], 'top-1', 'Podcast directly jumps into top stories after regional teaser');
+  assert.equal(list.indexOf('pod_bridge_top'), -1, 'Redundant bridge is skipped when regional teaser played');
+  assert.ok(list.indexOf('pod_bridge_ai') < list.indexOf('ai-1'), 'Subsequent sections receive their section bridge');
   assert.ok(!list.some((id) => id.startsWith('intro_') || id === 'outro' || id.startsWith('greeting')));
 });
 
@@ -58,7 +60,7 @@ test('banter stays within budget however many sections are chosen', () => {
 });
 
 test('only chosen sections are mentioned', () => {
-  const list = ids(build({ top: 2, ai: 1 }));
+  const list = ids(build({ top: 2, ai: 1, tech: 0, sports: 0 }));
   assert.ok(!list.includes('pod_tease_sports') && !list.includes('pod_bridge_tech'));
 });
 
@@ -143,33 +145,34 @@ test('clipsFor selects edition-specific clips and isolates regional news', () =>
   assert.equal(inClips[0].title, 'Global AI');
 });
 
+const multiEdRows = [
+  // US sections
+  { section: 'top_us', rank: 1, voice: 'v', title: 'US Top', duration: 10, audio_path: 's/top_us.mp3' },
+  { section: 'tech_us', rank: 1, voice: 'v', title: 'US Tech', duration: 10, audio_path: 's/tech_us.mp3' },
+  { section: 'politics_us', rank: 1, voice: 'v', title: 'US Politics', duration: 10, audio_path: 's/pol_us.mp3' },
+  { section: 'entertainment_us', rank: 1, voice: 'v', title: 'US Ent', duration: 10, audio_path: 's/ent_us.mp3' },
+  { section: 'sports_us', rank: 1, voice: 'v', title: 'US Sports', duration: 10, audio_path: 's/spo_us.mp3' },
+
+  // India sections
+  { section: 'top_in', rank: 1, voice: 'v', title: 'IN Top', duration: 10, audio_path: 's/top_in.mp3' },
+  { section: 'tech_in', rank: 1, voice: 'v', title: 'IN Tech', duration: 10, audio_path: 's/tech_in.mp3' },
+  { section: 'politics_in', rank: 1, voice: 'v', title: 'IN Politics', duration: 10, audio_path: 's/pol_in.mp3' },
+  { section: 'entertainment_in', rank: 1, voice: 'v', title: 'IN Ent', duration: 10, audio_path: 's/ent_in.mp3' },
+  { section: 'sports_in', rank: 1, voice: 'v', title: 'IN Cricket', duration: 10, audio_path: 's/spo_in.mp3' },
+
+  // Canada sections
+  { section: 'top', rank: 1, voice: 'v', title: 'CA Top', duration: 10, audio_path: 's/top_ca.mp3' },
+  { section: 'tech', rank: 1, voice: 'v', title: 'CA Tech', duration: 10, audio_path: 's/tech_ca.mp3' },
+  { section: 'politics', rank: 1, voice: 'v', title: 'CA Politics', duration: 10, audio_path: 's/pol_ca.mp3' },
+  { section: 'entertainment', rank: 1, voice: 'v', title: 'CA Ent', duration: 10, audio_path: 's/ent_ca.mp3' },
+  { section: 'sports', rank: 1, voice: 'v', title: 'CA Sports', duration: 10, audio_path: 's/spo_ca.mp3' },
+
+  // Shared global sections
+  { section: 'ai', rank: 1, voice: 'v', title: 'Global AI', duration: 10, audio_path: 's/ai.mp3' },
+  { section: 'science', rank: 1, voice: 'v', title: 'Global Science', duration: 10, audio_path: 's/sci.mp3' },
+];
+
 test('buildBriefing preserves all 7 sections for US, India, and Canada editions', () => {
-  const multiEdRows = [
-    // US sections
-    { section: 'top_us', rank: 1, voice: 'v', title: 'US Top', duration: 10, audio_path: 's/top_us.mp3' },
-    { section: 'tech_us', rank: 1, voice: 'v', title: 'US Tech', duration: 10, audio_path: 's/tech_us.mp3' },
-    { section: 'politics_us', rank: 1, voice: 'v', title: 'US Politics', duration: 10, audio_path: 's/pol_us.mp3' },
-    { section: 'entertainment_us', rank: 1, voice: 'v', title: 'US Ent', duration: 10, audio_path: 's/ent_us.mp3' },
-    { section: 'sports_us', rank: 1, voice: 'v', title: 'US Sports', duration: 10, audio_path: 's/spo_us.mp3' },
-
-    // India sections
-    { section: 'top_in', rank: 1, voice: 'v', title: 'IN Top', duration: 10, audio_path: 's/top_in.mp3' },
-    { section: 'tech_in', rank: 1, voice: 'v', title: 'IN Tech', duration: 10, audio_path: 's/tech_in.mp3' },
-    { section: 'politics_in', rank: 1, voice: 'v', title: 'IN Politics', duration: 10, audio_path: 's/pol_in.mp3' },
-    { section: 'entertainment_in', rank: 1, voice: 'v', title: 'IN Ent', duration: 10, audio_path: 's/ent_in.mp3' },
-    { section: 'sports_in', rank: 1, voice: 'v', title: 'IN Cricket', duration: 10, audio_path: 's/spo_in.mp3' },
-
-    // Canada sections
-    { section: 'top', rank: 1, voice: 'v', title: 'CA Top', duration: 10, audio_path: 's/top_ca.mp3' },
-    { section: 'tech', rank: 1, voice: 'v', title: 'CA Tech', duration: 10, audio_path: 's/tech_ca.mp3' },
-    { section: 'politics', rank: 1, voice: 'v', title: 'CA Politics', duration: 10, audio_path: 's/pol_ca.mp3' },
-    { section: 'entertainment', rank: 1, voice: 'v', title: 'CA Ent', duration: 10, audio_path: 's/ent_ca.mp3' },
-    { section: 'sports', rank: 1, voice: 'v', title: 'CA Sports', duration: 10, audio_path: 's/spo_ca.mp3' },
-
-    // Shared global sections
-    { section: 'ai', rank: 1, voice: 'v', title: 'Global AI', duration: 10, audio_path: 's/ai.mp3' },
-    { section: 'science', rank: 1, voice: 'v', title: 'Global Science', duration: 10, audio_path: 's/sci.mp3' },
-  ];
 
   // 1. US edition
   const usBrief = buildBriefing(multiEdRows, {}, { edition: 'us', voice: 'v' });
@@ -194,6 +197,43 @@ test('buildBriefing preserves all 7 sections for US, India, and Canada editions'
   const caKeys = caBrief.sections.map((s) => s.key);
   assert.deepEqual(caKeys, ['top', 'ai', 'tech', 'politics', 'entertainment', 'science', 'sports']);
   assert.equal(caBrief.stories.length, 7);
+});
+
+test('podcast mode starts with regional tease and directly enters top stories for US, India, and Canada', () => {
+  const multiEdClips = [
+    pc('podcast_ready', 0),
+    pc('pod_open_1', 15),
+    pc('pod_close_1', 10),
+    pc('pod_tease_top', 15),
+    pc('pod_tease_top_us', 15),
+    pc('pod_tease_top_in', 15),
+    pc('pod_bridge_ai', 8),
+  ];
+  const stories = { top: 1, ai: 1, tech: 0, politics: 0, entertainment: 0, science: 0, sports: 0 };
+
+  const usB = buildBriefing(multiEdRows, { stories }, { edition: 'us', mode: 'podcast', podcastClips: multiEdClips });
+  const usIds = ids(usB);
+  assert.equal(usIds[0], 'pod_open_1');
+  assert.equal(usIds[1], 'pod_tease_top_us');
+  assert.equal(usIds[2], 'top_us-1');
+  assert.equal(usIds[3], 'pod_bridge_ai');
+  assert.equal(usIds[4], 'ai-1');
+
+  const inB = buildBriefing(multiEdRows, { stories }, { edition: 'in', mode: 'podcast', podcastClips: multiEdClips });
+  const inIds = ids(inB);
+  assert.equal(inIds[0], 'pod_open_1');
+  assert.equal(inIds[1], 'pod_tease_top_in');
+  assert.equal(inIds[2], 'top_in-1');
+  assert.equal(inIds[3], 'pod_bridge_ai');
+  assert.equal(inIds[4], 'ai-1');
+
+  const caB = buildBriefing(multiEdRows, { stories }, { edition: 'ca', mode: 'podcast', podcastClips: multiEdClips });
+  const caIds = ids(caB);
+  assert.equal(caIds[0], 'pod_open_1');
+  assert.equal(caIds[1], 'pod_tease_top');
+  assert.equal(caIds[2], 'top-1');
+  assert.equal(caIds[3], 'pod_bridge_ai');
+  assert.equal(caIds[4], 'ai-1');
 });
 
 test('posKeyFor generates independent timeline keys for Canada, US, and India', () => {
