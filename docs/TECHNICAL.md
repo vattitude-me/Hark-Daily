@@ -47,9 +47,9 @@ flowchart TD
 
     subgraph Clients["5. Dynamic Client Assembly & Gestures"]
         SB_DB -->|Fetch Pack Rows| PWA["Web PWA (Hark Daily)<br/>(Podcast & Full Briefing Modes)"]
-        SB_DB -->|Fetch Pack Rows| ANDROID["Android App (Hark Daily)<br/>(Pull-to-Refresh, Media3, Compose)"]
+        SB_DB -->|Fetch Pack Rows| MOBILE["Android & iOS Apps (Capacitor)<br/>(Smart Shell, Background Audio)"]
         SB_STOR_DAILY & SB_STOR_POD & SB_STOR_STATIC -->|Stream MP3s| PWA
-        SB_STOR_DAILY & SB_STOR_POD & SB_STOR_STATIC -->|Stream MP3s| ANDROID
+        SB_STOR_DAILY & SB_STOR_POD & SB_STOR_STATIC -->|Stream MP3s| MOBILE
     end
 ```
 
