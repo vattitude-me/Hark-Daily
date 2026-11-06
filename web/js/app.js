@@ -8,7 +8,7 @@ import { AdminPage } from './pages/admin.js';
 import { buildBriefing as buildPackBriefing, READY_KEY, storyKey, titlesMatch } from './storypack.js';
 import { applyPhotoMode } from './design.js';
 
-import { FEATURES, APP_VERSION } from '../config.js';
+import { FEATURES, APP_VERSION, GOOGLE_CLIENT_ID } from '../config.js';
 
 // Native Android / Capacitor shell safe-area and status bar initialization
 if (typeof window !== 'undefined' && (window.HarkNative || window.Capacitor?.isNativePlatform?.())) {
@@ -405,6 +405,110 @@ function renderNotice() {
 }
 
 /* ------------------------------------------------------------- guest & auth */
+let gisRawNonce = null;
+
+function ensureGisLoaded(timeoutMs = 5000) {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  if (window.google?.accounts?.id) return Promise.resolve(window.google.accounts.id);
+  return new Promise((resolve) => {
+    let script = document.querySelector('script[src*="accounts.google.com/gsi/client"]');
+    if (!script) {
+      script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+    const start = Date.now();
+    const timer = setInterval(() => {
+      if (window.google?.accounts?.id) {
+        clearInterval(timer);
+        resolve(window.google.accounts.id);
+      } else if (Date.now() - start > timeoutMs) {
+        clearInterval(timer);
+        resolve(null);
+      }
+    }, 50);
+  });
+}
+
+async function setupGoogleIdentityServices() {
+  const container = $('googleBtnContainer');
+  const fallbackBtn = $('googleBtn');
+  if (!container) return;
+
+  if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.includes('your-google-client-id') || GOOGLE_CLIENT_ID.includes('YOUR_CLIENT_ID')) {
+    if (fallbackBtn) fallbackBtn.style.display = '';
+    return;
+  }
+
+  try {
+    const gis = await ensureGisLoaded();
+    if (!gis || !window.google?.accounts?.id) {
+      if (fallbackBtn) fallbackBtn.style.display = '';
+      return;
+    }
+
+    // Step 4: Cryptographic SHA-256 nonce generator via Web Crypto API
+    gisRawNonce = api.generateRawNonce();
+    const hashedNonce = await api.hashNonce(gisRawNonce);
+
+    // Step 5: Configure google.accounts.id.initialize with use_fedcm_for_prompt and popup ux_mode
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: async (response) => {
+        const errEl = $('loginError');
+        if (errEl) { errEl.textContent = ''; errEl.classList.add('hidden'); }
+        try {
+          if (fallbackBtn) fallbackBtn.disabled = true;
+          const lbl = $('googleLabel');
+          if (lbl) lbl.textContent = 'Signing in…';
+          // Pass original unhashed raw nonce to Supabase signInWithIdToken
+          await api.signInWithGoogleIdToken(response.credential, gisRawNonce);
+          closeSignIn();
+          await enterApp();
+        } catch (err) {
+          const msg = err?.message || 'Google sign-in failed';
+          if (errEl) {
+            errEl.textContent = /provider is not enabled|unsupported provider/i.test(msg)
+              ? 'Google sign-in is not switched on yet. Use email instead.' : msg;
+            errEl.classList.remove('hidden');
+          }
+          if (fallbackBtn) fallbackBtn.disabled = false;
+          const lbl = $('googleLabel');
+          if (lbl) lbl.textContent = 'Continue with Google';
+          setupGoogleIdentityServices();
+        }
+      },
+      nonce: hashedNonce,
+      use_fedcm_for_prompt: true,
+      ux_mode: 'popup',
+      auto_select: false,
+    });
+
+    // Step 6: Render GIS button in container matching UI theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+      || (!document.documentElement.getAttribute('data-theme') && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
+
+    container.innerHTML = '';
+    window.google.accounts.id.renderButton(container, {
+      type: 'standard',
+      theme: isDark ? 'filled_black' : 'outline',
+      size: 'large',
+      text: 'continue_with',
+      shape: 'pill',
+      logo_alignment: 'left',
+      width: Math.min(300, container.offsetWidth || 280),
+    });
+
+    if (fallbackBtn) fallbackBtn.style.display = 'none';
+  } catch (err) {
+    console.warn('[GIS] Failed to initialize Google Identity Services:', err);
+    if (fallbackBtn) fallbackBtn.style.display = '';
+  }
+}
+window.setupGoogleIdentityServices = setupGoogleIdentityServices;
+
 function openSignIn(reason = 'default') {
   const modal = $('signin');
   if (!modal) return;
@@ -424,6 +528,18 @@ function openSignIn(reason = 'default') {
   $('providerStep')?.classList.remove('hidden');
   $('emailForm')?.classList.add('hidden');
   $('sentStep')?.classList.add('hidden');
+
+  setupGoogleIdentityServices().then(() => {
+    if (GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.includes('YOUR_CLIENT_ID') && !GOOGLE_CLIENT_ID.includes('your-google-client-id')) {
+      window.google?.accounts?.id?.prompt?.((notification) => {
+        if (notification?.isNotDisplayed?.()) {
+          console.info('[GIS] One Tap not displayed:', notification.getNotDisplayedReason?.());
+        } else if (notification?.isSkippedMoment?.()) {
+          console.info('[GIS] One Tap skipped:', notification.getSkippedReason?.());
+        }
+      });
+    }
+  }).catch(() => {});
 }
 
 function closeSignIn() {
@@ -2554,6 +2670,8 @@ function bindSignInModal() {
       errEl.classList.toggle('hidden', !msg);
     }
   };
+
+  setupGoogleIdentityServices();
 
   $('googleBtn')?.addEventListener('click', async () => {
     showErr();
