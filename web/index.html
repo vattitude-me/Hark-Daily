@@ -571,7 +571,7 @@
               <span class="clean-drawer-legal-dot" aria-hidden="true">·</span>
               <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>
             </div>
-            <div class="clean-drawer-version" id="cleanDrawerVersion">Hark Daily v1.0.16</div>
+            <div class="clean-drawer-version" id="cleanDrawerVersion">Hark Daily v1.0.17</div>
           </div>
         </div>
 
@@ -733,65 +733,22 @@
     <button class="pill-btn sm" id="saveBtn" type="button">Save changes</button>
   </div>
 
-  <!-- First-run welcome: three short steps (you, your news, your morning). -->
+  <!-- First-run welcome: morning notification and app install. -->
   <dialog class="sheet welcome" id="welcomeSheet" aria-labelledby="welcomeTitle">
     <form id="welcomeForm">
       <div class="sheet-head">
-        <h2 id="welcomeTitle">Welcome</h2>
+        <h2 id="welcomeTitle">Ready for your morning</h2>
         <div class="step-dots" id="welcomeDots" aria-hidden="true"></div>
       </div>
       <div class="sheet-body">
-        <div class="welcome-step" data-step="name">
-          <p class="hint">A couple of quick choices make your daily brief yours. You can change them later.</p>
-          <div class="setting-group">
-            <h3><label for="welcomeName">What should we call you?</label></h3>
-            <input type="text" id="welcomeName" class="text-input" maxlength="40" autocomplete="given-name" placeholder="First name">
-            <p class="hint">Optional. This name stays in the app and isn't read in your brief.</p>
-          </div>
-        </div>
-
-        <div class="welcome-step hidden" data-step="sources">
-          <p class="hint">Choose what goes into your brief. Turn off any topics you'd rather skip.</p>
-          <div id="welcomeSources"></div>
-          <div class="setting-group hidden">
-            <h3><label for="welcomeSourceUrl">Add a site you like</label></h3>
-            <div class="input-row">
-              <input type="url" id="welcomeSourceUrl" class="text-input" inputmode="url" autocomplete="off" placeholder="e.g. thestar.com or a feed link">
-              <button type="button" class="btn btn-ghost" id="welcomeSourceAdd"><svg><use href="#i-plus"/></svg> Add</button>
-            </div>
-            <p class="hint">They land in their own section. You can change all of this later in Sources.</p>
-          </div>
-        </div>
-
-        <div class="welcome-step hidden" data-step="morning">
+        <div class="welcome-step" data-step="morning">
           <div class="first-brief">
             <span class="cat-tile cat-top"><svg aria-hidden="true"><use href="#i-sunrise"/></svg></span>
             <div>
               <span class="first-brief-label">Your briefing</span>
-              <strong class="first-brief-when" id="welcomeWhen">Tomorrow morning</strong>
-              <span class="first-brief-what" id="welcomeWhat"></span>
+              <strong class="first-brief-when" id="welcomeWhen">Ready now</strong>
+              <span class="first-brief-what" id="welcomeWhat">Recorded this morning and waiting for you.</span>
             </div>
-          </div>
-          <div class="setting-group hidden" id="welcomeModeGroup">
-            <h3>Preferred Edition</h3>
-            <div class="segmented mode-segmented welcome-mode" role="radiogroup" aria-label="Default edition">
-              <button type="button" class="seg-opt on" id="welcomeModePodcast" role="radio" aria-checked="true">
-                <svg class="mode-icon" aria-hidden="true"><use href="#i-mic"/></svg>
-                <span>Podcast</span>
-                <span class="mode-meta">Two hosts</span>
-              </button>
-              <button type="button" class="seg-opt" id="welcomeModeFull" role="radio" aria-checked="false">
-                <svg class="mode-icon" aria-hidden="true"><use href="#i-sun"/></svg>
-                <span>Full Brief</span>
-                <span class="mode-meta">~10 min</span>
-              </button>
-              <button type="button" class="seg-opt hidden" id="welcomeModeRapid" role="radio" aria-checked="false">
-                <svg class="mode-icon icon-rapid" aria-hidden="true"><use href="#i-bolt"/></svg>
-                <span>Rapid Fire</span>
-                <span class="mode-meta badge-rapid">⚡ Top 5 · 1.1x</span>
-              </button>
-            </div>
-            <p class="hint">Full depth across all your topics, or Podcast: the same news with two hosts chatting around it.</p>
           </div>
           <div class="setting-group" id="welcomePushRow">
             <h3>Morning notification</h3>
@@ -816,7 +773,7 @@
       </div>
       <div class="sheet-foot">
         <button type="button" class="btn btn-ghost" id="welcomeBack">Skip</button>
-        <button type="submit" class="btn btn-primary" id="welcomeGo">Next</button>
+        <button type="submit" class="btn btn-primary" id="welcomeGo">Get started</button>
       </div>
     </form>
   </dialog>
@@ -1072,6 +1029,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/vendor/supabase.min.js"></script>
-  <script type="module" src="/js/app.js?v=75"></script>
+  <script type="module" src="/js/app.js?v=76"></script>
 </body>
 </html>

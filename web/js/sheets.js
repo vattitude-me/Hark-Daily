@@ -204,79 +204,44 @@ export class DeleteAccountSheet {
 }
 
 /* ------------------------------------------------------------------ Welcome */
-// First sign-in: name, which sources to read, then when the first briefing arrives (plus notifications).
-const STEP_TITLE = { name: 'A few details', sources: 'Choose your topics', morning: 'Ready for your morning' };
-
+// First sign-in welcome: morning notifications and app install.
 export class WelcomeSheet {
   constructor({ onDone }) {
     this.onDone = onDone;
     this.dialog = document.getElementById('welcomeSheet');
     wireSheet(this.dialog);
     this.dialog.addEventListener('cancel', (e) => e.preventDefault());
-    document.getElementById('welcomeForm').addEventListener('submit', (e) => { e.preventDefault(); this.next(); });
-    document.getElementById('welcomeBack').addEventListener('click', () => this.back());
-    document.getElementById('welcomeSourceAdd').addEventListener('click', () => this.addSource());
-    document.getElementById('welcomeSourceUrl').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); this.addSource(); }
-    });
-    document.getElementById('welcomeInstallBtn').addEventListener('click', async () => {
+    document.getElementById('welcomeForm')?.addEventListener('submit', (e) => { e.preventDefault(); this.next(); });
+    document.getElementById('welcomeBack')?.addEventListener('click', () => this.back());
+    document.getElementById('welcomeInstallBtn')?.addEventListener('click', async () => {
       if (await promptInstall()) toast('Installed. Next time, open Hark Daily from your home screen.');
     });
-    // Edition switcher (Full Brief vs 90s Rapid Fire vs Podcast)
-    this.preferredMode = store.get('brief-mode', 'podcast');
-    const fullBtn = document.getElementById('welcomeModeFull');
-    const rapidBtn = document.getElementById('welcomeModeRapid');
-    const podcastBtn = document.getElementById('welcomeModePodcast');
-    const setMode = (mode) => {
-      this.preferredMode = mode;
-      this.paintMode();
-    };
-    fullBtn?.addEventListener('click', () => setMode('full'));
-    rapidBtn?.addEventListener('click', () => setMode('rapid'));
-    podcastBtn?.addEventListener('click', () => setMode('podcast'));
 
     // Chrome may only offer the install prompt after the sheet is already open.
     onInstallChange(() => { if (this.dialog.open) this.paintInstall(); });
   }
 
-  /** Show only the editions that are switched on (config.js and the server flag), and mark the choice. */
-  paintMode() {
-    const offered = { full: true, rapid: FEATURES.rapid, podcast: FEATURES.podcast && Boolean(this.status?.podcast?.enabled) };
-    if (!offered[this.preferredMode]) this.preferredMode = offered.podcast ? 'podcast' : 'full';
-    const ids = { podcast: 'welcomeModePodcast', full: 'welcomeModeFull', rapid: 'welcomeModeRapid' };
-    for (const [key, id] of Object.entries(ids)) {
-      const btn = document.getElementById(id);
-      if (!btn) continue;
-      if (key !== 'full') btn.classList.toggle('hidden', !offered[key]);
-      btn.classList.toggle('on', this.preferredMode === key);
-      btn.setAttribute('aria-checked', String(this.preferredMode === key));
-    }
-    // One edition needs no chooser.
-    document.getElementById('welcomeModeGroup')?.classList.toggle('hidden', !offered.rapid && !offered.podcast);
-  }
-
   paintInstall() {
     const mode = installMode();
-    document.getElementById('welcomeInstallRow').classList.toggle('hidden', !mode);
-    document.getElementById('welcomeInstallIOS').classList.toggle('hidden', mode !== 'ios');
-    document.getElementById('welcomeInstallPrompt').classList.toggle('hidden', mode !== 'prompt');
+    document.getElementById('welcomeInstallRow')?.classList.toggle('hidden', !mode);
+    document.getElementById('welcomeInstallIOS')?.classList.toggle('hidden', mode !== 'ios');
+    document.getElementById('welcomeInstallPrompt')?.classList.toggle('hidden', mode !== 'prompt');
   }
 
-  // askName: first visit, lean two steps. Otherwise only the morning step (e.g. after installing on iPhone).
-  open(status, { askName = true } = {}) {
+  open(status) {
     this.status = status;
-    this.steps = askName ? ['name', 'morning'] : ['morning'];
+    this.steps = ['morning'];
     this.disabled = null;
     this.added = 0;
-    this.preferredMode = store.get('brief-mode', 'podcast');
-    this.paintMode();
     const notDenied = window.HarkNative || (typeof Notification !== 'undefined' && Notification.permission !== 'denied');
     const canPush = pushSupported() && notDenied;
     this.offeredPush = canPush;
-    document.getElementById('welcomePushRow').classList.toggle('hidden', !canPush);
-    document.getElementById('welcomePushOn').checked = canPush;
-    document.getElementById('welcomeError').textContent = '';
-    document.getElementById('welcomeDots').replaceChildren(...(this.steps.length > 1 ? this.steps.map(() => h('span')) : []));
+    document.getElementById('welcomePushRow')?.classList.toggle('hidden', !canPush);
+    const pushOn = document.getElementById('welcomePushOn');
+    if (pushOn) pushOn.checked = canPush;
+    const err = document.getElementById('welcomeError');
+    if (err) err.textContent = '';
+    document.getElementById('welcomeDots')?.replaceChildren();
     this.paintInstall();
     this.dialog.showModal();
     this.show(0);
@@ -284,112 +249,45 @@ export class WelcomeSheet {
 
   show(i) {
     this.i = i;
-    const step = this.steps[i];
+    const step = this.steps[i] || 'morning';
     this.dialog.querySelectorAll('.welcome-step').forEach((el) => el.classList.toggle('hidden', el.dataset.step !== step));
-    this.dialog.querySelectorAll('#welcomeDots span').forEach((d, j) => d.classList.toggle('on', j === i));
-    document.getElementById('welcomeTitle').textContent = this.steps.length > 1 ? STEP_TITLE[step] : 'Morning notification';
-    const last = i === this.steps.length - 1;
-    document.getElementById('welcomeGo').textContent = last ? 'Finish setup' : 'Continue';
-    document.getElementById('welcomeBack').textContent = i === 0 ? 'Skip setup' : 'Back';
-    document.getElementById('welcomeError').textContent = '';
-    if (step === 'morning') this.paintMorning();
+    document.getElementById('welcomeTitle').textContent = 'Ready for your morning';
+    document.getElementById('welcomeGo').textContent = 'Get started';
+    document.getElementById('welcomeBack').textContent = 'Skip';
+    const err = document.getElementById('welcomeError');
+    if (err) err.textContent = '';
+    this.paintMorning();
     this.dialog.querySelector('.sheet-body').scrollTop = 0;
-    if (step === 'name') document.getElementById('welcomeName').focus();
   }
 
   next() {
-    if (this.i < this.steps.length - 1) this.show(this.i + 1);
-    else this.finish(true);
+    this.finish(true);
   }
 
   back() {
-    if (this.i === 0) this.finish(false);
-    else this.show(this.i - 1);
-  }
-
-  async loadSources() {
-    const box = document.getElementById('welcomeSources');
-    box.replaceChildren(h('p', { class: 'hint' }, 'Loading topics…'));
-    try {
-      this.paintSources();
-    } catch (err) {
-      box.replaceChildren(h('p', { class: 'hint' }, 'All 7 topics are included in your briefing.'));
-    }
-  }
-
-  paintSources() {
-    const topics = ['top', 'ai', 'tech', 'politics', 'entertainment', 'science', 'sports']
-      .map((k) => [k, SECTIONS[k]])
-      .filter(([, info]) => Boolean(info));
-    document.getElementById('welcomeSources').replaceChildren(
-      h('div', { class: 'chip-row', style: 'display:flex;flex-wrap:wrap;gap:8px;margin:12px 0;' },
-        ...topics.map(([key, info]) => {
-          const on = !this.disabled?.has(key);
-          const chip = h('button', {
-            type: 'button',
-            class: 'pill-btn sm' + (on ? '' : ' glass-btn'),
-            'aria-pressed': String(on),
-          }, info.title);
-          chip.addEventListener('click', () => {
-            if (!this.disabled) this.disabled = new Set();
-            if (this.disabled.has(key)) this.disabled.delete(key);
-            else this.disabled.add(key);
-            const nowOn = !this.disabled.has(key);
-            chip.className = 'pill-btn sm' + (nowOn ? '' : ' glass-btn');
-            chip.setAttribute('aria-pressed', String(nowOn));
-          });
-          return chip;
-        })
-      )
-    );
-  }
-
-  async addSource() {
-    const input = document.getElementById('welcomeSourceUrl');
-    const btn = document.getElementById('welcomeSourceAdd');
-    let url = input.value.trim();
-    if (!url) return;
-    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-    try { url = new URL(url).href; } catch {
-      toast("That doesn't look like a web link.", { error: true });
-      return;
-    }
-    btn.disabled = true;
-    try {
-      await api.addSource({ url, section: 'custom' });
-      this.added += 1;
-      input.value = '';
-      toast('Saved to your sources.');
-      if (this.sources) this.paintSources();
-    } catch (err) {
-      toast(err.message, { error: true });
-    } finally {
-      btn.disabled = false;
-    }
+    this.finish(false);
   }
 
   async paintMorning() {
     const when = document.getElementById('welcomeWhen');
     const what = document.getElementById('welcomeWhat');
-    // The day's brief is recorded once for everyone, so it may already be waiting — in which case
-    // there is nothing to wait for and nothing to build.
     let ready = false;
     try {
       ready = (await api.storyAudio(new Date().toLocaleDateString('en-CA'))).length > 0;
-    } catch { /* offline, or not signed in yet: fall back to the schedule below */ }
-    // The brief is recorded once each morning, so that is as specific as we can be.
-    when.textContent = ready ? 'Ready now' : 'Tomorrow morning';
-    what.textContent = ready
-      ? 'Recorded this morning and waiting for you.'
-      : 'The top stories, summarized and read aloud in about five minutes.';
+    } catch { /* offline, or not signed in yet */ }
+    if (when) when.textContent = ready ? 'Ready now' : 'Tomorrow morning';
+    if (what) {
+      what.textContent = ready
+        ? 'Recorded this morning and waiting for you.'
+        : 'The top stories, summarized and read aloud in about five minutes.';
+    }
   }
 
   async finish(save) {
     const err = document.getElementById('welcomeError');
-    const name = document.getElementById('welcomeName').value.trim().slice(0, 40);
-    const wantPush = save && this.offeredPush && document.getElementById('welcomePushOn').checked;
+    const wantPush = save && this.offeredPush && document.getElementById('welcomePushOn')?.checked;
     const btn = document.getElementById('welcomeGo');
-    btn.disabled = true;
+    if (btn) btn.disabled = true;
     try {
       if (wantPush) {
         if (!this.status?.vapid_public_key) {
@@ -401,21 +299,13 @@ export class WelcomeSheet {
       await api.saveSettings({
         onboarded: true,
         ...(this.offeredPush ? { push_offered: true } : {}),
-        ...(save && name ? { name } : {}),
-        ...(save && this.disabled ? { disabled_sources: [...this.disabled] } : {}),
       });
-      if (save && this.preferredMode) {
-        store.set('brief-mode', this.preferredMode);
-        if (typeof window.setBriefingMode === 'function') {
-          window.setBriefingMode(this.preferredMode);
-        }
-      }
       this.dialog.close();
       this.onDone?.();
     } catch (e) {
-      err.textContent = e.message;
+      if (err) err.textContent = e.message;
     } finally {
-      btn.disabled = false;
+      if (btn) btn.disabled = false;
     }
   }
 }
