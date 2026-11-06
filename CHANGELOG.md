@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.19] - 2026-11-06
+
+### Fixed
+- **Uninitialized / Hung "Loading today's briefing…" Player State**:
+  - Fixed a critical readiness rejection bug in `loadStoryPack()` where podcast duo briefings (`matthew_reference+kelly_reference`) were checked against single-narrator framing notes in `voice_notes` and falsely rejected as `null`. Readiness for podcast briefings is now accurately decoupled from single-narrator markers.
+  - Added fail-safe fallback in `start()`: if network retrieval fails or returns `null` (e.g. offline or generation in progress), the app seamlessly falls back to the most recent cached briefing and invokes `displayBriefing()` instead of exiting with an unpopulated DOM.
+  - Added 8-second network timeouts (`withTimeout`) to `start()` and `refreshBriefing()` to prevent slow cellular network handoffs or stalled PostgREST queries from freezing the app indefinitely.
+  - Guarded `player.load()` in `displayBriefing()` with `try/catch` so transport and story sections render reliably even if audio initialization encounters an error.
+  - Updated `renderHero()` so that if no briefing can be loaded, the player headline updates away from the static "Loading today's briefing…" placeholder to an actionable empty/retry state.
+  - Added unit test coverage in `tests/js/podcast.test.mjs` verifying podcast mode readiness isolation from single-narrator notes.
+
+---
+
 ## [1.0.18] - 2026-11-06
 
 ### Fixed
