@@ -925,6 +925,64 @@ test('GIS WebView & Native isolation prevents GIS execution in Android APK', asy
   delete globalThis.document;
 });
 
+test('clearDeepLink clears deep link parameters and prevents session locking', async () => {
+  let replacedUrl = null;
+  globalThis.window = {
+    location: {
+      origin: 'https://hark.vattitude.ca',
+      pathname: '/s/2026-11-04/ai-1-c80758f3',
+      search: '',
+      hash: '',
+    },
+    history: {
+      replaceState: (state, title, url) => {
+        replacedUrl = url;
+      },
+    },
+    addEventListener: () => {},
+    matchMedia: () => ({ addEventListener: () => {} }),
+    player: { isPlaying: false },
+    HarkNative: null,
+    Capacitor: null,
+  };
+  globalThis.document = {
+    readyState: 'complete',
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    getElementById: () => null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    documentElement: { classList: { add: () => {} }, style: { setProperty: () => {} } },
+    body: { classList: { contains: () => false, remove: () => {}, add: () => {} } },
+  };
+
+  const appSrc = readFileSync(new URL('../../web/js/app.js', import.meta.url), 'utf8')
+    .replace("'./api.js'", "'./api.mjs'")
+    .replace("'./storypack.js'", "'./storypack.mjs'")
+    .replace("'./player.js'", "'./player.mjs'")
+    .replace("'./sheets.js'", "'./sheets.mjs'")
+    .replace("'./landing.js'", "'./landing.mjs'")
+    .replace("'./pages/sources.js'", "'./pages.mjs'")
+    .replace("'./pages/settings.js'", "'./pages.mjs'")
+    .replace("'./pages/admin.js'", "'./pages.mjs'")
+    .replace("'./design.js'", "'./design.mjs'")
+    .replace("'../config.js'", "'./config.mjs'");
+  writeFileSync(join(dir, 'app_deeplink_test.mjs'), appSrc);
+
+  const { clearDeepLink, handleDeepLinkUrl } = await import(join(dir, 'app_deeplink_test.mjs'));
+
+  clearDeepLink();
+  assert.equal(replacedUrl, '/', 'clearDeepLink must clean deep link URL to root /');
+  assert.equal(globalThis.window.state.targetStoryConsumed, true, 'targetStoryConsumed must be true after clearDeepLink');
+
+  // When a new deep link arrives:
+  await handleDeepLinkUrl('https://hark.vattitude.ca/s/2026-11-05/top-1-aabbccdd');
+  assert.equal(globalThis.window.state.targetStoryConsumed, true, 'handleDeepLinkUrl consumes link and marks consumed');
+
+  delete globalThis.window;
+  delete globalThis.document;
+});
+
 
 
 
