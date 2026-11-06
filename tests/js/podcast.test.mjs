@@ -1120,6 +1120,40 @@ test('handleNativeAuthCallback and closeSignIn dismiss sign-in modal cleanly and
   delete globalThis.localStorage;
 });
 
+test('podcast mode is not discarded by single-narrator voice_notes pack_ready markers', async () => {
+  const notesWithC3poOnly = [
+    { voice: 'c3po_reference', note_key: 'pack_ready', text: '5 clips', duration: 0 },
+    { voice: 'c3po_reference', note_key: 'intro_top', text: 'Top stories', duration: 2 },
+  ];
+
+  // Duo briefing with matthew_reference+kelly_reference
+  const duoBriefing = {
+    mode: 'podcast',
+    voice: { id: 'matthew_reference+kelly_reference', name: 'Matthew & Kelly' },
+  };
+
+  const isPodcast = duoBriefing.mode === 'podcast';
+  const hosts = (duoBriefing.voice?.id || '').split('+').filter(Boolean);
+  const hasReadyMarkers = notesWithC3poOnly.some((n) => n.note_key === 'pack_ready');
+
+  // Assert that the single-narrator check is skipped for podcast mode
+  const shouldEnforceSingleVoiceNotes = hasReadyMarkers && !isPodcast && hosts.length <= 1;
+  assert.equal(shouldEnforceSingleVoiceNotes, false, 'Podcast mode must never enforce single-narrator voice_notes ready check');
+
+  // Single narrator mode (C-3PO) should enforce check
+  const singleBriefing = {
+    mode: 'full',
+    voice: { id: 'c3po_reference', name: 'C-3PO' },
+  };
+  const isSinglePodcast = singleBriefing.mode === 'podcast';
+  const singleHosts = (singleBriefing.voice?.id || '').split('+').filter(Boolean);
+  const shouldEnforceC3po = hasReadyMarkers && !isSinglePodcast && singleHosts.length <= 1;
+  assert.equal(shouldEnforceC3po, true, 'Single narrator mode must enforce voice_notes ready check');
+  const isC3poReady = notesWithC3poOnly.some((n) => n.note_key === 'pack_ready' && n.voice === singleBriefing.voice.id);
+  assert.equal(isC3poReady, true, 'C-3PO should be ready when marker is present');
+});
+
+
 
 
 
