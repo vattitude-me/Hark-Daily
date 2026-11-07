@@ -250,6 +250,7 @@ export const isAdmin = (profile) =>
 
 export const DEFAULT_STORIES = {
   top: 5,
+  markets: 3,
   ai: 3,
   tech: 3,
   politics: 3,
@@ -275,7 +276,7 @@ export function migrateStories(storedStories) {
   }
   // If stored stories are from the legacy version where every category was defaulted to 5
   // and the user has not explicitly saved a custom story count (marked by _v: 2):
-  const otherKeys = ['ai', 'tech', 'politics', 'entertainment', 'science', 'sports'];
+  const otherKeys = ['markets', 'ai', 'tech', 'politics', 'entertainment', 'science', 'sports'];
   const isLegacyAllFive = otherKeys.every((k) => storedStories[k] === 5 || storedStories[k] === undefined);
   if (isLegacyAllFive && !storedStories._v) {
     return { ...DEFAULT_STORIES, top: storedStories.top || 5, _v: 2 };
