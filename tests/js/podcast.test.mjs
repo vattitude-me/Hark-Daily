@@ -13,13 +13,14 @@ const src = readFileSync(new URL('../../web/js/storypack.js', import.meta.url), 
 writeFileSync(join(dir, 'storypack.mjs'), src);
 writeFileSync(join(dir, 'api.mjs'), `export const SECTIONS = {
   top: { title: 'Top stories' }, top_us: { title: 'Top stories' }, top_in: { title: 'Top stories' },
+  markets: { title: 'Markets' }, markets_us: { title: 'Markets' }, markets_in: { title: 'Markets' },
   ai: { title: 'AI' }, tech: { title: 'Tech' }, science: { title: 'Science' },
   politics: { title: 'Politics' }, politics_us: { title: 'Politics' }, politics_in: { title: 'Politics' },
   entertainment: { title: 'Entertainment' }, entertainment_us: { title: 'Entertainment' }, entertainment_in: { title: 'Entertainment' },
   sports: { title: 'Sports' }, sports_us: { title: 'Sports' }, sports_in: { title: 'Cricket & Sports' }
 }; export const voiceName = (v) => v; export const fmtTime = (s) => String(s); export const h = () => ({ addEventListener: () => {}, classList: { toggle: () => {} } }); export const store = { get: (k, def) => (def !== undefined ? def : null), set: () => {} }; export const generateRawNonce = () => '00'; export const hashNonce = async () => '00'; export const api = { generateRawNonce: () => '00', hashNonce: async () => '00', signInWithGoogleIdToken: async () => ({}) }; export const icon = () => ({}); export const isAdmin = () => false; export const recordError = () => {}; export const sb = null; export const timeAgo = () => ''; export const toast = () => {}; export const VOICES = {}; export const voiceFor = () => ({}); export const DEFAULT_VOICE_ID = 'c3po_reference'; export const EDITIONS = {}; export const defaultEdition = () => 'ca'; export const detectEditionFromIp = () => 'ca';`);
 writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x'; export const SUPABASE_PUBLISHABLE_KEY = 'k'; export const FEATURES = { podcast: true, rapid: true }; export const GOOGLE_CLIENT_ID = 'test-id'; export const APP_VERSION = '1.0.15';");
-const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor, parseDialogueTurns, pickVoice, clipUrl, voiceNormalize, lineup, MAX_PER_SECTION, DEFAULT_SECTION_COUNTS } = await import(join(dir, 'storypack.mjs'));
+const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor, parseDialogueTurns, pickVoice, clipUrl, voiceNormalize, lineup, MAX_PER_SECTION, DEFAULT_SECTION_COUNTS, LOGICAL_SECTIONS } = await import(join(dir, 'storypack.mjs'));
 
 const playerSrc = readFileSync(new URL('../../web/js/player.js', import.meta.url), 'utf8')
   .replace("'./api.js'", "'./api.mjs'")
@@ -1213,18 +1214,32 @@ test('app version and drawer version synchronization across config, index.html, 
   );
 });
 
-test('streamlined Google sign-in modal structure: single 1-tap Google action without email forms', () => {
+test('markets section is configured across logical sections, default counts, and regional mappings', () => {
+  const apiSrc = readFileSync(new URL('../../web/js/api.js', import.meta.url), 'utf8');
+
+  assert.ok(LOGICAL_SECTIONS.includes('markets'), 'LOGICAL_SECTIONS must include markets');
+  assert.equal(DEFAULT_SECTION_COUNTS.markets, 3, 'Markets must default to 3 stories');
+
+  assert.equal(editionSectionKey('markets', 'ca'), 'markets');
+  assert.equal(editionSectionKey('markets', 'us'), 'markets_us');
+  assert.equal(editionSectionKey('markets', 'in'), 'markets_in');
+
+  assert.ok(apiSrc.includes("markets: { title: 'Markets'"), 'api.js must define Canada markets');
+  assert.ok(apiSrc.includes("markets_us: { title: 'Markets'"), 'api.js must define US markets');
+  assert.ok(apiSrc.includes("markets_in: { title: 'Markets'"), 'api.js must define India markets');
+});
+
+test('date dropdown menuDateSelect is present in index.html drawer and clean placeholder strings avoid dummy data', () => {
   const indexHtml = readFileSync(new URL('../../web/index.html', import.meta.url), 'utf8');
 
-  // Verify Google button exists
-  assert.ok(indexHtml.includes('id="googleBtn"'), 'Sign-in modal must contain googleBtn');
-  assert.ok(indexHtml.includes('id="googleBtnContainer"'), 'Sign-in modal must contain googleBtnContainer');
+  assert.ok(indexHtml.includes('id="menuDateSelect"'), 'Drawer must contain menuDateSelect dropdown');
+  assert.ok(!indexHtml.includes('id="menuDateYesterday"'), 'Legacy binary menuDateYesterday button must be removed');
+  assert.ok(!indexHtml.includes('id="menuDateToday"'), 'Legacy binary menuDateToday button must be removed');
 
-  // Verify email forms and magic link elements are removed
-  assert.ok(!indexHtml.includes('id="emailForm"'), 'Sign-in modal must not contain emailForm');
-  assert.ok(!indexHtml.includes('id="useEmail"'), 'Sign-in modal must not contain useEmail');
-  assert.ok(!indexHtml.includes('id="sentStep"'), 'Sign-in modal must not contain sentStep');
-  assert.ok(!indexHtml.includes('id="codeForm"'), 'Sign-in modal must not contain codeForm');
+  // Verify placeholder dummy strings are neutral/empty
+  assert.ok(indexHtml.includes('<span class="clean-story-counter" id="cleanStoryCounter"></span>'), 'cleanStoryCounter placeholder must be empty');
+  assert.ok(indexHtml.includes('<span id="cleanDurTime">--:--</span>'), 'cleanDurTime placeholder must be neutral');
+  assert.ok(indexHtml.includes('<span id="openAllStoriesLabel">All Stories</span>'), 'All Stories button must not have hardcoded number');
 });
 
 

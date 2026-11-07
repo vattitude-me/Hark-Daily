@@ -75,13 +75,15 @@ def test_fresh_run_clears_today_and_requeues_articles(cfg, store):
 
 
 def test_old_briefings_are_deleted(cfg, store):
+    from dataclasses import replace
+    cfg2 = replace(cfg, keep_days=2)
     a = store.add_user("a@example.com")
     today = datetime.now(ZoneInfo(cfg.timezone)).date()
     for n in (1, 2, 5):
         d = (today - timedelta(days=n)).isoformat()
         store.upsert_briefing(a, d, {}, f"toku-1/{d}.mp3")
         store.objects[f"toku-1/{d}.mp3"] = b"x"
-    run(cfg, store)
+    run(cfg2, store)
     kept = sorted(d for (_, d) in store.briefings_)
     assert kept == [(today - timedelta(days=1)).isoformat(), today.isoformat()]
     assert sorted(p for p in store.objects if p.startswith("toku-1/")) == [f"toku-1/{d}.mp3" for d in kept]

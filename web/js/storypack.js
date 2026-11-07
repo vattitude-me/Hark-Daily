@@ -6,7 +6,7 @@
 import { SECTIONS, voiceName } from './api.js';
 import { SUPABASE_URL } from '../config.js';
 
-export const LOGICAL_SECTIONS = ['top', 'ai', 'tech', 'politics', 'entertainment', 'science', 'sports'];
+export const LOGICAL_SECTIONS = ['top', 'markets', 'ai', 'tech', 'politics', 'entertainment', 'science', 'sports'];
 export const SECTION_ORDER = LOGICAL_SECTIONS;
 export const MAX_PER_SECTION = 5;
 
@@ -19,6 +19,7 @@ export function editionSectionKey(logicalKey, edition = 'ca') {
 
 export const DEFAULT_SECTION_COUNTS = {
   top: 5,
+  markets: 3,
   ai: 3,
   tech: 3,
   politics: 3,

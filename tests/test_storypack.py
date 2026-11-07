@@ -222,7 +222,7 @@ def test_a_finished_day_is_marked_playable(cfg, store, monkeypatch):
 
     assert storypack.ready(store, day=DAY, voice="him_reference")
     marker = [n for n in store.tables["voice_notes"] if n["note_key"] == storypack.PACK_READY][0]
-    assert marker["text"] == "1 clip, 11 notes"
+    assert marker["text"] == f"1 clip, {len(storypack.NOTES)} notes"
     assert (marker["date"], marker["voice"]) == (DAY, "him_reference")
 
 

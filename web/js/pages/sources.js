@@ -4,7 +4,7 @@ import { SECTIONS, api, h, icon, toast } from '../api.js';
 import { CheckDot, Chip, GlassGroup, Hairline, Hint, Overline, PillButton, SectionLabel, StoryStepper } from '../design.js';
 
 const MAX_PER_SECTION = 5;
-const TOPIC_KEYS = ['top', 'ai', 'tech', 'politics', 'entertainment', 'science', 'sports'];
+const TOPIC_KEYS = ['top', 'markets', 'ai', 'tech', 'politics', 'entertainment', 'science', 'sports'];
 // "My Sources" (links people paste in) is parked while the seven default categories settle.
 // Everything it needs is still below — flip this back to true to restore the card.
 const SHOW_MY_SOURCES = false;
