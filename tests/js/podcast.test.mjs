@@ -1229,6 +1229,40 @@ test('markets section is configured across logical sections, default counts, and
   assert.ok(apiSrc.includes("markets_in: { title: 'Markets'"), 'api.js must define India markets');
 });
 
+test('existing users receive markets defaulting to 3 stories and placed right after top', () => {
+  // Existing user settings without 'markets'
+  const existingSettings = {
+    stories: {
+      top: 5,
+      ai: 2,
+      tech: 3,
+      politics: 4,
+      entertainment: 1,
+      science: 3,
+      sports: 0,
+    },
+    section_order: ['top', 'tech', 'ai', 'politics', 'sports', 'entertainment', 'science'],
+  };
+
+  const calculatedLineup = lineup(existingSettings);
+  assert.equal(calculatedLineup.markets, 3, 'Markets must default to 3 stories for existing users');
+  assert.equal(calculatedLineup.top, 5);
+  assert.equal(calculatedLineup.ai, 2);
+  assert.equal(calculatedLineup.sports, 0);
+
+  // When building briefing, markets is placed right after top
+  const testRows = [
+    { date: 'd', section: 'top', rank: 1, voice: 'v', title: 'Top 1', url: 'u', source: 's', script: 'x', duration: 20, audio_path: 's/top1.mp3' },
+    { date: 'd', section: 'markets', rank: 1, voice: 'v', title: 'Markets 1', url: 'u', source: 's', script: 'x', duration: 20, audio_path: 's/markets1.mp3' },
+    { date: 'd', section: 'tech', rank: 1, voice: 'v', title: 'Tech 1', url: 'u', source: 's', script: 'x', duration: 20, audio_path: 's/tech1.mp3' },
+  ];
+  const b = buildBriefing(testRows, existingSettings, { date: 'd', voice: 'v', notes: [] });
+  assert.ok(b, 'Briefing must build successfully');
+  const sectionKeys = b.sections.map((s) => s.logicalKey);
+  assert.equal(sectionKeys[0], 'top');
+  assert.equal(sectionKeys[1], 'markets', 'Markets must be placed right after top even if absent from legacy section_order');
+});
+
 test('date dropdown menuDateSelect is present in index.html drawer and clean placeholder strings avoid dummy data', () => {
   const indexHtml = readFileSync(new URL('../../web/index.html', import.meta.url), 'utf8');
 

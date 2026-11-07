@@ -32,10 +32,17 @@ export class SourcesPage {
     this.city = settings.city || '';
     this.sources = sources;
     const rawOrder = Array.isArray(settings.section_order) ? settings.section_order : [];
-    const order = [
-      ...rawOrder.filter((k) => TOPIC_KEYS.includes(k)),
-      ...TOPIC_KEYS.filter((k) => !rawOrder.includes(k)),
-    ];
+    const userOrder = rawOrder.filter((k) => TOPIC_KEYS.includes(k));
+    const missing = TOPIC_KEYS.filter((k) => !userOrder.includes(k));
+    let order;
+    if (missing.includes('markets') && userOrder.includes('top')) {
+      const topIdx = userOrder.indexOf('top');
+      userOrder.splice(topIdx + 1, 0, 'markets');
+      const otherMissing = missing.filter((k) => k !== 'markets');
+      order = [...userOrder, ...otherMissing];
+    } else {
+      order = [...userOrder, ...missing];
+    }
     this.saved = {
       stories: { ...settings.stories },
       section_order: [...order],
