@@ -366,10 +366,21 @@ export function buildBriefing(rows, settings, {
   const podVoice = (podcastClips || []).find((c) => c.clip_key === PODCAST_READY_KEY)?.hosts || 'matthew_reference+kelly_reference';
   const effectiveVoice = mode === 'podcast' ? podVoice : voice;
   const id = pickVoice(rows, effectiveVoice);
-  const userOrder = (settings && Array.isArray(settings.section_order) && settings.section_order.length)
-    ? settings.section_order
-    : SECTION_ORDER;
-  const order = [...userOrder.filter((k) => SECTION_ORDER.includes(k)), ...SECTION_ORDER.filter((k) => !userOrder.includes(k))];
+  let order;
+  if (settings && Array.isArray(settings.section_order) && settings.section_order.length) {
+    const userOrder = settings.section_order.filter((k) => SECTION_ORDER.includes(k));
+    const missing = SECTION_ORDER.filter((k) => !userOrder.includes(k));
+    if (missing.includes('markets') && userOrder.includes('top')) {
+      const topIdx = userOrder.indexOf('top');
+      userOrder.splice(topIdx + 1, 0, 'markets');
+      const otherMissing = missing.filter((k) => k !== 'markets');
+      order = [...userOrder, ...otherMissing];
+    } else {
+      order = [...userOrder, ...missing];
+    }
+  } else {
+    order = SECTION_ORDER;
+  }
 
   // In Rapid Fire mode, select the 5 top stories of the day
   let wanted = lineup(settings);
