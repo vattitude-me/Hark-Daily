@@ -49,6 +49,7 @@ MAX_TURNS = {"open": 4, "tease": 3, "bridge": 2, "close": 3}
 # How each section should sound, for the AI prompt and the template pools.
 TONE = {
     "top": "serious but warm",
+    "markets": "sharp and analytical",
     "ai": "curious and excited",
     "tech": "upbeat and practical",
     "politics": "measured and serious",
@@ -163,7 +164,7 @@ BRIDGE_TEMPLATES: dict[str, list[Turn]] = {
 
 def _tone_family(section: str | None) -> str:
     base = (section or "").replace("_us", "").replace("_in", "").replace("_ca", "")
-    return {"top": "warm", "politics": "serious", "ai": "excited", "tech": "excited",
+    return {"top": "warm", "markets": "serious", "politics": "serious", "ai": "excited", "tech": "excited",
             "entertainment": "light", "science": "curious", "sports": "energetic"}.get(base, "warm")
 
 

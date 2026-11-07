@@ -32,6 +32,7 @@ log = logging.getLogger(__name__)
 # ranking.
 SECTIONS: dict[str, dict] = {
     "top":           {"title": "Top stories",   "provider": "CBC News",      "feed": "https://www.cbc.ca/webfeed/rss/rss-topstories"},
+    "markets":       {"title": "Markets",       "provider": "CBC Business",  "feed": "https://www.cbc.ca/webfeed/rss/rss-business"},
     "ai":            {"title": "AI",            "provider": "TechCrunch",    "feed": "https://techcrunch.com/category/artificial-intelligence/feed/"},
     "tech":          {"title": "Tech",          "provider": "BetaKit",       "feed": "https://betakit.com/feed/"},
     "politics":      {"title": "Politics",      "provider": "CBC News",      "feed": "https://www.cbc.ca/webfeed/rss/rss-politics"},
@@ -42,10 +43,11 @@ SECTIONS: dict[str, dict] = {
 }
 
 # Regional feeds for United States and India editions.
-# AI and Science are shared universally; Tech is regionalized (BetaKit for CA, The Verge for US, ET Tech for IN).
+# AI and Science are shared universally; Tech and Markets are regionalized.
 EDITION_FEEDS: dict[str, dict] = {
     # United States
     "top_us":           {"title": "Top stories",          "provider": "New York Times",   "feed": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml", "edition": "us"},
+    "markets_us":       {"title": "Markets",              "provider": "MarketWatch",      "feed": "https://feeds.content.dowjones.io/public/rss/mw_topstories", "edition": "us"},
     "tech_us":          {"title": "Tech",                 "provider": "The Verge",        "feed": "https://www.theverge.com/rss/index.xml", "edition": "us"},
     "politics_us":      {"title": "Politics",             "provider": "NPR Politics",     "feed": "https://feeds.npr.org/1014/rss.xml", "edition": "us"},
     "entertainment_us": {"title": "Entertainment",        "provider": "Variety",          "feed": "https://variety.com/feed/", "edition": "us"},
@@ -53,6 +55,7 @@ EDITION_FEEDS: dict[str, dict] = {
 
     # India
     "top_in":           {"title": "Top stories",          "provider": "The Hindu",        "feed": "https://www.thehindu.com/news/national/feeder/default.rss", "edition": "in"},
+    "markets_in":       {"title": "Markets",              "provider": "Economic Times",   "feed": "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms", "edition": "in"},
     "tech_in":          {"title": "Tech",                 "provider": "ET Tech",          "feed": "https://economictimes.indiatimes.com/tech/rssfeeds/13357270.cms", "edition": "in"},
     "politics_in":      {"title": "Politics",             "provider": "Indian Express",   "feed": "https://indianexpress.com/section/political-pulse/feed/", "edition": "in"},
     "entertainment_in": {"title": "Entertainment",        "provider": "Indian Express",   "feed": "https://indianexpress.com/section/entertainment/feed/", "edition": "in"},
@@ -61,12 +64,12 @@ EDITION_FEEDS: dict[str, dict] = {
 
 ALL_SECTIONS: dict[str, dict] = {**SECTIONS, **EDITION_FEEDS}
 
-# The 7 canonical sections for each country edition.
+# The 8 canonical sections for each country edition.
 # AI and Science are shared universally.
 EDITION_SECTIONS: dict[str, list[str]] = {
-    "ca": ["top", "ai", "tech", "politics", "entertainment", "science", "sports"],
-    "us": ["top_us", "ai", "tech_us", "politics_us", "entertainment_us", "science", "sports_us"],
-    "in": ["top_in", "ai", "tech_in", "politics_in", "entertainment_in", "science", "sports_in"],
+    "ca": ["top", "markets", "ai", "tech", "politics", "entertainment", "science", "sports"],
+    "us": ["top_us", "markets_us", "ai", "tech_us", "politics_us", "entertainment_us", "science", "sports_us"],
+    "in": ["top_in", "markets_in", "ai", "tech_in", "politics_in", "entertainment_in", "science", "sports_in"],
 }
 
 DEFAULT_SECTIONS = list(EDITION_SECTIONS["ca"])

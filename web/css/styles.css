@@ -448,6 +448,7 @@ kbd { font-family: var(--font-head); font-size: .7rem; padding: .05rem .4rem; bo
 .cat-tile.sm { width: 2rem; height: 2rem; border-radius: var(--r-sm); }
 .cat-tile.sm svg { width: 1rem; height: 1rem; }
 .cat-top, .cat-top_us, .cat-top_in { --cat: var(--c-top); }
+.cat-markets, .cat-markets_us, .cat-markets_in { --cat: var(--c-markets, #10B981); }
 .cat-ai { --cat: var(--c-ai); }
 .cat-tech { --cat: var(--c-tech); }
 .cat-politics, .cat-politics_us, .cat-politics_in { --cat: var(--c-politics); }
@@ -4039,6 +4040,50 @@ body.playing .clean-play-circle .clean-pause-icon {
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.78);
   padding-left: 4px;
+}
+.clean-date-dropdown-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.clean-date-select {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 14px;
+  color: #FFFFFF;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 13px 44px 13px 16px;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.20), 0 8px 24px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s ease;
+}
+.clean-date-select:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.32);
+}
+.clean-date-select:focus {
+  outline: none;
+  border-color: rgba(245, 158, 11, 0.8);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.20);
+}
+.clean-date-select option {
+  background: #18181b;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px;
+}
+.clean-date-select-chevron {
+  position: absolute;
+  right: 16px;
+  pointer-events: none;
+  color: rgba(255, 255, 255, 0.75);
 }
 .clean-date-segmented {
   display: grid;
