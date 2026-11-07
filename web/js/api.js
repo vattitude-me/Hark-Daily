@@ -13,6 +13,7 @@ export const sb = createClient ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE
 export const SECTIONS = {
   // Canada (default)
   top: { title: 'Top stories', emoji: '📰', icon: 'globe' },
+  markets: { title: 'Markets', emoji: '📈', icon: 'trend' },
   politics: { title: 'Politics', emoji: '🏛️', icon: 'landmark' },
   entertainment: { title: 'Entertainment', emoji: '🎬', icon: 'film' },
   sports: { title: 'Sports', emoji: '🏅', icon: 'ball' },
@@ -24,6 +25,7 @@ export const SECTIONS = {
 
   // United States
   top_us: { title: 'Top stories', emoji: '📰', icon: 'globe' },
+  markets_us: { title: 'Markets', emoji: '📈', icon: 'trend' },
   tech_us: { title: 'Tech', emoji: '💻', icon: 'chip' },
   politics_us: { title: 'Politics', emoji: '🏛️', icon: 'landmark' },
   entertainment_us: { title: 'Entertainment', emoji: '🎬', icon: 'film' },
@@ -31,6 +33,7 @@ export const SECTIONS = {
 
   // India
   top_in: { title: 'Top stories', emoji: '📰', icon: 'globe' },
+  markets_in: { title: 'Markets', emoji: '📈', icon: 'trend' },
   tech_in: { title: 'Tech', emoji: '💻', icon: 'chip' },
   politics_in: { title: 'Politics', emoji: '🏛️', icon: 'landmark' },
   entertainment_in: { title: 'Entertainment', emoji: '🎬', icon: 'film' },

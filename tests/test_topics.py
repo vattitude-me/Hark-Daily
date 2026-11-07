@@ -163,23 +163,26 @@ def test_edition_sections_mapping():
     for ed in ("ca", "us", "in"):
         assert ed in EDITION_SECTIONS
         sections = EDITION_SECTIONS[ed]
-        assert len(sections) == 7
+        assert len(sections) == 8
         assert "ai" in sections
         assert "science" in sections
+        assert any("markets" in s for s in sections)
         for s in sections:
             assert s in ALL_SECTIONS
             assert ALL_SECTIONS[s]["feed"].startswith("https://")
 
-    # Canada has BetaKit tech, US has The Verge (tech_us), India has ET Tech (tech_in)
-    assert EDITION_SECTIONS["ca"] == ["top", "ai", "tech", "politics", "entertainment", "science", "sports"]
-    assert EDITION_SECTIONS["us"] == ["top_us", "ai", "tech_us", "politics_us", "entertainment_us", "science", "sports_us"]
-    assert EDITION_SECTIONS["in"] == ["top_in", "ai", "tech_in", "politics_in", "entertainment_in", "science", "sports_in"]
+    # Canada has CBC Business (markets), US has MarketWatch (markets_us), India has ET Markets (markets_in)
+    assert EDITION_SECTIONS["ca"] == ["top", "markets", "ai", "tech", "politics", "entertainment", "science", "sports"]
+    assert EDITION_SECTIONS["us"] == ["top_us", "markets_us", "ai", "tech_us", "politics_us", "entertainment_us", "science", "sports_us"]
+    assert EDITION_SECTIONS["in"] == ["top_in", "markets_in", "ai", "tech_in", "politics_in", "entertainment_in", "science", "sports_in"]
 
-    # US + CA combined shares ai & science, with separate top, tech, politics, entertainment, sports (total 12 sections)
+    # US + CA combined shares ai & science, with separate top, markets, tech, politics, entertainment, sports (total 14 sections)
     ca_us = sections_for_editions("ca,us")
-    assert len(ca_us) == 12
+    assert len(ca_us) == 14
     assert "top" in ca_us
     assert "top_us" in ca_us
+    assert "markets" in ca_us
+    assert "markets_us" in ca_us
     assert "tech" in ca_us
     assert "tech_us" in ca_us
     assert ca_us.count("ai") == 1

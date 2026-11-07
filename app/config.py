@@ -49,7 +49,7 @@ class Config:
     )
     timezone: str = os.getenv("BRIEFING_TIMEZONE", "America/Toronto")
     batch_time: str = os.getenv("BATCH_TIME", "07:05")
-    keep_days: int = int(os.getenv("KEEP_DAYS", "2"))
+    keep_days: int = int(os.getenv("KEEP_DAYS", "7"))
     # Off when the phones build their own briefings: the worker then only answers on-demand requests.
     daily_batch: bool = _bool("DAILY_BATCH", True)
     # Supabase: the worker uses the secret key, which bypasses row-level security. Never ship it to the browser.

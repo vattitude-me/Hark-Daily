@@ -116,6 +116,7 @@ GREETINGS = {
 }
 INTROS = {
     "intro_top": "Here are the top stories.",
+    "intro_markets": "Checking the markets.",
     "intro_ai": "Here's the latest in AI.",
     "intro_tech": "Now, the latest in tech.",
     "intro_politics": "Turning to politics.",

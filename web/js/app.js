@@ -798,6 +798,14 @@ function renderHero() {
     if (headline) headline.textContent = "Today's briefing isn't ready yet";
     const text = $('transcriptText');
     if (text) text.textContent = 'Pull down or tap to check again.';
+    const counter = $('cleanStoryCounter');
+    if (counter) counter.textContent = '';
+    const dur = $('cleanDurTime');
+    if (dur) dur.textContent = '--:--';
+    const cur = $('cleanCurTime');
+    if (cur) cur.textContent = '0:00';
+    const src = $('cleanSourceTitle');
+    if (src) src.textContent = 'Hark Daily';
   }
 }
 
@@ -2103,26 +2111,53 @@ function hasPendingMenuChanges() {
 }
 
 function updateMenuDrawer() {
-  const { todayStr, yesterdayStr, todaySub, yesterdaySub, tzHint } = getLocalDateInfo();
+  const { todayStr, yesterdayStr, tzHint } = getLocalDateInfo();
   const activeDate = pendingMenuDate || state.selectedDate || todayStr;
-  const isYesterday = activeDate === yesterdayStr;
 
-  const yestBtn = $('menuDateYesterday');
-  const todayBtn = $('menuDateToday');
-  const yestSubEl = $('menuDateYesterdaySub');
-  const todaySubEl = $('menuDateTodaySub');
+  const dateSelect = $('menuDateSelect');
   const tzEl = $('menuTimezoneText');
-
-  if (yestSubEl) yestSubEl.textContent = yesterdaySub;
-  if (todaySubEl) todaySubEl.textContent = todaySub;
   if (tzEl) tzEl.textContent = tzHint;
-  if (yestBtn) {
-    yestBtn.classList.toggle('active', isYesterday);
-    yestBtn.setAttribute('aria-pressed', String(isYesterday));
-  }
-  if (todayBtn) {
-    todayBtn.classList.toggle('active', !isYesterday);
-    todayBtn.setAttribute('aria-pressed', String(!isYesterday));
+
+  if (dateSelect) {
+    // Generate dates: use state.archiveDates if available, plus rolling 7 days based on local time
+    const dateSet = new Set(state.archiveDates || []);
+    dateSet.add(todayStr);
+    dateSet.add(yesterdayStr);
+    try {
+      const todayDate = new Date(`${todayStr}T12:00:00`);
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(todayDate);
+        d.setDate(todayDate.getDate() - i);
+        dateSet.add(d.toLocaleDateString('en-CA'));
+      }
+    } catch {}
+    const sortedDates = Array.from(dateSet).sort().reverse();
+    if (activeDate && !sortedDates.includes(activeDate)) {
+      sortedDates.unshift(activeDate);
+    }
+
+    const optionsHtml = sortedDates.map((d) => {
+      let label = d;
+      try {
+        const parsed = new Date(`${d}T12:00:00`);
+        const weekday = parsed.toLocaleDateString('en-US', { weekday: 'short' });
+        const monthDay = parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        if (d === todayStr) {
+          label = `Today — ${weekday}, ${monthDay}`;
+        } else if (d === yesterdayStr) {
+          label = `Yesterday — ${weekday}, ${monthDay}`;
+        } else {
+          label = `${weekday}, ${monthDay}`;
+        }
+      } catch {}
+      const selected = d === activeDate ? ' selected' : '';
+      return `<option value="${d}"${selected}>${label}</option>`;
+    }).join('');
+
+    if (dateSelect.innerHTML !== optionsHtml) {
+      dateSelect.innerHTML = optionsHtml;
+    }
+    dateSelect.value = activeDate;
   }
 
   // Region Card
@@ -2416,20 +2451,15 @@ function bindEvents() {
     }
   });
 
-  // NEWS FROM: Yesterday / Today segmented selector (timezone-based)
-  $('menuDateYesterday')?.addEventListener('click', async () => {
-    const { yesterdayStr } = getLocalDateInfo();
-    pendingMenuDate = yesterdayStr;
-    updateMenuDrawer();
-    await selectDate(yesterdayStr);
-    updateMenuDrawer();
-  });
-  $('menuDateToday')?.addEventListener('click', async () => {
-    const { todayStr } = getLocalDateInfo();
-    pendingMenuDate = todayStr;
-    updateMenuDrawer();
-    await selectDate(todayStr);
-    updateMenuDrawer();
+  // NEWS FROM: Multi-day date selector dropdown
+  $('menuDateSelect')?.addEventListener('change', async (e) => {
+    const chosenDate = e.target.value;
+    if (chosenDate) {
+      pendingMenuDate = chosenDate;
+      updateMenuDrawer();
+      await selectDate(chosenDate);
+      updateMenuDrawer();
+    }
   });
 
   // Region pill buttons (requires Save / Discard)
@@ -2963,8 +2993,8 @@ async function start() {
 
     // 2. Fetch status, profile, AND requested date's pack in parallel with fail-safe timeouts
     const [status, profile, freshBriefing] = await Promise.all([
-      api.status().catch(() => ({})),
-      api.profile().catch(() => null),
+      withTimeout(api.status().catch(() => ({})), 3500, {}),
+      withTimeout(api.profile().catch(() => null), 3500, null),
       withTimeout(loadStoryPack(targetDate), 8000, null)
     ]);
     state.status = status;
@@ -3484,7 +3514,14 @@ async function init() {
   });
   try {
     let session = null;
-    try { session = await api.session(); } catch { /* offline */ }
+    try {
+      const withTimeout = (promise, ms, fallback = null) =>
+        Promise.race([
+          promise,
+          new Promise((resolve) => setTimeout(() => resolve(fallback), ms))
+        ]);
+      session = await withTimeout(api.session(), 3000, null);
+    } catch { /* offline or timeout */ }
     await enterApp();
   } catch (err) {
     recordError(err, 'app.init');

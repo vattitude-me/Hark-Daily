@@ -39,9 +39,7 @@ class Store:
             raise StoreError("SUPABASE_URL and SUPABASE_SECRET_KEY must be set")
         self.url = url.rstrip("/")
         self.bucket = bucket
-        headers = {"apikey": key}
-        if not key.startswith("sb_"):  # legacy service_role JWT
-            headers["Authorization"] = f"Bearer {key}"
+        headers = {"apikey": key, "Authorization": f"Bearer {key}"}
         self.http = client or httpx.Client(timeout=60, headers=headers)
         self.http.headers.update(headers)
 
