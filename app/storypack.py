@@ -948,6 +948,8 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
 
     rows: list[dict] = []
     publishing: list[asyncio.Future] = []
+    prev_story_by_sec: dict[str, dict] = {}
+    prev_format_by_sec: dict[str, str] = {}
 
     def raise_if_publishing_failed() -> None:
         for task in publishing:
@@ -960,6 +962,10 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
                 raise_if_publishing_failed()
                 if on_clip:
                     on_clip(story)
+                sec_key = story["section"]
+                prev_story = prev_story_by_sec.get(sec_key)
+                prev_fmt = prev_format_by_sec.get(sec_key)
+                prev_story_by_sec[sec_key] = story
                 image = (story.get("image") or "")[:2000] or None
                 done = existing.get((story["section"], story["rank"]))
                 if not (done and done.get("audio_path") and done.get("url") == story["url"]):
@@ -983,8 +989,15 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
                 if duo_voices:
                     from . import podcast
                     dialogue = await asyncio.to_thread(
-                        podcast.generate_story_dialogue, cfg, story, duo_names, force=force
+                        podcast.generate_story_dialogue,
+                        cfg,
+                        story,
+                        duo_names,
+                        force=force,
+                        previous_story=prev_story,
+                        previous_format=prev_fmt,
                     )
+                    prev_format_by_sec[sec_key] = dialogue.story_format
                     audio, duration, _ = await podcast.synthesise_story_dialogue(
                         client, base, dialogue, duo_voices, cache_dir=getattr(cfg, "cache_dir", None)
                     )

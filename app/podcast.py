@@ -43,8 +43,9 @@ CLOSE_VARIANTS = 2
 READY_KEY = "podcast_ready"
 
 # Word caps per piece keep the whole chat to roughly 60-90 seconds: news is the priority.
-MAX_WORDS = {"open": 40, "tease": 35, "bridge": 18, "close": 28}
-MAX_TURNS = {"open": 4, "tease": 3, "bridge": 2, "close": 3}
+# open accommodates Part 1 (Brand Intro) + Part 2 (Conversational Open) across 4-6 short lines.
+MAX_WORDS = {"open": 55, "tease": 38, "bridge": 20, "close": 42}
+MAX_TURNS = {"open": 6, "tease": 3, "bridge": 2, "close": 4}
 
 # How each section should sound, for the AI prompt and the template pools.
 TONE = {
@@ -57,6 +58,9 @@ TONE = {
     "science": "curious and wondering",
     "sports": "energetic",
 }
+
+# Sections where Matthew (the serious, grounded anchor) naturally leads vs. Kelly (lively, curious).
+HEAVY_SECTIONS = frozenset({"top", "politics", "markets"})
 
 # Chatterbox performs these itself when they appear in the text, which sounds far more human than
 # punctuation can (voice_service/turbo_voice/text.py lists the same set). Anything else in square
@@ -126,39 +130,44 @@ def _clean(text: str) -> str:
 
 
 # ------------------------------------------------------------------ templates
-# {a} and {b} are the hosts' first names, {h} the headline, {s} the section's title.
+# {a} and {b} are the hosts' first names (Matthew, Kelly), {h} the headline, {s} the section's title.
+# Every OPEN_TEMPLATES entry follows Part 1 (Brand Intro with "Hark Daily" + tagline) + Part 2 (Conversational Open).
 OPEN_TEMPLATES: list[list[Turn]] = [
-    [(0, "Hey {b}."),
-     (1, "Hey {a}. What's on your radar today?"),
-     (0, "A few big stories just broke. Let's take a look.")],
-    [(0, "Hey {b}, good to see you."),
-     (1, "Good to see you too, {a}. What are we tracking today?"),
-     (0, "Quite a bit. Let's start with the top story.")],
-    [(0, "Welcome back everyone, and hey {b}."),
-     (1, "Hey {a}. Ready when you are."),
-     (0, "Great. Let's get into what's happening.")],
+    [(0, "This is Hark Daily. The news, minus the noise."),
+     (1, "Look at you with the serious anchor voice, {a}."),
+     (0, "Somebody has to keep us on track, {b}."),
+     (1, "Fair enough. And we actually have a wild lineup of stories today.")],
+    [(1, "You're listening to Hark Daily, your day caught up in minutes."),
+     (0, "Short, steady, and straight to what matters."),
+     (1, "I was just reading that first headline, {a}, and I have questions."),
+     (0, "I figured you might.")],
+    [(0, "Hark Daily. All the signal, none of the scrolling."),
+     (1, "Okay, I like that tagline, {a}. We're keeping it."),
+     (0, "Don't get used to it. There's some heavy news on the docket today."),
+     (1, "Yeah, a couple of these stories really caught me off guard.")],
 ]
 CLOSE_TEMPLATES: list[list[Turn]] = [
-    [(1, "And that is our look at the news for today."),
-     (0, "Thanks for listening. We'll talk to you on the next update.")],
-    [(0, "That covers the main stories today."),
-     (1, "Take care, stay informed [chuckle], and we'll catch you next time.")],
+    [(1, "Still thinking about how much ground we covered today, {a}."),
+     (0, "Never a quiet news cycle. That's Hark Daily for today."),
+     (1, "Thanks for listening, everyone. Catch you next time.")],
+    [(0, "That wraps it up for Hark Daily today."),
+     (1, "Take care of yourselves [chuckle], and we'll talk to you on the next edition.")],
 ]
 TEASE_TEMPLATES: dict[str, list[list[Turn]]] = {
-    "serious": [[(0, "Here's an important story we're following: {h}."), (1, "Yeah, this one matters... here are the details.")]],
-    "warm": [[(0, "In the headlines today: {h}."), (1, "Here's the background on what happened.")]],
-    "excited": [[(0, "Take a look at this in {s}: {h}."), (1, "Yeah, this caught a lot of attention today.")]],
-    "light": [[(0, "Here's an interesting one in {s}: {h}."), (1, "Let's see what happened here.")]],
-    "energetic": [[(0, "In {s} today: {h}."), (1, "Here's what you need to know.")]],
-    "curious": [[(0, "This is an interesting one: {h}."), (1, "Yeah, let's look at the details.")]],
+    "serious": [[(0, "This one in {s} carries real weight today: {h}."), (1, "Yeah. Worth paying close attention to.")]],
+    "warm": [[(0, "Leading our coverage today: {h}."), (1, "Here's what's actually happening behind that headline.")]],
+    "excited": [[(1, "Wait until you hear this one in {s}: {h}."), (0, "It is a bigger shift than it looks at first glance.")]],
+    "light": [[(1, "Okay, lighter note in {s}: {h}."), (0, "I have a feeling you're going to enjoy this one, {b}.") ]],
+    "energetic": [[(1, "Over in {s}, look at this: {h}."), (0, "Quite a storyline building there.")]],
+    "curious": [[(1, "I had to read this {s} headline twice: {h}."), (0, "The details are even more interesting.")]],
 }
 BRIDGE_TEMPLATES: dict[str, list[Turn]] = {
-    "serious": [(0, "Here is the lead story.")],
-    "warm": [(0, "Here are the top stories.")],
-    "excited": [(1, "Now to {s}.")],
-    "light": [(1, "Moving on to {s}.")],
-    "energetic": [(1, "Here's the latest in {s}.")],
-    "curious": [(1, "Next up, {s}.")],
+    "serious": [(0, "On a more serious note, {s}.")],
+    "warm": [(0, "Starting with the lead stories.")],
+    "excited": [(1, "Shifting over to {s}.")],
+    "light": [(1, "Okay, lighter note with {s}.")],
+    "energetic": [(1, "Over in {s}.")],
+    "curious": [(1, "Speaking of big questions, here's {s}.")],
 }
 
 
@@ -210,7 +219,14 @@ SLOP_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bdelve\s+into\b", re.I), "look into"),
     (re.compile(r"\bdelve\b", re.I), "look"),
     (re.compile(r"\bbuckle\s+up\b", re.I), "so"),
+    (re.compile(r"\bstrap\s+in\b", re.I), "so"),
     (re.compile(r"\bwithout\s+further\s+ado\b", re.I), "first off"),
+    (re.compile(r"\bthat's\s+a\s+great\s+point\b", re.I), "right"),
+    (re.compile(r"\bwelcome\s+back\s+everyone\b", re.I), "this is Hark Daily"),
+    (re.compile(r"\bready\s+when\s+you\s+are\b", re.I), "right with you"),
+    (re.compile(r"\bfascinating\b", re.I), "wild"),
+    (re.compile(r"^\s*absolutely[.,!]\s*", re.I), "Right, "),
+    (re.compile(r"\bthis\s+(?:morning|afternoon|evening)\b", re.I), "today"),
     (re.compile(r"\ba\s+lot\s+of\s+ground\s+to\s+cover\b", re.I), "a lot to cover"),
     (re.compile(r"\bfast[- ]moving\b", re.I), "busy"),
     (re.compile(r"\bmoving\s+across\s+the\s+board\b", re.I), "developing today"),
@@ -272,35 +288,46 @@ def validate_turns(raw, kind: str, section: str | None = None) -> list[Turn] | N
 
 
 # ------------------------------------------------------------------ AI writer
-SYSTEM_PROMPT = """You write simple, natural, conversational banter for a two-host news podcast. The hosts introduce and react to the day's news; a separate narrator reads the stories in full, so you never read the news yourself.
+HOST_PERSONAS_BLOCK = """HOST PERSONALITIES
+- {a} ("a", speaker 0): deep, steady, grounded. The serious anchor. Speaks in measured, weighty sentences and gives stories their gravity. Dry, understated humor that lands because it's rare. When something is absurd, he gets quieter and flatter, not louder. Prefers short, deliberate lines for big moments.
+- {b} ("b", speaker 1): lively, quick, expressive. Brings energy and curiosity. Reacts out loud with surprise, amusement, or skepticism. Speaks in faster, more varied rhythms, with short bursts and the occasional run-on when she's excited. She's the one who teases {a} for being so serious.
 
-Hosts: "a" is {a} and "b" is {b}.
-Tone & Register: Two smart, grounded friends talking over coffee. Simple, honest, everyday spoken English.
+THE DYNAMIC
+- {b} sparks, {a} grounds. She makes things interesting, he makes them matter.
+- {a} leads on heavy stories (politics, markets/economy, conflict, tragedy). {b} supports with brief, quieter reactions and drops the playfulness.
+- {b} leads on light, quirky, or surprising stories. {a} plays it deadpan against her energy.
+- Occasional role reversals keep it human: {a} gets caught off guard and laughs, or {b} gets serious and says this one actually matters.
+- Light teasing is welcome, usually {b} poking at {a}'s gravity."""
 
-STRICT ANTI-SLOP RULES (ZERO AI JARGON OR HYPE):
-- Speak like real human beings, NOT morning radio DJs, TV hype-men, or AI bots.
-- BANNED CLICHÉS (NEVER USE ANY OF THESE):
-  "let's roll", "whirlwind", "buckle up", "dive into", "dive in", "deep dive", "unpack", "delve", "fast-moving", "ground to cover", "buzzing", "wild ride", "nuts and bolts", "without further ado", "what a day", "packed day", "game-changer", "moving across the board".
-- Keep language plain, simple, and direct. Avoid breathless hype, exaggerated drama, and corporate buzzwords.
-- Use natural contractions ("we've", "it's", "that's", "don't", "can't").
-- Pacing: use short sentences and natural commas or ellipses `...` where a person would take a breath.
-- Use paralinguistic voice tags sparingly and naturally: [chuckle], [laugh], [sigh], [gasp]. Most banter pieces should have ZERO tags. Never place tags predictably at the start of a response or right after a headline. At most {max_tags} tags per piece. Do not use tags on tragedy, death, or severe hardship.
-- VOICE-BASED SPOKEN TEXT: Everything is read aloud by neural voices. Never use textual shorthand like "$5B", "$10M", or "20%". Always write full spoken words: "5 billion dollars", "10 million dollars", "20 percent", "versus", "and".
+
+SYSTEM_PROMPT = """You are the scriptwriter for "Hark Daily," a daily news podcast hosted by {a} ("a") and {b} ("b"). Write the script as a real conversation between two people who know each other well, not as two news readers handing off to each other.
+
+""" + HOST_PERSONAS_BLOCK + """
+
+STRICT LANGUAGE & ANTI-SLOP RULES (THIS WILL BE READ ALOUD BY TTS):
+- Use contractions and spoken rhythm ("we've", "it's", "that's", "don't", "can't"). Short sentences. Occasional fragments.
+- Light fillers ("honestly," "I mean," "right?") at most once or twice per piece.
+- No lists, no parentheses, no stage directions, no emojis, no markdown, no URLs.
+- Don't read headlines word for word. Retell them like you're telling a friend.
+- BANNED PHRASES (NEVER USE ANY OF THESE):
+  "Let's dive in", "dive into", "deep dive", "Buckle up", "Strap in", "Without further ado", "That's a great point", "Absolutely", "Fascinating", "Welcome back everyone", "Ready when you are", "let's roll", "whirlwind", "unpack", "delve", "fast-moving", "ground to cover", "buzzing", "wild ride", "game-changer", "moving across the board".
+- Do NOT use time-of-day locked words like "morning", "afternoon", "evening", or "tomorrow morning".
+- VOICE-BASED SPOKEN TEXT: Everything is read aloud by neural voices. Never use textual shorthand like "$5B", "$10M", or "20%". Always spell out numbers, symbols, and abbreviations the way they're spoken: "5 billion dollars", "10 million dollars", "20 percent", "versus", "and".
+- Paralinguistic voice tags: [chuckle], [laugh], [sigh], [gasp]. Use very sparingly (most pieces should have ZERO tags, at most {max_tags} tags per piece). Never place tags on tragedy, politics, or serious hardship.
 
 Return ONLY JSON of this shape:
 {{"open": [turns, ...{open_n} variants], "close": [turns, ...{close_n} variants],
  "tease": {{"<section>": turns}}, "bridge": {{"<section>": turns}}}}
 where turns is a list of {{"speaker": "a" or "b", "text": "..."}}.
 
-Rules:
-- open: an easy-going, time-neutral greeting between two friends ("Hey {b}. Good to see you.", "Welcome back, {b}. A lot of news to catch up on."). Today is {weekday}. No news yet. Make the {open_n} variants clearly distinct and relaxed. IMPORTANT: Do NOT use time-of-day locked words like "morning", "afternoon", "evening", or "morning coffee".
-- close: an easy-going, friendly sign-off ("That covers the main headlines for today. Thanks for listening.", "Stay safe, stay curious, and we will talk to you next time."). Make variants distinct. Do NOT say "tomorrow morning" or "morning brief".
-- tease: react simply and honestly to the top headline of that section ("Did you see this one in AI?", "This score in sports caught a lot of people off guard..."). Do NOT say "this morning".
-- bridge: a clean, direct 1-line handoff into that section ("Here is the top story.", "Moving over to politics.").
-- Limits per piece: open <= {w_open} words and 4 turns, tease <= {w_tease} words and 3 turns, bridge <= {w_bridge} words and 2 turns, close <= {w_close} words and 3 turns.
-- No URLs, emoji, lists, markdown or stage directions. Paraphrase headlines naturally.
-- The tone of each section is guidance for how you sound; never say the tone words themselves ("curious", "serious", "energetic").
-- Stay respectful on sensitive stories: no jokes about tragedies."""
+SEGMENT RULES:
+- open (<= {w_open} words, 4 to 6 short turns per variant): Combine PART 1 (BRAND INTRO) + PART 2 (CONVERSATIONAL OPEN):
+  * PART 1 - BRAND INTRO (first 2 turns): A quick, fun, memorable show intro that sets the personality before the news begins. Must include the show name "Hark Daily" (or "hark Daily") once, plus a fresh daily tagline idea in the spirit of "the news, minus the noise" or "your day, caught up." Invent a fresh tagline for each variant—never reuse example lines! Can be a deadpan {a} line answered by an excited {b}, or {b} teasing {a} for his serious announcer voice.
+  * PART 2 - CONVERSATIONAL OPEN (next 2-3 turns): Move straight into a natural mid-thought opening. No "welcome back everyone," no "let's get into what's happening," no "Hey [name]" followed by "Ready when you are." Open with a reaction to one of today's top headlines, a small observation about {weekday}, or a teaser. Each host's line must respond directly to the other's.
+- tease (<= {w_tease} words, 2 to 3 turns): A natural reaction to that section's top headline. Have {a} lead heavy sections (top, politics, markets) and {b} lead lighter or fast-moving sections (ai, tech, science, entertainment, sports).
+- bridge (<= {w_bridge} words, 1 to 2 turns): A natural transition into that section using a thematic link ("Speaking of money..."), a reaction, or a clean pivot ("Okay, lighter note."). Use "Next up" or "Moving on" at most once across the entire JSON output.
+- close (<= {w_close} words, 2 to 4 turns): End casually with a last reaction or a light callback to one of today's stories, then a brief sign-off that includes "Hark Daily". No formal summary. Vary each variant.
+- ANTI-REPETITION: Any example lines in this prompt are for tone only. Never reuse their wording, structure, or jokes. If yesterday's opening is provided in the user payload, make today's clearly different."""
 
 
 def _prompt(hosts: tuple[str, str], weekday: str) -> str:
@@ -322,7 +349,8 @@ def _ai_provider_chain(cfg) -> list[tuple[str, str, str, str]]:
 
 
 def ask_ai(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
-           client: httpx.Client | None = None) -> tuple[dict[str, Written], list[str]]:
+           client: httpx.Client | None = None,
+           yesterdays_opening: str | None = None) -> tuple[dict[str, Written], list[str]]:
     """One AI call for the whole day. Returns the valid pieces by key and a list of problems.
 
     Tries each Groq, local, then Gemini model once; the first answer that parses wins. Never raises:
@@ -337,7 +365,9 @@ def ask_ai(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
                             "headline": p.headline, "summary": p.summary}
                 for p in pieces if p.kind == "tease"}
     weekday = _date.fromisoformat(day).strftime("%A")
-    payload = {"sections": sections}
+    payload: dict = {"date": day, "day_of_week": weekday, "sections": sections}
+    if yesterdays_opening:
+        payload["yesterdays_opening"] = yesterdays_opening
     own = client is None
     client = client or httpx.Client(timeout=60)
     try:
@@ -382,10 +412,11 @@ def _collect(data: dict, pieces: list[Piece], model: str) -> dict[str, Written]:
 
 
 def write_pieces(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
-                 client: httpx.Client | None = None) -> tuple[dict[str, Written], list[str]]:
+                 client: httpx.Client | None = None,
+                 yesterdays_opening: str | None = None) -> tuple[dict[str, Written], list[str]]:
     """Every piece gets lines: the AI's when valid, the template's otherwise."""
     try:
-        written, problems = ask_ai(cfg, pieces, hosts, day, client=client)
+        written, problems = ask_ai(cfg, pieces, hosts, day, client=client, yesterdays_opening=yesterdays_opening)
     except Exception as exc:  # noqa: BLE001 - banter must never take the pack down
         written, problems = {}, [f"AI stage crashed: {exc.__class__.__name__}: {exc}"[:200]]
     for p in pieces:
@@ -438,6 +469,19 @@ def stitch_turn_audio(
     return mp3_bytes, total_sec, marks
 
 
+def fetch_yesterdays_opening(store, day: str, hosts_id: str) -> str | None:
+    """Fetch the most recent prior day's pod_open_1 transcript so today's opening never repeats it."""
+    try:
+        rows = store.select("podcast_clips", {"date": f"lt.{day}", "hosts": f"eq.{hosts_id}", "clip_key": "eq.pod_open_1"})
+        if not rows:
+            return None
+        latest = max(rows, key=lambda r: str(r.get("date") or ""))
+        text = str(latest.get("text") or "").strip()
+        return text or None
+    except Exception:
+        return None
+
+
 async def build_podcast(cfg, store, scripts: list[dict], *, day: str, base: str,
                         force: bool = False, client: httpx.Client | None = None) -> list[dict]:
     """Voice and publish the day's banter. Returns the published rows ([] when the mode is off).
@@ -456,8 +500,11 @@ async def build_podcast(cfg, store, scripts: list[dict], *, day: str, base: str,
     hosts_id = "+".join(pair)
     names = (voice_name(pair[0]).split()[0], voice_name(pair[1]).split()[0])
 
+    yesterdays_opening = fetch_yesterdays_opening(store, day, hosts_id)
     pieces = plan_pieces(scripts)
-    written, problems = await asyncio.to_thread(write_pieces, cfg, pieces, names, day, client=client)
+    written, problems = await asyncio.to_thread(
+        write_pieces, cfg, pieces, names, day, client=client, yesterdays_opening=yesterdays_opening
+    )
     for problem in problems:
         log.warning("podcast writer: %s", problem)
 
@@ -508,22 +555,103 @@ async def build_podcast(cfg, store, scripts: list[dict], *, day: str, base: str,
 
 
 # ------------------------------------------------------------------ Two-Host Story Dialogue Engine
-STORY_DIALOGUE_VERSION = "v2"
+STORY_DIALOGUE_VERSION = "v3"
 PURPOSE_PAUSES: dict[str, float] = {
     "lead": 0.44,
     "question": 0.56,
+    "reaction": 0.28,
     "context": 0.42,
     "implication": 0.46,
     "takeaway": 0.50,
 }
 VALID_PURPOSES = frozenset(PURPOSE_PAUSES)
 
+STORY_FORMATS: dict[str, str] = {
+    "explainer_reactions": (
+        "FORMAT 1 (Explainer + Short Reactions): The lead host explains the story across 2 to 3 substantial turns "
+        "(up to 3-4 sentences in a turn) while the other host drops a short, natural 1 to 4 word human reaction "
+        "(like 'Huh.', 'Wait, really?', 'Right.', 'That is steep.') before a grounded final takeaway. "
+        "Do NOT force equal-length turns."
+    ),
+    "question_led": (
+        "FORMAT 2 (Question-Led): One host introduces the surprising headline hook, the other asks a direct, "
+        "curious question ('Wait, why did they do that?', 'How does that actually work in practice?'), "
+        "and the first host explains the answer using the facts."
+    ),
+    "mild_disagreement": (
+        "FORMAT 3 (Mild Disagreement / Two Angles): The hosts take slightly different angles on why the story matters "
+        "(for example, one sees the practical upside or ambition while the other points out the cost, risk, or catch "
+        "reported in the facts)."
+    ),
+    "quick_hit": (
+        "FORMAT 4 (Quick Hit): Keep this one tight and punchy—just 2 or 3 crisp turns total (around 35 to 60 words total) "
+        "that land the essential news and why it matters, then move on."
+    ),
+    "tangent": (
+        "FORMAT 5 (Brief Relatable Aside): One host makes a quick, relatable everyday observation or comparison "
+        "in 1 short sentence, then pivots straight back to the hard facts of the story."
+    ),
+    "reversal": (
+        "FORMAT 6 (The Twist / Reversal): Start with the obvious surface take on the headline in Turn 1, "
+        "then have the other host counter with 'Actually, here is the catch...' or the unexpected detail from the facts."
+    ),
+}
+STORY_FORMAT_KEYS: tuple[str, ...] = tuple(STORY_FORMATS.keys())
+SOBER_STORY_FORMAT_KEYS: tuple[str, ...] = ("explainer_reactions", "question_led", "quick_hit", "mild_disagreement")
+
+
+def select_story_format(
+    section: str,
+    rank: int,
+    *,
+    sober: bool = False,
+    previous_format: str | None = None,
+) -> tuple[str, str]:
+    """Deterministically pick one of the 6 story formats so back-to-back stories never repeat the same format."""
+    pool = SOBER_STORY_FORMAT_KEYS if sober else STORY_FORMAT_KEYS
+    sec_offset = int(hashlib.sha1((section or "top").encode("utf-8")).hexdigest()[:6], 16)
+    idx = (sec_offset + max(1, int(rank)) - 1) % len(pool)
+    chosen = pool[idx]
+    if previous_format and chosen == previous_format and len(pool) > 1:
+        chosen = pool[(idx + 1) % len(pool)]
+    return chosen, STORY_FORMATS[chosen]
+
+
+def select_story_lead(brief: dict, hosts: tuple[str, str] = ("Matthew", "Kelly")) -> str:
+    """Assign who leads the story based on topic weight, with occasional role-reversal moments."""
+    a, b = hosts
+    base_sec = str(brief.get("section") or "top").replace("_us", "").replace("_in", "").replace("_ca", "")
+    sober = bool(brief.get("sober"))
+    story_hash = int(hashlib.sha1(str(brief.get("story_id") or "").encode("utf-8")).hexdigest()[:6], 16)
+    role_reversal = (not sober) and (story_hash % 5 == 0)
+
+    if sober or base_sec in HEAVY_SECTIONS:
+        if role_reversal:
+            return (
+                f"Lead Host: {b} ('b') opens this one in a rare serious role reversal—she drops the playfulness "
+                f"and says this story actually matters, while {a} ('a') grounds the numbers and implications."
+            )
+        return (
+            f"Lead Host: {a} ('a', speaker 0) leads this story with steady, measured gravity. "
+            f"{b} ('b', speaker 1) supports with quieter, grounded reactions and drops the playfulness."
+        )
+
+    if role_reversal:
+        return (
+            f"Lead Host: {a} ('a') leads, but gets slightly caught off guard by how unusual or surprising this story is, "
+            f"while {b} ('b') plays off his reaction."
+        )
+    return (
+        f"Lead Host: {b} ('b', speaker 1) leads this story with lively curiosity and energy. "
+        f"{a} ('a', speaker 0) plays it deadpan and grounded against her energy."
+    )
+
 
 @dataclass
 class DialogueTurn:
     speaker: int                  # 0 for Host A (Matthew), 1 for Host B (Kelly)
     text: str                     # spoken text (may include valid Chatterbox tags in non-sober sections)
-    purpose: str = "context"      # lead | question | context | implication | takeaway
+    purpose: str = "context"      # lead | question | reaction | context | implication | takeaway
     fact_refs: list[str] = field(default_factory=list)
     pause_after: float = 0.36
 
@@ -536,6 +664,7 @@ class StoryDialogue:
     summary: str
     turns: list[DialogueTurn]
     writer: str = "built-in"
+    story_format: str = "question_led"
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -613,15 +742,52 @@ def _speaker_index(raw_speaker: str, hosts: tuple[str, str] = ("Matthew", "Kelly
     return None
 
 
+_SCRIPT_LINE_RE = re.compile(r"^\s*\[?([A-Za-z]+)\]?\s*:\s*(.+)$")
+
+
+def parse_story_dialogue_payload(
+    raw: str | dict | list | None,
+    hosts: tuple[str, str] = ("Matthew", "Kelly"),
+) -> dict | list | None:
+    """Parse either JSON dialogue output or plain 'MATTHEW: ... / KELLY: ...' script lines."""
+    if isinstance(raw, (dict, list)):
+        return raw
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    text = raw.strip()
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, (dict, list)):
+            return parsed
+    except Exception:
+        pass
+
+    turns: list[dict] = []
+    for line in text.splitlines():
+        m = _SCRIPT_LINE_RE.match(line.strip())
+        if not m:
+            continue
+        speaker_tok, spoken = m.group(1), m.group(2).strip()
+        if _speaker_index(speaker_tok, hosts) is not None and spoken:
+            turns.append({"speaker": speaker_tok, "text": spoken})
+    return {"turns": turns} if turns else None
+
+
 def validate_story_dialogue(
-    raw: dict | list | None,
+    raw: dict | list | str | None,
     story_brief: dict,
     hosts: tuple[str, str] = ("Matthew", "Kelly"),
     *,
-    min_turns: int = 3,
-    max_turns: int = 6,
+    min_turns: int = 2,
+    max_turns: int = 7,
 ) -> list[DialogueTurn] | None:
-    """Validate LLM-generated story dialogue turns against podcast editorial & TTS rules."""
+    """Validate LLM-generated story dialogue turns against podcast editorial & TTS rules.
+
+    Supports varied turn lengths: from 1-2 word human reactions ('Huh.', 'Wait, really?')
+    up to 4-sentence explainers (68 words), and 2-turn quick hits up to 7-turn back-and-forths.
+    """
+    if isinstance(raw, str):
+        raw = parse_story_dialogue_payload(raw, hosts)
     turns_raw = raw.get("turns") if isinstance(raw, dict) else raw
     if not isinstance(turns_raw, list) or not (min_turns <= len(turns_raw) <= max_turns):
         return None
@@ -660,7 +826,7 @@ def validate_story_dialogue(
 
         words_only = strip_tags(text)
         word_count = len(words_only.split())
-        if not words_only or word_count < 3 or word_count > 52 or _BAD.search(words_only):
+        if not words_only or word_count < 1 or word_count > 68 or _BAD.search(words_only):
             return None
 
         tags_in_turn = len(_TAG.findall(text))
@@ -671,16 +837,16 @@ def validate_story_dialogue(
             text = strip_tags(text)
             total_tags = 1
 
-        purpose = str(item.get("purpose") or "context").strip().lower()
+        purpose = str(item.get("purpose") or ("reaction" if word_count <= 3 else "context")).strip().lower()
         if purpose not in VALID_PURPOSES:
-            purpose = "context"
+            purpose = "reaction" if word_count <= 3 else "context"
 
         raw_refs = item.get("fact_refs")
         fact_refs = [str(r).strip().upper() for r in raw_refs if str(r).strip()] if isinstance(raw_refs, list) else []
         if valid_fact_ids:
             fact_refs = [r for r in fact_refs if r in valid_fact_ids] or ["F1"]
 
-        pause_after = PURPOSE_PAUSES.get(purpose, 0.36)
+        pause_after = 0.28 if (word_count <= 3 and purpose != "question") else PURPOSE_PAUSES.get(purpose, 0.36)
         total_words += word_count
         parsed.append(DialogueTurn(
             speaker=who,
@@ -690,7 +856,7 @@ def validate_story_dialogue(
             pause_after=pause_after,
         ))
 
-    # Both hosts must participate, and total word budget must fit a crisp 20-45s segment
+    # Both hosts must participate, and total word budget must fit a crisp 15-45s segment
     speakers_used = {t.speaker for t in parsed}
     if len(speakers_used) < 2 or total_words < 20 or total_words > 190:
         return None
@@ -699,31 +865,25 @@ def validate_story_dialogue(
     return parsed
 
 
-STORY_DIALOGUE_PROMPT = """You write a simple, grounded, and natural conversation between two friends for ONE news story.
+STORY_DIALOGUE_PROMPT = """You are the scriptwriter for "Hark Daily," a daily news podcast hosted by {a} ("a") and {b} ("b"). Write the script for ONE news story as a real conversation between two people who know each other well, not as two news readers handing off to each other.
 
-Hosts:
-- "a" is {a} (introduces the news clearly and plainly, sharing the core facts without hype).
-- "b" is {b} (the curious friend who asks the obvious question, reacts with genuine human emotion, or notes what it means).
+""" + HOST_PERSONAS_BLOCK + """
 
-STRICT ANTI-SLOP & PLAIN CONVERSATIONAL RULES:
-1. Speak in plain, everyday conversational English. Talk like two friends chatting about an article they just read over lunch—NOT morning radio DJs, TV news anchors, or PR spokespeople.
-2. BANNED AI CLICHÉS (NEVER USE ANY OF THESE):
-   "let's roll", "whirlwind", "buckle up", "dive into", "dive in", "deep dive", "unpack", "delve", "game-changer", "tapestry", "beacon", "foster", "testament", "pivotal", "in today's world", "at the end of the day", "needless to say", "fast-moving", "without further ado", "wild ride", "mind-blowing", "ground to cover", "moving across the board".
-3. Grounding: Stay 100% faithful to the supplied `facts` (`F1`, `F2`, ...). NEVER invent details, numbers, quotes, causes, or outcomes not present in `facts`.
-4. Structure: 4 natural, punchy turns (60 to 120 words total across all turns):
-   - Turn 1 ("purpose": "lead"): State what happened in one clear, simple sentence. For stories after the first, you may use an occasional natural spoken lead-in (such as "Next up in Calgary,", "Turning to tech,", "In other news,") so listeners naturally hear a fresh story starting.
-   - Turn 2 ("purpose": "question" or "context"): Ask a simple, direct question ("Wait, why did they do that?", "How much did they actually raise?") or react to fact F2.
-   - Turn 3 ("purpose": "context" or "implication"): Explain the detail or number simply from fact F3 ("Well, according to the report...", "They're saying...").
-   - Turn 4 ("purpose": "takeaway" or "implication"): Land what it means or wrap up this story in one grounded sentence before moving on.
-5. Style & Pacing:
-   - 8 to 22 words per turn. Keep sentences short and clear. Use everyday words instead of fancy vocabulary.
-   - Use natural contractions ("don't", "can't", "it's", "they're", "we've").
-   - Use natural commas and ellipses `...` where a speaker would take a breath.
-   - No semicolons, colons, dashes, markdown, URLs, or quotation marks.
-   - Avoid hollow filler ("That's so interesting", "Totally agree", "Great point"). Every turn must share a real fact or question.
-   - Do NOT use time-of-day words ("this morning", "tonight").
-   - Paralinguistic emotion tags: {tag_instruction}
-6. VOICE-BASED TEXT (CRITICAL - SCRIPT IS SPOKEN BY NEURAL TEXT-TO-SPEECH VOICES):
+ASSIGNED STORY FORMAT & LEAD FOR THIS STORY:
+- {lead_instruction}
+- {format_instruction}
+- {transition_instruction}
+
+STRICT EDITORIAL, LANGUAGE & ANTI-SLOP RULES:
+1. Do NOT read the headline word for word. Retell the story like you're telling a smart friend across the table.
+2. Vary turn lengths naturally: a turn can be a 1-to-3 word reaction ("Huh.", "Wait, really?", "Right.") or a 3-to-4 sentence explanation. A host may speak twice in a row when it fits the rhythm, as long as both hosts participate in the story. Let pacing follow the story's weight: slower and sparser for serious news, quicker and looser for light news.
+3. Grounding: Stay 100% faithful to the supplied `facts` (`F1`, `F2`, ...). Add personality, NEVER invented details, numbers, quotes, causes, or outcomes.
+4. Use contractions ("don't", "can't", "it's", "they're", "we've") and spoken rhythm. Short sentences. Occasional fragments. Light fillers ("honestly," "I mean," "right?") at most once or twice per story.
+5. BANNED PHRASES (NEVER USE ANY OF THESE):
+   "Let's dive in", "dive into", "deep dive", "Buckle up", "Strap in", "Without further ado", "That's a great point", "Absolutely", "Fascinating", "Welcome back everyone", "let's roll", "whirlwind", "unpack", "delve", "game-changer", "tapestry", "beacon", "foster", "testament", "pivotal", "in today's world", "at the end of the day", "needless to say", "fast-moving", "wild ride", "mind-blowing", "ground to cover", "moving across the board".
+6. No lists, no parentheses, no stage directions, no emojis, no semicolons, no dashes, no markdown, no URLs. Do NOT use time-of-day words ("this morning", "tonight").
+7. Paralinguistic emotion tags: {tag_instruction}
+8. VOICE-BASED TEXT (CRITICAL - SCRIPT IS SPOKEN BY NEURAL TEXT-TO-SPEECH VOICES):
    Write exclusively for the ear as spoken aloud, NEVER visual print or textual shorthand.
    - Money and Currency: NEVER write symbols or abbreviated shorthand like "$5B", "$10M", "$500K", "$20", "€50M", or "£10B". Always spell them out in full spoken words: "5 billion dollars", "10 million dollars", "500 thousand dollars", "20 dollars", "50 million euros", "10 billion pounds".
    - Percentages: NEVER use the "%" symbol (e.g. "15%"). Always write "15 percent" or "fifteen percent".
@@ -731,14 +891,14 @@ STRICT ANTI-SLOP & PLAIN CONVERSATIONAL RULES:
    - Acronyms & Abbreviations: Write out acronyms so text-to-speech speaks them cleanly. Say "I-P-O", "C-E-O", "first quarter" (never "Q1"), "third quarter" (never "Q3"), "versus" (never "vs" or "vs."), "and" (never "&"), "with" (never "w/"), "approximately" (never "approx.").
    - Do not use forward slashes (say "per" or "or").
 
-Return ONLY valid JSON of this exact shape:
+Return ONLY valid JSON of this exact shape (2 to 6 turns total, 35 to 140 words across all turns):
 {{
   "summary": "1-2 sentence neutral card summary (30-50 words) built strictly from the facts",
   "turns": [
-    {{"speaker": "a", "purpose": "lead", "fact_refs": ["F1"], "text": "..."}},
-    {{"speaker": "b", "purpose": "context", "fact_refs": ["F2"], "text": "..."}},
-    {{"speaker": "a", "purpose": "implication", "fact_refs": ["F3"], "text": "..."}},
-    {{"speaker": "b", "purpose": "takeaway", "fact_refs": ["F2", "F3"], "text": "..."}}
+    {{"speaker": "{lead_speaker}", "purpose": "lead", "fact_refs": ["F1"], "text": "..."}},
+    {{"speaker": "{co_speaker}", "purpose": "reaction", "fact_refs": ["F2"], "text": "..."}},
+    {{"speaker": "{lead_speaker}", "purpose": "context", "fact_refs": ["F2", "F3"], "text": "..."}},
+    {{"speaker": "{co_speaker}", "purpose": "takeaway", "fact_refs": ["F3"], "text": "..."}}
   ]
 }}"""
 
@@ -750,10 +910,12 @@ def fallback_story_dialogue(
     """Deterministic, strictly factual two-host exchange built from extracted article sentences."""
     brief = build_story_brief(story)
     facts = brief["facts"]
-    lead_speaker = 0 if (brief["rank"] % 2 == 1) else 1
+    base_sec = str(brief.get("section") or "top").replace("_us", "").replace("_in", "").replace("_ca", "")
+    lead_speaker = 0 if (brief["sober"] or base_sec in HEAVY_SECTIONS or brief["rank"] % 2 == 1) else 1
     co_speaker = 1 - lead_speaker
     source = brief["source"]
     headline = brief["headline"].rstrip(".")
+    fmt_key, _ = select_story_format(brief["section"], brief["rank"], sober=brief["sober"])
 
     f1 = facts[0]["fact"] if facts else f"{headline}."
     f2 = facts[1]["fact"] if len(facts) > 1 else ""
@@ -818,17 +980,24 @@ def fallback_story_dialogue(
         summary=brief["summary"],
         turns=turns,
         writer="built-in",
+        story_format=fmt_key,
     )
 
 
-def _dialogue_cache_path(cfg, brief: dict, hosts: tuple[str, str]) -> Path | None:
+def _dialogue_cache_path(cfg, brief: dict, hosts: tuple[str, str], fmt_key: str = "") -> Path | None:
     cache_root = getattr(cfg, "cache_dir", None)
     if not cache_root:
         return None
     folder = Path(cache_root) / "story_dialogue"
     folder.mkdir(parents=True, exist_ok=True)
     fingerprint = json.dumps(
-        {"v": STORY_DIALOGUE_VERSION, "hosts": hosts, "headline": brief["headline"], "facts": brief["facts"]},
+        {
+            "v": STORY_DIALOGUE_VERSION,
+            "hosts": hosts,
+            "format": fmt_key,
+            "headline": brief["headline"],
+            "facts": brief["facts"],
+        },
         sort_keys=True,
         ensure_ascii=False,
     )
@@ -844,10 +1013,15 @@ def generate_story_dialogue(
     client: httpx.Client | None = None,
     force: bool = False,
     sleep=time.sleep,
+    previous_story: dict | None = None,
+    previous_format: str | None = None,
 ) -> StoryDialogue:
     """Write a grounded two-host conversation for one story using Groq -> Local LLM -> Gemini -> fallback."""
     brief = build_story_brief(story)
-    cache_path = _dialogue_cache_path(cfg, brief, hosts)
+    fmt_key, fmt_desc = select_story_format(
+        brief["section"], brief["rank"], sober=brief["sober"], previous_format=previous_format
+    )
+    cache_path = _dialogue_cache_path(cfg, brief, hosts, fmt_key)
     if not force and cache_path and cache_path.is_file():
         try:
             cached = json.loads(cache_path.read_text(encoding="utf-8"))
@@ -860,6 +1034,7 @@ def generate_story_dialogue(
                     summary=_clean(cached.get("summary") or brief["summary"]),
                     turns=turns,
                     writer=str(cached.get("writer") or "cached"),
+                    story_format=str(cached.get("story_format") or fmt_key),
                 )
         except Exception:
             pass
@@ -878,19 +1053,48 @@ def generate_story_dialogue(
             "Only include a tag (at most 1 in the entire story) if the news is genuinely amusing, quirky, or ironic, and place it naturally where a human would express it (such as mid-sentence or in the closing takeaway turn), or omit it completely."
         )
     )
+    lead_instruction = select_story_lead(brief, hosts)
+    lead_speaker = "a" if lead_instruction.startswith(f"Lead Host: {hosts[0]}") else "b"
+    co_speaker = "b" if lead_speaker == "a" else "a"
+    prev_title = _clean((previous_story or {}).get("title") or (previous_story or {}).get("headline") or "")
+    if brief["rank"] <= 1 and not prev_title:
+        transition_instruction = (
+            "Transition: This is the first story in the section. Open directly into the story hook with no greeting, "
+            "no show intro, and no 'Next up'."
+        )
+    elif prev_title:
+        transition_instruction = (
+            f"Transition: The previous story in this section was '{prev_title[:90]}'. "
+            "Begin Turn 1 with a subtle thematic link, a brief reaction pivot, or a natural conversational shift "
+            "('Speaking of money...', 'On a very different note...', 'Meanwhile,'). Do NOT overuse 'Next up' or 'Moving on'."
+        )
+    else:
+        transition_instruction = (
+            "Transition: Begin Turn 1 with a natural conversational pivot into this story without repeating 'Next up' or 'Moving on'."
+        )
+
     sys_prompt = STORY_DIALOGUE_PROMPT.format(
         a=hosts[0],
         b=hosts[1],
         source=brief["source"],
         tag_instruction=tag_instruction,
+        lead_instruction=lead_instruction,
+        format_instruction=fmt_desc,
+        transition_instruction=transition_instruction,
+        lead_speaker=lead_speaker,
+        co_speaker=co_speaker,
     )
     user_payload = {
         "section": brief["section_title"],
+        "rank": brief["rank"],
+        "story_format": fmt_key,
         "tone": brief["tone"],
         "source": brief["source"],
         "headline": brief["headline"],
         "facts": brief["facts"],
     }
+    if prev_title:
+        user_payload["previous_story_headline"] = prev_title[:120]
 
     own = client is None
     client = client or httpx.Client(timeout=60)
@@ -903,7 +1107,7 @@ def generate_story_dialogue(
             for attempt in range(2):
                 body = {
                     "model": model,
-                    "temperature": 0.45 if attempt == 0 else 0.25,
+                    "temperature": 0.55 if attempt == 0 else 0.30,
                     "max_tokens": 1100,
                     "response_format": {"type": "json_object"},
                     **({"reasoning_effort": "low"} if model.startswith("openai/gpt-oss") else {}),
@@ -919,7 +1123,7 @@ def generate_story_dialogue(
                         break
                     resp.raise_for_status()
                     content = resp.json()["choices"][0]["message"]["content"]
-                    data = json.loads(content)
+                    data = parse_story_dialogue_payload(content, hosts)
                     if not isinstance(data, dict):
                         raise ValueError("response is not a JSON object")
                     turns = validate_story_dialogue(data, brief, hosts)
@@ -929,8 +1133,8 @@ def generate_story_dialogue(
                             messages.append({
                                 "role": "user",
                                 "content": (
-                                    "Repair the JSON: ensure 4 to 5 turns alternating between 'a' and 'b', "
-                                    "8 to 26 words per turn, no dashes or special characters, and valid fact_refs."
+                                    "Repair the JSON: ensure 2 to 6 turns with both 'a' and 'b' participating, "
+                                    "at least 20 words total across the story, no dashes or special characters, and valid fact_refs."
                                 ),
                             })
                             continue
@@ -943,6 +1147,7 @@ def generate_story_dialogue(
                         summary=summary,
                         turns=turns,
                         writer=model,
+                        story_format=fmt_key,
                     )
                     if cache_path:
                         try:
@@ -954,6 +1159,7 @@ def generate_story_dialogue(
                                         "headline": result.headline,
                                         "summary": result.summary,
                                         "writer": result.writer,
+                                        "story_format": result.story_format,
                                         "turns": [
                                             {
                                                 "speaker": "a" if t.speaker == 0 else "b",
