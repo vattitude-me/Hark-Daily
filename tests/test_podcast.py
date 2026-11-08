@@ -421,3 +421,109 @@ def test_format_dialogue_transcript_normalizes_textual_shorthand():
     script = podcast.format_dialogue_transcript(turns, HOSTS)
     assert "[Matthew] They secured 5 billion dollars in funding." in script
     assert "[Kelly] That represents 15 percent growth in the third quarter." in script
+
+
+def test_validate_story_dialogue_allows_short_human_reactions_and_quick_hits():
+    brief = podcast.build_story_brief(SAMPLE_STORY)
+    # Format 1: Explainer + 1-word human reaction ("Huh.") + continuation
+    explainer_raw = {
+        "turns": [
+            {"speaker": "b", "purpose": "lead", "fact_refs": ["F1"], "text": "A research lab just dropped a 32 billion parameter open model that actually runs on a standard workstation."},
+            {"speaker": "a", "purpose": "reaction", "fact_refs": ["F1"], "text": "Huh."},
+            {"speaker": "b", "purpose": "context", "fact_refs": ["F2", "F3"], "text": "And they included the full training recipe under an Apache 2.0 license, matching much bigger proprietary models on coding."},
+            {"speaker": "a", "purpose": "takeaway", "fact_refs": ["F3"], "text": "That is a real shift for smaller teams who want to run everything locally."},
+        ]
+    }
+    turns = podcast.validate_story_dialogue(explainer_raw, brief)
+    assert turns is not None and len(turns) == 4
+    assert turns[1].text == "Huh."
+    assert turns[1].pause_after == 0.28
+
+    # Format 4: Quick hit (2 turns total)
+    quick_hit_raw = {
+        "turns": [
+            {"speaker": "b", "purpose": "lead", "fact_refs": ["F1", "F2"], "text": "Researchers just released a 32 billion parameter open model with full training recipes under an Apache license."},
+            {"speaker": "a", "purpose": "takeaway", "fact_refs": ["F3"], "text": "And independent benchmarks show it matching much larger proprietary systems on coding while running on a single workstation."},
+        ]
+    }
+    qh_turns = podcast.validate_story_dialogue(quick_hit_raw, brief)
+    assert qh_turns is not None and len(qh_turns) == 2
+
+
+def test_select_story_format_rotates_and_never_repeats_consecutive():
+    prev = None
+    chosen_formats = []
+    for rank in range(1, 7):
+        fmt, desc = podcast.select_story_format("ai", rank, sober=False, previous_format=prev)
+        assert fmt in podcast.STORY_FORMATS
+        assert desc
+        if prev is not None:
+            assert fmt != prev, f"Rank {rank} repeated previous format {prev}"
+        chosen_formats.append(fmt)
+        prev = fmt
+    assert len(set(chosen_formats)) == 6
+
+
+def test_select_story_lead_assigns_matthew_to_heavy_and_kelly_to_light():
+    heavy_brief = podcast.build_story_brief({**SAMPLE_STORY, "id": "pol-1", "section": "politics"})
+    markets_brief = podcast.build_story_brief({**SAMPLE_STORY, "id": "mkt-1", "section": "markets"})
+    light_brief = podcast.build_story_brief({**SAMPLE_STORY, "id": "ent-2", "section": "entertainment"})
+    assert "Matthew ('a'" in podcast.select_story_lead(heavy_brief, HOSTS) or "Kelly ('b') opens this one in a rare serious role reversal" in podcast.select_story_lead(heavy_brief, HOSTS)
+    assert "Matthew" in podcast.select_story_lead(markets_brief, HOSTS)
+    assert "Kelly" in podcast.select_story_lead(light_brief, HOSTS)
+
+
+def test_parse_story_dialogue_payload_supports_script_lines_and_json():
+    brief = podcast.build_story_brief(SAMPLE_STORY)
+    script_lines = (
+        "KELLY: A new 32 billion parameter open model just landed that runs on a single workstation.\n"
+        "MATTHEW: Wait, really?\n"
+        "KELLY: Yes, with full training recipes and an Apache license, matching big proprietary systems on coding.\n"
+        "MATTHEW: That gives smaller engineering teams a serious local option.\n"
+    )
+    turns = podcast.validate_story_dialogue(script_lines, brief, HOSTS)
+    assert turns is not None and len(turns) == 4
+    assert [t.speaker for t in turns] == [1, 0, 1, 0]
+
+
+def test_yesterdays_opening_is_fetched_and_passed_to_ai(cfg):
+    store = FakeStore()
+    store.insert("podcast_clips", {
+        "date": "2026-10-26",
+        "hosts": "matthew_reference+kelly_reference",
+        "clip_key": "pod_open_1",
+        "text": "This is Hark Daily. Yesterday's tagline.",
+        "duration": 8.0,
+        "audio_path": "podcast/2026-10-26/pod_open_1.mp3",
+        "writer": "m1",
+    })
+    yest = podcast.fetch_yesterdays_opening(store, "2026-10-27", "matthew_reference+kelly_reference")
+    assert yest == "This is Hark Daily. Yesterday's tagline."
+
+    captured_payloads = []
+
+    def handler(req):
+        user_msg = json.loads(req.content)["messages"][1]["content"]
+        captured_payloads.append(json.loads(user_msg))
+        return _ok(_ai_json())(req)
+
+    c = dataclasses.replace(cfg, groq_api_key="k", groq_models=("m1",))
+    podcast.write_pieces(
+        c, podcast.plan_pieces(SCRIPTS), HOSTS, "2026-10-27",
+        client=_client(handler), yesterdays_opening=yest,
+    )
+    assert captured_payloads and captured_payloads[0].get("yesterdays_opening") == yest
+
+
+def test_expanded_banned_phrases_and_hark_daily_brand_templates():
+    assert "strap in" not in podcast.clean_slop("Strap in, here are the numbers.").lower()
+    assert "great point" not in podcast.clean_slop("That's a great point, Matthew.").lower()
+    assert "welcome back everyone" not in podcast.clean_slop("Welcome back everyone to the show.").lower()
+    assert "fascinating" not in podcast.clean_slop("That is fascinating news.").lower()
+    for tmpl in podcast.OPEN_TEMPLATES:
+        joined = " ".join(t for _, t in tmpl)
+        assert "Hark Daily" in joined
+        assert "Welcome back everyone" not in joined
+    for tmpl in podcast.CLOSE_TEMPLATES:
+        joined = " ".join(t for _, t in tmpl)
+        assert "Hark Daily" in joined
