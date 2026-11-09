@@ -29,9 +29,23 @@ export const posKeyFor = (b) => {
   return b?.mode && b.mode !== 'full' ? `pos-${b?.date}-${b?.mode}-${ed}` : `pos-${b?.date}-${ed}`;
 };
 
+/** High-quality default SVG artwork per category when article images are missing or blocked. */
+export function getDefaultCover(section = '') {
+  const s = String(section || '').toLowerCase();
+  if (s.includes('sport') || s.includes('cricket')) return '/icons/covers/sports.svg';
+  if (s.includes('tech')) return '/icons/covers/tech.svg';
+  if (s.includes('market')) return '/icons/covers/markets.svg';
+  if (s.includes('politi')) return '/icons/covers/politics.svg';
+  if (s.includes('entertain')) return '/icons/covers/entertainment.svg';
+  if (s.includes('ai')) return '/icons/covers/ai.svg';
+  if (s.includes('scien')) return '/icons/covers/science.svg';
+  return '/icons/covers/default.svg';
+}
+
 export class Player extends EventTarget {
   constructor({ audio, preloader } = {}) {
     super();
+    this.failedImages = new Set();
     // Authoritative single audio element for playback to ensure stable mobile AudioFocus,
     // lock-screen MediaSession ownership, and continuous background play.
     // Secondary element audioB is used strictly as a silent cache preloader.
@@ -137,7 +151,14 @@ export class Player extends EventTarget {
     const readerHeroImg = document.getElementById('readerHeroImage');
     if (readerHeroImg) {
       readerHeroImg.addEventListener('error', () => {
-        readerHeroImg.src = '/icons/icon-512.png';
+        const failed = readerHeroImg.dataset.src;
+        if (failed && !failed.startsWith('/icons/covers/')) {
+          this.failedImages.add(failed);
+        }
+        const currentSec = this.currentStory()?.section || this.currentSection || 'top';
+        const fallback = getDefaultCover(currentSec);
+        readerHeroImg.dataset.src = fallback;
+        readerHeroImg.src = fallback;
       });
     }
 
@@ -153,8 +174,22 @@ export class Player extends EventTarget {
     const cleanCoverImg = document.getElementById('playerCoverImg');
     if (cleanCoverImg) {
       cleanCoverImg.addEventListener('error', () => {
-        cleanCoverImg.classList.add('hidden');
-        document.getElementById('playerCoverFallback')?.classList.remove('hidden');
+        const failed = cleanCoverImg.dataset.src;
+        if (failed && !failed.startsWith('/icons/covers/')) {
+          this.failedImages.add(failed);
+        }
+        const currentSec = this.currentStory()?.section || this.currentSection || 'top';
+        const fallback = getDefaultCover(currentSec);
+        cleanCoverImg.dataset.src = fallback;
+        cleanCoverImg.src = fallback;
+        cleanCoverImg.classList.remove('hidden');
+        document.getElementById('playerCoverFallback')?.classList.add('hidden');
+        const ambientBackdrop = document.getElementById('ambientStoryBackdrop');
+        if (ambientBackdrop && ambientBackdrop.dataset.bg !== fallback) {
+          ambientBackdrop.dataset.bg = fallback;
+          ambientBackdrop.style.backgroundImage = `url("${fallback}")`;
+          ambientBackdrop.classList.add('has-image');
+        }
       });
       cleanCoverImg.addEventListener('load', () => {
         cleanCoverImg.classList.remove('hidden');
@@ -500,6 +535,10 @@ export class Player extends EventTarget {
 
   storyFor(chapter) {
     return this.briefing?.stories?.find((s) => s.id === chapter?.id);
+  }
+
+  currentStory(t = this.position) {
+    return this.storyFor(this.currentChapter(t));
   }
 
   sectionTitle(chapter) {
@@ -1004,7 +1043,7 @@ export class Player extends EventTarget {
 
     // Cover image determination:
     // During intro chat, host banter, or outro sign-off, show the official podcast logo.
-    // When a story is playing, show the story's editorial image.
+    // When a story is playing, show the story's editorial image (or category default SVG fallback).
     const isIntroOrBanter = !story && ch && (
       (typeof ch.id === 'string' && (
         ch.id.startsWith('pod_open') ||
@@ -1018,20 +1057,30 @@ export class Player extends EventTarget {
     if (story?.image) {
       img = story.image;
     } else if (isIntroOrBanter) {
-      img = '/icons/icon-512.png';
+      img = '/icons/covers/default.svg';
     } else {
       const upNext = this.chapters.find((c) => c.kind === 'story' && c.start >= t - 0.01);
-      img = (story || this.storyFor(upNext))?.image || '/icons/icon-512.png';
+      img = (story || this.storyFor(upNext))?.image || null;
     }
-    if (img && el.cover && el.cover.dataset.src !== img) { el.cover.dataset.src = img; el.cover.src = img; el.cover.classList.remove('hidden'); }
-    else if (!img && el.cover) el.cover.classList.add('hidden');
+
+    const currentSec = story?.section || section || this.currentSection || 'top';
+    const fallbackCover = getDefaultCover(currentSec);
+    const effectiveImg = (img && !this.failedImages.has(img)) ? img : fallbackCover;
+
+    if (effectiveImg && el.cover && el.cover.dataset.src !== effectiveImg) {
+      el.cover.dataset.src = effectiveImg;
+      el.cover.src = effectiveImg;
+      el.cover.classList.remove('hidden');
+    } else if (!effectiveImg && el.cover) {
+      el.cover.classList.add('hidden');
+    }
 
     // Update Big Picture in the story reader
     const readerImg = document.getElementById('readerHeroImage');
     if (readerImg) {
-      if (img && readerImg.dataset.src !== img) {
-        readerImg.dataset.src = img;
-        readerImg.src = img;
+      if (effectiveImg && readerImg.dataset.src !== effectiveImg) {
+        readerImg.dataset.src = effectiveImg;
+        readerImg.src = effectiveImg;
       }
     }
     const readerBadgeText = document.getElementById('readerImageBadgeText');
@@ -1050,25 +1099,19 @@ export class Player extends EventTarget {
     const cleanCoverImg = document.getElementById('playerCoverImg');
     const cleanCoverFallback = document.getElementById('playerCoverFallback');
     const ambientBackdrop = document.getElementById('ambientStoryBackdrop');
-    if (img && cleanCoverImg) {
-      if (cleanCoverImg.dataset.src !== img) {
-        cleanCoverImg.dataset.src = img;
-        cleanCoverImg.src = img;
+    if (cleanCoverImg) {
+      if (cleanCoverImg.dataset.src !== effectiveImg) {
+        cleanCoverImg.dataset.src = effectiveImg;
+        cleanCoverImg.src = effectiveImg;
       }
       cleanCoverImg.classList.remove('hidden');
       cleanCoverFallback?.classList.add('hidden');
-      if (ambientBackdrop && ambientBackdrop.dataset.bg !== img) {
-        ambientBackdrop.dataset.bg = img;
-        ambientBackdrop.style.backgroundImage = `url("${img}")`;
+    }
+    if (ambientBackdrop) {
+      if (ambientBackdrop.dataset.bg !== effectiveImg) {
+        ambientBackdrop.dataset.bg = effectiveImg;
+        ambientBackdrop.style.backgroundImage = `url("${effectiveImg}")`;
         ambientBackdrop.classList.add('has-image');
-      }
-    } else if (cleanCoverImg) {
-      cleanCoverImg.classList.add('hidden');
-      cleanCoverFallback?.classList.remove('hidden');
-      if (ambientBackdrop && ambientBackdrop.dataset.bg) {
-        ambientBackdrop.dataset.bg = '';
-        ambientBackdrop.style.backgroundImage = '';
-        ambientBackdrop.classList.remove('has-image');
       }
     }
 
@@ -1131,12 +1174,12 @@ export class Player extends EventTarget {
     if (el.miniTitle) el.miniTitle.textContent = story?.headline || ch?.title || b.stories?.[0]?.headline || b.title;
     if (el.miniSub) el.miniSub.textContent = [section, `${fmtTime(t)} / ${fmtTime(dur)}`].filter(Boolean).join(' · ');
     if (el.miniBar) el.miniBar.style.width = `${frac * 100}%`;
-    if (img && el.miniCover && el.miniCover.dataset.src !== img) {
-      el.miniCover.dataset.src = img;
-      el.miniCover.src = img;
+    if (effectiveImg && el.miniCover && el.miniCover.dataset.src !== effectiveImg) {
+      el.miniCover.dataset.src = effectiveImg;
+      el.miniCover.src = effectiveImg;
       el.miniCover.classList.remove('hidden');
       el.miniEq?.classList.add('hidden');
-    } else if (!img && el.miniCover) {
+    } else if (!effectiveImg && el.miniCover) {
       el.miniCover.classList.add('hidden');
       el.miniEq?.classList.remove('hidden');
     }
@@ -1158,7 +1201,10 @@ export class Player extends EventTarget {
       } catch {}
     }
     if (!('mediaSession' in navigator)) return;
-    const art = story?.image ? [{ src: story.image, sizes: '512x512' }] : [];
+    const coverSrc = (story?.image && !this.failedImages.has(story.image))
+      ? story.image
+      : getDefaultCover(story?.section || this.currentSection);
+    const art = [{ src: coverSrc, sizes: '512x512' }];
     navigator.mediaSession.metadata = new MediaMetadata({
       title: ch?.title || story?.headline || this.briefing?.title || 'Hark Daily',
       artist: 'Hark Daily',
