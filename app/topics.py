@@ -165,8 +165,38 @@ def plain_title(title: str | None) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", (title or "").lower()))
 
 
+_TOPIC_STOP = {
+    "the", "and", "for", "with", "from", "that", "this", "into", "over", "after",
+    "before", "under", "about", "amid", "says", "said", "will", "could", "would",
+    "should", "what", "when", "where", "why", "how", "who", "new", "more", "most",
+    "some", "here", "there", "their", "they", "them", "his", "her", "its", "our",
+    "has", "have", "had", "was", "were", "are", "been", "being", "can", "may",
+    "might", "set", "drop", "hits", "hit", "takes", "take", "gets", "get", "make",
+    "makes", "full", "text", "report", "reports", "news", "story", "stories", "ceo",
+}
+
+
+def _subject_tokens(item: Item) -> set[str]:
+    """Substantive subject tokens in a headline + summary for intra-section topic clustering."""
+    corpus = f"{item.title or ''} {(item.summary or '')[:250]}".lower()
+    words = re.findall(r"[a-z0-9]+", corpus)
+    out: set[str] = set()
+    for w in words:
+        if len(w) < 4 or w in _TOPIC_STOP:
+            continue
+        if w in ("chinese", "china", "beijing"):
+            w = "china"
+        elif w in ("spying", "espionage"):
+            w = "espionage"
+        elif len(w) > 4 and w.endswith("s") and not w.endswith("ss"):
+            w = w[:-1]
+        out.add(w)
+    return out
+
+
 def pick_unique(picked: dict[str, list[Item]],
-                per_section: int = DEFAULT_PER_SECTION) -> dict[str, list[Item]]:
+                per_section: int = DEFAULT_PER_SECTION,
+                max_same_topic: int = 2) -> dict[str, list[Item]]:
     """Each story is told once, in the first section that carries it.
 
     A provider can run the same article in more than one feed, so without this the day's brief can
@@ -174,13 +204,38 @@ def pick_unique(picked: dict[str, list[Item]],
     their reading order, so the earlier one wins and the later one moves down its list. Two entries
     count as the same story when their links agree once query strings are dropped, or when their
     headlines do.
+
+    Within a single section, caps the number of stories sharing the same event cluster (>= 2 shared
+    substantive subject words, e.g. 'nvidia' + 'huang' or 'nvidia' + 'china') at `max_same_topic`
+    whenever the feed has other distinct stories available to fill the remaining slots.
     """
     urls: set[str] = set()
     titles: set[str] = set()
     out: dict[str, list[Item]] = {}
     for key, items in picked.items():
         chosen: list[Item] = []
+        deferred: list[Item] = []
+        chosen_tokens: list[set[str]] = []
         for item in items:
+            url, title = bare_url(item.url), plain_title(item.title)
+            if url in urls or (title and title in titles):
+                continue
+            toks = _subject_tokens(item)
+            same_cluster_count = sum(1 for prev in chosen_tokens if len(toks & prev) >= 2)
+            if same_cluster_count >= max_same_topic:
+                deferred.append(item)
+                continue
+            urls.add(url)
+            if title:
+                titles.add(title)
+            chosen.append(item)
+            chosen_tokens.append(toks)
+            if len(chosen) == per_section:
+                break
+        # If the feed did not have enough distinct stories, backfill from deferred items
+        for item in deferred:
+            if len(chosen) >= per_section:
+                break
             url, title = bare_url(item.url), plain_title(item.title)
             if url in urls or (title and title in titles):
                 continue
@@ -188,8 +243,6 @@ def pick_unique(picked: dict[str, list[Item]],
             if title:
                 titles.add(title)
             chosen.append(item)
-            if len(chosen) == per_section:
-                break
         out[key] = chosen
     return out
 
