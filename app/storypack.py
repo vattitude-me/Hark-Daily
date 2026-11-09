@@ -539,8 +539,9 @@ async def synthesise(client: httpx.AsyncClient, base: str, text: str, voice: str
                      top_p: float | None = None,
                      repetition_penalty: float | None = None,
                      exaggeration: float | None = None,
-                     beat: float | None = None) -> tuple[bytes, float]:
-    """One MP3 from the voice service, plus its duration (from the response header).
+                     beat: float | None = None,
+                     fmt: str = "mp3") -> tuple[bytes, float]:
+    """One audio clip (MP3 or WAV) from the voice service, plus its duration (from the response header).
 
     Transport errors and gateway-style 5xx are retried with back-off. A service that stays
     unreachable raises VoiceServiceDown, so the run stops at once and the GPU VM is shut down
@@ -572,7 +573,7 @@ async def synthesise(client: httpx.AsyncClient, base: str, text: str, voice: str
     down = False
     for attempt in range(1, attempts + 1):
         try:
-            resp = await client.post(f"{base}/synthesize", params={"format": "mp3"},
+            resp = await client.post(f"{base}/synthesize", params={"format": fmt},
                                      json=payload)
         except httpx.HTTPError as exc:
             last, down = exc, True
@@ -998,13 +999,15 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
                         previous_format=prev_fmt,
                     )
                     prev_format_by_sec[sec_key] = dialogue.story_format
-                    audio, duration, _ = await podcast.synthesise_story_dialogue(
+                    audio, duration, marks = await podcast.synthesise_story_dialogue(
                         client, base, dialogue, duo_voices, cache_dir=getattr(cfg, "cache_dir", None)
                     )
                     spoken_script = podcast.format_dialogue_transcript(dialogue.turns, duo_names)
+                    marks_payload = [{"start": round(m[0], 3), "end": round(m[1], 3)} for m in marks]
                 else:
                     audio, duration = await synthesise(client, base, story["script"], voice)
                     spoken_script = story["script"]
+                    marks_payload = None
                 content_hash = hashlib.sha256(audio).hexdigest()[:8]
                 voice_slug = voice.replace("+", "__")
                 path = f"stories/{day}/{story['section']}-{story['rank']}-{voice_slug}-{content_hash}.mp3"
@@ -1015,6 +1018,8 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
                     "script": spoken_script,
                     "duration": round(duration, 3), "audio_path": path,
                 }
+                if marks_payload:
+                    row["marks"] = marks_payload
                 # Upload audio file in the background so storage upload overlaps with GPU synthesis.
                 # Writing the story_audio rows is deferred until all stories for this voice finish,
                 # guaranteeing live listeners never experience mismatched cards and audio.

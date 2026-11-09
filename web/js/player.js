@@ -174,21 +174,26 @@ export class Player extends EventTarget {
     const cleanCoverImg = document.getElementById('playerCoverImg');
     if (cleanCoverImg) {
       cleanCoverImg.addEventListener('error', () => {
-        const failed = cleanCoverImg.dataset.src;
+        const failed = cleanCoverImg.dataset.src || cleanCoverImg.src;
+        const fallbackCard = document.getElementById('playerCoverFallback');
         if (failed && !failed.startsWith('/icons/covers/')) {
           this.failedImages.add(failed);
-        }
-        const currentSec = this.currentStory()?.section || this.currentSection || 'top';
-        const fallback = getDefaultCover(currentSec);
-        cleanCoverImg.dataset.src = fallback;
-        cleanCoverImg.src = fallback;
-        cleanCoverImg.classList.remove('hidden');
-        document.getElementById('playerCoverFallback')?.classList.add('hidden');
-        const ambientBackdrop = document.getElementById('ambientStoryBackdrop');
-        if (ambientBackdrop && ambientBackdrop.dataset.bg !== fallback) {
-          ambientBackdrop.dataset.bg = fallback;
-          ambientBackdrop.style.backgroundImage = `url("${fallback}")`;
-          ambientBackdrop.classList.add('has-image');
+          const currentSec = this.currentStory()?.section || this.currentSection || 'top';
+          const fallback = getDefaultCover(currentSec);
+          cleanCoverImg.dataset.src = fallback;
+          cleanCoverImg.src = fallback;
+          cleanCoverImg.classList.remove('hidden');
+          fallbackCard?.classList.add('hidden');
+          const ambientBackdrop = document.getElementById('ambientStoryBackdrop');
+          if (ambientBackdrop && ambientBackdrop.dataset.bg !== fallback) {
+            ambientBackdrop.dataset.bg = fallback;
+            ambientBackdrop.style.backgroundImage = `url("${fallback}")`;
+            ambientBackdrop.classList.add('has-image');
+          }
+        } else {
+          // If the SVG fallback itself failed to load, gracefully hide the broken img and reveal gradient orb
+          cleanCoverImg.classList.add('hidden');
+          fallbackCard?.classList.remove('hidden');
         }
       });
       cleanCoverImg.addEventListener('load', () => {
@@ -918,14 +923,26 @@ export class Player extends EventTarget {
 
           const dialogueTurns = parseDialogueTurns(text);
           if (dialogueTurns && dialogueTurns.length) {
-            const weights = dialogueTurns.map((turn) => Math.max(1, turn.text.length));
-            const totalWeight = weights.reduce((a, b) => a + b, 0);
-            let running = 0;
-            const cumFractions = weights.map((w) => {
-              const start = running / totalWeight;
-              running += w;
-              return { start, end: running / totalWeight };
-            });
+            let cumFractions;
+            const chDur = Math.max(0.1, (ch?.end || dur) - (ch?.start || 0));
+            if (Array.isArray(story?.marks) && story.marks.length === dialogueTurns.length) {
+              // Real millisecond turn timestamps from voice engine (Item T1)
+              cumFractions = story.marks.map((m) => ({
+                start: Math.max(0, Math.min(1, (Number(m.start) || 0) / chDur)),
+                end: Math.max(0, Math.min(1, (Number(m.end) || 0) / chDur)),
+              }));
+            } else {
+              // Pause-weighted teleprompter estimate fallback for legacy stories (Item T2)
+              const PAUSE_CHAR_EQUIV = 6.0;
+              const weights = dialogueTurns.map((turn) => Math.max(1, turn.text.length + PAUSE_CHAR_EQUIV));
+              const totalWeight = weights.reduce((a, b) => a + b, 0);
+              let running = 0;
+              cumFractions = weights.map((w) => {
+                const start = running / totalWeight;
+                running += w;
+                return { start, end: running / totalWeight };
+              });
+            }
 
             transText._storyData = { dialogueTurns, cumFractions };
             transText.replaceChildren(...dialogueTurns.map((turn, idx) => {

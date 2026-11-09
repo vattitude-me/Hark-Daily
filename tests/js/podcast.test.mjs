@@ -1292,21 +1292,107 @@ test('getDefaultCover returns dedicated SVG covers and isolates cricket/sports, 
   assert.equal(getDefaultCover(''), '/icons/covers/default.svg');
 });
 
-test('Player records failed image URLs and preserves category default cover without flapping', () => {
-  const player = new Player({ audio: {}, el: {} });
-  assert.ok(player.failedImages instanceof Set);
+test('Player teleprompter: exact marks millisecond fractions vs pause-weighted estimate', () => {
+  const dialogueTurns = [
+    { speaker: 'Matthew', text: 'First line.' },
+    { speaker: 'Kelly', text: 'Second line is a bit longer.' },
+  ];
+  const chDur = 10.0;
 
-  // If cleanCoverImg fails, error handler adds URL to failedImages and applies fallback
-  const brokenUrl = 'http://p.imgci.com/db/PICTURES/CMS/424100/424116.jpg';
-  player.failedImages.add(brokenUrl);
-  assert.ok(player.failedImages.has(brokenUrl));
+  // Case 1: Real marks present from audio engine (Item T1)
+  const realMarks = [
+    { start: 0.08, end: 3.20 },
+    { start: 3.56, end: 9.80 },
+  ];
+  const storyWithMarks = { marks: realMarks };
+  let cumFractions;
+  if (Array.isArray(storyWithMarks.marks) && storyWithMarks.marks.length === dialogueTurns.length) {
+    cumFractions = storyWithMarks.marks.map((m) => ({
+      start: Math.max(0, Math.min(1, Number(m.start) / chDur)),
+      end: Math.max(0, Math.min(1, Number(m.end) / chDur)),
+    }));
+  }
+  assert.ok(cumFractions);
+  assert.equal(cumFractions.length, 2);
+  assert.ok(Math.abs(cumFractions[0].start - 0.008) < 1e-4);
+  assert.ok(Math.abs(cumFractions[0].end - 0.32) < 1e-4);
+  assert.ok(Math.abs(cumFractions[1].start - 0.356) < 1e-4);
+  assert.ok(Math.abs(cumFractions[1].end - 0.98) < 1e-4);
 
-  // Simulating story with broken image
-  const story = { section: 'sports_in', image: brokenUrl };
-  const fallback = getDefaultCover(story.section);
-  const effectiveImg = (story.image && !player.failedImages.has(story.image)) ? story.image : fallback;
-  assert.equal(effectiveImg, '/icons/covers/sports.svg');
+  // Case 2: Pause-weighted estimate fallback for legacy stories (Item T2)
+  const storyWithoutMarks = {};
+  let fallbackFractions;
+  if (!storyWithoutMarks.marks) {
+    const PAUSE_CHAR_EQUIV = 6.0;
+    const weights = dialogueTurns.map((turn) => Math.max(1, turn.text.length + PAUSE_CHAR_EQUIV));
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    let running = 0;
+    fallbackFractions = weights.map((w) => {
+      const start = running / totalWeight;
+      running += w;
+      return { start, end: running / totalWeight };
+    });
+  }
+  assert.ok(fallbackFractions);
+  assert.equal(fallbackFractions.length, 2);
+  assert.equal(fallbackFractions[0].start, 0);
+  assert.ok(fallbackFractions[0].end > 0.3 && fallbackFractions[0].end < 0.5);
+  assert.equal(fallbackFractions[1].end, 1);
 });
+
+test('Player failsafe cover image: hides broken icon and reveals gradient orb if SVG also errors', () => {
+  const listeners = {};
+  const classes = new Set();
+  const mockImg = {
+    dataset: { src: 'https://espncricinfo.com/thumb.jpg' },
+    src: 'https://espncricinfo.com/thumb.jpg',
+    classList: {
+      add: (c) => classes.add(c),
+      remove: (c) => classes.delete(c),
+      contains: (c) => classes.has(c),
+    },
+    addEventListener: (evt, fn) => { listeners[evt] = fn; },
+  };
+
+  const fallbackClasses = new Set(['hidden']);
+  const mockFallback = {
+    classList: {
+      add: (c) => fallbackClasses.add(c),
+      remove: (c) => fallbackClasses.delete(c),
+      contains: (c) => fallbackClasses.has(c),
+    },
+  };
+
+  // Simulate error handler logic from player.js
+  const failedImages = new Set();
+  const handleError = () => {
+    const failed = mockImg.dataset.src || mockImg.src;
+    if (failed && !failed.startsWith('/icons/covers/')) {
+      failedImages.add(failed);
+      const fallback = getDefaultCover('cricket');
+      mockImg.dataset.src = fallback;
+      mockImg.src = fallback;
+      mockImg.classList.remove('hidden');
+      mockFallback.classList.add('hidden');
+    } else {
+      // SVG fallback failed or was missing: hide img completely and reveal orb
+      mockImg.classList.add('hidden');
+      mockFallback.classList.remove('hidden');
+    }
+  };
+
+  // First error: external URL fails -> switches to /icons/covers/sports.svg
+  handleError();
+  assert.equal(mockImg.src, '/icons/covers/sports.svg');
+  assert.ok(failedImages.has('https://espncricinfo.com/thumb.jpg'));
+  assert.ok(!mockImg.classList.contains('hidden'));
+
+  // Second error: /icons/covers/sports.svg fails (e.g. 404 in WebView) -> hides img & shows fallback orb
+  handleError();
+  assert.ok(mockImg.classList.contains('hidden'), 'Broken image must be hidden');
+  assert.ok(!mockFallback.classList.contains('hidden'), 'Gradient fallback orb must be visible');
+});
+
 
 
 

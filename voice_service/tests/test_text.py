@@ -116,4 +116,17 @@ def test_profanity_is_sanitized_to_bleep():
     assert "[bleep]" in items[0].text
 
 
+def test_long_run_on_sentence_is_split_on_clause_boundaries():
+    # 26 words in a single sentence without periods, but with a comma and coordinating conjunction
+    text = (
+        "The company announced a third quarter revenue surge of twenty percent today, "
+        "while expanding its data center operations across three new international tech markets."
+    )
+    items = parse(text)
+    say_items = [i for i in items if isinstance(i, Say)]
+    assert len(say_items) == 2
+    assert all(len(s.text.split()) <= 20 for s in say_items)
+
+
+
 

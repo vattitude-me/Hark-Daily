@@ -706,6 +706,7 @@ export function buildBriefing(rows, settings, {
       isSharedBonus: Boolean(storyRow.isSharedBonus),
       date: storyRow.date || date,
       script: storyRow.script || targetScript || storyRow.summary || '',
+      marks: storyRow.marks || null,
     });
     chapters.push({ id, key, kind: 'story', title: storyRow.title, start, end, section: storyRow.section });
     clips.push({

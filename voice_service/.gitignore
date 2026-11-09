@@ -35,3 +35,4 @@ data/*
 !data/voices/
 !data/voices/*.wav
 !data/voices/*.pt
+!data/lexicon.json

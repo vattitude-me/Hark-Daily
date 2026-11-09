@@ -139,7 +139,7 @@ def test_garbage_json_uses_templates(cfg):
 def voice(monkeypatch):
     calls = []
 
-    async def fake_synth(client, base, text, voice, attempts=3):
+    async def fake_synth(client, base, text, voice, attempts=3, *args, **kwargs):
         calls.append((voice, text))
         if "FAIL" in text:
             raise RuntimeError("tts refused")
@@ -537,3 +537,163 @@ def test_expanded_banned_phrases_and_hark_daily_brand_templates():
     for tmpl in podcast.CLOSE_TEMPLATES:
         joined = " ".join(t for _, t in tmpl)
         assert "Hark Daily" in joined
+
+
+# ------------------------------------------------------------------ Unified Improvement Plan Tests
+def test_solo_format_validation_and_fallback():
+    brief_matthew = {
+        "story_id": "test-solo-1",
+        "section": "markets",
+        "rank": 1,
+        "sober": True,
+        "story_format": "solo_matthew",
+        "headline": "Markets hit new record high today.",
+        "facts": [{"id": "F1", "fact": "Markets hit new record high today."},
+                  {"id": "F2", "fact": "Tech stocks led the rally across global exchanges."}],
+    }
+    # Solo Matthew: speaker 0 only (needs >= 18 words total)
+    turns_matthew = [
+        {"speaker": "a", "purpose": "lead", "fact_refs": ["F1"], "text": "Markets closed at fresh record highs today following strong tech sector earnings."},
+        {"speaker": "a", "purpose": "takeaway", "fact_refs": ["F2"], "text": "Tech shares drove the broad gains across North American exchanges."},
+    ]
+    res_m = podcast.validate_story_dialogue({"turns": turns_matthew}, brief_matthew, HOSTS)
+    assert res_m is not None
+    assert len(res_m) == 2
+    assert all(t.speaker == 0 for t in res_m)
+
+    # Solo Matthew rejects speaker 1 (Kelly)
+    turns_bad = [
+        {"speaker": "b", "purpose": "lead", "fact_refs": ["F1"], "text": "Markets closed at fresh record highs today following strong tech sector earnings."},
+    ]
+    assert podcast.validate_story_dialogue({"turns": turns_bad}, brief_matthew, HOSTS) is None
+
+    # Solo Kelly: speaker 1 only (needs >= 18 words total)
+    brief_kelly = dict(brief_matthew, story_format="solo_kelly")
+    turns_kelly = [
+        {"speaker": "b", "purpose": "lead", "fact_refs": ["F1"], "text": "Markets closed at fresh record highs today following strong tech sector earnings."},
+        {"speaker": "b", "purpose": "takeaway", "fact_refs": ["F2"], "text": "Tech shares drove the broad gains across North American exchanges."},
+    ]
+    res_k = podcast.validate_story_dialogue({"turns": turns_kelly}, brief_kelly, HOSTS)
+    assert res_k is not None
+    assert len(res_k) == 2
+    assert all(t.speaker == 1 for t in res_k)
+
+    # Fallback generates solo dialogue cleanly
+    fb_m = podcast.fallback_story_dialogue(
+        {"id": "s1", "section": "markets", "rank": 1, "headline": "Nifty surges", "summary": "Index reaches new high", "source": "Bloomberg"},
+        HOSTS,
+    )
+    assert len(fb_m.turns) >= 1
+    # Check fallback format logic
+
+
+def test_lead_takeaway_format_validation():
+    brief = {
+        "story_id": "test-2turn-1",
+        "section": "top",
+        "rank": 2,
+        "sober": False,
+        "story_format": "lead_takeaway",
+        "headline": "New battery tech doubles electric vehicle range.",
+        "facts": [{"id": "F1", "fact": "New battery tech doubles electric vehicle range."},
+                  {"id": "F2", "fact": "Mass production begins next spring."}],
+    }
+    turns = [
+        {"speaker": "b", "purpose": "lead", "fact_refs": ["F1"], "text": "Engineers just unveiled a new battery design that promises double the range."},
+        {"speaker": "a", "purpose": "takeaway", "fact_refs": ["F2"], "text": "Production begins next spring, so we will see commercial rollout soon."},
+    ]
+    res = podcast.validate_story_dialogue({"turns": turns}, brief, HOSTS)
+    assert res is not None
+    assert len(res) == 2
+    assert {t.speaker for t in res} == {0, 1}
+
+
+def test_sentence_length_ceiling_for_tts_pacing():
+    brief = {
+        "story_id": "test-len-1",
+        "section": "top",
+        "rank": 1,
+        "sober": False,
+        "story_format": "explainer_reactions",
+        "headline": "Headline.",
+        "facts": [{"id": "F1", "fact": "Headline."}],
+    }
+    # Turn with an individual sentence of 28 words (> 24 ceiling)
+    long_sentence = (
+        "This is an extremely long sentence that continues on and on without any punctuation or stopping "
+        "because someone wrote a massive run-on sentence that severely slows down the neural voice model."
+    )
+    assert len(long_sentence.split()) > 24
+    turns_bad = [
+        {"speaker": "a", "purpose": "lead", "fact_refs": ["F1"], "text": long_sentence},
+        {"speaker": "b", "purpose": "reaction", "fact_refs": ["F1"], "text": "Right."},
+    ]
+    assert podcast.validate_story_dialogue({"turns": turns_bad}, brief, HOSTS) is None
+
+    # Sentence under 24 words passes (needs >= 20 words across turns)
+    short_sentence = "This is a clean, punchy spoken lead sentence for neural text to speech."
+    turns_ok = [
+        {"speaker": "a", "purpose": "lead", "fact_refs": ["F1"], "text": short_sentence},
+        {"speaker": "b", "purpose": "reaction", "fact_refs": ["F1"], "text": "Right, that makes total sense and sounds very natural."},
+    ]
+    assert podcast.validate_story_dialogue({"turns": turns_ok}, brief, HOSTS) is not None
+
+
+def test_profanity_rejection_in_story_dialogue():
+    brief = {
+        "story_id": "test-profanity-1",
+        "section": "tech",
+        "rank": 1,
+        "sober": False,
+        "headline": "Music news.",
+        "facts": [{"id": "F1", "fact": "Band releases hardcore record."}],
+    }
+    turns_vulgar = [
+        {"speaker": "b", "purpose": "lead", "fact_refs": ["F1"], "text": "Have you heard the new album?"},
+        {"speaker": "a", "purpose": "reaction", "fact_refs": ["F1"], "text": "Who the fuck is going to beat that?"},
+    ]
+    assert podcast.validate_story_dialogue({"turns": turns_vulgar}, brief, HOSTS) is None
+
+
+def test_synthesise_story_dialogue_wav_and_pace_temp_honest_cache(tmp_path):
+    recorded_calls = []
+
+    async def mock_synth(client, base, text, voice, attempts=3, *, pace=None, temperature=None, fmt="mp3", **kwargs):
+        recorded_calls.append({"text": text, "voice": voice, "pace": pace, "temp": temperature, "fmt": fmt})
+        return b"RIFFmockwavdata12345678", 1.5
+
+    import app.storypack as sp
+    from unittest.mock import patch
+
+    turns = [
+        podcast.DialogueTurn(speaker=0, text="Matthew leads with steady pace.", purpose="lead", fact_refs=["F1"], pause_after=0.4),
+        podcast.DialogueTurn(speaker=1, text="Kelly replies with lively energy.", purpose="context", fact_refs=["F2"], pause_after=0.3),
+        podcast.DialogueTurn(speaker=1, text="Wait really?", purpose="reaction", fact_refs=["F2"], pause_after=0.28),
+    ]
+    dialogue = podcast.StoryDialogue(
+        story_id="s1", section="top", headline="Headline", summary="Summary", turns=turns, writer="test", story_format="conversational_dialogue"
+    )
+
+    with patch.object(sp, "synthesise", side_effect=mock_synth):
+        async def run_synth():
+            async with httpx.AsyncClient() as client:
+                return await podcast.synthesise_story_dialogue(
+                    client, "http://voice", dialogue, ("matthew_reference", "kelly_reference"), cache_dir=tmp_path
+                )
+
+        mp3_bytes, dur, marks = run(run_synth())
+        assert mp3_bytes is not None
+        assert dur > 0
+        assert len(marks) == 3
+        # Check that format requested is 'wav'
+        assert all(c["fmt"] == "wav" for c in recorded_calls)
+        # Check Matthew pace=0.93, Kelly pace=0.97, reaction pace=0.98
+        assert recorded_calls[0]["pace"] == 0.93
+        assert recorded_calls[0]["temp"] == 0.82
+        assert recorded_calls[1]["pace"] == 0.97
+        assert recorded_calls[1]["temp"] == 0.88
+        assert recorded_calls[2]["pace"] == 0.98
+        assert recorded_calls[2]["temp"] == 0.90
+        # Check cache files written with .wav and .json
+        cached_wavs = list((tmp_path / "podcast_turns").glob("*.wav"))
+        assert len(cached_wavs) == 3

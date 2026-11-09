@@ -79,9 +79,9 @@ def stitch_turns(
 ) -> tuple[np.ndarray, list[tuple[float, float]]]:
     """Stitch (samples, pause_after_sec) host turns into a single normalized waveform.
 
-    Trims dead air on each turn, normalizes loudness to a unified target RMS, applies a
-    12 ms cosine/linear de-click fade, and inserts exact PCM silence between turns.
-    Returns ``(combined_samples, [(start_sec, end_sec), ...])``.
+    Trims dead air on each turn with asymmetric padding (40ms start, 85ms end), normalizes
+    loudness to a unified target RMS, applies a 12 ms cosine/linear de-click fade, and inserts
+    exact PCM silence between turns. Returns ``(combined_samples, [(start_sec, end_sec), ...])``.
     """
     if not turn_clips:
         return silence(0.1, sr), []
@@ -89,7 +89,7 @@ def stitch_turns(
     cursor = sum(p.size for p in parts)
     marks: list[tuple[float, float]] = []
     for idx, (samples, pause_after) in enumerate(turn_clips):
-        trimmed = trim_silence(samples, sr=sr)
+        trimmed = trim_silence(samples, pad_start=0.04, pad_end=0.085, sr=sr)
         if trimmed.size == 0:
             trimmed = samples if samples.size > 0 else silence(0.2, sr)
         clip = fade(level(trimmed), sr=sr).astype(np.float32)
@@ -115,12 +115,21 @@ def resample(samples: np.ndarray, src: int, dst: int) -> np.ndarray:
     return np.interp(x_new, x_old, samples).astype(np.float32)
 
 
-def trim_silence(samples: np.ndarray, threshold: float = 0.004, pad: float = 0.05, sr: int = SAMPLE_RATE) -> np.ndarray:
+def trim_silence(
+    samples: np.ndarray,
+    threshold: float = 0.004,
+    pad: float = 0.05,
+    pad_start: float | None = None,
+    pad_end: float | None = None,
+    sr: int = SAMPLE_RATE,
+) -> np.ndarray:
     loud = np.flatnonzero(np.abs(samples) > threshold)
     if loud.size == 0:
         return samples
-    start = max(loud[0] - int(pad * sr), 0)
-    end = min(loud[-1] + int(pad * sr), samples.size)
+    p_start = pad_start if pad_start is not None else pad
+    p_end = pad_end if pad_end is not None else pad
+    start = max(loud[0] - int(p_start * sr), 0)
+    end = min(loud[-1] + int(p_end * sr), samples.size)
     return samples[start:end]
 
 
