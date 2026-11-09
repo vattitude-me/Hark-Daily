@@ -1036,7 +1036,14 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
     # All clips are successfully uploaded to storage.
     # Atomically upsert this narrator's complete set of stories.
     for row in rows:
-        store.insert("story_audio", row, on_conflict="date,section,rank,voice")
+        try:
+            store.insert("story_audio", row, on_conflict="date,section,rank,voice")
+        except Exception as exc:
+            if "marks" in str(exc).lower() and "marks" in row:
+                fallback_row = {k: v for k, v in row.items() if k != "marks"}
+                store.insert("story_audio", fallback_row, on_conflict="date,section,rank,voice")
+            else:
+                raise
     current_keys = {(r["section"], r["rank"]) for r in rows}
     built_sections = {s["section"] for s in scripts}
     stale_ranks = {(sec, rk) for (sec, rk) in existing.keys() if sec in built_sections} - current_keys
