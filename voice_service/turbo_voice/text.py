@@ -63,8 +63,6 @@ def _load_lexicon() -> dict[str, str]:
         r"\bEdmonton\b": "Ed-mun-tun",
         r"\bByteDance\b": "Bite-dance",
         r"\bHuawei\b": "Hwah-way",
-        r"\bNvidia's\b": "En-vid-ee-uh's",
-        r"\bNvidia\b": "En-vid-ee-uh",
         r"\bNasdaq\b": "Naz-dak",
         r"\bSensex\b": "Sen-seks",
         r"\bNifty\b": "Nif-tee",
@@ -118,7 +116,7 @@ INTER_SENTENCE_PAUSE = 0.08  # Micro-breath pause between split sentences of the
 
 # Common abbreviations, titles and honorifics that must not trigger a sentence split
 ABBREVIATIONS = frozenset({
-    "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "gen", "rep", "sen", "gov", "pres", "sec",
+    "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "gen", "rep", "sen", "gov", "pres", "sec", "st",
     "u.s", "u.k", "e.u", "d.c", "n.y", "l.a", "calif", "wash", "ont", "que", "b.c",
     "inc", "corp", "co", "ltd", "llc", "vs", "dept", "est",
     "etc", "approx", "no", "vol", "e.g", "i.e", "a.m", "p.m"

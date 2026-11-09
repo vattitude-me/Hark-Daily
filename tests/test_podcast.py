@@ -697,3 +697,41 @@ def test_synthesise_story_dialogue_wav_and_pace_temp_honest_cache(tmp_path):
         # Check cache files written with .wav and .json
         cached_wavs = list((tmp_path / "podcast_turns").glob("*.wav"))
         assert len(cached_wavs) == 3
+
+
+def test_facts_deduplication_and_fallback_anti_repetition():
+    story = {
+        "section": "tech_us",
+        "rank": 3,
+        "headline": "Here’s the full text of Jensen Huang’s memo to Nvidia",
+        "source": "The Verge",
+        "summary": "On Sunday, Nvidia announced it was launching an investigation into CEO Jensen Huang’s relationship with Alice Huang, an AI executive.",
+        "article_text": "On Sunday, Nvidia announced it was launching an investigation into CEO Jensen Huang’s relationship with Alice Huang, an AI executive."
+    }
+    brief = podcast.build_story_brief(story)
+    # Check that facts do NOT contain duplicates between normalized summary and article_text
+    facts_text = [f["fact"] for f in brief["facts"]]
+    assert len(facts_text) == len(set(f.lower() for f in facts_text))
+
+    # Test fallback dialogue does not duplicate turns
+    dial = podcast.fallback_story_dialogue(story, HOSTS)
+    assert len(dial.turns) >= 2
+    # Ensure Turn 1 and Turn 2 are never identical
+    assert dial.turns[0].text.lower().rstrip(".") != dial.turns[1].text.lower().rstrip(".")
+
+
+def test_clean_existing_script_filters_fragments_and_placeholders():
+    from scripts.regen_story import clean_existing_script
+
+    # Truncated stub followed by full sentence
+    corrupt_script = (
+        "[Matthew] A memo circulated earlier this year claimed that technology executive Alice Huang was recruited by China’s Ministry of State Security to spy o "
+        "[Matthew] A memo circulated earlier this year claimed that technology executive Alice Huang was recruited by China’s Ministry of State Security to spy on Nvidia C E O Jensen Huang, according to multiple media reports."
+    )
+    cleaned = clean_existing_script(corrupt_script)
+    assert "to spy o A memo" not in cleaned
+    assert "to spy o " not in cleaned
+    assert cleaned.startswith("A memo circulated earlier this year claimed that technology executive Alice Huang was recruited by China’s Ministry of State Security to spy on Nvidia C E O Jensen Huang")
+    # Boilerplate placeholder filtering
+    placeholder = "[Matthew] Full details on that story are available from New York Times · Top stories."
+    assert clean_existing_script(placeholder) == ""

@@ -81,7 +81,8 @@ def test_phonetic_overrides_normalize_proper_nouns():
 def test_phonetic_overrides_normalize_markets_and_tech():
     items = parse("Nvidia reported Nasdaq and Sensex rally.")
     assert len(items) == 1
-    assert "En-vid-ee-uh" in items[0].text
+    assert "Nvidia" in items[0].text
+    assert "En-vid-ee-uh" not in items[0].text
     assert "Naz-dak" in items[0].text
     assert "Sen-seks" in items[0].text
 
