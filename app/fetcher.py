@@ -261,9 +261,10 @@ def extract_page_links(page_html: str, base_url: str, limit: int = 15) -> list[t
 
 
 def extract_article(page_html: str, url: str) -> dict:
+    url_str = str(url)
     raw = trafilatura.extract(
         page_html,
-        url=url,
+        url=url_str,
         output_format="json",
         with_metadata=True,
         include_comments=False,
@@ -271,7 +272,7 @@ def extract_article(page_html: str, url: str) -> dict:
         favor_precision=True,
     )
     if not raw:
-        meta = trafilatura.extract_metadata(page_html, default_url=url)
+        meta = trafilatura.extract_metadata(page_html, default_url=url_str)
         return {
             "title": getattr(meta, "title", None),
             "description": getattr(meta, "description", None),

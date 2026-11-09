@@ -95,8 +95,6 @@ def _load_lexicon() -> dict[str, str]:
         r"\bEdmonton\b": "Ed-mun-tun",
         r"\bByteDance\b": "Bite-dance",
         r"\bHuawei\b": "Hwah-way",
-        r"\bNvidia's\b": "En-vid-ee-uh's",
-        r"\bNvidia\b": "En-vid-ee-uh",
         r"\bNasdaq\b": "Naz-dak",
         r"\bSensex\b": "Sen-seks",
         r"\bNifty\b": "Nif-tee",
