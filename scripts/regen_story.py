@@ -161,9 +161,10 @@ async def _lookup_rss_summary(section: str, url: str, title: str) -> str:
     if len(matched_summary.split()) < 8 and items:
         extra_context: list[str] = []
         if "stephen miller" in (title or "").lower() and "nvidia" in (title or "").lower():
-            extra_context.append(
-                "This roundup covers two separate stories: first, Nvidia C E O Jensen Huang admitting to a relationship "
-                "with a suspected Chinese spy, and second, Stephen Miller taking the reins as White House Chief of Staff."
+            return (
+                "The New York Times morning briefing pairs the Nvidia executive probe with a major Washington shake-up: "
+                "Stephen Miller is taking the reins in the White House to lead the administration's domestic policy agenda. "
+                "The edition also looks back at the end of the line for Tesla's Cybertruck."
             )
         key_terms = [w for w in ("nvidia", "huang", "china", "spy") if w in (title or "").lower()]
         if key_terms:
@@ -183,6 +184,7 @@ async def regenerate_story(
     voice_url: str,
     voice: str = "matthew_reference+kelly_reference",
     force: bool = True,
+    previous_story: dict | None = None,
 ) -> dict:
     """Re-extract, re-script, and re-voice a single story row, updating Supabase."""
     day = story_row["date"]
@@ -191,6 +193,17 @@ async def regenerate_story(
     title = story_row.get("title", "")
     url = story_row.get("url", "")
     duo_names = ("Matthew", "Kelly")
+
+    if previous_story is None and rank > 1:
+        try:
+            prev_rows = store.select(
+                "story_audio",
+                {"date": f"eq.{day}", "voice": f"eq.{voice}", "section": f"eq.{section}", "rank": f"eq.{rank - 1}"},
+            )
+            if prev_rows:
+                previous_story = prev_rows[0]
+        except Exception:
+            pass
 
     log.info("→ Processing [%s #%d] %s", section, rank, title[:60])
 
@@ -216,7 +229,10 @@ async def regenerate_story(
             log.info("  Recovered RSS summary (%d words) from %s feed", len(summary.split()), section)
 
     raw_script = clean_existing_script(story_row.get("script", ""))
-    combined_body = " ".join(part for part in (summary, article_text, raw_script) if part).strip()
+    if summary and len(summary.split()) >= 12:
+        combined_body = " ".join(part for part in (summary, article_text) if part).strip()
+    else:
+        combined_body = " ".join(part for part in (summary, article_text, raw_script) if part).strip()
     story_dict = {
         "id": story_row.get("id"),
         "section": section,
@@ -231,8 +247,9 @@ async def regenerate_story(
 
     # 2. Invalidate old dialogue cache files for this story
     brief = podcast.build_story_brief(story_dict)
+    prev_title = podcast._clean((previous_story or {}).get("title") or (previous_story or {}).get("headline") or "")
     fmt_key, _ = podcast.select_story_format(section, rank, sober=brief["sober"])
-    cache_path = podcast._dialogue_cache_path(cfg, brief, duo_names, fmt_key)
+    cache_path = podcast._dialogue_cache_path(cfg, brief, duo_names, fmt_key, prev_title=prev_title)
     if cache_path and cache_path.exists():
         cache_path.unlink()
         log.info("  Cleaned cached dialogue at %s", cache_path.name)
@@ -244,6 +261,7 @@ async def regenerate_story(
         story_dict,
         duo_names,
         force=True,
+        previous_story=previous_story,
     )
     log.info("  Writer: %s · Format: %s · %d turns", dialogue.writer, dialogue.story_format, len(dialogue.turns))
     for i, t in enumerate(dialogue.turns, 1):
