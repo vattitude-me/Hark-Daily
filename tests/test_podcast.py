@@ -776,3 +776,55 @@ def test_clean_existing_script_filters_fragments_and_placeholders():
     # Boilerplate placeholder filtering
     placeholder = "[Matthew] Full details on that story are available from New York Times · Top stories."
     assert clean_existing_script(placeholder) == ""
+
+
+def test_metadata_headers_and_noise_are_stripped_from_facts_and_brief():
+    from app.summarizer import strip_metadata_noise
+    raw_article = (
+        "NASA reveals bold new plan to return astronauts to the Moon in 2028\n"
+        "- Date:\n- November 9, 2026\n- Source:\n- NASA\n- Summary:\n"
+        "- NASA has revealed an accelerated plan to land astronauts on the Moon in 2028, "
+        "with SpaceX and Blue Origin developing competing lunar landers and a crucial orbital test scheduled for 2027."
+    )
+    cleaned = strip_metadata_noise(raw_article)
+    assert "- Date:" not in cleaned
+    assert "Source:" not in cleaned
+    assert "Summary:" not in cleaned
+    assert "NASA has revealed an accelerated plan" in cleaned
+
+    brief = podcast.build_story_brief({
+        "section": "science",
+        "rank": 1,
+        "title": "NASA reveals bold new plan to return astronauts to the Moon in 2028",
+        "summary": "NASA reveals bold new plan to return astronauts to the Moon in 2028, Date:, November 9, 2026, Source:, NASA, Summary:, NASA has revealed an accelerated plan to land astronauts on the Moon in 2028.",
+        "article_text": raw_article,
+    })
+    for f in brief["facts"]:
+        fact_text = f["fact"]
+        assert "Date:," not in fact_text
+        assert "Source:," not in fact_text
+        assert "Summary:," not in fact_text
+
+
+def test_anti_iteration_prevents_repeating_staying_with_consecutively():
+    brief = podcast.build_story_brief({
+        **SAMPLE_STORY,
+        "section": "top_us",
+        "rank": 4,
+        "title": "Nvidia C.E.O. Admits Relationship With Suspected Chinese Spy",
+    })
+    brief["story_format"] = "question_led"
+    # Previous story opened with "Staying with Nvidia for a moment..."
+    brief["prev_lead"] = "Staying with Nvidia for a moment, China is now officially pushing back."
+
+    raw_turns = {
+        "turns": [
+            {"speaker": "a", "purpose": "lead", "fact_refs": ["F1"], "text": "Staying with Nvidia for a moment, this story just took an even sharper turn."},
+            {"speaker": "b", "purpose": "question", "fact_refs": ["F2"], "text": "How much further does this leadership fallout reach across the broader tech sector?"},
+        ]
+    }
+    validated = podcast.validate_story_dialogue(raw_turns, brief, HOSTS)
+    assert validated is not None
+    # Verifies that "Staying with Nvidia for a moment," was stripped/rewritten so it doesn't repeat!
+    assert not validated[0].text.lower().startswith("staying with nvidia for a moment")
+    assert validated[0].text.startswith("This story just took an even sharper turn")

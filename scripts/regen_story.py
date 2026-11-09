@@ -109,9 +109,10 @@ def clean_existing_script(text: str) -> str:
                 "full details on that story",
                 "reporting there from",
                 "reporting from",
+                "that comes from",
                 "key developments we are tracking",
                 "leading our coverage today",
-                "here is what is developing:",
+                "here is what is developing",
             ]):
                 continue
             # Ensure sentence ends in terminal punctuation
@@ -322,6 +323,7 @@ def main() -> int:
     parser.add_argument("--rank", type=int, help="Story rank (1-5)")
     parser.add_argument("--query", help="Case-insensitive search query in title or script")
     parser.add_argument("--all-nvidia", action="store_true", help="Regenerate all stories mentioning Nvidia")
+    parser.add_argument("--podcast-clips", action="store_true", help="Also regenerate all podcast pieces (opens, closes, teases, bridges)")
     parser.add_argument("--voice", default="matthew_reference+kelly_reference", help="Narrator voice id")
     parser.add_argument("--voice-url", help="Voice service URL (defaults to VOICE_SERVICE_URL or 127.0.0.1:8090)")
     parser.add_argument("--dry-run", action="store_true", help="Find and display matching stories without regenerating")
@@ -375,6 +377,18 @@ def main() -> int:
             if i > 0:
                 time.sleep(2.0)
             asyncio.run(regenerate_story(cfg, store, r, voice_url=active_url, voice=voice, force=True))
+
+        if args.podcast_clips:
+            log.info("Regenerating all podcast banter pieces (opens, closes, teases, bridges)...")
+            from app import podcast
+            all_rows = store.select("story_audio", {"date": f"eq.{day}", "voice": f"eq.{voice}"})
+            podcast_scripts = [
+                {"section": r["section"], "title": r["title"], "summary": r.get("summary") or r.get("title")}
+                for r in sorted(all_rows, key=lambda x: (x.get("section", ""), int(x.get("rank", 0))))
+            ]
+            asyncio.run(podcast.build_podcast(cfg, store, podcast_scripts, day=day, base=active_url, force=True))
+            log.info("✓ Podcast pieces successfully rebuilt!")
+
         # Republish showcase/pack.json so guest and signed-in listeners immediately receive updated scripts
         asyncio.run(publish_showcase(cfg, store, day=day, voice=voice))
     finally:
