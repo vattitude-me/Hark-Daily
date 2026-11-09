@@ -148,35 +148,32 @@ def _clean(text: str) -> str:
 
 # ------------------------------------------------------------------ templates
 # {a} and {b} are the hosts' first names (Matthew, Kelly), {h} the headline, {s} the section's title.
-# Every OPEN_TEMPLATES entry follows Part 1 (Brand Intro with "Hark Daily" + tagline) + Part 2 (Conversational Open).
+# Modeled on premier human morning podcasts (NPR Up First, NYT The Daily, Vox Today Explained).
 OPEN_TEMPLATES: list[list[Turn]] = [
-    [(0, "This is Hark Daily. The news, minus the noise."),
-     (1, "Look at you with the serious anchor voice, {a}."),
-     (0, "Somebody has to keep us on track, {b}."),
-     (1, "Fair enough. And we actually have a wild lineup of stories today.")],
-    [(1, "You're listening to Hark Daily, your day caught up in minutes."),
-     (0, "Short, steady, and straight to what matters."),
-     (1, "I was just reading that first headline, {a}, and I have questions."),
-     (0, "I figured you might.")],
-    [(0, "Hark Daily. All the signal, none of the scrolling."),
-     (1, "Okay, I like that tagline, {a}. We're keeping it."),
-     (0, "Don't get used to it. There's some heavy news on the docket today."),
-     (1, "Yeah, a couple of these stories really caught me off guard.")],
+    [(0, "From Hark Daily, I'm {a} alongside {b}."),
+     (1, "We are tracking the major stories shaping your day, from boardroom turmoil to the latest shifts in Washington."),
+     (0, "Let's get right into what you need to know.")],
+    [(1, "This is Hark Daily. I'm {b} with {a}."),
+     (0, "The news cycle moved fast overnight, and we are cutting straight through the noise to what actually matters to you."),
+     (1, "Starting with the headlines driving the conversation right now.")],
+    [(0, "This is Hark Daily. I'm {a} alongside {b}."),
+     (1, "Your essential daily brief in minutes: the context, the implications, and why it matters."),
+     (0, "Let's kick things off with today's lead stories.")],
 ]
 CLOSE_TEMPLATES: list[list[Turn]] = [
-    [(1, "Still thinking about how much ground we covered today, {a}."),
-     (0, "Never a quiet news cycle. That's Hark Daily for today."),
-     (1, "Thanks for listening, everyone. Catch you next time.")],
-    [(0, "That wraps it up for Hark Daily today."),
-     (1, "Take care of yourselves [chuckle], and we'll talk to you on the next edition.")],
+    [(0, "And that is Hark Daily for today."),
+     (1, "I'm {b} alongside {a}. Follow the show wherever you listen so tomorrow's brief is ready first thing."),
+     (0, "Thanks for listening. We'll see you tomorrow.")],
+    [(1, "That is the brief from Hark Daily for today [chuckle]."),
+     (0, "Stay sharp out there. I'm {a} with {b}, and we'll catch you tomorrow morning.")],
 ]
 TEASE_TEMPLATES: dict[str, list[list[Turn]]] = {
-    "serious": [[(0, "This one in {s} carries real weight today: {h}."), (1, "Yeah. Worth paying close attention to.")]],
-    "warm": [[(0, "Leading our coverage today: {h}."), (1, "Here's what's actually happening behind that headline.")]],
-    "excited": [[(1, "Wait until you hear this one in {s}: {h}."), (0, "It is a bigger shift than it looks at first glance.")]],
-    "light": [[(1, "Okay, lighter note in {s}: {h}."), (0, "I have a feeling you're going to enjoy this one, {b}.") ]],
+    "serious": [[(0, "In {s} today, a major development with real consequences: {h}."), (1, "One worth paying close attention to.")]],
+    "warm": [[(0, "Starting with the lead stories: {h}."), (1, "Here is the context behind that development.")]],
+    "excited": [[(1, "A massive shift to watch in {s}: {h}."), (0, "The ripple effects are bigger than they look at first glance.")]],
+    "light": [[(1, "On a lighter note in {s}: {h}."), (0, "A story that definitely caught our attention.")]],
     "energetic": [[(1, "Over in {s}, look at this: {h}."), (0, "Quite a storyline building there.")]],
-    "curious": [[(1, "I had to read this {s} headline twice: {h}."), (0, "The details are even more interesting.")]],
+    "curious": [[(1, "An unexpected turn in {s}: {h}."), (0, "The underlying details are even more interesting.")]],
 }
 BRIDGE_TEMPLATES: dict[str, list[Turn]] = {
     "serious": [(0, "On a more serious note, {s}.")],
@@ -352,7 +349,7 @@ THE DYNAMIC
 - Light teasing is welcome, usually {b} poking at {a}'s gravity."""
 
 
-SYSTEM_PROMPT = """You are the scriptwriter for "Hark Daily," a daily news podcast hosted by {a} ("a") and {b} ("b"). Write the script as a real conversation between two people who know each other well, not as two news readers handing off to each other.
+SYSTEM_PROMPT = """You are the scriptwriter for "Hark Daily," a daily news podcast hosted by {a} ("a") and {b} ("b"). Write the script as an authentic, human audio experience between two seasoned journalists who know each other well, not as two announcers reading canned scripts.
 
 """ + HOST_PERSONAS_BLOCK + """
 
@@ -360,9 +357,9 @@ STRICT LANGUAGE & ANTI-SLOP RULES (THIS WILL BE READ ALOUD BY TTS):
 - Use contractions and spoken rhythm ("we've", "it's", "that's", "don't", "can't"). Short sentences. Occasional fragments.
 - Light fillers ("honestly," "I mean," "right?") at most once or twice per piece.
 - No lists, no parentheses, no stage directions, no emojis, no markdown, no URLs.
-- Don't read headlines word for word. Retell them like you're telling a friend.
-- BANNED PHRASES (NEVER USE ANY OF THESE):
-  "Let's dive in", "dive into", "deep dive", "Buckle up", "Strap in", "Without further ado", "That's a great point", "Absolutely", "Fascinating", "Welcome back everyone", "Ready when you are", "let's roll", "whirlwind", "unpack", "delve", "fast-moving", "ground to cover", "buzzing", "wild ride", "game-changer", "moving across the board".
+- Don't read headlines word for word. Retell them like you're telling a smart friend across the table.
+- BANNED PHRASES & AI CLICHÉS (NEVER USE ANY OF THESE):
+  "Let's dive in", "dive into", "deep dive", "Buckle up", "Strap in", "Without further ado", "That's a great point", "Absolutely", "Fascinating", "Welcome back everyone", "Ready when you are", "let's roll", "whirlwind", "unpack", "delve", "fast-moving", "ground to cover", "buzzing", "wild ride", "game-changer", "moving across the board", "on the docket", "serious anchor voice", "signal minus static", "minus the noise".
 - Do NOT use time-of-day locked words like "morning", "afternoon", "evening", or "tomorrow morning".
 - VOICE-BASED SPOKEN TEXT: Everything is read aloud by neural voices. Never use textual shorthand like "$5B", "$10M", or "20%". Always spell out numbers, symbols, and abbreviations the way they're spoken: "5 billion dollars", "10 million dollars", "20 percent", "versus", "and".
 - Paralinguistic voice tags: [chuckle], [laugh], [sigh], [gasp]. Use very sparingly (most pieces should have ZERO tags, at most {max_tags} tags per piece). Never place tags on tragedy, politics, or serious hardship.
@@ -372,14 +369,20 @@ Return ONLY JSON of this shape:
  "tease": {{"<section>": turns}}, "bridge": {{"<section>": turns}}}}
 where turns is a list of {{"speaker": "a" or "b", "text": "..."}}.
 
-SEGMENT RULES:
-- open (<= {w_open} words, 4 to 6 short turns per variant): Combine PART 1 (BRAND INTRO) + PART 2 (CONVERSATIONAL OPEN):
-  * PART 1 - BRAND INTRO (first 2 turns): A quick, fun, memorable show intro that sets the personality before the news begins. Must include the show name "Hark Daily" (or "hark Daily") once, plus a fresh daily tagline idea in the spirit of "the news, minus the noise" or "your day, caught up." Invent a fresh tagline for each variant—never reuse example lines! Can be a deadpan {a} line answered by an excited {b}, or {b} teasing {a} for his serious announcer voice.
-  * PART 2 - CONVERSATIONAL OPEN (next 2-3 turns): Move straight into a natural mid-thought opening. No "welcome back everyone," no "let's get into what's happening," no "Hey [name]" followed by "Ready when you are." Open with a reaction to one of today's top headlines, a small observation about {weekday}, or a teaser. Each host's line must respond directly to the other's.
-- tease (<= {w_tease} words, 2 to 3 turns): A natural reaction to that section's top headline. Have {a} lead heavy sections (top, politics, markets) and {b} lead lighter or fast-moving sections (ai, tech, science, entertainment, sports).
+SEGMENT RULES (MODELED ON PREMIER DAILY NEWS PODCASTS LIKE NPR "UP FIRST", NYT "THE DAILY", VOX "TODAY, EXPLAINED"):
+- open (<= {w_open} words, 3 to 5 short turns per variant):
+  Write an authentic, human show open that sets an engaging, professional tone:
+  * Must include the show name "Hark Daily" and introduce both hosts by name ({a} and {b}) naturally.
+  * Mention the day of the week ({weekday}) and hook today's core news tension or overarching theme in plain, engaging English.
+  * Absolutely NO cheesy fake banter about anchor voices, taglines, or meta-jokes. Talk like two smart audio journalists setting the table for their listeners.
+  * Each variant must use a distinct opening style:
+    - Variant 1 (Hook & Stakes): Start directly with the tension or central conflict of today's lead stories before the host intro.
+    - Variant 2 (Fast-Paced Briefing): Clean, crisp brand intro, outlining the 2-3 key pillars shaping the news day.
+    - Variant 3 (Relatable Perspective): A grounded conversational observation about how today's news affects markets, technology, or daily life.
+- tease (<= {w_tease} words, 2 to 3 turns): A natural journalistic reaction or tension setup for that section's top story. Never recite the raw headline verbatim—set up the core conflict, dilemma, or question. Have {a} lead heavy sections (top, politics, markets) and {b} lead lighter or fast-moving sections (ai, tech, science, entertainment, sports).
 - bridge (<= {w_bridge} words, 1 to 2 turns): A natural transition into that section using a thematic link ("Speaking of money..."), a reaction, or a clean pivot ("Okay, lighter note."). Use "Next up" or "Moving on" at most once across the entire JSON output.
-- close (<= {w_close} words, 2 to 4 turns): End casually with a last reaction or a light callback to one of today's stories, then a brief sign-off that includes "Hark Daily". No formal summary. Vary each variant.
-- ANTI-REPETITION: Any example lines in this prompt are for tone only. Never reuse their wording, structure, or jokes. If yesterday's opening is provided in the user payload, make today's clearly different."""
+- close (<= {w_close} words, 2 to 3 turns): End cleanly and warmly like premier daily podcasts (NPR "Up First", NYT "The Daily", WSJ "The Journal"): a crisp wrap mentioning {weekday}, a quick call to follow the show for tomorrow's brief, and a warm host sign-off including "Hark Daily".
+- ANTI-REPETITION: Any example lines in this prompt are for tone only. Never reuse their wording or structure. If yesterday's opening is provided in the user payload, make today's clearly different."""
 
 
 def _prompt(hosts: tuple[str, str], weekday: str) -> str:
@@ -866,14 +869,16 @@ def _split_sentences(text: str) -> list[str]:
 
 def build_story_brief(story: dict) -> dict:
     """Extract a grounded factual brief (F1..Fn) from an enriched story dict."""
+    from .summarizer import strip_metadata_noise
     sec = str(story.get("section") or "top")
     base_sec = sec.replace("_us", "").replace("_in", "").replace("_ca", "")
     raw_head = clean_headline(story.get("title") or story.get("headline") or "")
     headline = voice_normalize(_clean(raw_head).rstrip("."), preserve_tags=False)
     raw_source = _clean(story.get("source") or "News wire")
     source = raw_source.split("·")[0].strip() or raw_source
-    summary = voice_normalize(_clean(story.get("summary") or ""), preserve_tags=False)
-    raw_body = str(story.get("article_text") or story.get("summary") or story.get("script") or "")
+    raw_sum = strip_metadata_noise(story.get("summary") or "")
+    summary = voice_normalize(_clean(raw_sum), preserve_tags=False)
+    raw_body = strip_metadata_noise(str(story.get("article_text") or story.get("summary") or story.get("script") or ""))
 
     candidates: list[str] = []
     if summary:
@@ -894,6 +899,9 @@ def build_story_brief(story: dict) -> dict:
     for sent in candidates:
         s_clean = strip_repetition_stutter(_clean(sent))
         if not s_clean or len(s_clean.split()) < 3:
+            continue
+        # Drop metadata artifact sentences (e.g. ScienceDaily headers: Date: ... Source: ... Summary: ...)
+        if re.search(r"\b(?:date|source|summary|author|published|journal reference)\s*[:;,]", s_clean, re.I):
             continue
         v_fact = voice_normalize(s_clean, preserve_tags=False)
         v_norm = v_fact.lower().rstrip(".")
@@ -1031,6 +1039,14 @@ def validate_story_dialogue(
         if not words_only or word_count < 1 or word_count > 68 or _BAD.search(words_only) or _PROFANITY_PATTERN.search(words_only):
             return None
 
+        # Reject turns contaminated with metadata headers or scrapings
+        if re.search(r"\b(?:date|source|summary|journal reference)\s*[:;,]+\s*(?:november|december|january|february|march|april|may|june|july|august|september|october|\d{4}|reuters|associated press|nasa)\b", text, re.I):
+            return None
+
+        # Reject robotic meta-filler or canned broadcast clichés
+        if re.search(r"\b(?:reporting (?:there )?from|that comes from|key developments we are tracking|here is what is developing|leading our coverage today|full details on that story)\b", text, re.I):
+            return None
+
         # Sentence length ceiling: individual sentences over 24 words drastically slow down TTS
         # synthesis and cause pacing drift. Reject run-on sentences to maintain crisp pacing.
         sentences = re.split(r"(?<=[.!?])\s+", words_only)
@@ -1039,8 +1055,25 @@ def validate_story_dialogue(
             if len(s_words) > 24:
                 return None
 
-        # Check for verbatim headline repetition or false topic-shift on opening turn
+        # Check for verbatim headline repetition, anti-iteration repetition, or false topic-shift on opening turn
         if len(parsed) == 0:
+            prev_lead = str(story_brief.get("prev_lead") or "").strip().lower()
+            if prev_lead:
+                # If the previous story opened with "Staying with...", prevent this story from also opening with "Staying with..."
+                if re.search(r"^\s*(?:and\s+)?staying\s+with\b", prev_lead):
+                    bad_stay = re.compile(r"^\s*(?:and\s+)?staying\s+with\s+[^,]+,\s*", re.I)
+                    if bad_stay.search(text):
+                        text = bad_stay.sub("", text).strip()
+                        if text and text[0].islower():
+                            text = text[0].upper() + text[1:]
+                        words_only = strip_tags(text)
+                        word_count = len(words_only.split())
+                # Disallow identical 3+ word opening phrases between adjacent stories
+                prev_stem = " ".join(re.findall(r"[a-z0-9]+", prev_lead)[:4])
+                curr_stem = " ".join(re.findall(r"[a-z0-9]+", text.lower())[:4])
+                if prev_stem and curr_stem and prev_stem == curr_stem:
+                    return None
+
             shared_prev = story_brief.get("shared_prev_terms") or []
             if shared_prev:
                 # If the previous story covered the same topic (e.g. Nvidia), strip or reject
@@ -1388,7 +1421,7 @@ def _shared_topic_terms(prev_headline: str, curr_headline: str) -> list[str]:
     return shared
 
 
-def _dialogue_cache_path(cfg, brief: dict, hosts: tuple[str, str], fmt_key: str = "", prev_title: str = "") -> Path | None:
+def _dialogue_cache_path(cfg, brief: dict, hosts: tuple[str, str], fmt_key: str = "", prev_title: str = "", prev_lead: str = "") -> Path | None:
     cache_root = getattr(cfg, "cache_dir", None)
     if not cache_root:
         return None
@@ -1402,6 +1435,7 @@ def _dialogue_cache_path(cfg, brief: dict, hosts: tuple[str, str], fmt_key: str 
             "headline": brief["headline"],
             "facts": brief["facts"],
             "prev": prev_title[:120],
+            "prev_lead": prev_lead[:80],
         },
         sort_keys=True,
         ensure_ascii=False,
@@ -1420,17 +1454,32 @@ def generate_story_dialogue(
     sleep=time.sleep,
     previous_story: dict | None = None,
     previous_format: str | None = None,
+    previous_dialogue: StoryDialogue | None = None,
 ) -> StoryDialogue:
     """Write a grounded two-host conversation for one story using Groq -> Local LLM -> Gemini -> fallback."""
     brief = build_story_brief(story)
     prev_title = _clean((previous_story or {}).get("title") or (previous_story or {}).get("headline") or "")
+    prev_lead = ""
+    if previous_dialogue and getattr(previous_dialogue, "turns", None):
+        prev_lead = _clean(previous_dialogue.turns[0].text)
+    elif previous_story:
+        raw_prev = str(previous_story.get("script") or "")
+        m = re.search(r"\[(?:Matthew|Kelly|[A-Za-z]+)\]\s*([^[\n]+)", raw_prev)
+        if m:
+            prev_lead = _clean(m.group(1))
+        else:
+            sents = _split_sentences(raw_prev)
+            if sents:
+                prev_lead = _clean(sents[0])
+
     fmt_key, fmt_desc = select_story_format(
         brief["section"], brief["rank"], sober=brief["sober"], previous_format=previous_format
     )
-    cache_path = _dialogue_cache_path(cfg, brief, hosts, fmt_key, prev_title=prev_title)
+    cache_path = _dialogue_cache_path(cfg, brief, hosts, fmt_key, prev_title=prev_title, prev_lead=prev_lead)
     if not force and cache_path and cache_path.is_file():
         try:
             cached = json.loads(cache_path.read_text(encoding="utf-8"))
+            brief["prev_lead"] = prev_lead
             turns = validate_story_dialogue(cached.get("turns"), brief, hosts)
             if turns:
                 return StoryDialogue(
@@ -1473,13 +1522,27 @@ def generate_story_dialogue(
         )
     elif prev_title and shared_terms:
         topic_str = ", ".join(t.title() for t in shared_terms[:3])
+        anti_repeat = ""
+        if prev_lead:
+            anti_repeat = (
+                f"\nCRITICAL ANTI-ITERATION RULE: The previous story opened with:\n"
+                f'  "{prev_lead[:120]}"\n'
+                f"You MUST NOT use similar opening words, repetitive transition formulas, or repeat phrases like "
+                f"'Staying with {shared_terms[0].title()} for a moment'. Humans vary how they connect stories—use a completely "
+                f"different angle connector (such as shifting perspective to the new players, highlighting a twist, "
+                f"or jumping straight into the new dimension) without repeating any opening structure from the previous story."
+            )
         transition_instruction = (
-            f"Transition: CONTINUING HOT TOPIC ({topic_str}) WITH A DISTINCT ANGLE. The previous story in this section was '{prev_title[:90]}', "
-            f"which already introduced the core premise of {topic_str}. CRITICAL: Do NOT say 'Turning now to {topic_str}', 'Turn now to {topic_str}', "
-            f"'Switching to {topic_str}', or introduce {topic_str} as if it is a brand new subject! Instead, acknowledge we are "
-            f"staying on the same developing story from a new angle ('Staying with {shared_terms[0].title()} for a moment...', "
-            "'On that exact same story...', 'And there is another angle to this...', or 'Adding to that fallout,') and focus EXCLUSIVELY "
-            "on the new dimension in this story (such as market impact, geopolitical response, or secondary headlines) without re-explaining the basic premise."
+            f"Transition: CONTINUING DEVELOPING STORY ({topic_str}) WITH A DISTINCT ANGLE.\n"
+            f"The previous story was '{prev_title[:90]}', which already introduced the initial angle.\n"
+            f"CRITICAL: Do NOT introduce {topic_str} as if it is a brand new subject (never say 'Turn now to {topic_str}' or 'Turning to {topic_str}').\n"
+            f"At the same time, NEVER repeat formulaic pivot crutches like 'Staying with {shared_terms[0].title()} for a moment'.\n"
+            f"Connect organically based on the specific new angle:\n"
+            f"- Geopolitical/Foreign: Focus on the location or actor ('Over in Beijing, though...', 'Across the Pacific...').\n"
+            f"- Market/Financial: Focus on trading or Wall Street ('Investors didn't wait long to react...', 'The market fallout was immediate...').\n"
+            f"- Wider Scope/Roundup: Focus on the broadening horizon ('That's not even the only headache facing...', 'The fallout goes well beyond...').\n"
+            f"- Accountability/Board: Focus on the governance dilemma ('That puts the board in an impossible position...')."
+            f"{anti_repeat}"
         )
     elif prev_title:
         transition_instruction = (
@@ -1494,6 +1557,7 @@ def generate_story_dialogue(
 
     brief["story_format"] = fmt_key
     brief["shared_prev_terms"] = shared_terms
+    brief["prev_lead"] = prev_lead
 
     if is_solo_format(fmt_key):
         solo_spk_idx = solo_host_index(fmt_key, hosts)

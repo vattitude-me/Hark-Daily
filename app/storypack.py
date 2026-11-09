@@ -31,6 +31,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -951,6 +952,7 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
     publishing: list[asyncio.Future] = []
     prev_story_by_sec: dict[str, dict] = {}
     prev_format_by_sec: dict[str, str] = {}
+    prev_dialogue_by_sec: dict[str, Any] = {}
 
     def raise_if_publishing_failed() -> None:
         for task in publishing:
@@ -966,6 +968,7 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
                 sec_key = story["section"]
                 prev_story = prev_story_by_sec.get(sec_key)
                 prev_fmt = prev_format_by_sec.get(sec_key)
+                prev_diag = prev_dialogue_by_sec.get(sec_key)
                 prev_story_by_sec[sec_key] = story
                 image = (story.get("image") or "")[:2000] or None
                 done = existing.get((story["section"], story["rank"]))
@@ -997,7 +1000,9 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
                         force=force,
                         previous_story=prev_story,
                         previous_format=prev_fmt,
+                        previous_dialogue=prev_diag,
                     )
+                    prev_dialogue_by_sec[sec_key] = dialogue
                     prev_format_by_sec[sec_key] = dialogue.story_format
                     audio, duration, marks = await podcast.synthesise_story_dialogue(
                         client, base, dialogue, duo_voices, cache_dir=getattr(cfg, "cache_dir", None)
