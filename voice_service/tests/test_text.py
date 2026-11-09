@@ -109,3 +109,11 @@ def test_long_turn_is_split_into_sentences_with_micro_pauses():
     assert any("U.S." in s.text for s in us_items if isinstance(s, Say))
 
 
+def test_profanity_is_sanitized_to_bleep():
+    items = parse("Who the fuck gon beat my ass?")
+    assert len(items) == 1
+    assert "fuck" not in items[0].text.lower()
+    assert "[bleep]" in items[0].text
+
+
+
