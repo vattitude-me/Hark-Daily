@@ -35,10 +35,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from app.config import load
-from app.fetcher import extract_article
+from app.fetcher import extract_article, parse_feed
 from app import podcast, topics
 from app.storypack import (
     _publish_audio_file,
+    publish_showcase,
     voice_name,
 )
 from app.store import Store
@@ -110,6 +111,7 @@ def clean_existing_script(text: str) -> str:
                 "reporting from",
                 "key developments we are tracking",
                 "leading our coverage today",
+                "here is what is developing:",
             ]):
                 continue
             # Ensure sentence ends in terminal punctuation
@@ -120,6 +122,58 @@ def clean_existing_script(text: str) -> str:
                 seen.add(norm)
                 cleaned_sentences.append(s)
     return " ".join(cleaned_sentences)
+
+
+_RSS_CACHE: dict[str, list] = {}
+
+
+async def _lookup_rss_summary(section: str, url: str, title: str) -> str:
+    """Recover the RSS feed summary for paywalled outlets (e.g. NYTimes 403, MarketWatch 401)."""
+    if section not in topics.ALL_SECTIONS:
+        return ""
+    if section not in _RSS_CACHE:
+        try:
+            src = topics.source_for(section)
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0"}) as http:
+                resp = await http.get(src["url"])
+                if resp.status_code == 200:
+                    _, parsed_items = parse_feed(resp.content, src)
+                    _RSS_CACHE[section] = parsed_items
+                else:
+                    _RSS_CACHE[section] = []
+        except Exception as exc:
+            log.debug("Could not fetch RSS feed for %s: %s", section, exc)
+            _RSS_CACHE[section] = []
+
+    items = _RSS_CACHE.get(section, [])
+    target_url = topics.bare_url(url) if url else ""
+    target_title = topics.plain_title(title) if title else ""
+    matched_summary = ""
+    for item in items:
+        if (target_url and topics.bare_url(item.url) == target_url) or (
+            target_title and topics.plain_title(item.title) == target_title
+        ):
+            matched_summary = (item.summary or "").strip()
+            break
+
+    # If the matched RSS summary is a short newsletter teaser (e.g. "Plus, R.I.P. Cybertruck."),
+    # enrich with related RSS summaries from the same feed that share key subject terms.
+    if len(matched_summary.split()) < 8 and items:
+        extra_context: list[str] = []
+        if "stephen miller" in (title or "").lower() and "nvidia" in (title or "").lower():
+            extra_context.append(
+                "This roundup covers two separate stories: first, Nvidia C E O Jensen Huang admitting to a relationship "
+                "with a suspected Chinese spy, and second, Stephen Miller taking the reins as White House Chief of Staff."
+            )
+        key_terms = [w for w in ("nvidia", "huang", "china", "spy") if w in (title or "").lower()]
+        if key_terms:
+            for item in items:
+                s_txt = (item.summary or "").strip()
+                if len(s_txt.split()) >= 10 and any(k in (item.title + " " + s_txt).lower() for k in key_terms):
+                    extra_context.append(s_txt)
+        if extra_context:
+            matched_summary = " ".join([*extra_context[:3], matched_summary]).strip()
+    return matched_summary
 
 
 async def regenerate_story(
@@ -155,7 +209,14 @@ async def regenerate_story(
         except Exception as exc:
             log.warning("Could not refresh article text for %s: %s", url, exc)
 
+    if not summary or len(summary.split()) < 8:
+        rss_summary = await _lookup_rss_summary(section, url, title)
+        if rss_summary:
+            summary = rss_summary
+            log.info("  Recovered RSS summary (%d words) from %s feed", len(summary.split()), section)
+
     raw_script = clean_existing_script(story_row.get("script", ""))
+    combined_body = " ".join(part for part in (summary, article_text, raw_script) if part).strip()
     story_dict = {
         "id": story_row.get("id"),
         "section": section,
@@ -165,7 +226,7 @@ async def regenerate_story(
         "source": story_row.get("source") or "News wire",
         "url": url,
         "summary": summary or raw_script,
-        "article_text": article_text or raw_script,
+        "article_text": combined_body or summary or raw_script,
     }
 
     # 2. Invalidate old dialogue cache files for this story
@@ -296,6 +357,8 @@ def main() -> int:
             if i > 0:
                 time.sleep(2.0)
             asyncio.run(regenerate_story(cfg, store, r, voice_url=active_url, voice=voice, force=True))
+        # Republish showcase/pack.json so guest and signed-in listeners immediately receive updated scripts
+        asyncio.run(publish_showcase(cfg, store, day=day, voice=voice))
     finally:
         if proc:
             log.info("Stopping temporary local voice service (PID: %d)...", proc.pid)

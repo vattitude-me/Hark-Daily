@@ -255,18 +255,24 @@ SAMPLE_STORY = {
 }
 
 
-def test_provider_chain_prioritizes_groq_before_gemini(cfg):
+def test_provider_chain_prioritizes_groq_before_gemini(cfg, monkeypatch):
     c = dataclasses.replace(
         cfg,
+        agy_enabled=False,
         groq_api_key="g_key",
         groq_models=("groq-m1",),
         local_llm_url="http://localhost:11434/v1/chat/completions",
         local_llm_model="llama3.1:8b",
         gemini_api_key="gem_key",
-        gemini_models=("gemini-2.5-flash",),
+        gemini_models=("gemini-3.5-flash-lite",),
     )
     chain = podcast._ai_provider_chain(c)
     assert [provider for _, _, _, provider in chain] == ["Groq", "LocalLLM", "Gemini"]
+
+    monkeypatch.setattr(podcast, "_agy_bin", lambda: "/opt/homebrew/bin/agy")
+    c_with_agy = dataclasses.replace(c, agy_enabled=True, agy_model="gemini-3.8-flash-low")
+    chain_agy = podcast._ai_provider_chain(c_with_agy)
+    assert [provider for _, _, _, provider in chain_agy] == ["AntigravityCLI", "Groq", "LocalLLM", "Gemini"]
 
 
 def test_build_story_brief_extracts_facts_and_sober_flag():
@@ -713,11 +719,18 @@ def test_facts_deduplication_and_fallback_anti_repetition():
     facts_text = [f["fact"] for f in brief["facts"]]
     assert len(facts_text) == len(set(f.lower() for f in facts_text))
 
-    # Test fallback dialogue does not duplicate turns
+    # Test fallback dialogue does not duplicate turns and never emits robotic filler
     dial = podcast.fallback_story_dialogue(story, HOSTS)
     assert len(dial.turns) >= 2
     # Ensure Turn 1 and Turn 2 are never identical
     assert dial.turns[0].text.lower().rstrip(".") != dial.turns[1].text.lower().rstrip(".")
+    for turn in dial.turns:
+        low = turn.text.lower()
+        assert "reporting from" not in low
+        assert "reporting there from" not in low
+        assert "that comes from" not in low
+        assert "key developments we are tracking" not in low
+        assert "here is what is developing" not in low
 
 
 def test_clean_existing_script_filters_fragments_and_placeholders():

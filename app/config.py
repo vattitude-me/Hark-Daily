@@ -56,6 +56,9 @@ class Config:
     supabase_url: str = os.getenv("SUPABASE_URL", "").rstrip("/")
     supabase_secret_key: str = os.getenv("SUPABASE_SECRET_KEY", "")
     bucket: str = os.getenv("SUPABASE_BUCKET", "briefings")
+    # Antigravity CLI (local always-on Mac PC agent CLI) — primary zero-cost AI scriptwriter
+    agy_enabled: bool = _bool("AGY_ENABLED", True)
+    agy_model: str = os.getenv("AGY_MODEL", "gemini-3.8-flash-low").strip()
     # Groq writes the summaries; each model has its own free-tier limits, so we fall through the list.
     groq_api_key: str | None = os.getenv("GROQ_API_KEY") or None
     groq_models: tuple[str, ...] = tuple(
@@ -64,7 +67,9 @@ class Config:
     # Gemini AI Studio support
     gemini_api_key: str | None = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or None
     gemini_models: tuple[str, ...] = tuple(
-        m.strip() for m in os.getenv("GEMINI_MODELS", "gemini-2.5-flash,gemini-1.5-flash").split(",") if m.strip()
+        m.strip()
+        for m in os.getenv("GEMINI_MODELS", "gemini-3.5-flash-lite,gemini-flash-lite-latest").split(",")
+        if m.strip()
     )
     # Optional local / secondary OpenAI-compatible LLM endpoint (e.g. Ollama / vLLM / LM Studio)
     local_llm_url: str | None = os.getenv("LOCAL_LLM_URL") or None
