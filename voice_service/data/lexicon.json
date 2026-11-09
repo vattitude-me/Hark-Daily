@@ -1,0 +1,30 @@
+{
+  "version": "1.1.0",
+  "entries": [
+    { "pattern": "\\bCarney's\\b", "replacement": "Car-nee's" },
+    { "pattern": "\\bCarney\\b", "replacement": "Car-nee" },
+    { "pattern": "\\bPoilievre's\\b", "replacement": "Pwal-ee-ev's" },
+    { "pattern": "\\bPoilievre\\b", "replacement": "Pwal-ee-ev" },
+    { "pattern": "\\bTrudeau's\\b", "replacement": "Troo-doh's" },
+    { "pattern": "\\bTrudeau\\b", "replacement": "Troo-doh" },
+    { "pattern": "\\bChrystia\\b", "replacement": "Kris-tya" },
+    { "pattern": "\\bJagmeet\\b", "replacement": "Jug-meet" },
+    { "pattern": "\\bLegault's\\b", "replacement": "Leh-goh's" },
+    { "pattern": "\\bLegault\\b", "replacement": "Leh-goh" },
+    { "pattern": "\\bBlanchet\\b", "replacement": "Blahn-shay" },
+    { "pattern": "\\bSaskatchewan\\b", "replacement": "Suh-skatch-uh-wun" },
+    { "pattern": "\\bCalgary\\b", "replacement": "Cal-gree" },
+    { "pattern": "\\bEdmonton\\b", "replacement": "Ed-mun-tun" },
+    { "pattern": "\\bByteDance\\b", "replacement": "Bite-dance" },
+    { "pattern": "\\bHuawei\\b", "replacement": "Hwah-way" },
+    { "pattern": "\\bNvidia's\\b", "replacement": "En-vid-ee-uh's" },
+    { "pattern": "\\bNvidia\\b", "replacement": "En-vid-ee-uh" },
+    { "pattern": "\\bNasdaq\\b", "replacement": "Naz-dak" },
+    { "pattern": "\\bSensex\\b", "replacement": "Sen-seks" },
+    { "pattern": "\\bNifty\\b", "replacement": "Nif-tee" },
+    { "pattern": "\\bTSMC\\b", "replacement": "T-S-M-C" },
+    { "pattern": "\\bNYSE\\b", "replacement": "N-Y-S-E" },
+    { "pattern": "\\bS&P\\b", "replacement": "S and P" },
+    { "pattern": "\\bDOGE\\b", "replacement": "Doj" }
+  ]
+}

@@ -283,6 +283,9 @@ create index if not exists story_audio_date_idx on public.story_audio (date);
 -- Added after the first deployments: the story's lead image (the article's og:image).
 alter table public.story_audio add column if not exists image text;
 
+-- Exact turn marks [(start_sec, end_sec), ...] for millisecond-accurate teleprompter alignment & tap-to-seek
+alter table public.story_audio add column if not exists marks jsonb;
+
 alter table public.story_audio enable row level security;
 drop policy if exists "read story audio" on public.story_audio;
 create policy "read story audio" on public.story_audio for select to anon, authenticated using (true);

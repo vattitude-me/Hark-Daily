@@ -352,6 +352,20 @@ def _prompt(hosts: tuple[str, str], weekday: str) -> str:
         w_open=MAX_WORDS["open"], w_tease=MAX_WORDS["tease"], w_bridge=MAX_WORDS["bridge"], w_close=MAX_WORDS["close"], max_tags=MAX_TAGS)
 
 
+_LAST_LLM_CALL_TIME: float = 0.0
+_MIN_LLM_INTERVAL: float = 1.6  # Minimum seconds between LLM calls to keep safely within Groq 30 RPM limit
+
+
+def _rate_limit_llm() -> None:
+    """Ensure at least _MIN_LLM_INTERVAL seconds elapse between external LLM requests to prevent free-tier 429s."""
+    global _LAST_LLM_CALL_TIME
+    now = time.monotonic()
+    elapsed = now - _LAST_LLM_CALL_TIME
+    if elapsed < _MIN_LLM_INTERVAL:
+        time.sleep(_MIN_LLM_INTERVAL - elapsed)
+    _LAST_LLM_CALL_TIME = time.monotonic()
+
+
 def _ai_provider_chain(cfg) -> list[tuple[str, str, str, str]]:
     """Ordered (model, url, token, provider_label) chain: Groq first, then local LLM, then Gemini."""
     models: list[tuple[str, str, str, str]] = []
@@ -396,7 +410,11 @@ def ask_ai(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
                              {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
             }
             try:
+                _rate_limit_llm()
                 resp = client.post(url, json=body, headers={"Authorization": f"Bearer {token}"})
+                if resp.status_code == 429:
+                    problems.append(f"{provider} {model}: HTTPStatusError: 429 Too Many Requests")
+                    continue
                 resp.raise_for_status()
                 data = json.loads(resp.json()["choices"][0]["message"]["content"])
                 if not isinstance(data, dict):
@@ -599,21 +617,46 @@ STORY_FORMATS: dict[str, str] = {
         "(for example, one sees the practical upside or ambition while the other points out the cost, risk, or catch "
         "reported in the facts)."
     ),
-    "quick_hit": (
-        "FORMAT 4 (Quick Hit): Keep this one tight and punchy—just 2 or 3 crisp turns total (around 35 to 60 words total) "
-        "that land the essential news and why it matters, then move on."
+    "conversational_dialogue": (
+        "FORMAT 4 (Dynamic Banter / Deep-Dive): True conversational back-and-forth across 3 to 5 turns. "
+        "Hosts can speak consecutive turns when natural ('A -> A -> B -> A'), share insights, and discuss "
+        "the implications with lively pacing."
     ),
-    "tangent": (
-        "FORMAT 5 (Brief Relatable Aside): One host makes a quick, relatable everyday observation or comparison "
-        "in 1 short sentence, then pivots straight back to the hard facts of the story."
+    "quick_hit": (
+        "FORMAT 5 (Quick Hit): Keep this one tight and punchy—just 2 or 3 crisp turns total (around 35 to 60 words total) "
+        "that land the essential news and why it matters, then move on."
     ),
     "reversal": (
         "FORMAT 6 (The Twist / Reversal): Start with the obvious surface take on the headline in Turn 1, "
         "then have the other host counter with 'Actually, here is the catch...' or the unexpected detail from the facts."
     ),
+    "solo_matthew": (
+        "FORMAT 7 (Solo Anchor - Matthew): Matthew anchors this story ALONE in 1 or 2 clear, punchy broadcast turns "
+        "(25 to 65 words total). Kelly does NOT speak in this story at all. Matthew delivers the news and context with direct authority."
+    ),
+    "solo_kelly": (
+        "FORMAT 8 (Solo Anchor - Kelly): Kelly anchors this story ALONE in 1 or 2 energetic, engaging broadcast turns "
+        "(25 to 65 words total). Matthew does NOT speak in this story at all. Kelly delivers the story with lively clarity."
+    ),
+    "lead_takeaway": (
+        "FORMAT 9 (Lead & Takeaway): Exactly 2 turns total. One host delivers the main news lead and context (20-40 words); "
+        "the other host wraps with the single critical takeaway or bottom line (15-25 words). Tight, punchy 2-turn story."
+    ),
 }
 STORY_FORMAT_KEYS: tuple[str, ...] = tuple(STORY_FORMATS.keys())
-SOBER_STORY_FORMAT_KEYS: tuple[str, ...] = ("explainer_reactions", "question_led", "quick_hit", "mild_disagreement")
+SOBER_STORY_FORMAT_KEYS: tuple[str, ...] = (
+    "explainer_reactions", "solo_matthew", "lead_takeaway", "solo_kelly", "quick_hit", "question_led"
+)
+
+
+def is_solo_format(fmt_key: str | None) -> bool:
+    """Return True if the story format is anchored by a single host."""
+    return fmt_key in ("solo_matthew", "solo_kelly")
+
+
+def solo_host_index(fmt_key: str | None, hosts: tuple[str, str] = ("Matthew", "Kelly")) -> int:
+    """Return speaker index for a solo format: 0 for Matthew (host A), 1 for Kelly (host B)."""
+    return 1 if fmt_key == "solo_kelly" else 0
 
 
 def select_story_format(
@@ -623,7 +666,7 @@ def select_story_format(
     sober: bool = False,
     previous_format: str | None = None,
 ) -> tuple[str, str]:
-    """Deterministically pick one of the 6 story formats so back-to-back stories never repeat the same format."""
+    """Deterministically pick one of the story formats so back-to-back stories never repeat the same format."""
     pool = SOBER_STORY_FORMAT_KEYS if sober else STORY_FORMAT_KEYS
     sec_offset = int(hashlib.sha1((section or "top").encode("utf-8")).hexdigest()[:6], 16)
     idx = (sec_offset + max(1, int(rank)) - 1) % len(pool)
@@ -794,14 +837,23 @@ def validate_story_dialogue(
     story_brief: dict,
     hosts: tuple[str, str] = ("Matthew", "Kelly"),
     *,
-    min_turns: int = 2,
-    max_turns: int = 7,
+    min_turns: int | None = None,
+    max_turns: int | None = None,
 ) -> list[DialogueTurn] | None:
     """Validate LLM-generated story dialogue turns against podcast editorial & TTS rules.
 
-    Supports varied turn lengths: from 1-2 word human reactions ('Huh.', 'Wait, really?')
-    up to 4-sentence explainers (68 words), and 2-turn quick hits up to 7-turn back-and-forths.
+    Supports solo reports (1-2 turns), 2-turn quick hits, up to 7-turn back-and-forths.
+    Enforces a strict <= 24 word limit per sentence to prevent TTS generation slowdowns.
     """
+    fmt_key = str(story_brief.get("story_format") or "")
+    is_solo = is_solo_format(fmt_key)
+    solo_spk = solo_host_index(fmt_key, hosts) if is_solo else None
+
+    if min_turns is None:
+        min_turns = 1 if is_solo else 2
+    if max_turns is None:
+        max_turns = 3 if is_solo else 7
+
     if isinstance(raw, str):
         raw = parse_story_dialogue_payload(raw, hosts)
     turns_raw = raw.get("turns") if isinstance(raw, dict) else raw
@@ -822,13 +874,16 @@ def validate_story_dialogue(
         who = _speaker_index(item.get("speaker", ""), hosts)
         if who is None:
             return None
-        if who == last_speaker:
-            consecutive += 1
-            if consecutive > 2:
-                return None
-        else:
-            consecutive = 1
-            last_speaker = who
+        if is_solo and who != solo_spk:
+            return None
+        if not is_solo:
+            if who == last_speaker:
+                consecutive += 1
+                if consecutive > 2:
+                    return None
+            else:
+                consecutive = 1
+                last_speaker = who
 
         text = _clean(item.get("text", ""))
         text = _clean(_TAG.sub(lambda m: f"[{m.group(1).lower()}]", text))
@@ -837,13 +892,21 @@ def validate_story_dialogue(
         # Canned reflex reaction tag removal: if Turn 2 (the immediate response to the headline)
         # starts with a reaction sound ([laugh], [sigh], [chuckle], etc.), strip it so the second
         # speaker responds naturally with words rather than an automatic repetitive sound effect.
-        if len(parsed) == 1:
+        if len(parsed) == 1 and not is_solo:
             text = _clean(_TAG_START.sub("", text))
 
         words_only = strip_tags(text)
         word_count = len(words_only.split())
         if not words_only or word_count < 1 or word_count > 68 or _BAD.search(words_only) or _PROFANITY_PATTERN.search(words_only):
             return None
+
+        # Sentence length ceiling: individual sentences over 24 words drastically slow down TTS
+        # synthesis and cause pacing drift. Reject run-on sentences to maintain crisp pacing.
+        sentences = re.split(r"(?<=[.!?])\s+", words_only)
+        for s in sentences:
+            s_words = [w for w in s.strip().split() if w]
+            if len(s_words) > 24:
+                return None
 
         tags_in_turn = len(_TAG.findall(text))
         total_tags += tags_in_turn
@@ -872,10 +935,13 @@ def validate_story_dialogue(
             pause_after=pause_after,
         ))
 
-    # Both hosts must participate, and total word budget must fit a crisp 15-45s segment
-    speakers_used = {t.speaker for t in parsed}
-    if len(speakers_used) < 2 or total_words < 20 or total_words > 190:
-        return None
+    if is_solo:
+        if total_words < 18 or total_words > 120:
+            return None
+    else:
+        speakers_used = {t.speaker for t in parsed}
+        if len(speakers_used) < 2 or total_words < 20 or total_words > 190:
+            return None
     if not sober and total_tags > MAX_TAGS:
         return None
     return parsed
@@ -909,24 +975,17 @@ STRICT EDITORIAL, LANGUAGE & ANTI-SLOP RULES:
 9. BROADCAST SAFETY & FAMILY-FRIENDLINESS (ZERO TOLERANCE FOR PROFANITY):
    - Absolutely NO profanity, swear words, vulgarity, offensive slang, or expletives (e.g. fuck, shit, bitch, ass, asshole, dick, pussy, bastard, or any variations).
    - Even if the source material, news story, song title, or music album quotes explicit lyrics or swear words, NEVER repeat the expletives. Rephrase or describe them cleanly for a general public family audience (e.g., say 'an expletive-laden challenge' or describe the sentiment in clean words). Any script containing profanity will be automatically rejected.
+10. KEEP SENTENCES SHORT (CRITICAL FOR AUDIO PACING):
+    Keep every individual sentence under 20 words. Compound run-on sentences cause audio synthesis slowdowns and unnatural cadence. Break complex thoughts into punchy spoken sentences.
 
-Return ONLY valid JSON of this exact shape (2 to 6 turns total, 35 to 140 words across all turns):
-{{
-  "summary": "1-2 sentence neutral card summary (30-50 words) built strictly from the facts",
-  "turns": [
-    {{"speaker": "{lead_speaker}", "purpose": "lead", "fact_refs": ["F1"], "text": "..."}},
-    {{"speaker": "{co_speaker}", "purpose": "reaction", "fact_refs": ["F2"], "text": "..."}},
-    {{"speaker": "{lead_speaker}", "purpose": "context", "fact_refs": ["F2", "F3"], "text": "..."}},
-    {{"speaker": "{co_speaker}", "purpose": "takeaway", "fact_refs": ["F3"], "text": "..."}}
-  ]
-}}"""
+{shape_instruction}"""
 
 
 def fallback_story_dialogue(
     story: dict,
     hosts: tuple[str, str] = ("Matthew", "Kelly"),
 ) -> StoryDialogue:
-    """Deterministic, strictly factual two-host exchange built from extracted article sentences."""
+    """Deterministic, strictly factual exchange built from extracted article sentences."""
     brief = build_story_brief(story)
     facts = brief["facts"]
     base_sec = str(brief.get("section") or "top").replace("_us", "").replace("_in", "").replace("_ca", "")
@@ -940,6 +999,62 @@ def fallback_story_dialogue(
     f2 = facts[1]["fact"] if len(facts) > 1 else ""
     f3 = facts[2]["fact"] if len(facts) > 2 else ""
     f4 = facts[3]["fact"] if len(facts) > 3 else ""
+
+    if is_solo_format(fmt_key):
+        solo_spk = solo_host_index(fmt_key, hosts)
+        turns = [
+            DialogueTurn(
+                speaker=solo_spk,
+                text=f1,
+                purpose="lead",
+                fact_refs=["F1"],
+                pause_after=PURPOSE_PAUSES["lead"],
+            ),
+            DialogueTurn(
+                speaker=solo_spk,
+                text=f2 if f2 else (f3 if f3 else f"Reporting from {source}."),
+                purpose="takeaway",
+                fact_refs=["F2"] if f2 else ["F1"],
+                pause_after=PURPOSE_PAUSES["takeaway"],
+            ),
+        ]
+        return StoryDialogue(
+            story_id=brief["story_id"],
+            section=brief["section"],
+            headline=brief["headline"],
+            summary=brief["summary"],
+            turns=turns,
+            writer="built-in",
+            story_format=fmt_key,
+        )
+
+    if fmt_key == "lead_takeaway":
+        takeaway_text = f2 if f2 else (f3 if f3 else f"Reporting there from {source}.")
+        turns = [
+            DialogueTurn(
+                speaker=lead_speaker,
+                text=f1,
+                purpose="lead",
+                fact_refs=["F1"],
+                pause_after=PURPOSE_PAUSES["lead"],
+            ),
+            DialogueTurn(
+                speaker=co_speaker,
+                text=takeaway_text,
+                purpose="takeaway",
+                fact_refs=["F2"] if f2 else ["F1"],
+                pause_after=PURPOSE_PAUSES["takeaway"],
+            ),
+        ]
+        return StoryDialogue(
+            story_id=brief["story_id"],
+            section=brief["section"],
+            headline=brief["headline"],
+            summary=brief["summary"],
+            turns=turns,
+            writer="built-in",
+            story_format=fmt_key,
+        )
 
     turns: list[DialogueTurn] = [
         DialogueTurn(
@@ -1092,6 +1207,41 @@ def generate_story_dialogue(
             "Transition: Begin Turn 1 with a natural conversational pivot into this story without repeating 'Next up' or 'Moving on'."
         )
 
+    brief["story_format"] = fmt_key
+
+    if is_solo_format(fmt_key):
+        solo_spk_idx = solo_host_index(fmt_key, hosts)
+        solo_spk_letter = "a" if solo_spk_idx == 0 else "b"
+        solo_spk_name = hosts[solo_spk_idx]
+        shape_instruction = f"""Return ONLY valid JSON of this exact shape (1 to 2 turns total by {solo_spk_name} ('{solo_spk_letter}'), 25 to 65 words total across all turns):
+{{
+  "summary": "1-2 sentence neutral card summary (30-50 words) built strictly from the facts",
+  "turns": [
+    {{"speaker": "{solo_spk_letter}", "purpose": "lead", "fact_refs": ["F1"], "text": "..."}},
+    {{"speaker": "{solo_spk_letter}", "purpose": "takeaway", "fact_refs": ["F2"], "text": "..."}}
+  ]
+}}"""
+    elif fmt_key == "lead_takeaway":
+        shape_instruction = f"""Return ONLY valid JSON of this exact shape (EXACTLY 2 turns total: Turn 1 by '{lead_speaker}' (20-40 words), Turn 2 by '{co_speaker}' (15-25 words), 35 to 65 words total):
+{{
+  "summary": "1-2 sentence neutral card summary (30-50 words) built strictly from the facts",
+  "turns": [
+    {{"speaker": "{lead_speaker}", "purpose": "lead", "fact_refs": ["F1"], "text": "..."}},
+    {{"speaker": "{co_speaker}", "purpose": "takeaway", "fact_refs": ["F2"], "text": "..."}}
+  ]
+}}"""
+    else:
+        shape_instruction = f"""Return ONLY valid JSON of this exact shape (2 to 5 turns total, 35 to 140 words across all turns):
+{{
+  "summary": "1-2 sentence neutral card summary (30-50 words) built strictly from the facts",
+  "turns": [
+    {{"speaker": "{lead_speaker}", "purpose": "lead", "fact_refs": ["F1"], "text": "..."}},
+    {{"speaker": "{co_speaker}", "purpose": "reaction", "fact_refs": ["F2"], "text": "..."}},
+    {{"speaker": "{lead_speaker}", "purpose": "context", "fact_refs": ["F2", "F3"], "text": "..."}},
+    {{"speaker": "{co_speaker}", "purpose": "takeaway", "fact_refs": ["F3"], "text": "..."}}
+  ]
+}}"""
+
     sys_prompt = STORY_DIALOGUE_PROMPT.format(
         a=hosts[0],
         b=hosts[1],
@@ -1102,6 +1252,7 @@ def generate_story_dialogue(
         transition_instruction=transition_instruction,
         lead_speaker=lead_speaker,
         co_speaker=co_speaker,
+        shape_instruction=shape_instruction,
     )
     user_payload = {
         "section": brief["section_title"],
@@ -1133,11 +1284,13 @@ def generate_story_dialogue(
                     "messages": messages,
                 }
                 try:
+                    _rate_limit_llm()
                     resp = client.post(url, json=body, headers={"Authorization": f"Bearer {token}"})
                     if resp.status_code == 429:
-                        wait = _retry_after(resp)
+                        wait = max(_retry_after(resp), 3.0)
                         if wait <= 20 and attempt == 0:
-                            sleep(wait + 0.5)
+                            log.warning("Groq rate limit hit (429) during story dialogue. Backing off for %.1fs...", wait)
+                            sleep(wait)
                             continue
                         break
                     resp.raise_for_status()
@@ -1152,8 +1305,8 @@ def generate_story_dialogue(
                             messages.append({
                                 "role": "user",
                                 "content": (
-                                    "Repair the JSON: ensure 2 to 6 turns with both 'a' and 'b' participating, "
-                                    "at least 20 words total across the story, no dashes or special characters, and valid fact_refs."
+                                    "Repair the JSON: ensure valid turns adhering to the format, "
+                                    "keep each sentence under 20 words, no dashes or special characters, and valid fact_refs."
                                 ),
                             })
                             continue
@@ -1191,7 +1344,7 @@ def generate_story_dialogue(
                                     },
                                     ensure_ascii=False,
                                     indent=2,
-                                ),
+                                    ),
                                 encoding="utf-8",
                             )
                         except Exception:
@@ -1229,7 +1382,11 @@ async def synthesise_story_dialogue(
     *,
     cache_dir: Path | None = None,
 ) -> tuple[bytes, float, list[tuple[float, float]]]:
-    """Synthesize each turn of a StoryDialogue with Matthew & Kelly, cache per-turn audio, and stitch via PCM."""
+    """Synthesize each turn of a StoryDialogue with Matthew & Kelly, cache per-turn audio, and stitch via PCM.
+
+    Requests lossless WAV (?format=wav) from the voice service, caches with honest parameter keys,
+    applies per-host pace and temperature variation, stitches in PCM, and encodes ONCE to MP3 at 96 kbps.
+    """
     from .storypack import synthesise
 
     turn_cache: Path | None = None
@@ -1240,24 +1397,50 @@ async def synthesise_story_dialogue(
     raw_turns: list[tuple[bytes, float, float]] = []
     for turn in dialogue.turns:
         voice_id = host_voices[turn.speaker]
-        key = hashlib.sha256(f"{voice_id}::{turn.text}".encode("utf-8")).hexdigest()[:16]
-        cached_mp3 = turn_cache / f"{key}.mp3" if turn_cache else None
+        word_count = len(strip_tags(turn.text).split())
+
+        # Pacing & temperature variation per host and turn purpose
+        if turn.speaker == 0:  # Matthew: grounded, measured
+            turn_pace = 0.93
+            turn_temp = 0.82
+        else:                  # Kelly: lively, energetic
+            turn_pace = 0.97
+            turn_temp = 0.88
+
+        # Short reaction turns: slightly brisker and more expressive
+        if turn.purpose == "reaction" and word_count <= 4:
+            turn_pace = 0.98
+            turn_temp = 0.90
+
+        # Honest cache key incorporating format, voice, pace, temperature, and text
+        cache_key_str = f"wav|{voice_id}|{turn_pace:.2f}|{turn_temp:.2f}|{turn.text}"
+        key = hashlib.sha256(cache_key_str.encode("utf-8")).hexdigest()[:16]
+        cached_wav = turn_cache / f"{key}.wav" if turn_cache else None
         cached_meta = turn_cache / f"{key}.json" if turn_cache else None
 
-        if cached_mp3 and cached_mp3.is_file() and cached_meta and cached_meta.is_file():
+        if cached_wav and cached_wav.is_file() and cached_meta and cached_meta.is_file():
             try:
-                raw_audio = cached_mp3.read_bytes()
+                raw_audio = cached_wav.read_bytes()
                 seconds = float(json.loads(cached_meta.read_text(encoding="utf-8")).get("duration") or 1.2)
                 raw_turns.append((raw_audio, seconds, turn.pause_after))
                 continue
             except Exception:
                 pass
 
-        raw_audio, seconds = await synthesise(http, base, turn.text, voice_id)
-        if cached_mp3 and cached_meta:
+        # Request lossless WAV from voice service (format="wav")
+        raw_audio, seconds = await synthesise(
+            http, base, turn.text, voice_id,
+            pace=turn_pace,
+            temperature=turn_temp,
+            fmt="wav",
+        )
+        if cached_wav and cached_meta:
             try:
-                cached_mp3.write_bytes(raw_audio)
-                cached_meta.write_text(json.dumps({"duration": seconds, "voice": voice_id}), encoding="utf-8")
+                cached_wav.write_bytes(raw_audio)
+                cached_meta.write_text(
+                    json.dumps({"duration": seconds, "voice": voice_id, "pace": turn_pace, "temp": turn_temp}),
+                    encoding="utf-8",
+                )
             except Exception:
                 pass
         raw_turns.append((raw_audio, seconds, turn.pause_after))

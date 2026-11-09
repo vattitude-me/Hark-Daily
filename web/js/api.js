@@ -514,17 +514,24 @@ export const api = {
     const rest = 'script,duration,audio_path';
     try {
       const res = await sb.from('story_audio')
-        .select(`${base},image,${rest}`).eq('date', day);
+        .select(`${base},image,${rest},marks`).eq('date', day);
       const rows = check(res);
       if (rows && rows.length > 0) return rows;
     } catch {
       try {
         const res = await sb.from('story_audio')
-          .select(`${base},${rest}`).eq('date', day);
+          .select(`${base},image,${rest}`).eq('date', day);
         const rows = check(res);
         if (rows && rows.length > 0) return rows;
       } catch {
-        // Fall back to storage CDN
+        try {
+          const res = await sb.from('story_audio')
+            .select(`${base},${rest}`).eq('date', day);
+          const rows = check(res);
+          if (rows && rows.length > 0) return rows;
+        } catch {
+          // Fall back to storage CDN
+        }
       }
     }
     const pack = await publicPack(day);

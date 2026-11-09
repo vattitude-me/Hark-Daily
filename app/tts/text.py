@@ -1,6 +1,9 @@
 """Make news copy speakable and natural for neural text-to-speech voices."""
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
 import re
 
 CURRENCY_PREFIXES = {
@@ -62,29 +65,51 @@ ABBREVIATIONS = {
     r"\bCOO\b": "C O O",
 }
 
+def _load_lexicon() -> dict[str, str]:
+    candidates = [
+        Path(os.getenv("LEXICON_PATH", "")),
+        Path(__file__).resolve().parent.parent.parent / "data" / "lexicon.json",
+        Path(__file__).resolve().parent.parent / "data" / "lexicon.json",
+    ]
+    for c in candidates:
+        if c.is_file():
+            try:
+                data = json.loads(c.read_text(encoding="utf-8"))
+                return {entry["pattern"]: entry["replacement"] for entry in data.get("entries", [])}
+            except Exception:
+                pass
+    return {
+        r"\bCarney's\b": "Car-nee's",
+        r"\bCarney\b": "Car-nee",
+        r"\bPoilievre's\b": "Pwal-ee-ev's",
+        r"\bPoilievre\b": "Pwal-ee-ev",
+        r"\bTrudeau's\b": "Troo-doh's",
+        r"\bTrudeau\b": "Troo-doh",
+        r"\bChrystia\b": "Kris-tya",
+        r"\bJagmeet\b": "Jug-meet",
+        r"\bLegault's\b": "Leh-goh's",
+        r"\bLegault\b": "Leh-goh",
+        r"\bBlanchet\b": "Blahn-shay",
+        r"\bSaskatchewan\b": "Suh-skatch-uh-wun",
+        r"\bCalgary\b": "Cal-gree",
+        r"\bEdmonton\b": "Ed-mun-tun",
+        r"\bByteDance\b": "Bite-dance",
+        r"\bHuawei\b": "Hwah-way",
+        r"\bNvidia's\b": "En-vid-ee-uh's",
+        r"\bNvidia\b": "En-vid-ee-uh",
+        r"\bNasdaq\b": "Naz-dak",
+        r"\bSensex\b": "Sen-seks",
+        r"\bNifty\b": "Nif-tee",
+        r"\bTSMC\b": "T-S-M-C",
+        r"\bNYSE\b": "N-Y-S-E",
+        r"\bS&P\b": "S and P",
+        r"\bDOGE\b": "Doj",
+    }
+
+
 # Phonetic respelling dictionary for proper nouns, Canadian/world political figures,
 # and tricky names so neural TTS models (Chatterbox, Edge) pronounce them with 100% precision.
-PRONUNCIATION_OVERRIDES = {
-    # Canadian political & economic figures
-    r"\bCarney's\b": "Car-nee's",
-    r"\bCarney\b": "Car-nee",
-    r"\bPoilievre's\b": "Pwal-ee-ev's",
-    r"\bPoilievre\b": "Pwal-ee-ev",
-    r"\bTrudeau's\b": "Troo-doh's",
-    r"\bTrudeau\b": "Troo-doh",
-    r"\bChrystia\b": "Kris-tya",
-    r"\bJagmeet\b": "Jug-meet",
-    r"\bLegault's\b": "Leh-goh's",
-    r"\bLegault\b": "Leh-goh",
-    r"\bBlanchet\b": "Blahn-shay",
-    # Canadian & Regional Geography
-    r"\bSaskatchewan\b": "Suh-skatch-uh-wun",
-    r"\bCalgary\b": "Cal-gree",
-    r"\bEdmonton\b": "Ed-mun-tun",
-    # Global Tech / Business entities
-    r"\bByteDance\b": "Bite-dance",
-    r"\bHuawei\b": "Hwah-way",
-}
+PRONUNCIATION_OVERRIDES = _load_lexicon()
 
 
 def voice_phonetic_normalize(text: str) -> str:
@@ -155,7 +180,8 @@ def voice_normalize(text: str, preserve_tags: bool = True) -> str:
     text = re.sub(r"\s*[—–]\s*", ", ", text)
     text = re.sub(r"\s+-\s+", ", ", text)
 
-    # Currencies: $5B -> 5 billion dollars, €10M -> 10 million euros, $25 -> 25 dollars
+    # Currencies: $5B -> 5 billion dollars, €10M -> 10 million euros, $25 -> 25 dollars, Rs./INR -> rupees
+    text = re.sub(r"\b(?:Rs\.?|INR)\s*", "₹", text, flags=re.I)
     text = CURRENCY_RE.sub(_currency_replace, text)
 
     # Standalone metric/financial scale suffixes: 32B -> 32 billion, 500k -> 500 thousand
