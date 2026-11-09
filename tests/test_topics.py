@@ -189,5 +189,27 @@ def test_edition_sections_mapping():
     assert ca_us.count("science") == 1
 
 
+def test_pick_unique_caps_same_topic_cluster_when_alternatives_exist():
+    from app.topics import pick_unique
+
+    candidates = [
+        Item(title="Is Jensen Huang too Powerful to Be Punished by Nvidia?", summary="Nvidia board probes Chinese spy allegations.", url="https://nytimes.com/1", source_id=1, source_name="NYT", section="top_us"),
+        Item(title="Nvidia’s Stock Price Set to Drop After Investigation Into CEO Jensen Huang", summary="Jensen Huang admitted relationship with suspected Chinese spy.", url="https://nytimes.com/2", source_id=1, source_name="NYT", section="top_us"),
+        Item(title="China Rejects Espionage Claims Involving Nvidia C.E.O. Jensen Huang", summary="Beijing denies spy claims.", url="https://nytimes.com/3", source_id=1, source_name="NYT", section="top_us"),
+        Item(title="Nvidia C.E.O. Admits Relationship With Suspected Chinese Spy", summary="Jensen Huang faces board probe.", url="https://nytimes.com/4", source_id=1, source_name="NYT", section="top_us"),
+        Item(title="Congress Returns to a Reordered Washington With a Hazy Agenda", url="https://nytimes.com/5", source_id=1, source_name="NYT", section="top_us"),
+        Item(title="Federal Reserve Weighs Next Interest Rate Move Amid Inflation Data", url="https://nytimes.com/6", source_id=1, source_name="NYT", section="top_us"),
+        Item(title="Supreme Court Hears Major Environmental Regulation Challenge", url="https://nytimes.com/7", source_id=1, source_name="NYT", section="top_us"),
+    ]
+    res = pick_unique({"top_us": candidates}, per_section=5)
+    picked_titles = [it.title for it in res["top_us"]]
+    assert len(picked_titles) == 5
+    nvidia_count = sum(1 for t in picked_titles if "nvidia" in t.lower())
+    assert nvidia_count == 2
+    assert "Congress Returns to a Reordered Washington With a Hazy Agenda" in picked_titles
+    assert "Federal Reserve Weighs Next Interest Rate Move Amid Inflation Data" in picked_titles
+    assert "Supreme Court Hears Major Environmental Regulation Challenge" in picked_titles
+
+
 
 

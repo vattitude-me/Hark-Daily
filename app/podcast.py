@@ -1039,8 +1039,25 @@ def validate_story_dialogue(
             if len(s_words) > 24:
                 return None
 
-        # Check for verbatim headline repetition on opening turn
+        # Check for verbatim headline repetition or false topic-shift on opening turn
         if len(parsed) == 0:
+            shared_prev = story_brief.get("shared_prev_terms") or []
+            if shared_prev:
+                # If the previous story covered the same topic (e.g. Nvidia), strip or reject
+                # jarring "Turn now to Nvidia, where..." / "Turning to Nvidia," prefixes.
+                for term in shared_prev:
+                    bad_shift = re.compile(
+                        rf"^\s*(?:and\s+)?(?:turn(?:ing)?(?:\s+now)?|switch(?:ing)?(?:\s+now)?|shifting(?:\s+now)?|over(?:\s+now)?)\s+(?:to|at)\s+{re.escape(term)}\s*(?:,\s*where\s+|,\s*)",
+                        re.I,
+                    )
+                    if bad_shift.search(text):
+                        stripped = bad_shift.sub("", text).strip()
+                        if stripped:
+                            text = f"Also at {term.title()}, {stripped[0].lower()}{stripped[1:]}"
+                            words_only = strip_tags(text)
+                            word_count = len(words_only.split())
+                            h_clean = re.sub(r"[^a-z0-9 ]+", "", story_brief.get("headline", "").lower()).strip()
+                            w_clean = re.sub(r"[^a-z0-9 ]+", "", words_only.lower()).strip()
             h_clean = re.sub(r"[^a-z0-9 ]+", "", story_brief.get("headline", "").lower()).strip()
             w_clean = re.sub(r"[^a-z0-9 ]+", "", words_only.lower()).strip()
             if h_clean and (w_clean == h_clean or w_clean.startswith(h_clean)):
@@ -1339,7 +1356,39 @@ def fallback_story_dialogue(
     )
 
 
-def _dialogue_cache_path(cfg, brief: dict, hosts: tuple[str, str], fmt_key: str = "") -> Path | None:
+_ANGLE_LENS: dict[str, str] = {
+    "top": "Focus on the big-picture public impact, leadership accountability, and why this headline matters to everyone today.",
+    "markets": "Focus strictly on the financial, stock market, valuation, investor sentiment, and Wall Street trading fallout.",
+    "ai": "Focus strictly on the artificial intelligence industry impact, frontier model ecosystem, compute supply chain, and AI leadership.",
+    "tech": "Focus strictly on the technology sector, corporate governance, executive communications, and product or industry ramifications.",
+    "politics": "Focus strictly on the government, national security, congressional oversight, policy, and geopolitical angle.",
+    "science": "Focus strictly on the scientific methodology, research breakthrough, and real-world discovery.",
+    "entertainment": "Focus on the cultural, media, creative, and audience angle.",
+    "sports": "Focus on the athletic competition, team dynamics, and championship stakes.",
+}
+
+
+def _shared_topic_terms(prev_headline: str, curr_headline: str) -> list[str]:
+    """Return shared substantive subject words between two consecutive headlines."""
+    stop = {
+        "the", "and", "for", "with", "from", "that", "this", "into", "over", "after",
+        "before", "under", "about", "amid", "says", "said", "will", "could", "would",
+        "should", "what", "when", "where", "why", "how", "who", "new", "more", "most",
+        "some", "here", "there", "their", "they", "them", "his", "her", "its", "our",
+        "has", "have", "had", "was", "were", "are", "been", "being", "can", "may",
+        "might", "set", "drop", "hits", "hit", "takes", "take", "gets", "get", "make",
+        "makes", "full", "text", "report", "reports", "news", "story", "stories", "ceo",
+    }
+    p_words = [w for w in re.findall(r"[a-z0-9]+", (prev_headline or "").lower()) if len(w) >= 4 and w not in stop]
+    c_set = {w for w in re.findall(r"[a-z0-9]+", (curr_headline or "").lower()) if len(w) >= 4 and w not in stop}
+    shared = []
+    for w in p_words:
+        if w in c_set and w not in shared:
+            shared.append(w)
+    return shared
+
+
+def _dialogue_cache_path(cfg, brief: dict, hosts: tuple[str, str], fmt_key: str = "", prev_title: str = "") -> Path | None:
     cache_root = getattr(cfg, "cache_dir", None)
     if not cache_root:
         return None
@@ -1352,6 +1401,7 @@ def _dialogue_cache_path(cfg, brief: dict, hosts: tuple[str, str], fmt_key: str 
             "format": fmt_key,
             "headline": brief["headline"],
             "facts": brief["facts"],
+            "prev": prev_title[:120],
         },
         sort_keys=True,
         ensure_ascii=False,
@@ -1373,10 +1423,11 @@ def generate_story_dialogue(
 ) -> StoryDialogue:
     """Write a grounded two-host conversation for one story using Groq -> Local LLM -> Gemini -> fallback."""
     brief = build_story_brief(story)
+    prev_title = _clean((previous_story or {}).get("title") or (previous_story or {}).get("headline") or "")
     fmt_key, fmt_desc = select_story_format(
         brief["section"], brief["rank"], sober=brief["sober"], previous_format=previous_format
     )
-    cache_path = _dialogue_cache_path(cfg, brief, hosts, fmt_key)
+    cache_path = _dialogue_cache_path(cfg, brief, hosts, fmt_key, prev_title=prev_title)
     if not force and cache_path and cache_path.is_file():
         try:
             cached = json.loads(cache_path.read_text(encoding="utf-8"))
@@ -1411,24 +1462,38 @@ def generate_story_dialogue(
     lead_instruction = select_story_lead(brief, hosts)
     lead_speaker = "a" if lead_instruction.startswith(f"Lead Host: {hosts[0]}") else "b"
     co_speaker = "b" if lead_speaker == "a" else "a"
-    prev_title = _clean((previous_story or {}).get("title") or (previous_story or {}).get("headline") or "")
+    base_sec = str(brief.get("section") or "top").replace("_us", "").replace("_in", "").replace("_ca", "")
+    angle_lens = _ANGLE_LENS.get(base_sec, _ANGLE_LENS["top"])
+    format_with_lens = f"{fmt_desc}\n- Category Angle ({brief['section_title']}): {angle_lens}"
+    shared_terms = _shared_topic_terms(prev_title, brief["headline"]) if prev_title else []
     if brief["rank"] <= 1 and not prev_title:
         transition_instruction = (
             "Transition: This is the first story in the section. Open directly into the story hook with no greeting, "
             "no show intro, and no 'Next up'."
         )
+    elif prev_title and shared_terms:
+        topic_str = ", ".join(t.title() for t in shared_terms[:3])
+        transition_instruction = (
+            f"Transition: CONTINUING HOT TOPIC ({topic_str}) WITH A DISTINCT ANGLE. The previous story in this section was '{prev_title[:90]}', "
+            f"which already introduced the core premise of {topic_str}. CRITICAL: Do NOT say 'Turning now to {topic_str}', 'Turn now to {topic_str}', "
+            f"'Switching to {topic_str}', or introduce {topic_str} as if it is a brand new subject! Instead, acknowledge we are "
+            f"staying on the same developing story from a new angle ('Staying with {shared_terms[0].title()} for a moment...', "
+            "'On that exact same story...', 'And there is another angle to this...', or 'Adding to that fallout,') and focus EXCLUSIVELY "
+            "on the new dimension in this story (such as market impact, geopolitical response, or secondary headlines) without re-explaining the basic premise."
+        )
     elif prev_title:
         transition_instruction = (
             f"Transition: The previous story in this section was '{prev_title[:90]}'. "
             "Begin Turn 1 with a subtle thematic link, a brief reaction pivot, or a natural conversational shift "
-            "('Speaking of money...', 'On a very different note...', 'Meanwhile,'). Do NOT overuse 'Next up' or 'Moving on'."
+            "('Speaking of money...', 'On a very different note...', 'Meanwhile,'). Do NOT overuse 'Next up', 'Moving on', or 'Turn now to'."
         )
     else:
         transition_instruction = (
-            "Transition: Begin Turn 1 with a natural conversational pivot into this story without repeating 'Next up' or 'Moving on'."
+            "Transition: Begin Turn 1 directly with the news hook without repeating 'Next up', 'Moving on', or 'Turn now to'."
         )
 
     brief["story_format"] = fmt_key
+    brief["shared_prev_terms"] = shared_terms
 
     if is_solo_format(fmt_key):
         solo_spk_idx = solo_host_index(fmt_key, hosts)
@@ -1469,7 +1534,7 @@ def generate_story_dialogue(
         source=brief["source"],
         tag_instruction=tag_instruction,
         lead_instruction=lead_instruction,
-        format_instruction=fmt_desc,
+        format_instruction=format_with_lens,
         transition_instruction=transition_instruction,
         lead_speaker=lead_speaker,
         co_speaker=co_speaker,

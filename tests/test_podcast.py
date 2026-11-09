@@ -733,6 +733,34 @@ def test_facts_deduplication_and_fallback_anti_repetition():
         assert "here is what is developing" not in low
 
 
+def test_same_topic_consecutive_stories_strip_false_turning_now_to_prefix():
+    shared = podcast._shared_topic_terms(
+        "China Rejects Espionage Claims Involving Nvidia C.E.O. Jensen Huang",
+        "Nvidia C.E.O. Admits Relationship With Suspected Chinese Spy, and Stephen Miller Takes the Reins",
+    )
+    assert "nvidia" in shared
+
+    brief = podcast.build_story_brief({
+        **SAMPLE_STORY,
+        "section": "top_us",
+        "rank": 4,
+        "title": "Nvidia C.E.O. Admits Relationship With Suspected Chinese Spy",
+    })
+    brief["story_format"] = "question_led"
+    brief["shared_prev_terms"] = shared
+
+    raw_turns = {
+        "turns": [
+            {"speaker": "a", "purpose": "lead", "fact_refs": ["F1"], "text": "Turn now to Nvidia, where C E O Jensen Huang has admitted to a relationship with a suspected Chinese spy."},
+            {"speaker": "b", "purpose": "question", "fact_refs": ["F2"], "text": "How does the board even begin to handle something like that?"},
+        ]
+    }
+    validated = podcast.validate_story_dialogue(raw_turns, brief, HOSTS)
+    assert validated is not None
+    assert not validated[0].text.lower().startswith("turn now to nvidia")
+    assert validated[0].text.startswith("Also at Nvidia,")
+
+
 def test_clean_existing_script_filters_fragments_and_placeholders():
     from scripts.regen_story import clean_existing_script
 
