@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" fill="none">
+  <defs>
+    <linearGradient id="entBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14061a"/>
+      <stop offset="50%" stop-color="#240c30"/>
+      <stop offset="100%" stop-color="#09020d"/>
+    </linearGradient>
+    <radialGradient id="entGlow" cx="65%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#c026d3" stop-opacity="0.35"/>
+      <stop offset="70%" stop-color="#7e22ce" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#c026d3" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="slateGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2e1065"/>
+      <stop offset="100%" stop-color="#0f0728"/>
+    </linearGradient>
+    <linearGradient id="pillGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.75"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#entBg)"/>
+  <rect width="800" height="450" fill="url(#entGlow)"/>
+
+  <!-- Cinema Spotlight Cones -->
+  <g opacity="0.18">
+    <polygon points="120,450 340,60 440,60 220,450" fill="#e879f9"/>
+    <polygon points="680,450 460,60 360,60 580,450" fill="#c084fc"/>
+  </g>
+
+  <!-- Cinema Clapperboard / Film Reel Motif -->
+  <g transform="translate(400, 225)" filter="url(#softShadow)">
+    <!-- Film Slate Base -->
+    <rect x="-110" y="-30" width="220" height="150" rx="12" fill="url(#slateGrad)" stroke="#c084fc" stroke-width="2"/>
+    <!-- Slate Text Lines -->
+    <line x1="-80" y1="20" x2="80" y2="20" stroke="#a855f7" stroke-width="2" stroke-opacity="0.4"/>
+    <line x1="-80" y1="55" x2="30" y2="55" stroke="#a855f7" stroke-width="2" stroke-opacity="0.4"/>
+    <line x1="-80" y1="90" x2="50" y2="90" stroke="#a855f7" stroke-width="2" stroke-opacity="0.4"/>
+
+    <!-- Film Clapper Stick (Angled Up Open) -->
+    <g transform="rotate(-18 -110 -30)">
+      <rect x="-110" y="-60" width="220" height="30" rx="6" fill="#1e1b4b" stroke="#e879f9" stroke-width="2"/>
+      <!-- Diagonal Clapper Stripes -->
+      <polygon points="-90,-60 -70,-60 -85,-30 -105,-30" fill="#e879f9"/>
+      <polygon points="-50,-60 -30,-60 -45,-30 -65,-30" fill="#e879f9"/>
+      <polygon points="-10,-60 10,-60 -5,-30 -25,-30" fill="#e879f9"/>
+      <polygon points="30,-60 50,-60 35,-30 15,-30" fill="#e879f9"/>
+      <polygon points="70,-60 90,-60 75,-30 55,-30" fill="#e879f9"/>
+    </g>
+
+    <!-- Star Emblem on Board -->
+    <polygon points="50,60 54,72 66,72 56,80 60,92 50,84 40,92 44,80 34,72 46,72" fill="#f59e0b" opacity="0.9"/>
+  </g>
+
+  <!-- Glass Category Badge -->
+  <g transform="translate(36, 36)">
+    <rect width="200" height="38" rx="19" fill="url(#pillGrad)" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1"/>
+    <g transform="translate(16, 11)">
+      <rect x="0" y="0" width="16" height="16" rx="3" stroke="#e879f9" stroke-width="1.8" fill="none"/>
+      <line x1="0" y1="5" x2="16" y2="5" stroke="#e879f9" stroke-width="1.8"/>
+    </g>
+    <text x="44" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1.5" fill="#e879f9">ENTERTAINMENT</text>
+  </g>
+
+  <!-- Brand Watermark -->
+  <g transform="translate(640, 395)" opacity="0.75">
+    <circle cx="16" cy="16" r="14" fill="#240c30" stroke="#e879f9" stroke-width="1.5"/>
+    <path d="M 8 18 C 8 13.5 11.5 10 16 10 C 20.5 10 24 13.5 24 18 Z" fill="#e879f9"/>
+    <text x="38" y="21" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#ffffff" letter-spacing="0.5">hark <tspan fill="#f59e0b" font-weight="800">DAILY</tspan></text>
+  </g>
+</svg>

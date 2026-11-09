@@ -34,6 +34,20 @@ def test_local_section_names_the_city():
     assert section_leads(["canada", "local"], "Toronto")["local"] == "And finally, the latest from around Toronto."
 
 
+def test_clean_img_url_handles_schemes_and_blocked_domains():
+    from app.fetcher import _clean_img_url
+    assert _clean_img_url(None) is None
+    assert _clean_img_url("") is None
+    assert _clean_img_url("ftp://example.com/pic.jpg") is None
+    # http is upgraded to https
+    assert _clean_img_url("http://example.com/pic.jpg") == "https://example.com/pic.jpg"
+    assert _clean_img_url("https://example.com/pic.jpg") == "https://example.com/pic.jpg"
+    # Hotlink-blocking domains (e.g. ESPNcricinfo imgci) return None
+    assert _clean_img_url("http://p.imgci.com/db/PICTURES/CMS/424100/424116.jpg") is None
+    assert _clean_img_url("https://p.imgci.com/pic.jpg") is None
+
+
+
 def test_google_news_items_credit_the_outlet_not_google():
     feed = b"""<rss><channel><title>"Connor McDavid" - Google News</title>
       <item><title>McDavid scores twice in opener - Sportsnet</title>
