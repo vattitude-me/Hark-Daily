@@ -1,6 +1,7 @@
 // Signed-out landing: play the latest published top stories in the narrator the visitor picks, then offer sign-in for the full brief.
 import { BUILTIN_VOICES, DEFAULT_VOICE_ID, SECTIONS, api, h, icon, store, toast } from './api.js';
 import { SUPABASE_URL } from '../config.js';
+import { getDefaultCover } from './player.js';
 
 // How much a visitor hears before the sample completes (all stories in the sample).
 const PREVIEW_STORIES = Infinity;
@@ -176,8 +177,12 @@ export class Landing {
       : "The sample isn't available right now. Try again in a moment.";
     $('sampleDur').textContent = `-${fmtTime(this.duration)}`;
     for (const id of ['samplePlay', 'samplePrev', 'sampleNext']) $(id).disabled = !ready;
-    const cover = this.stories.find((s) => s.image)?.image;
-    if (cover) { $('sampleCover').src = cover; $('sampleCover').classList.remove('hidden'); }
+    const cover = this.stories.find((s) => s.image && !this.failedImages?.has(s.image))?.image || getDefaultCover(this.stories?.[0]?.section);
+    if (cover) {
+      $('sampleCover').dataset.src = cover;
+      $('sampleCover').src = cover;
+      $('sampleCover').classList.remove('hidden');
+    }
   }
 
   /** One segment per story, sized by how long it runs — the app's bar, built from the chapters. */
@@ -297,7 +302,19 @@ export class Landing {
       if (this.index + 1 < this.clips.length) this.loadClip(this.index + 1, { autoplay: true });
       else this.finish();
     });
-    $('sampleCover').addEventListener('error', () => $('sampleCover').classList.add('hidden'));
+    $('sampleCover').addEventListener('error', () => {
+      const src = $('sampleCover').dataset.src;
+      if (src && !src.startsWith('/icons/covers/')) {
+        this.failedImages = this.failedImages || new Set();
+        this.failedImages.add(src);
+      }
+      const ch = [...(this.segments || [])].reverse().find((c) => this.audio.currentTime >= c.start);
+      const story = this.stories?.find((s) => s.id === ch?.id);
+      const fallback = getDefaultCover(story?.section);
+      $('sampleCover').dataset.src = fallback;
+      $('sampleCover').src = fallback;
+      $('sampleCover').classList.remove('hidden');
+    });
   }
 
   /** Make clip `i` the source, seeking into it and keeping playback going if it was playing. */
@@ -400,11 +417,13 @@ export class Landing {
     if (story) {
       $('sampleTitle').textContent = story.headline;
       const cover = $('sampleCover');
-      if (story.image && cover.dataset.src !== story.image) {
-        cover.dataset.src = story.image;
-        cover.src = story.image;
+      const fallback = getDefaultCover(story.section);
+      const effectiveImg = (story.image && !this.failedImages?.has(story.image)) ? story.image : fallback;
+      if (cover && cover.dataset.src !== effectiveImg) {
+        cover.dataset.src = effectiveImg;
+        cover.src = effectiveImg;
         cover.classList.remove('hidden');
-      } else if (!story.image) cover.classList.add('hidden');
+      }
     }
     const id = ch?.id || null;
     if (id !== this.current) { this.current = id; this.highlight(id); }

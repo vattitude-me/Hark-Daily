@@ -26,7 +26,7 @@ const playerSrc = readFileSync(new URL('../../web/js/player.js', import.meta.url
   .replace("'./api.js'", "'./api.mjs'")
   .replace("'./storypack.js'", "'./storypack.mjs'");
 writeFileSync(join(dir, 'player.mjs'), playerSrc);
-const { posKeyFor, Player } = await import(join(dir, 'player.mjs'));
+const { posKeyFor, Player, getDefaultCover } = await import(join(dir, 'player.mjs'));
 
 const row = (section, rank) => ({ date: 'd', section, rank, voice: 'v', title: `${section}${rank}`, url: 'u', source: 's', script: 'x', duration: 20, audio_path: `s/${section}${rank}.mp3` });
 const rows = [row('top', 1), row('top', 2), row('ai', 1), row('tech', 1), row('sports', 1)];
@@ -1274,6 +1274,38 @@ test('date dropdown menuDateSelect is present in index.html drawer and clean pla
   assert.ok(indexHtml.includes('<span class="clean-story-counter" id="cleanStoryCounter"></span>'), 'cleanStoryCounter placeholder must be empty');
   assert.ok(indexHtml.includes('<span id="cleanDurTime">--:--</span>'), 'cleanDurTime placeholder must be neutral');
   assert.ok(indexHtml.includes('<span id="openAllStoriesLabel">All Stories</span>'), 'All Stories button must not have hardcoded number');
+  assert.ok(!indexHtml.includes('alt="Story cover image"'), 'Story cover image alt text must be removed to prevent browser broken image text artifacts');
+});
+
+test('getDefaultCover returns dedicated SVG covers and isolates cricket/sports, tech, markets', () => {
+  assert.equal(getDefaultCover('sports_in'), '/icons/covers/sports.svg');
+  assert.equal(getDefaultCover('cricket'), '/icons/covers/sports.svg');
+  assert.equal(getDefaultCover('sports_us'), '/icons/covers/sports.svg');
+  assert.equal(getDefaultCover('sports'), '/icons/covers/sports.svg');
+  assert.equal(getDefaultCover('tech_us'), '/icons/covers/tech.svg');
+  assert.equal(getDefaultCover('markets_in'), '/icons/covers/markets.svg');
+  assert.equal(getDefaultCover('politics_in'), '/icons/covers/politics.svg');
+  assert.equal(getDefaultCover('entertainment_us'), '/icons/covers/entertainment.svg');
+  assert.equal(getDefaultCover('science'), '/icons/covers/science.svg');
+  assert.equal(getDefaultCover('ai'), '/icons/covers/ai.svg');
+  assert.equal(getDefaultCover('top_in'), '/icons/covers/default.svg');
+  assert.equal(getDefaultCover(''), '/icons/covers/default.svg');
+});
+
+test('Player records failed image URLs and preserves category default cover without flapping', () => {
+  const player = new Player({ audio: {}, el: {} });
+  assert.ok(player.failedImages instanceof Set);
+
+  // If cleanCoverImg fails, error handler adds URL to failedImages and applies fallback
+  const brokenUrl = 'http://p.imgci.com/db/PICTURES/CMS/424100/424116.jpg';
+  player.failedImages.add(brokenUrl);
+  assert.ok(player.failedImages.has(brokenUrl));
+
+  // Simulating story with broken image
+  const story = { section: 'sports_in', image: brokenUrl };
+  const fallback = getDefaultCover(story.section);
+  const effectiveImg = (story.image && !player.failedImages.has(story.image)) ? story.image : fallback;
+  assert.equal(effectiveImg, '/icons/covers/sports.svg');
 });
 
 

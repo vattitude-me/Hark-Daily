@@ -229,7 +229,7 @@
             <div class="hero-top">
               <div class="hero-art">
                 <svg class="hero-art-icon" aria-hidden="true"><use href="#i-wave"/></svg>
-                <img class="hero-cover hidden" id="sampleCover" alt="">
+                <img class="hero-cover hidden" id="sampleCover" alt="" referrerpolicy="no-referrer">
               </div>
               <div class="hero-heading">
                 <p class="hero-kicker"><span class="badge badge-info" id="sampleLabel">Sample briefing</span></p>
@@ -364,7 +364,7 @@
       <div class="clean-player-card" id="cleanPlayerCard">
         <!-- Taller Cover Image Wrap with Share button overlaid on top right -->
         <div class="clean-cover-wrap" id="playerCoverWrap" role="button" tabindex="0" title="Tap to play or pause">
-          <img id="playerCoverImg" class="clean-cover-img" alt="Story cover image" src="/icons/icon-512.png">
+          <img id="playerCoverImg" class="clean-cover-img" alt="" referrerpolicy="no-referrer" src="/icons/covers/default.svg">
           <div class="clean-cover-fallback hidden" id="playerCoverFallback">
             <div class="clean-fallback-orb orb-1"></div>
             <div class="clean-fallback-orb orb-2"></div>
@@ -686,9 +686,9 @@
       <span id="readerSource"></span>
       <span id="readerStoryCount"></span>
       <h1 id="readerHeadline"></h1>
-      <div id="readerImageWrap"><img id="readerHeroImage"><span id="readerImageBadgeText"></span><button id="readerImagePlayBtn"></button></div>
+      <div id="readerImageWrap"><img id="readerHeroImage" alt="" referrerpolicy="no-referrer"><span id="readerImageBadgeText"></span><button id="readerImagePlayBtn"></button></div>
       <div id="miniPlayer" class="mini-player" style="display:none!important">
-        <img id="miniCover"><span id="miniEq"></span><span id="miniTitle"></span><span id="miniSub"></span>
+        <img id="miniCover" alt="" referrerpolicy="no-referrer"><span id="miniEq"></span><span id="miniTitle"></span><span id="miniSub"></span>
         <div id="miniBarWrap"><span id="miniBar"></span></div>
         <button id="miniPrev"></button><button id="miniBack"></button><button id="miniPlay"></button><button id="miniNext"></button>
       </div>
@@ -702,7 +702,7 @@
   <!-- Floating mini player -->
   <div class="mini-player" id="miniPlayer" aria-hidden="true">
     <div class="mini-art">
-      <img class="mini-cover hidden" id="miniCover" alt="">
+      <img class="mini-cover hidden" id="miniCover" alt="" referrerpolicy="no-referrer">
       <span class="mini-eq hidden" id="miniEq" aria-hidden="true"><i></i><i></i><i></i></span>
     </div>
     <div class="mini-text">
@@ -1002,6 +1002,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/vendor/supabase.min.js"></script>
-  <script type="module" src="/js/app.js?v=82"></script>
+  <script type="module" src="/js/app.js?v=83"></script>
 </body>
 </html>
