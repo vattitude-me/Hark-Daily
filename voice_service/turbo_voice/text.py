@@ -22,6 +22,9 @@ breath synthesised as noise.
 """
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
 import re
 from dataclasses import dataclass
 
@@ -30,36 +33,51 @@ from dataclasses import dataclass
 # typo shows up in the audio instead of disappearing.
 TAGS = frozenset({"sigh", "chuckle", "laugh", "cough", "gasp", "groan", "sniffle", "yawn"})
 
+def _load_lexicon() -> dict[str, str]:
+    candidates = [
+        Path(os.getenv("LEXICON_PATH", "")),
+        Path(__file__).resolve().parent.parent / "data" / "lexicon.json",
+        Path(__file__).resolve().parent.parent.parent / "data" / "lexicon.json",
+    ]
+    for c in candidates:
+        if c.is_file():
+            try:
+                data = json.loads(c.read_text(encoding="utf-8"))
+                return {entry["pattern"]: entry["replacement"] for entry in data.get("entries", [])}
+            except Exception:
+                pass
+    return {
+        r"\bCarney's\b": "Car-nee's",
+        r"\bCarney\b": "Car-nee",
+        r"\bPoilievre's\b": "Pwal-ee-ev's",
+        r"\bPoilievre\b": "Pwal-ee-ev",
+        r"\bTrudeau's\b": "Troo-doh's",
+        r"\bTrudeau\b": "Troo-doh",
+        r"\bChrystia\b": "Kris-tya",
+        r"\bJagmeet\b": "Jug-meet",
+        r"\bLegault's\b": "Leh-goh's",
+        r"\bLegault\b": "Leh-goh",
+        r"\bBlanchet\b": "Blahn-shay",
+        r"\bSaskatchewan\b": "Suh-skatch-uh-wun",
+        r"\bCalgary\b": "Cal-gree",
+        r"\bEdmonton\b": "Ed-mun-tun",
+        r"\bByteDance\b": "Bite-dance",
+        r"\bHuawei\b": "Hwah-way",
+        r"\bNvidia's\b": "En-vid-ee-uh's",
+        r"\bNvidia\b": "En-vid-ee-uh",
+        r"\bNasdaq\b": "Naz-dak",
+        r"\bSensex\b": "Sen-seks",
+        r"\bNifty\b": "Nif-tee",
+        r"\bTSMC\b": "T-S-M-C",
+        r"\bNYSE\b": "N-Y-S-E",
+        r"\bS&P\b": "S and P",
+        r"\bDOGE\b": "Doj",
+    }
+
+
 # Phonetic respelling dictionary for proper nouns, Canadian/world political figures,
 # and tricky names so neural TTS models (Chatterbox) pronounce them with 100% precision.
-PRONUNCIATION_OVERRIDES = {
-    # Canadian political & economic figures
-    r"\bCarney's\b": "Car-nee's",
-    r"\bCarney\b": "Car-nee",
-    r"\bPoilievre's\b": "Pwal-ee-ev's",
-    r"\bPoilievre\b": "Pwal-ee-ev",
-    r"\bTrudeau's\b": "Troo-doh's",
-    r"\bTrudeau\b": "Troo-doh",
-    r"\bChrystia\b": "Kris-tya",
-    r"\bJagmeet\b": "Jug-meet",
-    r"\bLegault's\b": "Leh-goh's",
-    r"\bLegault\b": "Leh-goh",
-    r"\bBlanchet\b": "Blahn-shay",
-    # Canadian & Regional Geography
-    r"\bSaskatchewan\b": "Suh-skatch-uh-wun",
-    r"\bCalgary\b": "Cal-gree",
-    r"\bEdmonton\b": "Ed-mun-tun",
-    # Global Tech / Business entities
-    r"\bByteDance\b": "Bite-dance",
-    r"\bHuawei\b": "Hwah-way",
-    # Global Tech, Financial & Markets entities
-    r"\bNvidia's\b": "En-vid-ee-uh's",
-    r"\bNvidia\b": "En-vid-ee-uh",
-    r"\bNasdaq\b": "Naz-dak",
-    r"\bSensex\b": "Sen-seks",
-    r"\bTSMC\b": "T-S-M-C",
-    r"\bS&P\b": "S and P",
-}
+PRONUNCIATION_OVERRIDES = _load_lexicon()
 
 
 # Strict broadcast-safety profanity filter: zero tolerance for vulgarity or explicit lyrics
@@ -110,11 +128,44 @@ _SENTENCE_END = re.compile(
     r"([.!?]+)([\"'\u201d\u2019]?)\s+(?=[\"'\u201c\u2018]?[A-Z0-9])"
 )
 
+_CLAUSE_SPLIT = re.compile(
+    r"(?<=[;—–])\s+|(?<=,)\s+(?=(?:and|but|while|although|where|which|as|because|since)\b)|(?<=,)\s+"
+)
 
-def split_sentences_safely(text: str, max_words: int = 22) -> list[str]:
+
+def _split_long_clause(clause: str, max_words: int = 20) -> list[str]:
+    """Break a single long sentence (> 20 words) on natural clause and conjunction boundaries."""
+    words = clause.split()
+    if len(words) <= max_words:
+        return [clause]
+
+    subparts = [p.strip() for p in _CLAUSE_SPLIT.split(clause) if p.strip()]
+    if len(subparts) <= 1:
+        return [clause]
+
+    grouped: list[str] = []
+    current: list[str] = []
+    current_len = 0
+    for sp in subparts:
+        sp_len = len(sp.split())
+        if current and (current_len + sp_len > max_words):
+            grouped.append(" ".join(current))
+            current = [sp]
+            current_len = sp_len
+        else:
+            current.append(sp)
+            current_len += sp_len
+    if current:
+        grouped.append(" ".join(current))
+
+    return grouped if grouped else [clause]
+
+
+def split_sentences_safely(text: str, max_words: int = 20) -> list[str]:
     """Split long turns into natural sentence-sized units, avoiding mid-abbreviation breaks.
 
     If the text has <= max_words, it is returned untouched as a single chunk.
+    Any single sentence exceeding max_words is further divided on natural clause boundaries.
     """
     words = text.split()
     if len(words) <= max_words:
@@ -138,13 +189,21 @@ def split_sentences_safely(text: str, max_words: int = 22) -> list[str]:
     if remainder:
         parts.append(remainder)
 
-    if not parts or len(parts) == 1:
+    if not parts:
         return [text]
+
+    # Further break any individual part that still exceeds max_words
+    refined_parts: list[str] = []
+    for p in parts:
+        if len(p.split()) > max_words:
+            refined_parts.extend(_split_long_clause(p, max_words=max_words))
+        else:
+            refined_parts.append(p)
 
     grouped: list[str] = []
     current: list[str] = []
     current_len = 0
-    for p in parts:
+    for p in refined_parts:
         p_len = len(p.split())
         if current and (current_len + p_len > max_words):
             grouped.append(" ".join(current))
@@ -226,7 +285,7 @@ def parse(text: str, *, beat: float = DEFAULT_BEAT) -> list[Say | Pause]:
             else:
                 out.append(Pause(seconds))
         else:
-            sentences = split_sentences_safely(part, max_words=22)
+            sentences = split_sentences_safely(part, max_words=20)
             if len(sentences) > 1:
                 for s_idx, sentence in enumerate(sentences):
                     out.append(Say(sentence))
