@@ -77,3 +77,35 @@ def test_phonetic_overrides_normalize_proper_nouns():
     assert len(items) == 1
     assert items[0].text == "Car-nee's second budget will be presented by Mark Car-nee."
 
+
+def test_phonetic_overrides_normalize_markets_and_tech():
+    items = parse("Nvidia reported Nasdaq and Sensex rally.")
+    assert len(items) == 1
+    assert "En-vid-ee-uh" in items[0].text
+    assert "Naz-dak" in items[0].text
+    assert "Sen-seks" in items[0].text
+
+
+def test_long_turn_is_split_into_sentences_with_micro_pauses():
+    text = (
+        "The Canadian Shield Institute just put out a paper called Canadian Dupes. "
+        "It asks how we actually define a Canadian firm. "
+        "Right now we have a patchwork of rules, and the two new procurement policies each use their own shaky definition. "
+        "The prime minister said we will be our own best customer, but those policies are among the weakest in setting clear criteria."
+    )
+    items = parse(text)
+    # Must produce multiple Say items separated by 0.08s Pause items
+    say_items = [i for i in items if isinstance(i, Say)]
+    pause_items = [i for i in items if isinstance(i, Pause)]
+    assert len(say_items) > 1
+    assert len(pause_items) == len(say_items) - 1
+    assert all(p.seconds == 0.08 for p in pause_items)
+    # No abbreviations like U.S. should be broken
+    us_text = (
+        "The CLOUD Act allows U.S. authorities to compel companies to produce data even when it is stored abroad. "
+        "That means information processed by Palantir for Canadian troops could be accessed without a court order."
+    )
+    us_items = parse(us_text)
+    assert any("U.S." in s.text for s in us_items if isinstance(s, Say))
+
+
