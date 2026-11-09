@@ -320,6 +320,16 @@ def test_validate_story_dialogue_enforces_alternation_and_sober_tags():
     monologue = {"turns": [{**t, "speaker": "a"} for t in good_raw["turns"]]}
     assert podcast.validate_story_dialogue(monologue, brief) is None
 
+    # Swearing / profanity is strictly rejected
+    profane_raw = {
+        "turns": [
+            {"speaker": "b", "text": "Did you hear about Soul Glo's latest record?"},
+            {"speaker": "a", "text": "Who the fuck gon beat my ass?"},
+            {"speaker": "b", "text": "It is hailed as a punk milestone."},
+        ]
+    }
+    assert podcast.validate_story_dialogue(profane_raw, brief) is None
+
 
 def test_generate_story_dialogue_uses_groq_and_repairs_invalid_first_attempt(cfg):
     c = dataclasses.replace(cfg, groq_api_key="g_key", groq_models=("groq-fast",))
