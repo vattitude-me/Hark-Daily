@@ -206,6 +206,22 @@ def template_piece(piece: Piece, hosts: tuple[str, str]) -> Written:
 # ------------------------------------------------------------------ validation & anti-slop
 _BAD = re.compile(r"https?://|www\.|[*_#`<>\[\]{}]|\bhttp", re.I)
 
+# Strict broadcast-safety profanity filter: zero tolerance for vulgarity or explicit lyrics
+_PROFANITY_PATTERN = re.compile(
+    r"\b("
+    r"fuck\w*|shit\w*|bitch\w*|asshole\w*|\bass\b|cunt\w*|dick\w*|pussy\w*|bastard\w*|"
+    r"motherfuck\w*|bullshit\w*|dammit\w*"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def sanitize_profanity(text: str) -> str:
+    """Scrub any vulgarity, swear words or explicit lyrics into clean broadcast language."""
+    if not text:
+        return ""
+    return _PROFANITY_PATTERN.sub("[bleep]", text)
+
 SLOP_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\b(?:let's|lets)\s+roll\b", re.I), "let's get started"),
     (re.compile(r"\ba\s+whirlwind\s+of\s+a\s+(?:day|week|news cycle)\b", re.I), "a busy day"),
@@ -274,7 +290,7 @@ def validate_turns(raw, kind: str, section: str | None = None) -> list[Turn] | N
         text = _clean(_TAG.sub(lambda m: f"[{m.group(1).lower()}]", text))
         text = clean_slop(text)
         words_only = strip_tags(text)
-        if who not in ("a", "b") or not words_only or _BAD.search(words_only):
+        if who not in ("a", "b") or not words_only or _BAD.search(words_only) or _PROFANITY_PATTERN.search(words_only):
             return None
         tags += len(_TAG.findall(text))
         base_sec = (section or "").replace("_us", "").replace("_in", "").replace("_ca", "")
@@ -826,7 +842,7 @@ def validate_story_dialogue(
 
         words_only = strip_tags(text)
         word_count = len(words_only.split())
-        if not words_only or word_count < 1 or word_count > 68 or _BAD.search(words_only):
+        if not words_only or word_count < 1 or word_count > 68 or _BAD.search(words_only) or _PROFANITY_PATTERN.search(words_only):
             return None
 
         tags_in_turn = len(_TAG.findall(text))
@@ -890,6 +906,9 @@ STRICT EDITORIAL, LANGUAGE & ANTI-SLOP RULES:
    - Numbers & Multipliers: Round numbers naturally. Say "5 times" instead of "5x", "number one" instead of "#1" or "No. 1".
    - Acronyms & Abbreviations: Write out acronyms so text-to-speech speaks them cleanly. Say "I-P-O", "C-E-O", "first quarter" (never "Q1"), "third quarter" (never "Q3"), "versus" (never "vs" or "vs."), "and" (never "&"), "with" (never "w/"), "approximately" (never "approx.").
    - Do not use forward slashes (say "per" or "or").
+9. BROADCAST SAFETY & FAMILY-FRIENDLINESS (ZERO TOLERANCE FOR PROFANITY):
+   - Absolutely NO profanity, swear words, vulgarity, offensive slang, or expletives (e.g. fuck, shit, bitch, ass, asshole, dick, pussy, bastard, or any variations).
+   - Even if the source material, news story, song title, or music album quotes explicit lyrics or swear words, NEVER repeat the expletives. Rephrase or describe them cleanly for a general public family audience (e.g., say 'an expletive-laden challenge' or describe the sentiment in clean words). Any script containing profanity will be automatically rejected.
 
 Return ONLY valid JSON of this exact shape (2 to 6 turns total, 35 to 140 words across all turns):
 {{

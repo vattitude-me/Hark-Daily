@@ -62,6 +62,23 @@ PRONUNCIATION_OVERRIDES = {
 }
 
 
+# Strict broadcast-safety profanity filter: zero tolerance for vulgarity or explicit lyrics
+_PROFANITY_PATTERN = re.compile(
+    r"\b("
+    r"fuck\w*|shit\w*|bitch\w*|asshole\w*|\bass\b|cunt\w*|dick\w*|pussy\w*|bastard\w*|"
+    r"motherfuck\w*|bullshit\w*|dammit\w*"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def sanitize_profanity(text: str) -> str:
+    """Zero-tolerance broadcast profanity filter as an ultimate fail-safe before synthesis."""
+    if not text:
+        return ""
+    return _PROFANITY_PATTERN.sub("[bleep]", text)
+
+
 def voice_phonetic_normalize(text: str) -> str:
     """Normalize tricky proper nouns into phonetic spellings specifically for audio speech synthesis."""
     if not text:
@@ -173,6 +190,9 @@ def parse(text: str, *, beat: float = DEFAULT_BEAT) -> list[Say | Pause]:
     text = (text or "").strip()
     if not text:
         return []
+
+    # Ultimate fail-safe broadcast profanity sanitizer
+    text = sanitize_profanity(text)
 
     # Phonetic pronunciation overrides for tricky proper nouns
     text = voice_phonetic_normalize(text)
