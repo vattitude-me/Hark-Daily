@@ -137,19 +137,39 @@ def _entry_time(entry) -> datetime | None:
     return None
 
 
+def _clean_img_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    url = url.strip()
+    if not url.startswith(("http://", "https://")):
+        return None
+    if url.startswith("http://"):
+        url = "https://" + url[len("http://"):]
+    # Exclude domains that return 403 or aggressively block external hotlinking
+    if any(blocked in url.lower() for blocked in ("imgci.com", "espncricinfo.com/db/pictures")):
+        return None
+    return url
+
+
 def _entry_image(entry) -> str | None:
     for key in ("media_content", "media_thumbnail"):
         for media in entry.get(key) or []:
             url = media.get("url")
             if url and (media.get("medium") in (None, "image") or "image" in (media.get("type") or "image")):
-                return url
+                cleaned = _clean_img_url(url)
+                if cleaned:
+                    return cleaned
     for enc in entry.get("enclosures") or []:
         if (enc.get("type") or "").startswith("image") and enc.get("href"):
-            return enc["href"]
+            cleaned = _clean_img_url(enc["href"])
+            if cleaned:
+                return cleaned
     for blob in [entry.get("summary", "")] + [c.get("value", "") for c in entry.get("content") or []]:
         m = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', blob or "")
         if m:
-            return html.unescape(m.group(1))
+            cleaned = _clean_img_url(html.unescape(m.group(1)))
+            if cleaned:
+                return cleaned
     return None
 
 
@@ -394,7 +414,7 @@ async def enrich_items(items: list[Item], concurrency: int = 6) -> None:
             if len(art.get("text") or "") > len(item.text):
                 item.text = art["text"]
             # The article's og:image is a large signed URL; the feed's is a 140px thumbnail.
-            item.image = art.get("image") or item.image
+            item.image = _clean_img_url(art.get("image")) or item.image
             if not item.summary:
                 item.summary = clean_text(art.get("description"))
 

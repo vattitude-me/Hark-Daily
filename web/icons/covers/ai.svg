@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" fill="none">
+  <defs>
+    <linearGradient id="aiBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0e071c"/>
+      <stop offset="50%" stop-color="#190e30"/>
+      <stop offset="100%" stop-color="#07030e"/>
+    </linearGradient>
+    <radialGradient id="aiGlow" cx="60%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#7c3aed" stop-opacity="0.38"/>
+      <stop offset="70%" stop-color="#6d28d9" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#7c3aed" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="pillGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.75"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#aiBg)"/>
+  <rect width="800" height="450" fill="url(#aiGlow)"/>
+
+  <!-- Neural Network Mesh / Synapse Graph -->
+  <g transform="translate(400, 225)" filter="url(#softShadow)">
+    <!-- Connections Layer -->
+    <g stroke="#a78bfa" stroke-width="1.5" stroke-opacity="0.4" fill="none">
+      <!-- Input to Hidden 1 -->
+      <line x1="-150" y1="-80" x2="-60" y2="-100"/><line x1="-150" y1="-80" x2="-60" y2="0"/><line x1="-150" y1="-80" x2="-60" y2="100"/>
+      <line x1="-150" y1="0" x2="-60" y2="-100"/><line x1="-150" y1="0" x2="-60" y2="0"/><line x1="-150" y1="0" x2="-60" y2="100"/>
+      <line x1="-150" y1="80" x2="-60" y2="-100"/><line x1="-150" y1="80" x2="-60" y2="0"/><line x1="-150" y1="80" x2="-60" y2="100"/>
+
+      <!-- Hidden 1 to Hidden 2 -->
+      <line x1="-60" y1="-100" x2="60" y2="-80"/><line x1="-60" y1="-100" x2="60" y2="80"/>
+      <line x1="-60" y1="0" x2="60" y2="-80"/><line x1="-60" y1="0" x2="60" y2="80"/>
+      <line x1="-60" y1="100" x2="60" y2="-80"/><line x1="-60" y1="100" x2="60" y2="80"/>
+
+      <!-- Hidden 2 to Output -->
+      <line x1="60" y1="-80" x2="160" y2="0"/>
+      <line x1="60" y1="80" x2="160" y2="0"/>
+    </g>
+
+    <!-- Synapse Nodes Layer -->
+    <!-- Input layer -->
+    <circle cx="-150" cy="-80" r="10" fill="#c4b5fd" stroke="#7c3aed" stroke-width="2"/>
+    <circle cx="-150" cy="0" r="10" fill="#c4b5fd" stroke="#7c3aed" stroke-width="2"/>
+    <circle cx="-150" cy="80" r="10" fill="#c4b5fd" stroke="#7c3aed" stroke-width="2"/>
+
+    <!-- Hidden layer 1 -->
+    <circle cx="-60" cy="-100" r="12" fill="#a78bfa" stroke="#6d28d9" stroke-width="2.5"/>
+    <circle cx="-60" cy="0" r="14" fill="#8b5cf6" stroke="#5b21b6" stroke-width="3"/>
+    <circle cx="-60" cy="100" r="12" fill="#a78bfa" stroke="#6d28d9" stroke-width="2.5"/>
+
+    <!-- Hidden layer 2 -->
+    <circle cx="60" cy="-80" r="12" fill="#a78bfa" stroke="#6d28d9" stroke-width="2.5"/>
+    <circle cx="60" cy="80" r="12" fill="#a78bfa" stroke="#6d28d9" stroke-width="2.5"/>
+
+    <!-- Output Core (Luminous Spark) -->
+    <circle cx="160" cy="0" r="22" fill="#7c3aed" fill-opacity="0.3"/>
+    <circle cx="160" cy="0" r="15" fill="#f59e0b" stroke="#ffffff" stroke-width="2"/>
+    <circle cx="160" cy="0" r="6" fill="#ffffff"/>
+  </g>
+
+  <!-- Glass Category Badge -->
+  <g transform="translate(36, 36)">
+    <rect width="120" height="38" rx="19" fill="url(#pillGrad)" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1"/>
+    <g transform="translate(16, 11)">
+      <circle cx="8" cy="8" r="7" stroke="#a78bfa" stroke-width="1.8" fill="none"/>
+      <circle cx="8" cy="8" r="3" fill="#a78bfa"/>
+    </g>
+    <text x="44" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1.5" fill="#a78bfa">AI</text>
+  </g>
+
+  <!-- Brand Watermark -->
+  <g transform="translate(640, 395)" opacity="0.75">
+    <circle cx="16" cy="16" r="14" fill="#1b0e30" stroke="#a78bfa" stroke-width="1.5"/>
+    <path d="M 8 18 C 8 13.5 11.5 10 16 10 C 20.5 10 24 13.5 24 18 Z" fill="#a78bfa"/>
+    <text x="38" y="21" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#ffffff" letter-spacing="0.5">hark <tspan fill="#f59e0b" font-weight="800">DAILY</tspan></text>
+  </g>
+</svg>

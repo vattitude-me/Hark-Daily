@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" fill="none">
+  <defs>
+    <linearGradient id="defBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#140d05"/>
+      <stop offset="50%" stop-color="#241407"/>
+      <stop offset="100%" stop-color="#0a0602"/>
+    </linearGradient>
+    <radialGradient id="sunGlow" cx="50%" cy="60%" r="65%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.45"/>
+      <stop offset="45%" stop-color="#d97706" stop-opacity="0.2"/>
+      <stop offset="85%" stop-color="#b45309" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="horizonGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#fef3c7" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="pillGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.75"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#defBg)"/>
+  <rect width="800" height="450" fill="url(#sunGlow)"/>
+
+  <!-- Iconic Hark Morning Sun & Acoustic Waves -->
+  <g transform="translate(400, 240)" filter="url(#softShadow)">
+    <!-- Sun Core Rising Behind Horizon -->
+    <circle cx="0" cy="0" r="100" fill="#f59e0b" fill-opacity="0.25"/>
+    <circle cx="0" cy="0" r="70" fill="#f59e0b" fill-opacity="0.6"/>
+    <circle cx="0" cy="0" r="45" fill="#fef3c7"/>
+
+    <!-- Radiant Sun Rays (Top half) -->
+    <g stroke="#fef3c7" stroke-width="2" stroke-linecap="round" opacity="0.65">
+      <line x1="0" y1="-85" x2="0" y2="-115"/>
+      <line x1="-45" y1="-72" x2="-62" y2="-98"/>
+      <line x1="45" y1="-72" x2="62" y2="-98"/>
+      <line x1="-80" y1="-35" x2="-108" y2="-48"/>
+      <line x1="80" y1="-35" x2="108" y2="-48"/>
+    </g>
+
+    <!-- Concentric Audio Horizon Waves -->
+    <g fill="none" stroke="#f59e0b" stroke-opacity="0.4" stroke-width="2">
+      <path d="M -260 20 C -180 5 -100 0 0 0 C 100 0 180 5 260 20"/>
+      <path d="M -240 45 C -160 30 -80 25 0 25 C 80 25 160 30 240 45" stroke-dasharray="8 6"/>
+      <path d="M -220 70 C -140 55 -60 50 0 50 C 60 50 140 55 220 70"/>
+    </g>
+
+    <!-- Glowing Horizon Line -->
+    <line x1="-320" y1="20" x2="320" y2="20" stroke="url(#horizonGrad)" stroke-width="3"/>
+  </g>
+
+  <!-- Glass Category Badge -->
+  <g transform="translate(36, 36)">
+    <rect width="180" height="38" rx="19" fill="url(#pillGrad)" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1"/>
+    <g transform="translate(16, 11)">
+      <circle cx="8" cy="8" r="7" stroke="#f59e0b" stroke-width="1.8" fill="none"/>
+      <path d="M 1 8 H 15 M 8 1 C 10 3 11 6 11 8 C 11 10 10 13 8 15 C 6 13 5 10 5 8 C 5 6 6 3 8 1 Z" stroke="#f59e0b" stroke-width="1.2" fill="none"/>
+    </g>
+    <text x="44" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1.5" fill="#f59e0b">TOP STORIES</text>
+  </g>
+
+  <!-- Brand Watermark -->
+  <g transform="translate(640, 395)" opacity="0.75">
+    <circle cx="16" cy="16" r="14" fill="#241407" stroke="#f59e0b" stroke-width="1.5"/>
+    <path d="M 8 18 C 8 13.5 11.5 10 16 10 C 20.5 10 24 13.5 24 18 Z" fill="#f59e0b"/>
+    <text x="38" y="21" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#ffffff" letter-spacing="0.5">hark <tspan fill="#f59e0b" font-weight="800">DAILY</tspan></text>
+  </g>
+</svg>
