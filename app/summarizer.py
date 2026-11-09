@@ -14,7 +14,9 @@ BOILERPLATE = re.compile(
     r"posts from this|email digest|homepage feed|your feed|follow (this |the )?(author|topic|story|series)|"
     r"see all (stories|posts)|listen to this (article|story)|share (this|the) (article|story)|"
     r"we may earn|affiliate link|commission when you buy|cookie|reporting by|editing by|"
-    r"this story (has been|was) (updated|originally)|^related:|^recommended:|^more:|^watch:|^read:)",
+    r"this story (has been|was) (updated|originally)|^related:|^recommended:|^more:|^watch:|^read:|"
+    r"^[-*•]?\s*(?:date|source|summary|share|cite|journal reference|author|published|updated):\s*.*|"
+    r"^[-*•]?\s*(?:date|source|summary|share|cite|journal reference|author|published)$)",
     re.I,
 )
 
@@ -107,10 +109,39 @@ def strip_headline_and_filler(title: str, script: str) -> str:
     return text.strip() or script.strip()
 
 
+def strip_metadata_noise(text: str) -> str:
+    """Scrub metadata blocks and residual labels (e.g. ScienceDaily headers: Date: ... Source: ... Summary: ...)."""
+    if not text:
+        return ""
+    # Strip multi-line metadata blocks (- Date:\n- November 9, 2026\n- Source:\n...)
+    s = re.sub(
+        r"(?m)^[-*•]?[^\S\r\n]*(?:date|source|summary|author|published|share|cite|journal reference)[^\S\r\n]*[:;,]?[^\S\r\n]*[^\r\n]*$",
+        "",
+        text,
+        flags=re.I,
+    )
+    # Strip inline metadata chains (e.g. 'Date:, November 9, 2026, Source:, NASA, Summary:,')
+    s = re.sub(
+        r"(?:,\s*|\b)(?:date|published)\s*[:;,]+.*?\bsummary\s*[:;,]+\s*",
+        ". ",
+        s,
+        flags=re.I,
+    )
+    # Strip individual metadata labels with trailing colons/commas
+    s = re.sub(
+        r"\b(?:date|source|summary|author|published|share|cite|journal reference)\s*[:;,]+\s*",
+        "",
+        s,
+        flags=re.I,
+    )
+    return s
+
+
 def drop_boilerplate(text: str) -> str:
     """Drops lines of site furniture from article text, so neither the summary nor the voice reads them."""
+    cleaned = strip_metadata_noise(text)
     return "\n".join(
-        line for line in (text or "").splitlines()
+        line for line in (cleaned or "").splitlines()
         if not (len(line.split()) <= 40 and BOILERPLATE.search(line.strip()))
     )
 
