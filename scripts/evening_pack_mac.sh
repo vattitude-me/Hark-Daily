@@ -88,7 +88,7 @@ fi
 cd "$ROOT"
 TARGET_EDITION="${EDITION:-ca,us,in}"
 log "Running briefing pack generation for ${TARGET_EDITION} editions (voicing on M3 Pro, pushing to Supabase)..."
-"$ROOT/.venv/bin/python" -m app pack --edition "$TARGET_EDITION" --notify "${@:---force}" >> "$LOG_FILE" 2>&1
+"$ROOT/.venv/bin/python" -m app pack --edition "$TARGET_EDITION" --notify "$@" >> "$LOG_FILE" 2>&1
 
 log "✓ Evening Edition successfully published to Supabase!"
 

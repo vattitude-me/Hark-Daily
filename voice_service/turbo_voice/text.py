@@ -52,6 +52,13 @@ PRONUNCIATION_OVERRIDES = {
     # Global Tech / Business entities
     r"\bByteDance\b": "Bite-dance",
     r"\bHuawei\b": "Hwah-way",
+    # Global Tech, Financial & Markets entities
+    r"\bNvidia's\b": "En-vid-ee-uh's",
+    r"\bNvidia\b": "En-vid-ee-uh",
+    r"\bNasdaq\b": "Naz-dak",
+    r"\bSensex\b": "Sen-seks",
+    r"\bTSMC\b": "T-S-M-C",
+    r"\bS&P\b": "S and P",
 }
 
 
@@ -72,6 +79,67 @@ _MARK = "\x00"
 
 DEFAULT_BEAT = 0.55
 MAX_PAUSE = 5.0
+INTER_SENTENCE_PAUSE = 0.08  # Micro-breath pause between split sentences of the same speaker
+
+# Common abbreviations, titles and honorifics that must not trigger a sentence split
+ABBREVIATIONS = frozenset({
+    "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "gen", "rep", "sen", "gov", "pres", "sec",
+    "u.s", "u.k", "e.u", "d.c", "n.y", "l.a", "calif", "wash", "ont", "que", "b.c",
+    "inc", "corp", "co", "ltd", "llc", "vs", "dept", "est",
+    "etc", "approx", "no", "vol", "e.g", "i.e", "a.m", "p.m"
+})
+
+_SENTENCE_END = re.compile(
+    r"([.!?]+)([\"'\u201d\u2019]?)\s+(?=[\"'\u201c\u2018]?[A-Z0-9])"
+)
+
+
+def split_sentences_safely(text: str, max_words: int = 22) -> list[str]:
+    """Split long turns into natural sentence-sized units, avoiding mid-abbreviation breaks.
+
+    If the text has <= max_words, it is returned untouched as a single chunk.
+    """
+    words = text.split()
+    if len(words) <= max_words:
+        return [text]
+
+    parts: list[str] = []
+    start = 0
+    for match in _SENTENCE_END.finditer(text):
+        end = match.end()
+        candidate = text[start:match.start() + len(match.group(1)) + len(match.group(2))].strip()
+        last_word = candidate.split()[-1].rstrip(".!?\"'\u201d\u2019").lower()
+        if last_word in ABBREVIATIONS:
+            continue
+        if len(last_word) == 1 and last_word.isalpha():
+            continue
+
+        parts.append(candidate)
+        start = end
+
+    remainder = text[start:].strip()
+    if remainder:
+        parts.append(remainder)
+
+    if not parts or len(parts) == 1:
+        return [text]
+
+    grouped: list[str] = []
+    current: list[str] = []
+    current_len = 0
+    for p in parts:
+        p_len = len(p.split())
+        if current and (current_len + p_len > max_words):
+            grouped.append(" ".join(current))
+            current = [p]
+            current_len = p_len
+        else:
+            current.append(p)
+            current_len += p_len
+    if current:
+        grouped.append(" ".join(current))
+
+    return grouped
 
 
 @dataclass(frozen=True)
@@ -97,6 +165,10 @@ def parse(text: str, *, beat: float = DEFAULT_BEAT) -> list[Say | Pause]:
 
     Adjacent pauses are summed and leading or trailing pauses dropped, so the
     result always begins and ends with something to say.
+
+    Long speech spans (> 22 words) are safely split into complete sentences separated
+    by natural 0.08s breath pauses, ensuring neural TTS inference stays in its
+    optimal low-latency, low-memory operating envelope.
     """
     text = (text or "").strip()
     if not text:
@@ -134,7 +206,14 @@ def parse(text: str, *, beat: float = DEFAULT_BEAT) -> list[Say | Pause]:
             else:
                 out.append(Pause(seconds))
         else:
-            out.append(Say(part))
+            sentences = split_sentences_safely(part, max_words=22)
+            if len(sentences) > 1:
+                for s_idx, sentence in enumerate(sentences):
+                    out.append(Say(sentence))
+                    if s_idx < len(sentences) - 1:
+                        out.append(Pause(INTER_SENTENCE_PAUSE))
+            else:
+                out.append(Say(part))
 
     while out and isinstance(out[0], Pause):
         out.pop(0)
