@@ -51,7 +51,7 @@ def fake_network(monkeypatch):
 @pytest.fixture
 def cfg(tmp_path: Path) -> Config:
     c = dataclasses.replace(
-        Config(), data_dir=tmp_path, model_dir=tmp_path / "models", groq_api_key=None,
+        Config(), data_dir=tmp_path, model_dir=tmp_path / "models", agy_enabled=False, groq_api_key=None,
         gemini_api_key=None, local_llm_url=None, podcast_enabled=False,
         supabase_url="https://proj.supabase.co", supabase_secret_key="sb_secret_test",
         allow_private_urls=True, admin_emails=("admin@example.com",), admin_notify="issues",

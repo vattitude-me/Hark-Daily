@@ -23,6 +23,8 @@ import hashlib
 import json
 import logging
 import re
+import shutil
+import subprocess
 from dataclasses import asdict, dataclass, field
 from datetime import date as _date
 from pathlib import Path
@@ -388,6 +390,7 @@ def _prompt(hosts: tuple[str, str], weekday: str) -> str:
 
 _LAST_LLM_CALL_TIME: float = 0.0
 _MIN_LLM_INTERVAL: float = 2.2  # Minimum seconds between LLM calls to keep safely within Groq RPM limit
+AGY_CLI_URL = "agy://cli"
 
 
 def _rate_limit_llm() -> None:
@@ -400,9 +403,68 @@ def _rate_limit_llm() -> None:
     _LAST_LLM_CALL_TIME = time.monotonic()
 
 
+def _agy_bin() -> str | None:
+    """Return the path to the Antigravity CLI ('agy') executable if installed."""
+    found = shutil.which("agy")
+    if found:
+        return found
+    for candidate in ("/opt/homebrew/bin/agy", "/usr/local/bin/agy"):
+        if Path(candidate).is_file():
+            return candidate
+    return None
+
+
+def _extract_json_text(raw: str) -> str:
+    """Strip markdown code fences and isolate the outermost JSON object from CLI stdout."""
+    text = (raw or "").strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return text[start : end + 1]
+    return text
+
+
+def _call_agy_cli(model: str, messages: list[dict[str, str]], timeout: float = 45.0) -> str:
+    """Invoke the local Antigravity CLI ('agy') in headless mode to generate JSON copy."""
+    bin_path = _agy_bin()
+    if not bin_path:
+        raise RuntimeError("Antigravity CLI ('agy') executable not found")
+    parts: list[str] = []
+    for msg in messages:
+        role = msg.get("role", "user").upper()
+        content = msg.get("content", "")
+        parts.append(f"[{role}]\n{content}")
+    parts.append("\nIMPORTANT: Return ONLY raw valid JSON with no markdown code fences and no commentary.")
+    prompt = "\n\n".join(parts)
+    proc = subprocess.run(
+        [bin_path, "--model", model, "--disable-slash-commands", "-p", prompt],
+        cwd="/tmp",
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout or f"exit {proc.returncode}").strip()[:160]
+        raise RuntimeError(f"agy CLI failed: {err}")
+    out = _extract_json_text(proc.stdout)
+    if not out:
+        raise ValueError("agy CLI returned empty output")
+    return out
+
+
 def _ai_provider_chain(cfg) -> list[tuple[str, str, str, str]]:
-    """Ordered (model, url, token, provider_label) chain: Groq first, then local LLM, then Gemini."""
+    """Ordered (model, url, token, provider_label) chain: Antigravity CLI -> Groq -> Local LLM -> Gemini."""
     models: list[tuple[str, str, str, str]] = []
+    if getattr(cfg, "agy_enabled", False) and _agy_bin():
+        agy_model = getattr(cfg, "agy_model", "gemini-3.8-flash-low") or "gemini-3.8-flash-low"
+        models.append((agy_model, AGY_CLI_URL, "agy", "AntigravityCLI"))
     if getattr(cfg, "groq_api_key", None):
         models += [(m, GROQ_URL, cfg.groq_api_key, "Groq") for m in cfg.groq_models]
     if getattr(cfg, "local_llm_url", None):
@@ -417,8 +479,8 @@ def ask_ai(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
            yesterdays_opening: str | None = None) -> tuple[dict[str, Written], list[str]]:
     """One AI call for the whole day. Returns the valid pieces by key and a list of problems.
 
-    Tries each Groq, local, then Gemini model once; the first answer that parses wins. Never raises:
-    a down or rate-limited service just yields nothing, and the caller fills in from templates."""
+    Tries Antigravity CLI, Groq, local, then Gemini models in order; the first answer that parses wins.
+    Never raises: a down or rate-limited service just yields nothing, and the caller fills in from templates."""
     problems: list[str] = []
     models = _ai_provider_chain(cfg)
     if not models:
@@ -436,24 +498,31 @@ def ask_ai(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
     client = client or httpx.Client(timeout=60)
     try:
         for model, url, token, provider in models:
-            body = {
-                "model": model, "temperature": 0.75, "max_tokens": 3000,
-                "response_format": {"type": "json_object"},
-                **({"reasoning_effort": "low"} if model.startswith("openai/gpt-oss") else {}),
-                "messages": [{"role": "system", "content": _prompt(hosts, weekday)},
-                             {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
-            }
+            messages = [
+                {"role": "system", "content": _prompt(hosts, weekday)},
+                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+            ]
             try:
-                _rate_limit_llm()
-                resp = client.post(url, json=body, headers={"Authorization": f"Bearer {token}"})
-                if resp.status_code == 429:
-                    problems.append(f"{provider} {model}: HTTPStatusError: 429 Too Many Requests")
-                    continue
-                resp.raise_for_status()
-                data = json.loads(resp.json()["choices"][0]["message"]["content"])
+                if url == AGY_CLI_URL or provider == "AntigravityCLI":
+                    raw_text = _call_agy_cli(model, messages, timeout=60.0)
+                    data = json.loads(raw_text)
+                else:
+                    body = {
+                        "model": model, "temperature": 0.75, "max_tokens": 3000,
+                        "response_format": {"type": "json_object"},
+                        **({"reasoning_effort": "low"} if model.startswith("openai/gpt-oss") else {}),
+                        "messages": messages,
+                    }
+                    _rate_limit_llm()
+                    resp = client.post(url, json=body, headers={"Authorization": f"Bearer {token}"})
+                    if resp.status_code == 429:
+                        problems.append(f"{provider} {model}: HTTPStatusError: 429 Too Many Requests")
+                        continue
+                    resp.raise_for_status()
+                    data = json.loads(resp.json()["choices"][0]["message"]["content"])
                 if not isinstance(data, dict):
                     raise ValueError("not a JSON object")
-            except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
+            except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError, RuntimeError, subprocess.SubprocessError) as exc:
                 problems.append(f"{provider} {model}: {exc.__class__.__name__}: {str(exc)[:120]}")
                 continue
             return _collect(data, pieces, model), problems
@@ -801,7 +870,8 @@ def build_story_brief(story: dict) -> dict:
     base_sec = sec.replace("_us", "").replace("_in", "").replace("_ca", "")
     raw_head = clean_headline(story.get("title") or story.get("headline") or "")
     headline = voice_normalize(_clean(raw_head).rstrip("."), preserve_tags=False)
-    source = _clean(story.get("source") or "News wire")
+    raw_source = _clean(story.get("source") or "News wire")
+    source = raw_source.split("·")[0].strip() or raw_source
     summary = voice_normalize(_clean(story.get("summary") or ""), preserve_tags=False)
     raw_body = str(story.get("article_text") or story.get("summary") or story.get("script") or "")
 
@@ -1038,7 +1108,7 @@ STRICT EDITORIAL, LANGUAGE & ANTI-SLOP RULES:
    - Money and Currency: NEVER write symbols or abbreviated shorthand like "$5B", "$10M", "$500K", "$20", "€50M", or "£10B". Always spell them out in full spoken words: "5 billion dollars", "10 million dollars", "500 thousand dollars", "20 dollars", "50 million euros", "10 billion pounds".
    - Percentages: NEVER use the "%" symbol (e.g. "15%"). Always write "15 percent" or "fifteen percent".
    - Numbers & Multipliers: Round numbers naturally. Say "5 times" instead of "5x", "number one" instead of "#1" or "No. 1".
-   - Acronyms & Abbreviations: Write out acronyms so text-to-speech speaks them cleanly. Say "I-P-O", "C-E-O", "first quarter" (never "Q1"), "third quarter" (never "Q3"), "versus" (never "vs" or "vs."), "and" (never "&"), "with" (never "w/"), "approximately" (never "approx.").
+   - Acronyms & Abbreviations: Write out acronyms so text-to-speech speaks them cleanly. Say "I P O", "C E O", "first quarter" (never "Q1"), "third quarter" (never "Q3"), "versus" (never "vs" or "vs."), "and" (never "&"), "with" (never "w/"), "approximately" (never "approx.").
    - Do not use forward slashes (say "per" or "or").
 9. BROADCAST SAFETY & FAMILY-FRIENDLINESS (ZERO TOLERANCE FOR PROFANITY):
    - Absolutely NO profanity, swear words, vulgarity, offensive slang, or expletives (e.g. fuck, shit, bitch, ass, asshole, dick, pussy, bastard, or any variations).
@@ -1053,61 +1123,71 @@ def fallback_story_dialogue(
     story: dict,
     hosts: tuple[str, str] = ("Matthew", "Kelly"),
 ) -> StoryDialogue:
-    """Deterministic, strictly factual exchange built from extracted article sentences."""
+    """Deterministic, strictly factual exchange built from extracted article sentences.
+
+    Never emits robotic meta-filler ('Reporting from...', 'That comes from...', 'Here is what is developing:').
+    Every turn is 100% genuine article content.
+    """
     brief = build_story_brief(story)
     facts = brief["facts"]
     base_sec = str(brief.get("section") or "top").replace("_us", "").replace("_in", "").replace("_ca", "")
     lead_speaker = 0 if (brief["sober"] or base_sec in HEAVY_SECTIONS or brief["rank"] % 2 == 1) else 1
     co_speaker = 1 - lead_speaker
-    source = brief["source"]
-    headline = brief["headline"].rstrip(".")
+    headline_raw = brief["headline"].rstrip(".")
+    headline_sent = headline_raw if headline_raw.endswith((".", "!", "?")) else f"{headline_raw}."
     fmt_key, _ = select_story_format(brief["section"], brief["rank"], sober=brief["sober"])
 
     # Collect distinct body facts (excluding headline F1)
-    body_facts: list[str] = []
-    seen_body: set[str] = {headline.lower().rstrip(".")}
+    body_facts: list[tuple[str, str]] = []
+    seen_body: set[str] = {headline_raw.lower().rstrip(".")}
     for f in facts:
-        if f.get("id") == "F1":
+        fid = str(f.get("id") or "F1")
+        if fid == "F1":
             continue
         txt = f.get("fact", "").strip()
         norm = txt.lower().rstrip(".")
         if norm and norm not in seen_body:
             seen_body.add(norm)
-            body_facts.append(txt)
-
-    f_lead = body_facts[0] if body_facts else f"Here is what is developing: {headline}."
-    f_context = body_facts[1] if len(body_facts) > 1 else ""
-    f_detail = body_facts[2] if len(body_facts) > 2 else ""
-    f_takeaway = body_facts[3] if len(body_facts) > 3 else f"Reporting there from {source}."
+            body_facts.append((fid, txt))
 
     if is_solo_format(fmt_key):
         solo_spk = solo_host_index(fmt_key, hosts)
-        turns = [
-            DialogueTurn(
-                speaker=solo_spk,
-                text=f_lead,
-                purpose="lead",
-                fact_refs=["F2"] if body_facts else ["F1"],
-                pause_after=PURPOSE_PAUSES["lead"],
-            ),
-        ]
-        second_text = f_context if f_context else f"Reporting from {source}."
-        if second_text.lower().rstrip(".") != f_lead.lower().rstrip("."):
-            turns.append(DialogueTurn(
-                speaker=solo_spk,
-                text=second_text,
-                purpose="takeaway",
-                fact_refs=["F3"] if len(body_facts) > 1 else ["F1"],
-                pause_after=PURPOSE_PAUSES["takeaway"],
-            ))
-        if f_detail and f_context and len(f_lead.split()) + len(f_context.split()) < 35:
-            turns.append(DialogueTurn(
-                speaker=solo_spk,
-                text=f_detail,
-                purpose="context",
-                fact_refs=["F4"] if len(body_facts) > 2 else ["F1"],
-                pause_after=PURPOSE_PAUSES["takeaway"],
-            ))
+        if not body_facts:
+            turns = [
+                DialogueTurn(
+                    speaker=solo_spk,
+                    text=headline_sent,
+                    purpose="lead",
+                    fact_refs=["F1"],
+                    pause_after=PURPOSE_PAUSES["lead"],
+                )
+            ]
+        else:
+            turns = [
+                DialogueTurn(
+                    speaker=solo_spk,
+                    text=body_facts[0][1],
+                    purpose="lead",
+                    fact_refs=[body_facts[0][0]],
+                    pause_after=PURPOSE_PAUSES["lead"],
+                )
+            ]
+            if len(body_facts) > 1:
+                turns.append(DialogueTurn(
+                    speaker=solo_spk,
+                    text=body_facts[1][1],
+                    purpose="takeaway",
+                    fact_refs=[body_facts[1][0]],
+                    pause_after=PURPOSE_PAUSES["takeaway"],
+                ))
+            if len(body_facts) > 2 and len(body_facts[0][1].split()) + len(body_facts[1][1].split()) < 35:
+                turns.append(DialogueTurn(
+                    speaker=solo_spk,
+                    text=body_facts[2][1],
+                    purpose="context",
+                    fact_refs=[body_facts[2][0]],
+                    pause_after=PURPOSE_PAUSES["takeaway"],
+                ))
         return StoryDialogue(
             story_id=brief["story_id"],
             section=brief["section"],
@@ -1118,23 +1198,90 @@ def fallback_story_dialogue(
             story_format=fmt_key,
         )
 
-    if fmt_key == "lead_takeaway":
-        takeaway_text = f_context if f_context else (f_detail if f_detail else f"Reporting there from {source}.")
-        if takeaway_text.lower().rstrip(".") == f_lead.lower().rstrip("."):
-            takeaway_text = f"Reporting there from {source}."
+    # For two-host formats: build sequence of real factual lines
+    if not body_facts:
+        # Only headline exists — deliver as a clean solo lead turn rather than inventing robotic filler
         turns = [
             DialogueTurn(
                 speaker=lead_speaker,
-                text=f_lead,
+                text=headline_sent,
                 purpose="lead",
-                fact_refs=["F2"] if body_facts else ["F1"],
+                fact_refs=["F1"],
+                pause_after=PURPOSE_PAUSES["lead"],
+            )
+        ]
+        return StoryDialogue(
+            story_id=brief["story_id"],
+            section=brief["section"],
+            headline=brief["headline"],
+            summary=brief["summary"],
+            turns=turns,
+            writer="built-in",
+            story_format="solo_matthew" if lead_speaker == 0 else "solo_kelly",
+        )
+
+    if len(body_facts) == 1:
+        if brief["rank"] <= 1:
+            # Rank 1 headline was already spoken in section tease: deliver the body fact cleanly without repeating headline
+            turns = [
+                DialogueTurn(
+                    speaker=lead_speaker,
+                    text=body_facts[0][1],
+                    purpose="lead",
+                    fact_refs=[body_facts[0][0]],
+                    pause_after=PURPOSE_PAUSES["lead"],
+                )
+            ]
+            return StoryDialogue(
+                story_id=brief["story_id"],
+                section=brief["section"],
+                headline=brief["headline"],
+                summary=brief["summary"],
+                turns=turns,
+                writer="built-in",
+                story_format="solo_matthew" if lead_speaker == 0 else "solo_kelly",
+            )
+        # Rank > 1: Host A introduces the headline, Host B follows with the body fact
+        turns = [
+            DialogueTurn(
+                speaker=lead_speaker,
+                text=headline_sent,
+                purpose="lead",
+                fact_refs=["F1"],
                 pause_after=PURPOSE_PAUSES["lead"],
             ),
             DialogueTurn(
                 speaker=co_speaker,
-                text=takeaway_text,
+                text=body_facts[0][1],
                 purpose="takeaway",
-                fact_refs=["F3"] if len(body_facts) > 1 else ["F1"],
+                fact_refs=[body_facts[0][0]],
+                pause_after=PURPOSE_PAUSES["takeaway"],
+            ),
+        ]
+        return StoryDialogue(
+            story_id=brief["story_id"],
+            section=brief["section"],
+            headline=brief["headline"],
+            summary=brief["summary"],
+            turns=turns,
+            writer="built-in",
+            story_format="lead_takeaway",
+        )
+
+    if fmt_key == "lead_takeaway":
+        turns = [
+            DialogueTurn(
+                speaker=lead_speaker,
+                text=body_facts[0][1],
+                purpose="lead",
+                fact_refs=[body_facts[0][0]],
+                pause_after=PURPOSE_PAUSES["lead"],
+            ),
+            DialogueTurn(
+                speaker=co_speaker,
+                text=body_facts[1][1],
+                purpose="takeaway",
+                fact_refs=[body_facts[1][0]],
                 pause_after=PURPOSE_PAUSES["takeaway"],
             ),
         ]
@@ -1151,46 +1298,35 @@ def fallback_story_dialogue(
     turns = [
         DialogueTurn(
             speaker=lead_speaker,
-            text=f_lead,
+            text=body_facts[0][1],
             purpose="lead",
-            fact_refs=["F2"] if body_facts else ["F1"],
+            fact_refs=[body_facts[0][0]],
             pause_after=PURPOSE_PAUSES["lead"],
         ),
+        DialogueTurn(
+            speaker=co_speaker,
+            text=body_facts[1][1],
+            purpose="context",
+            fact_refs=[body_facts[1][0]],
+            pause_after=PURPOSE_PAUSES["context"],
+        ),
     ]
-    if f_context:
-        turns.append(DialogueTurn(
-            speaker=co_speaker,
-            text=f_context,
-            purpose="context",
-            fact_refs=["F3"] if len(body_facts) > 1 else ["F1"],
-            pause_after=PURPOSE_PAUSES["context"],
-        ))
-    else:
-        turns.append(DialogueTurn(
-            speaker=co_speaker,
-            text=f"That comes from {source}, and it is one of the key developments we are tracking in {brief['section_title']}.",
-            purpose="context",
-            fact_refs=["F1"],
-            pause_after=PURPOSE_PAUSES["context"],
-        ))
-
-    if f_detail:
+    if len(body_facts) > 2:
         turns.append(DialogueTurn(
             speaker=lead_speaker,
-            text=f_detail,
+            text=body_facts[2][1],
             purpose="implication",
-            fact_refs=["F4"] if len(body_facts) > 2 else ["F1"],
+            fact_refs=[body_facts[2][0]],
             pause_after=PURPOSE_PAUSES["implication"],
         ))
-        takeaway_text = f_takeaway if f_takeaway else f"Reporting there from {source}."
-        if takeaway_text.lower().rstrip(".") != f_detail.lower().rstrip("."):
-            turns.append(DialogueTurn(
-                speaker=co_speaker,
-                text=takeaway_text,
-                purpose="takeaway",
-                fact_refs=["F5"] if len(body_facts) > 3 else ["F1"],
-                pause_after=PURPOSE_PAUSES["takeaway"],
-            ))
+    if len(body_facts) > 3:
+        turns.append(DialogueTurn(
+            speaker=co_speaker,
+            text=body_facts[3][1],
+            purpose="takeaway",
+            fact_refs=[body_facts[3][0]],
+            pause_after=PURPOSE_PAUSES["takeaway"],
+        ))
 
     return StoryDialogue(
         story_id=brief["story_id"],
@@ -1360,26 +1496,29 @@ def generate_story_dialogue(
                 {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
             ]
             for attempt in range(2):
-                body = {
-                    "model": model,
-                    "temperature": 0.55 if attempt == 0 else 0.30,
-                    "max_tokens": 1100,
-                    "response_format": {"type": "json_object"},
-                    **({"reasoning_effort": "low"} if model.startswith("openai/gpt-oss") else {}),
-                    "messages": messages,
-                }
                 try:
-                    _rate_limit_llm()
-                    resp = client.post(url, json=body, headers={"Authorization": f"Bearer {token}"})
-                    if resp.status_code == 429:
-                        wait = max(_retry_after(resp), 3.0)
-                        if wait <= 20 and attempt == 0:
-                            log.warning("Groq rate limit hit (429) during story dialogue. Backing off for %.1fs...", wait)
-                            sleep(wait)
-                            continue
-                        break
-                    resp.raise_for_status()
-                    content = resp.json()["choices"][0]["message"]["content"]
+                    if url == AGY_CLI_URL or provider == "AntigravityCLI":
+                        content = _call_agy_cli(model, messages, timeout=45.0)
+                    else:
+                        body = {
+                            "model": model,
+                            "temperature": 0.55 if attempt == 0 else 0.30,
+                            "max_tokens": 1100,
+                            "response_format": {"type": "json_object"},
+                            **({"reasoning_effort": "low"} if model.startswith("openai/gpt-oss") else {}),
+                            "messages": messages,
+                        }
+                        _rate_limit_llm()
+                        resp = client.post(url, json=body, headers={"Authorization": f"Bearer {token}"})
+                        if resp.status_code == 429:
+                            wait = max(_retry_after(resp), 3.0)
+                            if wait <= 35 and attempt == 0:
+                                log.warning("%s rate limit hit (429) during story dialogue. Backing off for %.1fs...", provider, wait)
+                                sleep(wait)
+                                continue
+                            break
+                        resp.raise_for_status()
+                        content = resp.json()["choices"][0]["message"]["content"]
                     data = parse_story_dialogue_payload(content, hosts)
                     if not isinstance(data, dict):
                         raise ValueError("response is not a JSON object")
@@ -1435,7 +1574,7 @@ def generate_story_dialogue(
                         except Exception:
                             pass
                     return result
-                except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
+                except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError, RuntimeError, subprocess.SubprocessError) as exc:
                     log.debug("story dialogue %s (%s) attempt %d failed: %s", provider, model, attempt + 1, exc)
                     continue
     finally:
