@@ -113,11 +113,26 @@ def plan_pieces(scripts: list[dict]) -> list[Piece]:
         if sec in topics.ALL_SECTIONS and (sec not in top or s.get("rank", 99) < top[sec].get("rank", 99)):
             top[sec] = s
     for sec, story in top.items():
+        summary_raw = _clean(story.get("summary", ""))
+        summary_safe = summary_raw[:297].rsplit(" ", 1)[0] + "..." if len(summary_raw) > 300 else summary_raw
         pieces.append(Piece(piece_key("tease", sec), "tease", sec,
-                            _clean(story.get("title", "")), _clean(story.get("summary", ""))[:300]))
+                            _clean(story.get("title", "")), summary_safe))
         pieces.append(Piece(piece_key("bridge", sec), "bridge", sec, _clean(story.get("title", ""))))
     pieces += [Piece(piece_key("close", i + 1), "close") for i in range(CLOSE_VARIANTS)]
     return pieces
+
+
+_SOURCE_SUFFIX_RE = re.compile(
+    r"\s*(?:[|—–-]\s*(?:CBC News|The Verge|Variety|CBS Sports|The Hindu|Economic Times|ET Tech|Indian Express|ESPNcricinfo|New York Times|NYT|MarketWatch|NPR|TechCrunch|BetaKit|ScienceDaily|Reuters|AP News|Bloomberg|BBC News|CNN|The Globe and Mail).*)$",
+    re.I,
+)
+
+
+def clean_headline(title: str) -> str:
+    """Strip wire and publisher branding suffixes (e.g. ' | CBC News', ' - The Verge') from titles."""
+    t = _clean(title or "")
+    t = _SOURCE_SUFFIX_RE.sub("", t).strip()
+    return t
 
 
 def _clean(text: str) -> str:
@@ -179,10 +194,14 @@ def _tone_family(section: str | None) -> str:
 
 def _fill(turns: list[Turn], hosts: tuple[str, str], piece: Piece) -> list[Turn]:
     title = topics.ALL_SECTIONS.get(piece.section or "", {}).get("title", "the news")
-    headline = piece.headline.rstrip(".")
+    headline = clean_headline(piece.headline).rstrip(".")
     if len(headline) > 110:
-        headline = headline[:107].rsplit(" ", 1)[0] + "..."
-    filled = [(who, text.format(a=hosts[0], b=hosts[1], h=headline, s=title)) for who, text in turns]
+        headline = headline[:107].rsplit(" ", 1)[0].rstrip(".,!?") + "..."
+    filled = []
+    for who, text in turns:
+        formatted = text.format(a=hosts[0], b=hosts[1], h=headline, s=title)
+        formatted = re.sub(r"([.!?])\s*\.", r"\1", formatted)
+        filled.append((who, formatted))
     base_sec = (piece.section or "").replace("_us", "").replace("_in", "").replace("_ca", "")
     return [(who, strip_tags(text)) for who, text in filled] if base_sec in SOBER_SECTIONS else filled
 
@@ -259,9 +278,24 @@ def _preserve_case(match: re.Match, replacement: str) -> str:
     return replacement
 
 
+def strip_repetition_stutter(text: str) -> str:
+    """Detect and remove repeated restart phrases (e.g. 'Intro phrase cut off mid-sentence Intro phrase full sentence')."""
+    words = text.split()
+    if len(words) < 10 or len(set(words)) < 6:
+        return text
+    for n in range(min(12, len(words) // 2), 4, -1):
+        for i in range(len(words) - 2 * n):
+            phrase = " ".join(words[i : i + n])
+            rest = " ".join(words[i + n :])
+            if phrase in rest:
+                pos = rest.index(phrase)
+                return rest[pos:]
+    return text
+
+
 def clean_slop(text: str) -> str:
     """Strip or normalize robotic AI slop phrases and textual shorthand into simple, natural spoken English."""
-    cleaned = text
+    cleaned = strip_repetition_stutter(text)
     for pattern, repl in SLOP_PATTERNS:
         cleaned = pattern.sub(lambda m, r=repl: _preserve_case(m, r), cleaned)
     cleaned = voice_normalize(cleaned, preserve_tags=True)
@@ -353,7 +387,7 @@ def _prompt(hosts: tuple[str, str], weekday: str) -> str:
 
 
 _LAST_LLM_CALL_TIME: float = 0.0
-_MIN_LLM_INTERVAL: float = 1.6  # Minimum seconds between LLM calls to keep safely within Groq 30 RPM limit
+_MIN_LLM_INTERVAL: float = 2.2  # Minimum seconds between LLM calls to keep safely within Groq RPM limit
 
 
 def _rate_limit_llm() -> None:
@@ -465,9 +499,11 @@ def scripts_from_pack(store, day: str) -> list[dict]:
     Every narrator voices the same stories, so one set of rows per (section, rank) is enough."""
     seen: dict[tuple[str, int], dict] = {}
     for r in sorted(store.select("story_audio", {"date": f"eq.{day}"}), key=lambda r: (r["section"], r["rank"])):
+        script_raw = _clean(r.get("script", ""))
+        script_safe = script_raw[:297].rsplit(" ", 1)[0] + "..." if len(script_raw) > 300 else script_raw
         seen.setdefault((r["section"], r["rank"]), {
             "section": r["section"], "rank": r["rank"], "title": r.get("title", ""),
-            "summary": _clean(r.get("script", ""))[:300]})
+            "summary": script_safe})
     return list(seen.values())
 
 
@@ -726,15 +762,30 @@ class StoryDialogue:
     story_format: str = "question_led"
 
 
+_SPEAKER_TAG = re.compile(r"\[(Matthew|Kelly|Host|Speaker\s*\d+)\]\s*", re.I)
+
+_ABBR_SPLIT_PROTECT = re.compile(
+    r"\b("
+    r"mr|mrs|ms|dr|prof|sr|jr|gen|rep|sen|gov|pres|sec|st|capt|lt|col|maj|rev|"
+    r"u\.s|u\.k|e\.u|d\.c|n\.y|l\.a|calif|wash|ont|que|b\.c|inc|corp|co|ltd|llc|vs|dept|est|"
+    r"etc|approx|no|vol|e\.g|i\.e|a\.m|p\.m|[A-Za-z]"
+    r")\.",
+    re.IGNORECASE,
+)
+
+
 def _split_sentences(text: str) -> list[str]:
-    cleaned = _clean(drop_boilerplate(text) or text)
+    raw_clean = _SPEAKER_TAG.sub("", str(text or ""))
+    cleaned = _clean(drop_boilerplate(raw_clean) or raw_clean)
     if not cleaned:
         return []
-    parts = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'])", cleaned)
+    protected = _ABBR_SPLIT_PROTECT.sub(r"\1«DOT»", cleaned)
+    parts = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'])", protected)
     out: list[str] = []
     seen: set[str] = set()
     for p in parts:
-        s = _clean(p).strip()
+        restored = p.replace("«DOT»", ".")
+        s = _clean(_SPEAKER_TAG.sub("", restored)).strip()
         if len(s.split()) < 4:
             continue
         key = s.lower()
@@ -748,31 +799,41 @@ def build_story_brief(story: dict) -> dict:
     """Extract a grounded factual brief (F1..Fn) from an enriched story dict."""
     sec = str(story.get("section") or "top")
     base_sec = sec.replace("_us", "").replace("_in", "").replace("_ca", "")
-    headline = voice_normalize(_clean(story.get("title") or story.get("headline") or "").rstrip("."), preserve_tags=False)
+    raw_head = clean_headline(story.get("title") or story.get("headline") or "")
+    headline = voice_normalize(_clean(raw_head).rstrip("."), preserve_tags=False)
     source = _clean(story.get("source") or "News wire")
     summary = voice_normalize(_clean(story.get("summary") or ""), preserve_tags=False)
     raw_body = str(story.get("article_text") or story.get("summary") or story.get("script") or "")
 
-    candidates = _split_sentences(raw_body)
+    candidates: list[str] = []
     if summary:
-        for s in _split_sentences(summary):
-            if s.lower() not in {c.lower() for c in candidates}:
-                candidates.insert(0, s)
+        candidates.extend(_split_sentences(summary))
+    if raw_body and raw_body != summary:
+        candidates.extend(_split_sentences(raw_body))
 
-    head_norm = headline.lower()
+    head_norm = headline.lower().rstrip(".")
+    head_subparts = {p.lower().rstrip(".") for p in _split_sentences(headline)}
+    seen_facts: set[str] = {head_norm}
+    seen_facts.update(head_subparts)
+
     facts: list[dict[str, str]] = []
     if headline:
-        facts.append({"id": "F1", "fact": f"{headline}."})
+        head_fact = headline if headline.endswith((".", "!", "?")) else f"{headline}."
+        facts.append({"id": "F1", "fact": head_fact})
+
     for sent in candidates:
-        if sent.lower().rstrip(".") == head_norm:
+        s_clean = strip_repetition_stutter(_clean(sent))
+        if not s_clean or len(s_clean.split()) < 3:
             continue
+        v_fact = voice_normalize(s_clean, preserve_tags=False)
+        v_norm = v_fact.lower().rstrip(".")
+        if v_norm in seen_facts:
+            continue
+        seen_facts.add(v_norm)
         fid = f"F{len(facts) + 1}"
-        facts.append({"id": fid, "fact": voice_normalize(sent, preserve_tags=False)})
+        facts.append({"id": fid, "fact": v_fact if v_fact.endswith((".", "!", "?")) else f"{v_fact}."})
         if len(facts) >= 6:
             break
-
-    if len(facts) == 1 and summary and summary.lower().rstrip(".") != head_norm:
-        facts.append({"id": "F2", "fact": summary if summary.endswith((".", "!", "?")) else f"{summary}."})
 
     has_sensitive_keyword = any(kw in headline.lower() or kw in summary.lower() for kw in SOBER_KEYWORDS)
     sober = (base_sec in SOBER_SECTIONS) or has_sensitive_keyword
@@ -908,6 +969,13 @@ def validate_story_dialogue(
             if len(s_words) > 24:
                 return None
 
+        # Check for verbatim headline repetition on opening turn
+        if len(parsed) == 0:
+            h_clean = re.sub(r"[^a-z0-9 ]+", "", story_brief.get("headline", "").lower()).strip()
+            w_clean = re.sub(r"[^a-z0-9 ]+", "", words_only.lower()).strip()
+            if h_clean and (w_clean == h_clean or w_clean.startswith(h_clean)):
+                return None
+
         tags_in_turn = len(_TAG.findall(text))
         total_tags += tags_in_turn
         if sober:
@@ -995,29 +1063,51 @@ def fallback_story_dialogue(
     headline = brief["headline"].rstrip(".")
     fmt_key, _ = select_story_format(brief["section"], brief["rank"], sober=brief["sober"])
 
-    f1 = facts[0]["fact"] if facts else f"{headline}."
-    f2 = facts[1]["fact"] if len(facts) > 1 else ""
-    f3 = facts[2]["fact"] if len(facts) > 2 else ""
-    f4 = facts[3]["fact"] if len(facts) > 3 else ""
+    # Collect distinct body facts (excluding headline F1)
+    body_facts: list[str] = []
+    seen_body: set[str] = {headline.lower().rstrip(".")}
+    for f in facts:
+        if f.get("id") == "F1":
+            continue
+        txt = f.get("fact", "").strip()
+        norm = txt.lower().rstrip(".")
+        if norm and norm not in seen_body:
+            seen_body.add(norm)
+            body_facts.append(txt)
+
+    f_lead = body_facts[0] if body_facts else f"Here is what is developing: {headline}."
+    f_context = body_facts[1] if len(body_facts) > 1 else ""
+    f_detail = body_facts[2] if len(body_facts) > 2 else ""
+    f_takeaway = body_facts[3] if len(body_facts) > 3 else f"Reporting there from {source}."
 
     if is_solo_format(fmt_key):
         solo_spk = solo_host_index(fmt_key, hosts)
         turns = [
             DialogueTurn(
                 speaker=solo_spk,
-                text=f1,
+                text=f_lead,
                 purpose="lead",
-                fact_refs=["F1"],
+                fact_refs=["F2"] if body_facts else ["F1"],
                 pause_after=PURPOSE_PAUSES["lead"],
             ),
-            DialogueTurn(
-                speaker=solo_spk,
-                text=f2 if f2 else (f3 if f3 else f"Reporting from {source}."),
-                purpose="takeaway",
-                fact_refs=["F2"] if f2 else ["F1"],
-                pause_after=PURPOSE_PAUSES["takeaway"],
-            ),
         ]
+        second_text = f_context if f_context else f"Reporting from {source}."
+        if second_text.lower().rstrip(".") != f_lead.lower().rstrip("."):
+            turns.append(DialogueTurn(
+                speaker=solo_spk,
+                text=second_text,
+                purpose="takeaway",
+                fact_refs=["F3"] if len(body_facts) > 1 else ["F1"],
+                pause_after=PURPOSE_PAUSES["takeaway"],
+            ))
+        if f_detail and f_context and len(f_lead.split()) + len(f_context.split()) < 35:
+            turns.append(DialogueTurn(
+                speaker=solo_spk,
+                text=f_detail,
+                purpose="context",
+                fact_refs=["F4"] if len(body_facts) > 2 else ["F1"],
+                pause_after=PURPOSE_PAUSES["takeaway"],
+            ))
         return StoryDialogue(
             story_id=brief["story_id"],
             section=brief["section"],
@@ -1029,20 +1119,22 @@ def fallback_story_dialogue(
         )
 
     if fmt_key == "lead_takeaway":
-        takeaway_text = f2 if f2 else (f3 if f3 else f"Reporting there from {source}.")
+        takeaway_text = f_context if f_context else (f_detail if f_detail else f"Reporting there from {source}.")
+        if takeaway_text.lower().rstrip(".") == f_lead.lower().rstrip("."):
+            takeaway_text = f"Reporting there from {source}."
         turns = [
             DialogueTurn(
                 speaker=lead_speaker,
-                text=f1,
+                text=f_lead,
                 purpose="lead",
-                fact_refs=["F1"],
+                fact_refs=["F2"] if body_facts else ["F1"],
                 pause_after=PURPOSE_PAUSES["lead"],
             ),
             DialogueTurn(
                 speaker=co_speaker,
                 text=takeaway_text,
                 purpose="takeaway",
-                fact_refs=["F2"] if f2 else ["F1"],
+                fact_refs=["F3"] if len(body_facts) > 1 else ["F1"],
                 pause_after=PURPOSE_PAUSES["takeaway"],
             ),
         ]
@@ -1056,21 +1148,21 @@ def fallback_story_dialogue(
             story_format=fmt_key,
         )
 
-    turns: list[DialogueTurn] = [
+    turns = [
         DialogueTurn(
             speaker=lead_speaker,
-            text=f1,
+            text=f_lead,
             purpose="lead",
-            fact_refs=["F1"],
+            fact_refs=["F2"] if body_facts else ["F1"],
             pause_after=PURPOSE_PAUSES["lead"],
         ),
     ]
-    if f2:
+    if f_context:
         turns.append(DialogueTurn(
             speaker=co_speaker,
-            text=f2,
+            text=f_context,
             purpose="context",
-            fact_refs=["F2"],
+            fact_refs=["F3"] if len(body_facts) > 1 else ["F1"],
             pause_after=PURPOSE_PAUSES["context"],
         ))
     else:
@@ -1082,30 +1174,23 @@ def fallback_story_dialogue(
             pause_after=PURPOSE_PAUSES["context"],
         ))
 
-    if f3:
+    if f_detail:
         turns.append(DialogueTurn(
             speaker=lead_speaker,
-            text=f3,
+            text=f_detail,
             purpose="implication",
-            fact_refs=["F3"],
+            fact_refs=["F4"] if len(body_facts) > 2 else ["F1"],
             pause_after=PURPOSE_PAUSES["implication"],
         ))
-        takeaway_text = f4 if f4 else f"Reporting there from {source}."
-        turns.append(DialogueTurn(
-            speaker=co_speaker,
-            text=takeaway_text,
-            purpose="takeaway",
-            fact_refs=["F4"] if f4 else ["F3"],
-            pause_after=PURPOSE_PAUSES["takeaway"],
-        ))
-    else:
-        turns.append(DialogueTurn(
-            speaker=lead_speaker,
-            text=f"Full details on that story are available from {source}.",
-            purpose="takeaway",
-            fact_refs=["F1"],
-            pause_after=PURPOSE_PAUSES["takeaway"],
-        ))
+        takeaway_text = f_takeaway if f_takeaway else f"Reporting there from {source}."
+        if takeaway_text.lower().rstrip(".") != f_detail.lower().rstrip("."):
+            turns.append(DialogueTurn(
+                speaker=co_speaker,
+                text=takeaway_text,
+                purpose="takeaway",
+                fact_refs=["F5"] if len(body_facts) > 3 else ["F1"],
+                pause_after=PURPOSE_PAUSES["takeaway"],
+            ))
 
     return StoryDialogue(
         story_id=brief["story_id"],

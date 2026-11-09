@@ -17,8 +17,6 @@
     { "pattern": "\\bEdmonton\\b", "replacement": "Ed-mun-tun" },
     { "pattern": "\\bByteDance\\b", "replacement": "Bite-dance" },
     { "pattern": "\\bHuawei\\b", "replacement": "Hwah-way" },
-    { "pattern": "\\bNvidia's\\b", "replacement": "En-vid-ee-uh's" },
-    { "pattern": "\\bNvidia\\b", "replacement": "En-vid-ee-uh" },
     { "pattern": "\\bNasdaq\\b", "replacement": "Naz-dak" },
     { "pattern": "\\bSensex\\b", "replacement": "Sen-seks" },
     { "pattern": "\\bNifty\\b", "replacement": "Nif-tee" },
