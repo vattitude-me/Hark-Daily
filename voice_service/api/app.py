@@ -18,6 +18,7 @@ is CPU/GPU bound and must not block the event loop.
 from __future__ import annotations
 
 import base64
+import gc
 import io
 import logging
 import os
@@ -25,6 +26,7 @@ import threading
 from pathlib import Path
 
 import soundfile as sf
+import torch
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -162,6 +164,18 @@ def _fail(exc: Exception) -> HTTPException:
     return HTTPException(status_code=503, detail=str(exc))
 
 
+def _cleanup_memory() -> None:
+    """Free unused PyTorch allocator memory and run garbage collection to prevent MPS memory leaks during long runs."""
+    try:
+        if hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
+            torch.mps.empty_cache()
+        elif hasattr(torch, "cuda") and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+    gc.collect()
+
+
 # --------------------------------------------------------------------- models
 class SynthRequest(BaseModel):
     text: str = Field(..., min_length=1)
@@ -224,6 +238,8 @@ def synthesize(req: SynthRequest, format: str = Query("wav", pattern="^(wav|mp3)
         raise
     except Exception as exc:  # noqa: BLE001 — report any other failure to the caller
         raise _fail(exc) from exc
+    finally:
+        _cleanup_memory()
     if audio.size == 0:
         raise HTTPException(status_code=400, detail="Nothing to say")
     if format == "mp3":
