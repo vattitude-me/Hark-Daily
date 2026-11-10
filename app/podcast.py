@@ -339,7 +339,29 @@ def strip_tags(text: str) -> str:
     return _clean(_TAG.sub(" ", text))
 
 
-def validate_turns(raw, kind: str, section: str | None = None) -> list[Turn] | None:
+def _enforce_host_identity(text: str, who: str, hosts: tuple[str, str]) -> str | None:
+    """Ensure host self-identification matches speaker attribution (Speaker 'a' is host 0, 'b' is host 1).
+
+    Auto-repairs accidental speaker name swaps from LLM generation (e.g. 'a' saying 'I am Kelly'),
+    and rejects turns that retain contradictory speaker claims."""
+    if len(hosts) != 2:
+        return text
+    this_name = hosts[0] if who == "a" else hosts[1]
+    other_name = hosts[1] if who == "a" else hosts[0]
+
+    # Auto-repair inverted self-introductions (e.g. "I am Matthew" said by Kelly -> "I am Kelly")
+    re_other_and = re.compile(rf"\b(and\s+)?(i\s+am|i'm)\s+{re.escape(other_name)}\b", re.I)
+    if re_other_and.search(text):
+        text = re_other_and.sub(lambda m: f"{m.group(1) or ''}I am {this_name}", text)
+
+    # Rejection safety: after repair, speaker must never claim to be the other host
+    bad_claim = re.compile(rf"\b(?:i\s+am|i'm|this\s+is)\s+{re.escape(other_name)}\b", re.I)
+    if bad_claim.search(text):
+        return None
+    return text
+
+
+def validate_turns(raw, kind: str, section: str | None = None, hosts: tuple[str, str] = ("Matthew", "Kelly")) -> list[Turn] | None:
     """Turn the AI's JSON for one piece into clean turns, or None if any rule is broken.
 
     Known Chatterbox tags are kept (at most MAX_TAGS a piece), except in sober sections where
@@ -355,6 +377,9 @@ def validate_turns(raw, kind: str, section: str | None = None) -> list[Turn] | N
         text = _clean(item.get("text", ""))
         text = _clean(_TAG.sub(lambda m: f"[{m.group(1).lower()}]", text))
         text = clean_slop(text)
+        text = _enforce_host_identity(text, who, hosts)
+        if text is None:
+            return None
         words_only = strip_tags(text)
         if who not in ("a", "b") or not words_only or _BAD.search(words_only) or _PROFANITY_PATTERN.search(words_only):
             return None
@@ -389,6 +414,10 @@ SYSTEM_PROMPT = """You are the scriptwriter for "Hark Daily," a daily news podca
 STRICT LANGUAGE & ANTI-SLOP RULES (THIS WILL BE READ ALOUD BY TTS):
 - Use contractions and spoken rhythm ("we've", "it's", "that's", "don't", "can't"). Short sentences. Occasional fragments.
 - Light fillers ("honestly," "I mean," "right?") at most once or twice per piece.
+- STRICT SPEAKER IDENTITY ATTRIBUTION (MANDATORY):
+  * Speaker "a" is ALWAYS {a} (Speaker 0). "a" must NEVER say "I am {b}" or "I'm {b}".
+  * Speaker "b" is ALWAYS {b} (Speaker 1). "b" must NEVER say "I am {a}" or "I'm {a}".
+  * When introducing themselves, speaker "a" must say "I am {a}" / "I'm {a}", and speaker "b" must say "I am {b}" / "I'm {b}".
 - No lists, no parentheses, no stage directions, no emojis, no markdown, no URLs.
 - Don't read headlines word for word. Retell them like you're telling a smart friend across the table.
 - BANNED PHRASES & AI CLICHÉS (NEVER USE ANY OF THESE):
@@ -578,14 +607,14 @@ def ask_ai(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
             except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError, RuntimeError, subprocess.SubprocessError) as exc:
                 problems.append(f"{provider} {model}: {exc.__class__.__name__}: {str(exc)[:120]}")
                 continue
-            return _collect(data, pieces, model), problems
+            return _collect(data, pieces, model, hosts), problems
     finally:
         if own:
             client.close()
     return {}, problems
 
 
-def _collect(data: dict, pieces: list[Piece], model: str) -> dict[str, Written]:
+def _collect(data: dict, pieces: list[Piece], model: str, hosts: tuple[str, str] = ("Matthew", "Kelly")) -> dict[str, Written]:
     out: dict[str, Written] = {}
     for p in pieces:
         if p.kind.startswith("open_"):
@@ -599,7 +628,7 @@ def _collect(data: dict, pieces: list[Piece], model: str) -> dict[str, Written]:
         else:
             group = data.get(p.kind)
             raw = group.get(p.section) if isinstance(group, dict) else None
-        turns = validate_turns(raw, p.kind, p.section)
+        turns = validate_turns(raw, p.kind, p.section, hosts=hosts)
         if turns:
             out[p.key] = Written(turns, model)
     return out
