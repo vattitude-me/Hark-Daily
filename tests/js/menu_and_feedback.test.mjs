@@ -142,3 +142,82 @@ test('3D Stacked Cards deck and swipe gesture navigation are properly configured
   assert.ok(playerJs.includes('rearStoryHeadline'), 'Player tick must populate rear story headline');
 });
 
+test('storyFor associates bridge banter with upcoming story and nextChapter navigates stories', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'player-nav-'));
+
+  writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x'; export const SUPABASE_PUBLISHABLE_KEY = 'k';");
+  const apiSrc = readFileSync(resolve('web/js/api.js'), 'utf8')
+    .replace("'../config.js'", "'./config.mjs'");
+  writeFileSync(join(dir, 'api.mjs'), apiSrc);
+
+  const storypackSrc = readFileSync(resolve('web/js/storypack.js'), 'utf8')
+    .replace("'./api.js'", "'./api.mjs'").replace("'../config.js'", "'./config.mjs'");
+  writeFileSync(join(dir, 'storypack.mjs'), storypackSrc);
+
+  const playerSrc = readFileSync(resolve('web/js/player.js'), 'utf8')
+    .replace("'./api.js'", "'./api.mjs'")
+    .replace("'./storypack.js'", "'./storypack.mjs'");
+  writeFileSync(join(dir, 'player.mjs'), playerSrc);
+  const { Player } = await import(join(dir, 'player.mjs'));
+
+  class MockAudio extends EventTarget {
+    constructor() {
+      super();
+      this.currentTime = 0;
+      this.paused = true;
+      this.playbackRate = 1.0;
+    }
+    play() { this.paused = false; return Promise.resolve(); }
+    pause() { this.paused = true; }
+    load() {}
+    removeAttribute() {}
+  }
+
+  const audio = new MockAudio();
+  const preloader = new MockAudio();
+  const player = new Player({ audio, preloader, el: {} });
+  player.briefing = {
+    mode: 'podcast',
+    title: 'Hark Daily',
+    stories: [
+      { id: 'top-1', section: 'top', headline: 'Top Story 1', start: 10, end: 30 },
+      { id: 'top-2', section: 'top', headline: 'Top Story 2', start: 30, end: 50 },
+      { id: 'ent-1', section: 'entertainment', headline: 'Entertainment Story 1', start: 56, end: 76 },
+    ],
+    sections: [
+      { key: 'top', title: 'Top Stories' },
+      { key: 'entertainment', title: 'Entertainment' },
+    ],
+  };
+
+  player.chapters = [
+    { id: 'open', kind: 'note', title: 'Show Open', start: 0, end: 10 },
+    { id: 'top-1', kind: 'story', title: 'Top Story 1', start: 10, end: 30, section: 'top' },
+    { id: 'top-2', kind: 'story', title: 'Top Story 2', start: 30, end: 50, section: 'top' },
+    { id: 'bridge-ent', kind: 'note', title: 'Up next • Entertainment', text: 'Tease text', start: 50, end: 56, section: 'entertainment' },
+    { id: 'ent-1', kind: 'story', title: 'Entertainment Story 1', start: 56, end: 76, section: 'entertainment' },
+  ];
+
+  // 1. storyFor on bridge chapter must return the upcoming entertainment story, NOT story 0
+  const bridgeChapter = player.chapters[3];
+  const resolvedStory = player.storyFor(bridgeChapter);
+  assert.equal(resolvedStory.id, 'ent-1', 'Bridge chapter must map to first entertainment story');
+  assert.equal(player.sectionTitle(bridgeChapter), 'Entertainment', 'Section title must be Entertainment');
+
+  // 2. nextChapter on top-2 must advance directly to ent-1, skipping intermediate banter
+  let playedChapterId = null;
+  player.playChapter = (id) => { playedChapterId = id; };
+  audio.currentTime = 35; // Inside top-2
+  player.nextChapter();
+  assert.equal(playedChapterId, 'ent-1', 'nextChapter on top-2 must advance directly to ent-1');
+
+  // 3. prevChapter on ent-1 must return to top-2
+  playedChapterId = null;
+  audio.currentTime = 57; // At start of ent-1 (< 3 seconds into story)
+  player.prevChapter();
+  assert.equal(playedChapterId, 'top-2', 'prevChapter at start of ent-1 must go to top-2');
+});
+

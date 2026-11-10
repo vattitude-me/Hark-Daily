@@ -542,16 +542,48 @@ export class Player extends EventTarget {
   }
 
   storyFor(chapter) {
-    return this.briefing?.stories?.find((s) => s.id === chapter?.id);
+    if (!chapter || !this.briefing?.stories?.length) return null;
+    const stories = this.briefing.stories;
+    const direct = stories.find((s) => s.id === chapter.id);
+    if (direct) return direct;
+
+    // If chapter has an explicit section (e.g. section bridge banter 'bridge-entertainment'),
+    // associate it with the first story of that section
+    if (chapter.section) {
+      const secStory = stories.find((s) => s.section === chapter.section);
+      if (secStory) return secStory;
+    }
+
+    // Resolve by timeline timestamp: find the story covering or immediately following this chapter
+    const t = typeof chapter.start === 'number' ? chapter.start : this.position;
+    const active = stories.find((s) => t >= s.start - 0.05 && t < s.end);
+    if (active) return active;
+
+    const next = stories.find((s) => s.start >= t - 0.1);
+    if (next) return next;
+
+    const prev = [...stories].reverse().find((s) => s.start <= t + 0.1);
+    if (prev) return prev;
+
+    return stories[0] || null;
   }
 
   currentStory(t = this.position) {
-    return this.storyFor(this.currentChapter(t));
+    const ch = this.currentChapter(t);
+    if (ch) return this.storyFor(ch);
+    const stories = this.briefing?.stories;
+    if (!stories?.length) return null;
+    const active = stories.find((s) => t >= s.start - 0.05 && t < s.end);
+    if (active) return active;
+    const next = stories.find((s) => s.start >= t - 0.1);
+    if (next) return next;
+    return stories[stories.length - 1] || null;
   }
 
   sectionTitle(chapter) {
     const story = this.storyFor(chapter);
-    return this.briefing?.sections?.find((s) => s.key === story?.section)?.title || '';
+    const secKey = chapter?.section || story?.section;
+    return this.briefing?.sections?.find((s) => s.key === secKey)?.title || '';
   }
 
   currentChapter(t = this.position) {
@@ -651,6 +683,16 @@ export class Player extends EventTarget {
   }
 
   nextChapter() {
+    const story = this.currentStory();
+    const b = this.briefing;
+    if (story && b?.stories?.length) {
+      const idx = b.stories.indexOf(story);
+      if (idx >= 0 && idx < b.stories.length - 1) {
+        const nextStory = b.stories[idx + 1];
+        this.playChapter(nextStory.id);
+        return;
+      }
+    }
     const ch = this.currentChapter();
     const i = this.chapters.indexOf(ch);
     if (i >= 0 && i < this.chapters.length - 1) this.playChapter(this.chapters[i + 1].id);
@@ -658,10 +700,22 @@ export class Player extends EventTarget {
 
   prevChapter() {
     const ch = this.currentChapter();
-    const i = this.chapters.indexOf(ch);
     if (ch && this.position - ch.start > 3) {
       this.playChapter(ch.id);
-    } else if (i > 0) {
+      return;
+    }
+    const story = this.currentStory();
+    const b = this.briefing;
+    if (story && b?.stories?.length) {
+      const idx = b.stories.indexOf(story);
+      if (idx > 0) {
+        const prevStory = b.stories[idx - 1];
+        this.playChapter(prevStory.id);
+        return;
+      }
+    }
+    const i = this.chapters.indexOf(ch);
+    if (i > 0) {
       this.playChapter(this.chapters[i - 1].id);
     } else {
       this.seekTo(0);
@@ -783,10 +837,12 @@ export class Player extends EventTarget {
         e.preventDefault();
       }
 
+      const story = this.currentStory();
+      const b = this.briefing;
       const ch = this.currentChapter();
-      const chIdx = this.chapters.indexOf(ch);
-      const canGoNext = chIdx >= 0 && chIdx < this.chapters.length - 1;
-      const canGoPrev = chIdx > 0 || (ch && this.position - ch.start > 3);
+      const storyIdx = (story && b?.stories) ? b.stories.indexOf(story) : -1;
+      const canGoNext = storyIdx >= 0 ? storyIdx < b.stories.length - 1 : Boolean(this.chapters.indexOf(ch) < this.chapters.length - 1);
+      const canGoPrev = storyIdx > 0 || (story && this.position - (story.start || 0) > 3) || (ch && this.position - ch.start > 3);
 
       // Rubberband resistance if boundary reached
       let effectiveDeltaX = deltaX;
@@ -838,10 +894,12 @@ export class Player extends EventTarget {
       const velocity = Math.abs(currentDeltaX) / Math.max(elapsed, 1);
       const passedThreshold = Math.abs(currentDeltaX) > 55 || (velocity > 0.32 && Math.abs(currentDeltaX) > 22);
 
+      const story = this.currentStory();
+      const b = this.briefing;
       const ch = this.currentChapter();
-      const chIdx = this.chapters.indexOf(ch);
-      const canGoNext = chIdx >= 0 && chIdx < this.chapters.length - 1;
-      const canGoPrev = chIdx > 0 || (ch && this.position - ch.start > 3);
+      const storyIdx = (story && b?.stories) ? b.stories.indexOf(story) : -1;
+      const canGoNext = storyIdx >= 0 ? storyIdx < b.stories.length - 1 : Boolean(this.chapters.indexOf(ch) < this.chapters.length - 1);
+      const canGoPrev = storyIdx > 0 || (story && this.position - (story.start || 0) > 3) || (ch && this.position - ch.start > 3);
 
       if (currentDeltaX < -20 && passedThreshold && canGoNext) {
         // Swiped Left -> Animate front card OUT to left, rear card IN to center
@@ -1121,11 +1179,11 @@ export class Player extends EventTarget {
       if (story?.url) {
         readerArticleLink.href = story.url;
         const srcName = story?.source ? story.source.split('·')[0].trim() : 'original source';
-        const span = readerArticleLink.querySelector('span');
+        const span = readerArticleLink.querySelector?.('span');
         if (span) span.textContent = `Full story on ${srcName}`;
-        readerArticleLink.classList.remove('hidden');
+        readerArticleLink.classList?.remove?.('hidden');
       } else {
-        readerArticleLink.classList.add('hidden');
+        readerArticleLink.classList?.add?.('hidden');
       }
     }
     const readerShareBtn = document.getElementById('readerShareBtn');
@@ -1432,7 +1490,9 @@ export class Player extends EventTarget {
     }
     const cleanHeadline = document.getElementById('cleanStoryHeadline');
     if (cleanHeadline) {
-      cleanHeadline.textContent = story?.headline || ch?.title || b.stories?.[0]?.headline || b.title;
+      cleanHeadline.textContent = (isIntroOrBanter && ch?.title)
+        ? ch.title
+        : (story?.headline || ch?.title || b.stories?.[0]?.headline || b.title);
     }
 
     const cleanShare = document.getElementById('cleanShareBtn');
