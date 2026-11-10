@@ -164,12 +164,19 @@ export default async function handler(req, res) {
 
   let html = await loadIndexHtml(origin);
 
-  const headline = storyRow?.title || 'Shared Story — Hark Daily';
+  const isNotFound = !storyRow;
+  const nowStr = new Date().toISOString().slice(0, 10);
+  const isExpired = Boolean(date && date < nowStr);
+
+  const headline = storyRow?.title
+    || (isExpired ? `Story Expired (${date}) — Hark Daily` : 'Story Not Found — Hark Daily');
   const sourceName = storyRow?.source || SECTION_LABELS[parsed.section] || 'Hark Daily';
   const durSec = Math.max(1, Math.round(Number(storyRow?.duration) || 25));
   const description = storyRow
     ? `${sourceName} · ${durSec}s audio · Hark Daily`
-    : 'Daily two-host audio news briefing with AI Duo Matthew & Kelly.';
+    : (isExpired
+        ? `This news story from ${date} is no longer available in our live archive. Listen to today's audio briefing on Hark Daily.`
+        : 'This story link has expired or is no longer available. Listen to today\'s audio briefing on Hark Daily.');
   const canonicalUrl = date && slug ? `${origin}/s/${encodeURIComponent(date)}/${encodeURIComponent(slug)}` : `${origin}/`;
   const storyImage = storyRow?.image || null;
   const thumbUrl = storyImage || `${origin}/icons/og-thumb-dark.png`;
@@ -181,7 +188,7 @@ export default async function handler(req, res) {
   const eThumb = escapeHtml(thumbUrl);
 
   html = html
-    .replace(/<title>[\s\S]*?<\/title>/i, `<title>${eTitle} — Hark Daily</title>`)
+    .replace(/<title>[\s\S]*?<\/title>/i, `<title>${eTitle}</title>`)
     .replace(/<meta\s+name="description"\s+content="[^"]*">/i, `<meta name="description" content="${eDesc}">`)
     .replace(/<link\s+rel="canonical"\s+href="[^"]*">/i, `<link rel="canonical" href="${eUrl}">`)
     .replace(/<meta\s+property="og:url"\s+content="[^"]*">/i, `<meta property="og:url" content="${eUrl}">`)
@@ -198,6 +205,8 @@ export default async function handler(req, res) {
     .replace(/<meta\s+name="twitter:image"\s+content="[^"]*">/i, `<meta name="twitter:image" content="${eThumb}">`);
 
   const sharedPayload = {
+    notFound: isNotFound,
+    expired: isExpired,
     date: date || null,
     story: storyRow ? `${storyRow.section}-${storyRow.rank}` : parsed.storyId,
     hash: parsed.hash || null,
