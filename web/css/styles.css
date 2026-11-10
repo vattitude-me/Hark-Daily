@@ -4540,15 +4540,16 @@ body.playing .clean-play-circle .clean-pause-icon {
   letter-spacing: 0.04em;
   color: rgba(255, 255, 255, 0.55);
 }
-  display: block;
-}
 
 /* Bottom Footer Bar: Close (default) / Discard & Save changes (when dirty) */
 .clean-drawer-foot {
   display: grid;
   grid-template-columns: 1fr;
   gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
   flex: none;
+  flex-shrink: 0;
   padding-top: 2px;
 }
 .clean-drawer-foot.has-changes {
@@ -4558,6 +4559,8 @@ body.playing .clean-play-circle .clean-pause-icon {
 .clean-foot-save {
   all: unset;
   box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   height: 52px;
   border-radius: 999px;
   font-family: 'Space Grotesk', sans-serif;
@@ -4566,6 +4569,7 @@ body.playing .clean-play-circle .clean-pause-icon {
   display: flex;
   align-items: center;
   justify-content: center;
+  text-align: center;
   cursor: pointer;
   transition: all .18s ease;
 }
