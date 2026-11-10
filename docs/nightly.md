@@ -39,19 +39,17 @@ The entire synthesis pipeline runs locally on an **Apple Silicon Mac (M3 Pro)** 
 
 ## Scheduled Editions
 
-### 1. Morning Edition (06:00 AM)
+### 1. Morning Edition (05:00 / 06:00 AM) — Active
 * **Runner**: [`scripts/morning_pack_mac.sh`](file:///Users/vattitude/Coding/Morning_Brief/scripts/morning_pack_mac.sh)
 * **LaunchAgent**: `~/Library/LaunchAgents/me.vattitude.harkdaily.morning.plist`
-* **Schedule**: Daily at 06:00 AM local time (`America/Toronto`).
+* **Schedule**: Daily at 05:00 / 06:00 AM local time (`America/Toronto`).
 * **Content**: 35 curated stories across 7 sections (Top, AI, Tech, Politics, Entertainment, Science, Sports), voiced by C-3PO, Matthew, and Kelly, plus dynamic opening, teaser, bridge, and sign-off banter for the two-host Podcast edition.
-* **Wake Relay**: On completion, automatically schedules today's 17:58 (5:58 PM) wake timer via [`scripts/schedule_wake.sh`](file:///Users/vattitude/Coding/Morning_Brief/scripts/schedule_wake.sh) `evening`.
+* **Wake Relay**: On completion, automatically schedules tomorrow's 04:58 (4:58 AM) wake timer via [`scripts/schedule_wake.sh`](file:///Users/vattitude/Coding/Morning_Brief/scripts/schedule_wake.sh) `morning`.
 
-### 2. Evening Edition (18:00 / 6:00 PM)
-* **Runner**: [`scripts/evening_pack_mac.sh`](file:///Users/vattitude/Coding/Morning_Brief/scripts/evening_pack_mac.sh)
-* **LaunchAgent**: `~/Library/LaunchAgents/me.vattitude.harkdaily.evening.plist`
-* **Schedule**: Daily at 18:00 local time (`America/Toronto`).
-* **Content**: Fresh evening news stories, keeping listeners up to date on breaking developments since the morning edition.
-* **Wake Relay**: On completion, automatically schedules tomorrow's 05:58 (5:58 AM) wake timer via [`scripts/schedule_wake.sh`](file:///Users/vattitude/Coding/Morning_Brief/scripts/schedule_wake.sh) `morning`.
+### 2. Evening Edition (18:00 / 6:00 PM) — Paused
+* **Status**: Paused / Disabled per configuration.
+* **LaunchAgent**: Archived in `~/Library/LaunchAgents/disabled/me.vattitude.harkdaily.evening.plist` (unloaded from launchctl).
+* **Runner**: [`scripts/evening_pack_mac.sh`](file:///Users/vattitude/Coding/Morning_Brief/scripts/evening_pack_mac.sh) (retained for on-demand execution).
 
 ---
 

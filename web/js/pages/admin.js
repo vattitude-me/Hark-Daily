@@ -345,15 +345,15 @@ export class AdminPage {
     );
 
     // KPI 4: Automated Schedule
-    const schedTime = st.batch_time || '05:00 & 18:00';
+    const schedTime = st.batch_time || '05:00';
     const tz = st.timezone || 'America/Toronto';
     const kpiSchedule = h('div', { class: 'admin-kpi-card glass' },
       h('div', { class: 'admin-kpi-head' },
         h('span', { class: 'admin-kpi-label' }, 'Automated Runs'),
-        Tag('TWICE DAILY', 'ok')
+        Tag('DAILY', 'ok')
       ),
       h('div', { class: 'admin-kpi-value' }, schedTime),
-      h('div', { class: 'admin-kpi-sub' }, `Morning 05:00 · Evening 18:00 (${tz})`)
+      h('div', { class: 'admin-kpi-sub' }, `Morning 05:00 (${tz}) · Evening Paused`)
     );
 
     // Live job banner if running
@@ -704,7 +704,7 @@ export class AdminPage {
         h('div', { class: 'safety-banner-icon' }, icon('warn')),
         h('div', { class: 'safety-banner-text' },
           h('b', {}, 'Live Production Protection'),
-          h('p', {}, 'Hark Daily is active in production. Rebuilding replaces live podcast audio in the public storage bucket. Scheduled morning (05:00) and evening (18:00) runs operate automatically with zero downtime. Only execute manual rebuilds if a scheduled batch reported errors.')
+          h('p', {}, 'Hark Daily is active in production. Rebuilding replaces live podcast audio in the public storage bucket. Scheduled morning (05:00) runs operate automatically with zero downtime. Only execute manual rebuilds if a scheduled batch reported errors.')
         )
       ),
 
