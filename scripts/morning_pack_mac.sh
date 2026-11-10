@@ -92,9 +92,9 @@ log "Running briefing pack generation for ${TARGET_EDITION} editions (voicing on
 
 log "✓ Morning Edition successfully published to Supabase!"
 
-# Option B Relay: Queue today's evening edition wake event (17:58)
+# Option B Relay: Queue tomorrow's morning edition wake event (04:58) - Evening batch paused
 if [ -x "$ROOT/scripts/schedule_wake.sh" ]; then
-  "$ROOT/scripts/schedule_wake.sh" evening 2>&1 | tee -a "$LOG_FILE" || true
+  "$ROOT/scripts/schedule_wake.sh" morning 2>&1 | tee -a "$LOG_FILE" || true
 fi
 
 # Generate and dispatch the automated Daily Run Report (saves report, macOS banner, email/webhook if configured)
