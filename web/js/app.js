@@ -2227,13 +2227,22 @@ function updateMenuDrawer() {
     if (installVal) installVal.textContent = info.sub;
   }
 
-  // Account row & expandable tray
+  // Account row & drawer header account button
   const hasAccount = Boolean(state.profile?.id || state.profile?.email);
   const accountVal = $('menuAccountVal');
   const accountEmail = $('menuAccountEmail');
   const accountTray = $('menuAccountTray');
   const accountBtn = $('menuAccountBtn');
   const adminBtn = $('menuAdminBtn');
+  const drawerAccountBtn = $('drawerAccountBtn');
+  const drawerAccountLabel = $('drawerAccountLabel');
+
+  if (drawerAccountBtn) {
+    drawerAccountBtn.classList.toggle('signed-in', hasAccount);
+    if (drawerAccountLabel) {
+      drawerAccountLabel.textContent = 'Account';
+    }
+  }
 
   if (accountVal) {
     accountVal.textContent = hasAccount ? 'Signed in' : 'Sign in';
@@ -2432,6 +2441,212 @@ function openAllStoriesSheet() {
   $('allStoriesSheet')?.classList.remove('hidden');
 }
 
+/* ------------------------------------------------------------------ account modal */
+function openAccountModal() {
+  const modal = $('accountModal');
+  if (!modal) return;
+  const emailEl = $('accountModalEmail');
+  if (emailEl) {
+    emailEl.textContent = state.profile?.email ? `Signed in as ${state.profile.email}` : 'Signed in';
+  }
+  const adminBtn = $('accountModalAdminBtn');
+  if (adminBtn) {
+    adminBtn.classList.toggle('hidden', !isAdmin(state.profile));
+  }
+  modal.classList.remove('hidden');
+}
+
+function closeAccountModal() {
+  $('accountModal')?.classList.add('hidden');
+}
+
+/* ------------------------------------------------------------------ feedback modal & anti-bot */
+const FEEDBACK_WEBHOOK_URL = 'https://discord.com/api/webhooks/1569529259909709988/TlX75xr2GElMLPAJkZePfC-4NVCWNgtlCI39jKRXYO4owJRBdelZ5UygchsVzryhceZn';
+let feedbackOpenedAt = 0;
+let feedbackCaptchaExpected = 0;
+let feedbackCategory = '💡 Idea';
+
+function generateFeedbackCaptcha() {
+  const n1 = Math.floor(Math.random() * 8) + 2; // 2..9
+  const n2 = Math.floor(Math.random() * 8) + 1; // 1..8
+  feedbackCaptchaExpected = n1 + n2;
+  const promptEl = $('feedbackCaptchaPrompt');
+  if (promptEl) {
+    promptEl.textContent = `${n1} + ${n2} = ?`;
+  }
+  const ansEl = $('feedbackCaptchaAnswer');
+  if (ansEl) ansEl.value = '';
+}
+
+function openFeedbackModal() {
+  const modal = $('feedbackModal');
+  if (!modal) return;
+  feedbackOpenedAt = Date.now();
+  generateFeedbackCaptcha();
+
+  // Reset category
+  feedbackCategory = '💡 Idea';
+  document.querySelectorAll('#feedbackCategories .feedback-cat-pill').forEach((pill) => {
+    const isIdea = pill.dataset.cat === '💡 Idea';
+    pill.classList.toggle('active', isIdea);
+    pill.setAttribute('aria-pressed', String(isIdea));
+  });
+
+  // Prefill email if signed in
+  const emailInput = $('feedbackEmail');
+  if (emailInput) {
+    emailInput.value = state.profile?.email || '';
+  }
+
+  // Clear message and counters
+  const msgInput = $('feedbackMessage');
+  if (msgInput) msgInput.value = '';
+  const counter = $('feedbackCharCount');
+  if (counter) counter.textContent = '0/1000';
+
+  // Clear honeypot
+  const hp = $('feedbackHpWebsite');
+  if (hp) hp.value = '';
+
+  // Clear status banner
+  const statusEl = $('feedbackStatus');
+  if (statusEl) {
+    statusEl.textContent = '';
+    statusEl.className = 'feedback-status hidden';
+  }
+
+  const submitBtn = $('feedbackSubmitBtn');
+  if (submitBtn) submitBtn.disabled = false;
+  const submitText = $('feedbackSubmitText');
+  if (submitText) submitText.textContent = 'Send Feedback';
+
+  modal.classList.remove('hidden');
+  msgInput?.focus();
+}
+
+function closeFeedbackModal() {
+  $('feedbackModal')?.classList.add('hidden');
+}
+
+function showFeedbackStatus(msg, type = 'error') {
+  const statusEl = $('feedbackStatus');
+  if (!statusEl) return;
+  statusEl.textContent = msg;
+  statusEl.className = `feedback-status ${type}`;
+  statusEl.classList.remove('hidden');
+}
+
+async function handleFeedbackSubmit(e) {
+  e.preventDefault();
+
+  // 1. Honeypot check (bots auto-fill hidden input)
+  const hpValue = $('feedbackHpWebsite')?.value?.trim();
+  if (hpValue) {
+    // Fake success response to misdirect bot without executing webhook
+    closeFeedbackModal();
+    toast('Thank you for your feedback! ❤️');
+    return;
+  }
+
+  // 2. Speed-trap check (submitted too fast, < 2.0s)
+  const duration = Date.now() - feedbackOpenedAt;
+  if (duration < 2000) {
+    showFeedbackStatus('Please take a moment to type your feedback.', 'error');
+    return;
+  }
+
+  // 3. Rate limiting / Cooldown (minimum 60s cooldown between submissions)
+  const lastSent = Number(localStorage.getItem('hark_feedback_last_sent') || 0);
+  const now = Date.now();
+  if (now - lastSent < 60000) {
+    const waitSec = Math.ceil((60000 - (now - lastSent)) / 1000);
+    showFeedbackStatus(`Please wait ${waitSec}s before sending another message.`, 'error');
+    return;
+  }
+
+  // 4. Human verification captcha check
+  const answerVal = parseInt($('feedbackCaptchaAnswer')?.value || '', 10);
+  if (isNaN(answerVal) || answerVal !== feedbackCaptchaExpected) {
+    showFeedbackStatus('Incorrect security answer. Please solve the math check.', 'error');
+    generateFeedbackCaptcha();
+    return;
+  }
+
+  // 5. Message length validation
+  const message = $('feedbackMessage')?.value?.trim() || '';
+  if (message.length < 5) {
+    showFeedbackStatus('Please enter at least 5 characters for your message.', 'error');
+    return;
+  }
+
+  // 6. Optional email validation
+  const email = $('feedbackEmail')?.value?.trim() || (state.profile?.email || 'Anonymous');
+  if (email && email !== 'Anonymous' && !email.includes('@')) {
+    showFeedbackStatus('Please enter a valid email address or leave it blank.', 'error');
+    return;
+  }
+
+  // 7. Sanitize Discord mentions
+  const safeMessage = message.replace(/@(everyone|here)/gi, '@\u200b$1');
+
+  // 8. Prepare Discord Rich Embed
+  const submitBtn = $('feedbackSubmitBtn');
+  const submitText = $('feedbackSubmitText');
+  if (submitBtn) submitBtn.disabled = true;
+  if (submitText) submitText.textContent = 'Sending...';
+
+  const editionName = EDITIONS[state.edition]?.name || state.edition || 'Canada';
+  const appVer = window.__APP_VERSION__ || 'Hark Daily v1.0.22';
+
+  const payload = {
+    username: 'Hark Feedback Bot',
+    avatar_url: 'https://harkdaily.com/icons/logo-transparent.png',
+    embeds: [
+      {
+        title: `${feedbackCategory} from ${email}`,
+        description: safeMessage,
+        color: 0xF59E0B,
+        fields: [
+          { name: 'Category', value: feedbackCategory, inline: true },
+          { name: 'Edition', value: editionName, inline: true },
+          { name: 'Client', value: appVer, inline: true },
+          { name: 'User Profile', value: state.profile?.email || 'Guest', inline: true },
+          { name: 'Verification', value: 'Human Math Challenge Passed', inline: true }
+        ],
+        footer: { text: 'Hark Anti-Spam Shield' },
+        timestamp: new Date().toISOString()
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(FEEDBACK_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`Server returned HTTP ${res.status}`);
+    }
+
+    localStorage.setItem('hark_feedback_last_sent', String(Date.now()));
+    closeFeedbackModal();
+    toast('Feedback received! Thank you for supporting Hark ❤️');
+  } catch (err) {
+    console.error('[Feedback] Webhook dispatch error:', err);
+    showFeedbackStatus('Could not send feedback. Please try again later.', 'error');
+    if (submitBtn) submitBtn.disabled = false;
+    if (submitText) submitText.textContent = 'Send Feedback';
+  }
+}
+
+window.openAccountModal = openAccountModal;
+window.closeAccountModal = closeAccountModal;
+window.openFeedbackModal = openFeedbackModal;
+window.closeFeedbackModal = closeFeedbackModal;
+window.handleFeedbackSubmit = handleFeedbackSubmit;
+
 /* ------------------------------------------------------------------ events */
 function bindEvents() {
   // Clean Player bindings
@@ -2448,9 +2663,80 @@ function bindEvents() {
     }
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !$('menuDrawer')?.classList.contains('hidden')) {
-      closeMenuDrawer();
+    if (e.key === 'Escape') {
+      if (!$('feedbackModal')?.classList.contains('hidden')) {
+        closeFeedbackModal();
+        return;
+      }
+      if (!$('accountModal')?.classList.contains('hidden')) {
+        closeAccountModal();
+        return;
+      }
+      if (!$('menuDrawer')?.classList.contains('hidden')) {
+        closeMenuDrawer();
+      }
     }
+  });
+
+  // Header Account Button in Menu Drawer
+  $('drawerAccountBtn')?.addEventListener('click', () => {
+    const hasAccount = Boolean(state.profile?.id || state.profile?.email);
+    if (!hasAccount) {
+      closeMenuDrawer();
+      openSignIn('menu');
+    } else {
+      openAccountModal();
+    }
+  });
+
+  // Account Modal Dialog Handlers
+  $('accountModalCloseBtn')?.addEventListener('click', closeAccountModal);
+  $('accountModal')?.addEventListener('click', (e) => {
+    if (e.target === $('accountModal')) closeAccountModal();
+  });
+  $('accountModalAdminBtn')?.addEventListener('click', () => {
+    closeAccountModal();
+    closeMenuDrawer();
+    openAuxSheet('admin');
+  });
+  $('accountModalSignOutBtn')?.addEventListener('click', () => {
+    closeAccountModal();
+    closeMenuDrawer();
+    if (sb?.auth?.signOut) {
+      sb.auth.signOut();
+    }
+    toast('Signed out cleanly');
+  });
+  $('accountModalDeleteBtn')?.addEventListener('click', () => {
+    closeAccountModal();
+    closeMenuDrawer();
+    if (deleteAccountSheet) {
+      deleteAccountSheet.open(state.profile?.email);
+    }
+  });
+
+  // Feedback Action Button & Modal Handlers
+  $('drawerFeedbackBtn')?.addEventListener('click', openFeedbackModal);
+  $('feedbackCloseBtn')?.addEventListener('click', closeFeedbackModal);
+  $('feedbackCancelBtn')?.addEventListener('click', closeFeedbackModal);
+  $('feedbackModal')?.addEventListener('click', (e) => {
+    if (e.target === $('feedbackModal')) closeFeedbackModal();
+  });
+  $('feedbackForm')?.addEventListener('submit', handleFeedbackSubmit);
+  $('feedbackMessage')?.addEventListener('input', (e) => {
+    const counter = $('feedbackCharCount');
+    if (counter) counter.textContent = `${e.target.value.length}/1000`;
+  });
+  document.querySelectorAll('#feedbackCategories .feedback-cat-pill').forEach((pill) => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('#feedbackCategories .feedback-cat-pill').forEach((p) => {
+        p.classList.remove('active');
+        p.setAttribute('aria-pressed', 'false');
+      });
+      pill.classList.add('active');
+      pill.setAttribute('aria-pressed', 'true');
+      feedbackCategory = pill.dataset.cat || '💡 Idea';
+    });
   });
 
   // NEWS FROM: Multi-day date selector dropdown
