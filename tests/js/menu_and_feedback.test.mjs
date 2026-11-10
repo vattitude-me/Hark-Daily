@@ -44,3 +44,13 @@ test('Anti-bot sanitization prevents Discord @everyone and @here pings', () => {
   assert.ok(!sanitized.includes('@everyone'), 'Must break @everyone token');
   assert.ok(!sanitized.includes('@here'), 'Must break @here token');
 });
+
+test('Sign out flow and morning alerts toggle bindings exist in app.js', () => {
+  const appJs = readFileSync(resolve('web/js/app.js'), 'utf8');
+  assert.ok(appJs.includes('async function performSignOut()'), 'Must implement performSignOut');
+  assert.ok(appJs.includes('async function toggleMorningAlerts()'), 'Must implement toggleMorningAlerts');
+  assert.ok(appJs.includes('hark_morning_alerts_disabled'), 'Must use local storage flag to track user preference');
+  assert.ok(appJs.includes("accountModalSignOutBtn')?.addEventListener('click', performSignOut)"), 'Must bind signout button to performSignOut');
+  assert.ok(appJs.includes("menuPushBtn')?.addEventListener('click', toggleMorningAlerts)"), 'Must bind menu push button to toggleMorningAlerts');
+});
+
