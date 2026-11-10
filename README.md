@@ -9,11 +9,11 @@ A concise daily audio briefing covering **Canada**, the **United States**, and *
 No ads. Fast audio briefings. Zero doom-scrolling. 24-hour listening.
 
 [![Web PWA](https://img.shields.io/badge/Web-Live_PWA-2f6fed?style=flat-square&logo=googlechrome&logoColor=white)](https://hark.vattitude.ca)
-[![Android App](https://img.shields.io/badge/Android-APK_v1.0.21-1a9b5b?style=flat-square&logo=android&logoColor=white)](https://github.com/vattitude-me/Hark-Daily/releases)
+[![Android App](https://img.shields.io/badge/Android-APK_v1.0.22-1a9b5b?style=flat-square&logo=android&logoColor=white)](https://github.com/vattitude-me/Hark-Daily/releases)
 [![iOS App](https://img.shields.io/badge/iOS-Native_Shell-007AFF?style=flat-square&logo=apple&logoColor=white)](ios/README.md)
 [![Capacitor](https://img.shields.io/badge/Capacitor-Cross--Platform-1192E8?style=flat-square&logo=capacitor&logoColor=white)](capacitor.config.json)
 [![Neural Voice](https://img.shields.io/badge/Voice-Chatterbox--Turbo-6a4cf5?style=flat-square)](voice_service/)
-[![Changelog](https://img.shields.io/badge/Changelog-v1.0.21-orange?style=flat-square)](CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/Changelog-v1.0.22-orange?style=flat-square)](CHANGELOG.md)
 [![Privacy First](https://img.shields.io/badge/Privacy-No_Ads_%7C_Privacy_First-0D0D0D?style=flat-square)](web/privacy.html)
 
 [**Cross-Platform Apps**](#-cross-platform-apps-web-pwa-android--ios) · [**Features**](#-features) · [**Getting Started**](#-getting-started) · [**Building Mobile Shells**](#-building-mobile-shells-with-capacitor) · [**Privacy**](web/privacy.html) · [**Terms**](web/terms.html) · [**Changelog**](CHANGELOG.md) · [**Technical Guide**](docs/TECHNICAL.md)
@@ -27,21 +27,22 @@ No ads. Fast audio briefings. Zero doom-scrolling. 24-hour listening.
 * **Duo-Host AI Podcast (Default)**: Matthew & Kelly break down the day's stories in a natural two-host dialogue. Host 1 introduces the headline and context; Host 2 adds the angle, implication, and takeaway. Natural banter, section teases, and zero canned laughs.
 * **Full Brief Mode**: Prefer a solo news anchor? Switch to continuous radio-style narration voiced by C-3PO or chosen neural personas.
 * **Multi-Country Editions (🇨🇦 Canada, 🇺🇸 US, 🇮🇳 India)**:
-  * 🇨🇦 **Canada** — CBC News (Top, Politics, Arts, Sports) & BetaKit (Tech).
-  * 🇺🇸 **United States** — The New York Times (Top), NPR Politics, Variety (Entertainment), CBS Sports.
-  * 🇮🇳 **India** — The Hindu (Top/National), The Indian Express (Politics, Arts), ESPNcricinfo (Cricket/Sports).
+  * 🇨🇦 **Canada** — CBC News (Top, Politics, Arts, Sports), TSX (Markets), and BetaKit (Tech).
+  * 🇺🇸 **United States** — The New York Times (Top), S&P 500 / Nasdaq (Markets), NPR Politics, Variety (Entertainment), CBS Sports.
+  * 🇮🇳 **India** — The Hindu (Top/National), Sensex / Nifty (Markets), The Indian Express (Politics, Arts), ESPNcricinfo (Cricket/Sports).
   * 🌐 **Global Universals** — TechCrunch (AI), BetaKit/Verge (Tech), ScienceDaily (Science). Voiced once and shared across all editions.
+* **Dedicated Markets Coverage**: Regional financial market summaries tracking TSX, S&P 500, and Sensex benchmarks placed right after top stories.
+* **7-Day Retention Dropdown**: Browse recent briefings up to 7 days back with dynamic day labels and automatic timezone synchronization.
 * **Pull-Down-to-Refresh**: Tactile pull gesture across Web PWA, Android, and iOS to check for updated audio packs and fresh editions on demand.
 * **Pinned Player Bar**: 40-bar acoustic waveform scrubber and media transport stay locked to the viewport on any screen size, orientation change, or virtual keyboard shift.
 * **Read-Along Teleprompter**: Spoken text highlights in real time with host badges (Matthew in amber, Kelly in teal). Tap any sentence to seek directly to that moment.
 * **Time-Neutral 24-Hour Listening**: Broadcast scripts avoid time-locked morning phrases. Listen at 7:00 AM, 2:00 PM, or 11:00 PM without hearing stale morning greetings.
 * **Instant Edition Switcher**: Auto-detects local edition from timezone with a 0ms topbar switcher (`🇨🇦 CA`, `🇺🇸 US`, `🇮🇳 IN`).
-* **Deep-Link Story Sharing**: Share any story card via direct link (`?story={section}-{rank}&date={YYYY-MM-DD}`). Receivers land directly on the shared audio clip.
-* **Two-Tier Daily Synthesis**:
-  * **Morning Batch (~6:00 AM EDT)**: Synthesizes Canada & US local sections + universal AI, Tech, Science.
-  * **Evening Batch (~6:00 PM EDT / 3:30 AM IST)**: Synthesizes India local sections ahead of Indian morning commute while reusing today's universal AI, Tech, and Science audio.
+* **Deep-Link Story Sharing & Expired Link Recovery**: Share any story card via direct link (`/s/:date/:slug` or `?story={section}-{rank}&date={YYYY-MM-DD}`). If an older link has expired, Hark presents an informative modal explaining the rolling archive with one-tap access to today's briefing.
+* **Streamlined Daily Synthesis**: Automated morning synthesis (~6:00 AM EDT) renders full multi-country editions and shared categories in a single unified run on Apple Silicon MPS.
 * **Local Apple Silicon Synthesis**: Runs on macOS via PyTorch Metal Performance Shaders (MPS) and automated `launchd` scheduling. Zero cloud GPU costs.
-* **Zero Accounts, Zero Ads**: Open [hark.vattitude.ca](https://hark.vattitude.ca) and hit play. No sign-up required, no paywalls, and no sponsored feeds.
+* **Zero Accounts, Zero Ads**: Open [hark.vattitude.ca](https://hark.vattitude.ca) and hit play. No sign-up required, no paywalls, and no sponsored feeds. Optionally sign in with Google to sync playback speed, preferences, and sources across devices.
+* **Support Hark & Direct Feedback**: Quick-access "Buy a coffee" link and in-app feedback dialog featuring anti-bot protection and direct Discord webhook delivery.
 
 ---
 
@@ -72,7 +73,7 @@ Hark Daily is built as a unified cross-platform application powered by **[Capaci
 
 ### 1. Web Progressive Web App (PWA)
 * **Zero Barrier**: Open [**hark.vattitude.ca**](https://hark.vattitude.ca) in Chrome, Safari, Edge, or Firefox and start listening immediately.
-* **Offline Shell**: Fully cached via Service Worker (`hark-daily-v88`) for instant loading on any network condition.
+* **Offline Shell**: Fully cached via Service Worker (`hark-daily-v95`) for instant loading on any network condition.
 * **Installable**: Add to Home Screen on mobile or install as a desktop PWA with media key support.
 
 <div align="center">

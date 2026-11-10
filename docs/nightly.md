@@ -43,7 +43,7 @@ The entire synthesis pipeline runs locally on an **Apple Silicon Mac (M3 Pro)** 
 * **Runner**: [`scripts/morning_pack_mac.sh`](file:///Users/vattitude/Coding/Morning_Brief/scripts/morning_pack_mac.sh)
 * **LaunchAgent**: `~/Library/LaunchAgents/me.vattitude.harkdaily.morning.plist`
 * **Schedule**: Daily at 05:00 / 06:00 AM local time (`America/Toronto`).
-* **Content**: 35 curated stories across 7 sections (Top, AI, Tech, Politics, Entertainment, Science, Sports), voiced by C-3PO, Matthew, and Kelly, plus dynamic opening, teaser, bridge, and sign-off banter for the two-host Podcast edition.
+* **Content**: Curated stories across 8 sections (Top, Markets, AI, Tech, Politics, Entertainment, Science, Sports), voiced by C-3PO, Matthew, and Kelly, plus dynamic opening, teaser, bridge, and sign-off banter for the two-host Podcast edition.
 * **Wake Relay**: On completion, automatically schedules tomorrow's 04:58 (4:58 AM) wake timer via [`scripts/schedule_wake.sh`](file:///Users/vattitude/Coding/Morning_Brief/scripts/schedule_wake.sh) `morning`.
 
 ### 2. Evening Edition (18:00 / 6:00 PM) — Paused
@@ -77,6 +77,9 @@ Apple Silicon MacBooks enter sleep when the lid is closed unless connected to an
 
 # Re-voice only today's podcast banter
 ./scripts/podcast_pack_mac.sh --force
+
+# Surgically re-voice a single story or section
+python scripts/regen_story.py --date 2026-11-10 --section markets --rank 1
 
 # Inspect current hardware wake schedule
 ./scripts/schedule_wake.sh status
