@@ -108,3 +108,24 @@ test('Drawer footer button bar clean-drawer-foot is robustly styled without CSS 
   assert.strictEqual(balance, 0, 'All CSS rule blocks must be cleanly closed');
 });
 
+test('3D Stacked Cards deck and swipe gesture navigation are properly configured', () => {
+  const html = readFileSync(resolve('web/index.html'), 'utf8');
+  assert.ok(html.includes('id="cleanDeckWrap"'), 'Must contain cleanDeckWrap wrapper');
+  assert.ok(html.includes('id="cleanCardStackBg"'), 'Must contain primary background card layer-1');
+  assert.ok(html.includes('id="cleanCardStackBg2"'), 'Must contain secondary background card layer-2');
+
+  const css = readFileSync(resolve('web/css/styles.css'), 'utf8');
+  assert.ok(css.includes('.clean-deck-wrap {'), 'Must contain clean-deck-wrap styles');
+  assert.ok(css.includes('.clean-card-stack-bg {'), 'Must contain clean-card-stack-bg styles');
+  assert.ok(css.includes('.clean-card-stack-bg.layer-1'), 'Must contain layer-1 transform');
+  assert.ok(css.includes('.clean-card-stack-bg.layer-2'), 'Must contain layer-2 transform');
+  assert.ok(css.includes('.clean-deck-wrap.is-last-card'), 'Must hide background cards on the last briefing story');
+
+  const playerJs = readFileSync(resolve('web/js/player.js'), 'utf8');
+  assert.ok(playerJs.includes('setupCardSwipe()'), 'Player must implement setupCardSwipe');
+  assert.ok(playerJs.includes('this.setupCardSwipe();'), 'Player must call setupCardSwipe during initialization');
+  assert.ok(playerJs.includes('isLockedVertical'), 'Must safeguard vertical teleprompter scrolling');
+  assert.ok(playerJs.includes('this.nextChapter()'), 'Must advance to next story on left swipe');
+  assert.ok(playerJs.includes('this.prevChapter()'), 'Must return to previous story on right swipe');
+});
+

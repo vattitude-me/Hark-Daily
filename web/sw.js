@@ -1,6 +1,6 @@
 // Offline shell: stale-while-revalidate for static shell assets, network-first for HTML.
 // Supabase (data, audio) and CDN requests are cross-origin and go straight to the network.
-const CACHE = 'hark-daily-v101';
+const CACHE = 'hark-daily-v102';
 const SHELL = [
   '/', '/404.html', '/config.js', '/css/styles.css', '/css/legal.css', '/manifest.webmanifest', '/audio/gap.mp3',
   '/fonts/plus-jakarta-sans.woff2', '/fonts/space-grotesk.woff2',

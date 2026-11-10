@@ -84,7 +84,7 @@
   <meta name="theme-color" content="#17120E">
   <link rel="preload" href="/fonts/plus-jakarta-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/css/styles.css?v=64">
+  <link rel="stylesheet" href="/css/styles.css?v=65">
   <script>
     try {
       const t = localStorage.getItem('mb-theme');
@@ -360,8 +360,13 @@
         </button>
       </header>
 
-      <!-- Main Glass Player Card (One Unified Surface) -->
-      <div class="clean-player-card" id="cleanPlayerCard">
+      <!-- Main Glass Player Card Deck with 3D Stack -->
+      <div class="clean-deck-wrap" id="cleanDeckWrap">
+        <!-- Peeking Background Stack Cards (Visual Depth Hierarchy) -->
+        <div class="clean-card-stack-bg layer-2" id="cleanCardStackBg2" aria-hidden="true"></div>
+        <div class="clean-card-stack-bg layer-1" id="cleanCardStackBg" aria-hidden="true"></div>
+
+        <div class="clean-player-card" id="cleanPlayerCard">
         <!-- Taller Cover Image Wrap with Share button overlaid on top right -->
         <div class="clean-cover-wrap" id="playerCoverWrap" role="button" tabindex="0" title="Tap to play or pause">
           <img id="playerCoverImg" class="clean-cover-img" alt="" referrerpolicy="no-referrer" src="/icons/covers/default.svg">
@@ -455,6 +460,7 @@
           </div>
         </div>
       </div>
+    </div>
     </div>
 
     <!-- Persistent dual audio elements for seamless background baton-pass handoff -->
@@ -1253,6 +1259,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/vendor/supabase.min.js"></script>
-  <script type="module" src="/js/app.js?v=91"></script>
+  <script type="module" src="/js/app.js?v=92"></script>
 </body>
 </html>
