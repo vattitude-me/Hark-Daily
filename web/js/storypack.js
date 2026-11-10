@@ -321,18 +321,9 @@ export function planPodcast(clips, sections, seed = '', edition = 'ca') {
   const length = (c) => Number(c.duration) || 0;
   let used = length(open) + length(close);
 
-  // 1. Regional opener teaser for the very first section (e.g. US/India/Canada top stories)
-  // Instead of playing multiple consecutive teasers at the start, only this single regional tease plays
-  // before jumping directly into the top stories.
-  const baseFirstSec = firstSec ? firstSec.replace(/_(us|in|ca)$/, '') : '';
-  let regionalTease = (firstSec ? (byKey.get(`pod_tease_${firstSec}`) || byKey.get(`pod_tease_${baseFirstSec}`)) : null) || null;
-  if (regionalTease && used + length(regionalTease) <= PODCAST_BUDGET) {
-    used += length(regionalTease);
-  } else {
-    regionalTease = null;
-  }
-  const teasers = regionalTease ? [regionalTease] : [];
-
+  // Show opens already hook and preview the day's lead stories, so no intermediate
+  // "Coming up" teaser is needed before the top stories (avoiding 3-way repetition:
+  // Show Open -> Coming Up -> Top Story 1). The brief jumps straight into the news.
   const bridges = new Map();
   for (const key of (sections || [])) {
     const baseKey = key.replace(/_(us|in|ca)$/, '');
@@ -342,7 +333,7 @@ export function planPodcast(clips, sections, seed = '', edition = 'ca') {
       used += length(c);
     }
   }
-  return { hosts, open, regionalTease, teasers, bridges, close, banter: used };
+  return { hosts, open, regionalTease: null, teasers: [], bridges, close, banter: used };
 }
 
 export function banterTitle(clipKey, sectionKey = null) {
@@ -685,9 +676,6 @@ export function buildBriefing(rows, settings, {
 
   if (isPodcast) {
     sayBanter(pod.open);
-    if (pod.regionalTease) {
-      sayBanter(pod.regionalTease, targetSections[0]);
-    }
   } else {
     sayNote(greetingKey(hour));
   }
@@ -702,10 +690,10 @@ export function buildBriefing(rows, settings, {
       if (storyPlayed) breath();
       const baseSec = (row.section || '').replace(/_(us|in|ca)$/, '');
       if (isPodcast) {
-        // If this is the first section and regionalTease already played at the start,
-        // jump directly into the top stories without repeating an intro.
+        // The first section (top stories) begins directly after the show open,
+        // which already hooks the lead stories. Subsequent sections receive their transition bridge.
         const isFirstSec = currentSection === null;
-        if (!isFirstSec || !pod.regionalTease) {
+        if (!isFirstSec) {
           const intro = pod.bridges.get(row.section) || pod.bridges.get(baseSec);
           if (intro) sayBanter(intro, row.section);
         }
