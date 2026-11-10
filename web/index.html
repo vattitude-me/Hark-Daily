@@ -84,7 +84,7 @@
   <meta name="theme-color" content="#17120E">
   <link rel="preload" href="/fonts/plus-jakarta-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/css/styles.css?v=62">
+  <link rel="stylesheet" href="/css/styles.css?v=63">
   <script>
     try {
       const t = localStorage.getItem('mb-theme');
@@ -1045,14 +1045,17 @@
   <!-- Feedback Modal Dialog -->
   <div class="clean-modal-backdrop hidden" id="feedbackModal" role="dialog" aria-modal="true" aria-labelledby="feedbackTitle">
     <div class="feedback-card">
+      <div class="feedback-drag-handle" aria-hidden="true"></div>
       <div class="feedback-head">
         <div class="feedback-title-wrap">
           <div class="feedback-badge-icon" aria-hidden="true">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
           </div>
           <div>
-            <h2 id="feedbackTitle" class="feedback-title">Send Feedback</h2>
-            <p class="feedback-sub" id="feedbackSub">Help us make Hark Daily better for you.</p>
+            <h2 id="feedbackTitle" class="feedback-title">Send feedback</h2>
+            <p class="feedback-sub" id="feedbackSub">Help us make Hark better</p>
           </div>
         </div>
         <button class="clean-glass-circle sm" id="feedbackCloseBtn" type="button" aria-label="Close feedback">
@@ -1061,66 +1064,100 @@
       </div>
 
       <form class="feedback-form" id="feedbackForm" novalidate>
-        <!-- Story context info banner (displayed when reporting from an article) -->
-        <div class="feedback-story-context hidden" id="feedbackStoryContext">
-          <div class="feedback-story-context-head">
-            <span class="feedback-story-badge" id="feedbackStoryContextBadge">📰 Story Context</span>
-            <span class="feedback-story-id" id="feedbackStoryContextId"></span>
+        <!-- Story context info card (displayed when reporting from an article) -->
+        <div class="feedback-story-card hidden" id="feedbackStoryContext">
+          <img class="feedback-story-thumb" id="feedbackStoryThumb" alt="" aria-hidden="true" src="" />
+          <div class="feedback-story-info">
+            <div class="feedback-story-meta-line" id="feedbackStoryMetaLine">ABOUT THIS STORY · AT 0:00</div>
+            <div class="feedback-story-headline" id="feedbackStoryContextHeadline">Headline</div>
+            <span class="feedback-story-id" id="feedbackStoryContextId" style="display:none;"></span>
           </div>
-          <div class="feedback-story-headline" id="feedbackStoryContextHeadline">Headline</div>
-          <div class="feedback-story-meta" id="feedbackStoryContextMeta">Timestamp: 0:45</div>
+          <span class="feedback-story-attached-badge">Attached</span>
         </div>
 
-        <!-- Honeypot anti-bot field -->
+        <!-- Honeypot anti-bot field (hidden from users, traps automated scrapers) -->
         <div class="feedback-hp" aria-hidden="true" style="display:none!important; position:absolute; left:-9999px;">
           <label for="feedbackHpWebsite">Leave this field blank</label>
           <input type="text" id="feedbackHpWebsite" name="website" tabindex="-1" autocomplete="off">
         </div>
 
-        <!-- Category Selection -->
+        <!-- What's this about? Category Tiles -->
         <div class="feedback-field">
-          <label class="feedback-label">Feedback Type</label>
-          <div class="feedback-categories" id="feedbackCategories" role="radiogroup" aria-label="Feedback type">
-            <button type="button" class="feedback-cat-pill active" data-cat="💡 Idea" aria-pressed="true">💡 Idea</button>
-            <button type="button" class="feedback-cat-pill" data-cat="🐛 Bug" aria-pressed="false">🐛 Bug</button>
-            <button type="button" class="feedback-cat-pill" data-cat="🎙️ Audio" aria-pressed="false">🎙️ Audio</button>
-            <button type="button" class="feedback-cat-pill" data-cat="✨ Other" aria-pressed="false">✨ Other</button>
+          <label class="feedback-section-title" id="feedbackCatLabel">WHAT’S THIS ABOUT?</label>
+          <div class="feedback-categories-grid" id="feedbackCategories" role="radiogroup" aria-labelledby="feedbackCatLabel">
+            <button type="button" class="feedback-cat-tile active" data-cat="Audio" role="radio" aria-checked="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+              </svg>
+              <span>Audio</span>
+            </button>
+            <button type="button" class="feedback-cat-tile" data-cat="Wrong info" role="radio" aria-checked="false">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+              <span>Wrong info</span>
+            </button>
+            <button type="button" class="feedback-cat-tile" data-cat="Bug" role="radio" aria-checked="false">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="8" height="14" x="8" y="6" rx="4"></rect>
+                <path d="m19 7-3 2"></path>
+                <path d="m5 7 3 2"></path>
+                <path d="m19 19-3-2"></path>
+                <path d="m5 19 3-2"></path>
+                <path d="M20 13h-4"></path>
+                <path d="M4 13h4"></path>
+                <path d="m10 4 1 2"></path>
+                <path d="m14 4-1 2"></path>
+              </svg>
+              <span>Bug</span>
+            </button>
+            <button type="button" class="feedback-cat-tile" data-cat="Idea" role="radio" aria-checked="false">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"></path>
+                <path d="M9 18h6"></path>
+                <path d="M10 22h4"></path>
+              </svg>
+              <span>Idea</span>
+            </button>
           </div>
         </div>
 
-        <!-- Message Textarea -->
-        <div class="feedback-field">
-          <div class="feedback-label-row">
-            <label class="feedback-label" for="feedbackMessage">Your Message <span class="feedback-req">*</span></label>
-            <span class="feedback-counter" id="feedbackCharCount">0/1000</span>
+        <!-- Message Box with dynamic placeholder and counter -->
+        <div class="feedback-textarea-box">
+          <textarea id="feedbackMessage" class="feedback-textarea" rows="3" maxlength="1000" placeholder="Tell us what you heard, such as a name said wrong..." required aria-label="Feedback description"></textarea>
+          <span class="feedback-counter" id="feedbackCharCount" aria-live="polite">0/1000</span>
+        </div>
+
+        <!-- Reply to me by email row with toggle -->
+        <div class="feedback-reply-row">
+          <div class="feedback-reply-meta">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect width="20" height="16" x="2" y="4" rx="2"></rect>
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+            </svg>
+            <div class="feedback-reply-text-group">
+              <span class="feedback-reply-label">Reply to me by email</span>
+              <span class="feedback-reply-email" id="feedbackReplyEmail"></span>
+            </div>
           </div>
-          <textarea id="feedbackMessage" class="feedback-textarea" rows="4" maxlength="1000" placeholder="What’s on your mind? Ideas, bug reports, audio suggestions..." required></textarea>
-        </div>
-
-        <!-- Optional Email -->
-        <div class="feedback-field">
-          <label class="feedback-label" for="feedbackEmail">Your Email <span class="feedback-opt">(optional, for replies)</span></label>
-          <input type="email" id="feedbackEmail" class="feedback-input" placeholder="you@example.com" autocomplete="email">
-        </div>
-
-        <!-- Anti-Bot Human Math Challenge -->
-        <div class="feedback-field feedback-captcha-row">
-          <label class="feedback-label" for="feedbackCaptchaAnswer">
-            Security check: <span id="feedbackCaptchaPrompt" class="feedback-captcha-math"></span> <span class="feedback-req">*</span>
-          </label>
-          <input type="number" id="feedbackCaptchaAnswer" class="feedback-input sm" placeholder="Answer" required autocomplete="off">
+          <button type="button" class="clean-menu-switch on" id="feedbackReplySwitch" role="switch" aria-checked="true" aria-label="Reply to me by email">
+            <span class="clean-menu-switch-knob"></span>
+          </button>
         </div>
 
         <!-- Status / Error message -->
         <div class="feedback-status hidden" id="feedbackStatus" role="alert"></div>
 
-        <!-- Action Buttons -->
-        <div class="feedback-actions">
-          <button type="button" class="btn btn-ghost" id="feedbackCancelBtn">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="feedbackSubmitBtn">
-            <span id="feedbackSubmitText">Send Feedback</span>
-          </button>
-        </div>
+        <!-- Submit CTA Button -->
+        <button type="submit" class="feedback-submit-btn" id="feedbackSubmitBtn">
+          <span id="feedbackSubmitText">Send feedback</span>
+        </button>
+
+        <p class="feedback-footer-note">AI summaries can get things wrong. Thanks for helping us fix them.</p>
       </form>
     </div>
   </div>
@@ -1216,6 +1253,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/vendor/supabase.min.js"></script>
-  <script type="module" src="/js/app.js?v=90"></script>
+  <script type="module" src="/js/app.js?v=91"></script>
 </body>
 </html>

@@ -27,15 +27,33 @@ test('Buy a coffee link is configured with external URL and security attributes'
   assert.ok(html.includes('Support Hark'), 'Must have Support Hark text');
 });
 
-test('Feedback modal and anti-bot elements are defined in index.html', () => {
+test('Feedback modal, category tiles, and honeypot anti-bot elements are defined in index.html', () => {
   const html = readFileSync(resolve('web/index.html'), 'utf8');
   assert.ok(html.includes('id="feedbackModal"'), 'Must contain feedbackModal');
   assert.ok(html.includes('id="feedbackForm"'), 'Must contain feedbackForm');
   assert.ok(html.includes('id="feedbackHpWebsite"'), 'Must contain honeypot input for anti-bot trap');
-  assert.ok(html.includes('id="feedbackCaptchaPrompt"'), 'Must contain math challenge prompt');
-  assert.ok(html.includes('id="feedbackCaptchaAnswer"'), 'Must contain math answer input');
+  assert.ok(!html.includes('id="feedbackCaptchaPrompt"'), 'Math challenge prompt must be removed per user request');
+  assert.ok(!html.includes('id="feedbackCaptchaAnswer"'), 'Math answer input must be removed per user request');
+  assert.ok(html.includes('id="feedbackCategories"'), 'Must contain category selector container');
+  assert.ok(html.includes('data-cat="Audio"'), 'Must contain Audio category tile');
+  assert.ok(html.includes('data-cat="Wrong info"'), 'Must contain Wrong info category tile');
+  assert.ok(html.includes('data-cat="Bug"'), 'Must contain Bug category tile');
+  assert.ok(html.includes('data-cat="Idea"'), 'Must contain Idea category tile');
+  assert.ok(html.includes('id="feedbackReplySwitch"'), 'Must contain reply to me by email switch');
+  assert.ok(html.includes('id="feedbackSubmitBtn"'), 'Must contain submit CTA button');
+  assert.ok(html.includes('AI summaries can get things wrong'), 'Must contain footer disclaimer');
   assert.ok(html.includes('id="drawerFeedbackBtn"'), 'Must contain drawerFeedbackBtn');
   assert.ok(html.includes('id="accountModal"'), 'Must contain accountModal');
+});
+
+test('Feedback flow enforces post-login auth restriction and dynamic categories in app.js', () => {
+  const appJs = readFileSync(resolve('web/js/app.js'), 'utf8');
+  assert.ok(appJs.includes("openSignIn('feedback')"), 'Must route unauthenticated users to sign-in modal');
+  assert.ok(appJs.includes('pendingFeedbackContext'), 'Must remember pending feedback context across login');
+  assert.ok(appJs.includes('selectFeedbackCategory'), 'Must provide dynamic category selection');
+  assert.ok(appJs.includes('FEEDBACK_CATEGORIES'), 'Must configure category placeholders and embed colors');
+  assert.ok(!appJs.includes('generateFeedbackCaptcha'), 'Captcha generator function must be removed');
+  assert.ok(appJs.includes('hark_feedback_last_sent'), 'Must maintain rate-limiting cooldown between submissions');
 });
 
 test('Anti-bot sanitization prevents Discord @everyone and @here pings', () => {
