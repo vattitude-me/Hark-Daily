@@ -84,7 +84,7 @@
   <meta name="theme-color" content="#17120E">
   <link rel="preload" href="/fonts/plus-jakarta-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/css/styles.css?v=61">
+  <link rel="stylesheet" href="/css/styles.css?v=62">
   <script>
     try {
       const t = localStorage.getItem('mb-theme');
@@ -377,11 +377,20 @@
             </svg>
             <span id="playerCoverBadgeText">AI Duo · Matthew &amp; Kelly</span>
           </div>
-          <button class="clean-cover-share-btn" type="button" id="cleanShareBtn" aria-label="Share story" title="Share story">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 15V4M8 8l4-4 4 4M5 12v7h14v-7"/>
-            </svg>
-          </button>
+          <div class="clean-cover-actions">
+            <button class="clean-cover-share-btn clean-cover-action-btn" type="button" id="cleanReportBtn" aria-label="Report article or audio issue" title="Report issue with this story">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </button>
+            <button class="clean-cover-share-btn clean-cover-action-btn" type="button" id="cleanShareBtn" aria-label="Share story" title="Share story">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 15V4M8 8l4-4 4 4M5 12v7h14v-7"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <!-- Story Metadata Row with subtle Read Article link -->
@@ -594,7 +603,13 @@
               <span class="clean-drawer-legal-dot" aria-hidden="true">·</span>
               <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>
             </div>
-            <div class="clean-drawer-version" id="cleanDrawerVersion">Hark Daily v1.0.22</div>
+            <div class="clean-drawer-version-row">
+              <div class="clean-drawer-version" id="cleanDrawerVersion">Hark Daily v1.0.22</div>
+              <button class="clean-drawer-version-btn" id="cleanDrawerVersionBtn" type="button" aria-label="Check for updates and reload app" title="Check for updates & reload app">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-1.19"/></svg>
+                <span>Reload</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1037,7 +1052,7 @@
           </div>
           <div>
             <h2 id="feedbackTitle" class="feedback-title">Send Feedback</h2>
-            <p class="feedback-sub">Help us make Hark Daily better for you.</p>
+            <p class="feedback-sub" id="feedbackSub">Help us make Hark Daily better for you.</p>
           </div>
         </div>
         <button class="clean-glass-circle sm" id="feedbackCloseBtn" type="button" aria-label="Close feedback">
@@ -1046,6 +1061,16 @@
       </div>
 
       <form class="feedback-form" id="feedbackForm" novalidate>
+        <!-- Story context info banner (displayed when reporting from an article) -->
+        <div class="feedback-story-context hidden" id="feedbackStoryContext">
+          <div class="feedback-story-context-head">
+            <span class="feedback-story-badge" id="feedbackStoryContextBadge">📰 Story Context</span>
+            <span class="feedback-story-id" id="feedbackStoryContextId"></span>
+          </div>
+          <div class="feedback-story-headline" id="feedbackStoryContextHeadline">Headline</div>
+          <div class="feedback-story-meta" id="feedbackStoryContextMeta">Timestamp: 0:45</div>
+        </div>
+
         <!-- Honeypot anti-bot field -->
         <div class="feedback-hp" aria-hidden="true" style="display:none!important; position:absolute; left:-9999px;">
           <label for="feedbackHpWebsite">Leave this field blank</label>
@@ -1191,6 +1216,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/vendor/supabase.min.js"></script>
-  <script type="module" src="/js/app.js?v=89"></script>
+  <script type="module" src="/js/app.js?v=90"></script>
 </body>
 </html>
