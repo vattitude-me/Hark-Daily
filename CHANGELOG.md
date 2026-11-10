@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.22] - 2026-11-10
+
+### Added
+- **Regional Markets Section**:
+  - Introduced dedicated regional Markets category covering the Toronto Stock Exchange (TSX) for Canada (`markets`), S&P 500 and Nasdaq for the US (`markets_us`), and Sensex / Nifty for India (`markets_in`).
+  - Automatically migrates existing user preference configurations to default to 3 market stories sequenced directly following Top Stories (`top`, `markets`, `ai`, `tech`, `politics`, `entertainment`, `science`, `sports`).
+  - Designed dedicated SVG cover artwork for Markets (`web/icons/covers/markets.svg`).
+  - Added 7-day retention dropdown (`menuDateSelect`) with localized human-friendly date labels.
+- **Support & Anti-Spam Feedback Integration**:
+  - Added direct **"Buy a coffee / Support Hark"** external link to `https://buymeacoffee.com/vattitude`.
+  - Added in-app **Feedback Modal** posting directly to a secure Discord webhook with anti-spam / anti-bot defenses:
+    - Hidden honeypot trap input (`website`).
+    - Dynamic client-side math challenge.
+    - Rate-limiting via local storage timestamps.
+    - Sanitization of `@everyone` and `@here` Discord mention exploits.
+- **Error Handling & Rolling Archive Architecture**:
+  - Standalone branded 404 page (`web/404.html`) with dark glassmorphic styling, rolling archive active badge, and direct "Listen to Today's Briefing" CTA button.
+  - In-app `#sharedStoryNotFoundModal` dialog displayed when opening expired or non-existent story links (`/s/:date/:slug`), giving clear archive context with calendar metadata.
+  - Serverless OpenGraph social cards (`web/api/share.js`) now display "Story Expired" cards on WhatsApp, iMessage, and X instead of broken previews.
+  - Precached `/404.html` in Service Worker shell cache (`hark-daily-v95`).
+- **Story Regeneration CLI Tool**:
+  - Added `scripts/regen_story.py` for surgical single-story and category re-synthesis without rebuilding full daily packs.
+- **Broadcast Profanity Filter**:
+  - Integrated zero-tolerance broadcast profanity filter across prompt templates, script validation, and the TTS engine.
+
+### Changed
+- **Podcast Scriptwriting & Multi-Angle Duo Engine**:
+  - Matthew & Kelly dual-host scriptwriting upgraded with dynamic format rotation, brand intro hooks, natural banter within budget, and a strict 20-word limit per turn.
+  - Multi-angle lens diversification (e.g. Host 1 focuses on company impact, Host 2 analyzes market/industry implications) preventing repetitive reporting.
+  - De-duplication and anti-saturation checks ensuring successive stories do not repeat identical topics or robotic transition phrases ("Staying with Nvidia for a moment").
+  - Ban on robotic boilerplate turns, metadata leaks ("Date: November 9, 2026"), and artificial narrator filler.
+  - Cascading LLM inference hierarchy: Antigravity CLI -> Groq -> Gemini fallback with resilient retry handling.
+- **Hamburger Drawer & Navigation Redesign**:
+  - Placed dedicated Account button on the top-right header inside the drawer for immediate access.
+  - Combined Playback Speed and Restart Briefing into a clean, unified split row (`.clean-menu-row-split`).
+  - Implemented clean Sign Out flow across Web and Native, reliably purging Supabase session state and localStorage.
+  - Two-way Morning Alerts toggle with persistent user preference storage (`hark_morning_alerts_disabled`).
+- **Audio Synthesis & Stitching Enhancements**:
+  - Implemented sentence splitting with seamless zero-crossing joint-free stitching to eliminate audio clicks and boundary distortion.
+  - Added Metal Performance Shaders (MPS) cache purge (`torch.mps.empty_cache()`) and forced garbage collection (`gc.collect()`) after synthesis to eliminate VRAM growth on Apple Silicon.
+  - Added natural phonetic pronunciations in `data/lexicon.json` (e.g., "en-VID-ee-uh" for Nvidia) and expanded currency/financial shorthand.
+- **Schedule Streamlining**:
+  - Paused evening synthesis batch to focus compute and pipeline execution on the unified morning drop (~6:00 AM EDT).
+- **App Version & Cache Bumps**:
+  - Synchronized app version to `1.0.22` across `package.json`, `android/app/build.gradle` (code `10022`), `web/config.js`, and `web/index.html`.
+  - Bumped Service Worker shell cache to `hark-daily-v95` and script query string to `?v=86`.
+
+---
+
 ## [1.0.21] - 2026-11-06
 
 ### Added
