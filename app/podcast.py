@@ -929,6 +929,79 @@ _ABBR_SPLIT_PROTECT = re.compile(
 )
 
 
+UNBOUND_CATEGORY_NOUNS = frozenset({
+    "series", "show", "drama", "comedy", "movie", "film", "franchise", "documentary", "podcast", "album", "song", "track",
+    "company", "firm", "startup", "corporation", "carmaker", "automaker", "retailer", "carrier", "airline", "bank",
+    "platform", "app", "website", "service", "tool", "network", "system", "device", "model",
+    "team", "club", "squad", "player", "athlete", "coach", "manager", "driver",
+    "artist", "singer", "musician", "band", "actor", "actress", "creator", "director", "author", "writer",
+    "minister", "premier", "prime minister", "president", "governor", "mayor", "politician", "lawmaker", "senator",
+    "government", "agency", "department", "ministry", "board", "committee", "regulator",
+    "deal", "merger", "acquisition", "settlement", "agreement", "pact", "contract",
+    "case", "lawsuit", "suit", "trial", "probe", "investigation", "inquiry",
+    "study", "report", "survey", "project", "initiative", "program", "plan", "bill", "law",
+})
+
+DANGLING_OPENER_RE = re.compile(
+    r"^(?:(?:sources|insiders|reports)\s+say(?:,\s*|\s+that\s+|\s+)|according to (?:sources|reports),\s*)?"
+    r"(?:the\s+(?:[a-z\-]+\s+)?(?:" + "|".join(UNBOUND_CATEGORY_NOUNS) + r")|he|she|they|it)\b",
+    re.I,
+)
+
+_HEADLINE_LEAD_STOP = frozenset({
+    "the", "a", "an", "and", "or", "in", "on", "at", "to", "for", "of", "with", "by", "from",
+    "sources", "reports", "say", "says", "said", "new", "get", "gets", "getting", "two", "three",
+})
+
+
+def extract_headline_lead_entity(headline: str) -> list[str]:
+    """Extract candidate lead entity tokens from a story headline."""
+    clean_h = headline.strip().rstrip(".,!?")
+    clean_h = re.sub(r"^(?:report|exclusive|update|sources|breaking|analysis|watch)\s*[:—\-]\s*", "", clean_h, flags=re.I)
+    verb_boundary = re.search(
+        r"\b(?:is|are|was|were|has|have|had|could|can|may|might|will|would|should|to\s+[a-z]+|"
+        r"announces?|unveils?|launches?|reports?|recalls?|faces?|beats?|hits?|drops?|falls?|rises?|jumps?|"
+        r"names?|appoints?|wins?|loses?|buys?|acquires?|sells?|warns?|eyes?|seeks?|plans?|considers?|"
+        r"could\s+be\s+getting|could\s+get|set\s+to|poised\s+to|slated\s+to)\b",
+        clean_h,
+        flags=re.I,
+    )
+    if verb_boundary and verb_boundary.start() > 3:
+        entity_phrase = clean_h[:verb_boundary.start()].strip()
+    else:
+        words = clean_h.split()
+        entity_phrase = " ".join(words[:min(4, len(words))])
+    tokens = [w.lower() for w in re.findall(r"[A-Za-z0-9]+", entity_phrase) if w.lower() not in _HEADLINE_LEAD_STOP and len(w) >= 3]
+    if tokens:
+        return tokens
+    return [w.lower() for w in re.findall(r"[A-Za-z0-9]+", clean_h) if w.lower() not in _HEADLINE_LEAD_STOP and len(w) >= 3]
+
+
+def is_unbound_story_lead(turn_text: str, headline: str) -> bool:
+    """Return True if Turn 1 opens with an unbound determiner or omits the headline's subject entity."""
+    clean_turn = turn_text.strip()
+    if not clean_turn:
+        return True
+    # If Turn 1 matches DANGLING_OPENER_RE, check if the subject entity is named
+    if DANGLING_OPENER_RE.search(clean_turn):
+        subj_tokens = extract_headline_lead_entity(headline)
+        turn_lower = clean_turn.lower()
+        if subj_tokens and any(token in turn_lower for token in subj_tokens):
+            return False
+        return True
+    return False
+
+
+def _is_redundant_with_headline(fact_text: str, headline: str) -> bool:
+    """Return True if fact_text has high token overlap with the headline."""
+    h_tokens = {w for w in re.findall(r"[a-z0-9]+", headline.lower()) if len(w) >= 3 and w not in _HEADLINE_LEAD_STOP}
+    f_tokens = {w for w in re.findall(r"[a-z0-9]+", fact_text.lower()) if len(w) >= 3 and w not in _HEADLINE_LEAD_STOP}
+    if not f_tokens or not h_tokens:
+        return False
+    overlap = len(f_tokens & h_tokens) / len(f_tokens)
+    return overlap >= 0.50
+
+
 def _split_sentences(text: str) -> list[str]:
     raw_clean = _SPEAKER_TAG.sub("", str(text or ""))
     cleaned = _clean(drop_boilerplate(raw_clean) or raw_clean)
@@ -1179,6 +1252,12 @@ def validate_story_dialogue(
             if h_clean and (w_clean == h_clean or w_clean.startswith(h_clean)):
                 return None
 
+            # Ensure Turn 1 explicitly names the story subject and does not open with an unbound pronoun or generic category noun
+            h_raw = str(story_brief.get("headline") or "")
+            if is_unbound_story_lead(words_only, h_raw):
+                log.debug("Rejecting story dialogue: Turn 1 is missing headline subject entity or starts with unbound determiner: %s", words_only[:80])
+                return None
+
         tags_in_turn = len(_TAG.findall(text))
         total_tags += tags_in_turn
         if sober:
@@ -1228,25 +1307,29 @@ ASSIGNED STORY FORMAT & LEAD FOR THIS STORY:
 - {transition_instruction}
 
 STRICT EDITORIAL, LANGUAGE & ANTI-SLOP RULES:
-1. Do NOT read the headline word for word. Retell the story like you're telling a smart friend across the table.
-2. Vary turn lengths naturally: a turn can be a 1-to-3 word reaction ("Huh.", "Wait, really?", "Right.") or a 3-to-4 sentence explanation. A host may speak twice in a row when it fits the rhythm, as long as both hosts participate in the story. Let pacing follow the story's weight: slower and sparser for serious news, quicker and looser for light news.
-3. Grounding: Stay 100% faithful to the supplied `facts` (`F1`, `F2`, ...). Add personality, NEVER invented details, numbers, quotes, causes, or outcomes.
-4. Use contractions ("don't", "can't", "it's", "they're", "we've") and spoken rhythm. Short sentences. Occasional fragments. Light fillers ("honestly," "I mean," "right?") at most once or twice per story.
-5. BANNED PHRASES (NEVER USE ANY OF THESE):
+1. SUBJECT IDENTIFICATION (CRITICAL FOR AUDIO LISTENERS):
+   Listeners cannot see the screen or the headline. Turn 1 MUST explicitly name the specific person, company, show/movie title, product, team, or entity that the story is about (e.g. "Heated Rivalry", "Shopify", "Mark Carney", "Taylor Swift").
+   - NEVER open a story with an ambiguous pronoun, vague determiner, or unbound reference like "Sources say the series...", "The series will get...", "The company announced...", "Officials say...", "He said...", or "They're launching..." without naming the entity first.
+   - Do NOT read the headline word for word, but DO introduce the subject clearly in conversational words: e.g. instead of "Sources say the series will get two more seasons", say "Sources say the hockey drama Heated Rivalry could be getting two more seasons and a movie."
+2. Do NOT read the headline word for word. Retell the story like you're telling a smart friend across the table.
+3. Vary turn lengths naturally: a turn can be a 1-to-3 word reaction ("Huh.", "Wait, really?", "Right.") or a 3-to-4 sentence explanation. A host may speak twice in a row when it fits the rhythm, as long as both hosts participate in the story. Let pacing follow the story's weight: slower and sparser for serious news, quicker and looser for light news.
+4. Grounding: Stay 100% faithful to the supplied `facts` (`F1`, `F2`, ...). Add personality, NEVER invented details, numbers, quotes, causes, or outcomes.
+5. Use contractions ("don't", "can't", "it's", "they're", "we've") and spoken rhythm. Short sentences. Occasional fragments. Light fillers ("honestly," "I mean," "right?") at most once or twice per story.
+6. BANNED PHRASES (NEVER USE ANY OF THESE):
    "Let's dive in", "dive into", "deep dive", "Buckle up", "Strap in", "Without further ado", "That's a great point", "Absolutely", "Fascinating", "Welcome back everyone", "let's roll", "whirlwind", "unpack", "delve", "game-changer", "tapestry", "beacon", "foster", "testament", "pivotal", "in today's world", "at the end of the day", "needless to say", "fast-moving", "wild ride", "mind-blowing", "ground to cover", "moving across the board".
-6. No lists, no parentheses, no stage directions, no emojis, no semicolons, no dashes, no markdown, no URLs. Do NOT use time-of-day words ("this morning", "tonight").
-7. Paralinguistic emotion tags: {tag_instruction}
-8. VOICE-BASED TEXT (CRITICAL - SCRIPT IS SPOKEN BY NEURAL TEXT-TO-SPEECH VOICES):
+7. No lists, no parentheses, no stage directions, no emojis, no semicolons, no dashes, no markdown, no URLs. Do NOT use time-of-day words ("this morning", "tonight").
+8. Paralinguistic emotion tags: {tag_instruction}
+9. VOICE-BASED TEXT (CRITICAL - SCRIPT IS SPOKEN BY NEURAL TEXT-TO-SPEECH VOICES):
    Write exclusively for the ear as spoken aloud, NEVER visual print or textual shorthand.
    - Money and Currency: NEVER write symbols or abbreviated shorthand like "$5B", "$10M", "$500K", "$20", "€50M", or "£10B". Always spell them out in full spoken words: "5 billion dollars", "10 million dollars", "500 thousand dollars", "20 dollars", "50 million euros", "10 billion pounds".
    - Percentages: NEVER use the "%" symbol (e.g. "15%"). Always write "15 percent" or "fifteen percent".
    - Numbers & Multipliers: Round numbers naturally. Say "5 times" instead of "5x", "number one" instead of "#1" or "No. 1".
    - Acronyms & Abbreviations: Write out acronyms so text-to-speech speaks them cleanly. Say "I P O", "C E O", "first quarter" (never "Q1"), "third quarter" (never "Q3"), "versus" (never "vs" or "vs."), "and" (never "&"), "with" (never "w/"), "approximately" (never "approx.").
    - Do not use forward slashes (say "per" or "or").
-9. BROADCAST SAFETY & FAMILY-FRIENDLINESS (ZERO TOLERANCE FOR PROFANITY):
+10. BROADCAST SAFETY & FAMILY-FRIENDLINESS (ZERO TOLERANCE FOR PROFANITY):
    - Absolutely NO profanity, swear words, vulgarity, offensive slang, or expletives (e.g. fuck, shit, bitch, ass, asshole, dick, pussy, bastard, or any variations).
    - Even if the source material, news story, song title, or music album quotes explicit lyrics or swear words, NEVER repeat the expletives. Rephrase or describe them cleanly for a general public family audience (e.g., say 'an expletive-laden challenge' or describe the sentiment in clean words). Any script containing profanity will be automatically rejected.
-10. KEEP SENTENCES SHORT (CRITICAL FOR AUDIO PACING):
+11. KEEP SENTENCES SHORT (CRITICAL FOR AUDIO PACING):
     Keep every individual sentence under 20 words. Compound run-on sentences cause audio synthesis slowdowns and unnatural cadence. Break complex thoughts into punchy spoken sentences.
 
 {shape_instruction}"""
@@ -1283,44 +1366,54 @@ def fallback_story_dialogue(
             seen_body.add(norm)
             body_facts.append((fid, txt))
 
+    # Determine if body_facts[0] is valid and not an unbound opener
+    lead_is_unbound = bool(body_facts and is_unbound_story_lead(body_facts[0][1], brief["headline"]))
+
+    if body_facts and not lead_is_unbound:
+        if len(body_facts) == 1 and brief["rank"] > 1:
+            # Rank > 1 with single body fact: Host A introduces headline, Host B gives body fact
+            lead_fact = ("F1", headline_sent)
+            remaining_facts = body_facts
+        else:
+            lead_fact = body_facts[0]
+            remaining_facts = body_facts[1:]
+    else:
+        # Turn 1 must use headline so audio listener knows the subject entity
+        lead_fact = ("F1", headline_sent)
+        # Skip body_facts[0] if it was unbound, and filter any body facts redundant with headline
+        candidate_facts = body_facts[1:] if lead_is_unbound else body_facts
+        remaining_facts = [
+            bf for bf in candidate_facts
+            if not _is_redundant_with_headline(bf[1], brief["headline"])
+        ]
+
     if is_solo_format(fmt_key):
         solo_spk = solo_host_index(fmt_key, hosts)
-        if not body_facts:
-            turns = [
-                DialogueTurn(
-                    speaker=solo_spk,
-                    text=headline_sent,
-                    purpose="lead",
-                    fact_refs=["F1"],
-                    pause_after=PURPOSE_PAUSES["lead"],
-                )
-            ]
-        else:
-            turns = [
-                DialogueTurn(
-                    speaker=solo_spk,
-                    text=body_facts[0][1],
-                    purpose="lead",
-                    fact_refs=[body_facts[0][0]],
-                    pause_after=PURPOSE_PAUSES["lead"],
-                )
-            ]
-            if len(body_facts) > 1:
-                turns.append(DialogueTurn(
-                    speaker=solo_spk,
-                    text=body_facts[1][1],
-                    purpose="takeaway",
-                    fact_refs=[body_facts[1][0]],
-                    pause_after=PURPOSE_PAUSES["takeaway"],
-                ))
-            if len(body_facts) > 2 and len(body_facts[0][1].split()) + len(body_facts[1][1].split()) < 35:
-                turns.append(DialogueTurn(
-                    speaker=solo_spk,
-                    text=body_facts[2][1],
-                    purpose="context",
-                    fact_refs=[body_facts[2][0]],
-                    pause_after=PURPOSE_PAUSES["takeaway"],
-                ))
+        turns = [
+            DialogueTurn(
+                speaker=solo_spk,
+                text=lead_fact[1],
+                purpose="lead",
+                fact_refs=[lead_fact[0]],
+                pause_after=PURPOSE_PAUSES["lead"],
+            )
+        ]
+        if remaining_facts:
+            turns.append(DialogueTurn(
+                speaker=solo_spk,
+                text=remaining_facts[0][1],
+                purpose="takeaway",
+                fact_refs=[remaining_facts[0][0]],
+                pause_after=PURPOSE_PAUSES["takeaway"],
+            ))
+        if len(remaining_facts) > 1 and len(lead_fact[1].split()) + len(remaining_facts[0][1].split()) < 35:
+            turns.append(DialogueTurn(
+                speaker=solo_spk,
+                text=remaining_facts[1][1],
+                purpose="context",
+                fact_refs=[remaining_facts[1][0]],
+                pause_after=PURPOSE_PAUSES["takeaway"],
+            ))
         return StoryDialogue(
             story_id=brief["story_id"],
             section=brief["section"],
@@ -1331,15 +1424,14 @@ def fallback_story_dialogue(
             story_format=fmt_key,
         )
 
-    # For two-host formats: build sequence of real factual lines
-    if not body_facts:
-        # Only headline exists — deliver as a clean solo lead turn rather than inventing robotic filler
+    # For two-host formats:
+    if not remaining_facts:
         turns = [
             DialogueTurn(
                 speaker=lead_speaker,
-                text=headline_sent,
+                text=lead_fact[1],
                 purpose="lead",
-                fact_refs=["F1"],
+                fact_refs=[lead_fact[0]],
                 pause_after=PURPOSE_PAUSES["lead"],
             )
         ]
@@ -1353,41 +1445,20 @@ def fallback_story_dialogue(
             story_format="solo_matthew" if lead_speaker == 0 else "solo_kelly",
         )
 
-    if len(body_facts) == 1:
-        if brief["rank"] <= 1:
-            # Rank 1 headline was already spoken in section tease: deliver the body fact cleanly without repeating headline
-            turns = [
-                DialogueTurn(
-                    speaker=lead_speaker,
-                    text=body_facts[0][1],
-                    purpose="lead",
-                    fact_refs=[body_facts[0][0]],
-                    pause_after=PURPOSE_PAUSES["lead"],
-                )
-            ]
-            return StoryDialogue(
-                story_id=brief["story_id"],
-                section=brief["section"],
-                headline=brief["headline"],
-                summary=brief["summary"],
-                turns=turns,
-                writer="built-in",
-                story_format="solo_matthew" if lead_speaker == 0 else "solo_kelly",
-            )
-        # Rank > 1: Host A introduces the headline, Host B follows with the body fact
+    if len(remaining_facts) == 1 or fmt_key == "lead_takeaway":
         turns = [
             DialogueTurn(
                 speaker=lead_speaker,
-                text=headline_sent,
+                text=lead_fact[1],
                 purpose="lead",
-                fact_refs=["F1"],
+                fact_refs=[lead_fact[0]],
                 pause_after=PURPOSE_PAUSES["lead"],
             ),
             DialogueTurn(
                 speaker=co_speaker,
-                text=body_facts[0][1],
+                text=remaining_facts[0][1],
                 purpose="takeaway",
-                fact_refs=[body_facts[0][0]],
+                fact_refs=[remaining_facts[0][0]],
                 pause_after=PURPOSE_PAUSES["takeaway"],
             ),
         ]
@@ -1401,63 +1472,36 @@ def fallback_story_dialogue(
             story_format="lead_takeaway",
         )
 
-    if fmt_key == "lead_takeaway":
-        turns = [
-            DialogueTurn(
-                speaker=lead_speaker,
-                text=body_facts[0][1],
-                purpose="lead",
-                fact_refs=[body_facts[0][0]],
-                pause_after=PURPOSE_PAUSES["lead"],
-            ),
-            DialogueTurn(
-                speaker=co_speaker,
-                text=body_facts[1][1],
-                purpose="takeaway",
-                fact_refs=[body_facts[1][0]],
-                pause_after=PURPOSE_PAUSES["takeaway"],
-            ),
-        ]
-        return StoryDialogue(
-            story_id=brief["story_id"],
-            section=brief["section"],
-            headline=brief["headline"],
-            summary=brief["summary"],
-            turns=turns,
-            writer="built-in",
-            story_format=fmt_key,
-        )
-
     turns = [
         DialogueTurn(
             speaker=lead_speaker,
-            text=body_facts[0][1],
+            text=lead_fact[1],
             purpose="lead",
-            fact_refs=[body_facts[0][0]],
+            fact_refs=[lead_fact[0]],
             pause_after=PURPOSE_PAUSES["lead"],
         ),
         DialogueTurn(
             speaker=co_speaker,
-            text=body_facts[1][1],
+            text=remaining_facts[0][1],
             purpose="context",
-            fact_refs=[body_facts[1][0]],
+            fact_refs=[remaining_facts[0][0]],
             pause_after=PURPOSE_PAUSES["context"],
         ),
     ]
-    if len(body_facts) > 2:
+    if len(remaining_facts) > 1:
         turns.append(DialogueTurn(
             speaker=lead_speaker,
-            text=body_facts[2][1],
+            text=remaining_facts[1][1],
             purpose="implication",
-            fact_refs=[body_facts[2][0]],
+            fact_refs=[remaining_facts[1][0]],
             pause_after=PURPOSE_PAUSES["implication"],
         ))
-    if len(body_facts) > 3:
+    if len(remaining_facts) > 2:
         turns.append(DialogueTurn(
             speaker=co_speaker,
-            text=body_facts[3][1],
+            text=remaining_facts[2][1],
             purpose="takeaway",
-            fact_refs=[body_facts[3][0]],
+            fact_refs=[remaining_facts[2][0]],
             pause_after=PURPOSE_PAUSES["takeaway"],
         ))
 
@@ -1741,8 +1785,10 @@ def generate_story_dialogue(
                             messages.append({
                                 "role": "user",
                                 "content": (
-                                    "Repair the JSON: ensure valid turns adhering to the format, "
-                                    "keep each sentence under 20 words, no dashes or special characters, and valid fact_refs."
+                                    "Repair the JSON: ensure valid turns adhering to the format. "
+                                    "CRITICAL: Turn 1 MUST explicitly name the specific subject entity from the headline "
+                                    "(e.g. name the specific show, company, person, or organization) instead of using vague references like 'the series' or 'the company'. "
+                                    "Keep each sentence under 20 words, no dashes or special characters, and valid fact_refs."
                                 ),
                             })
                             continue

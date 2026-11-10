@@ -870,3 +870,83 @@ def test_anti_iteration_prevents_repeating_staying_with_consecutively():
     # Verifies that "Staying with Nvidia for a moment," was stripped/rewritten so it doesn't repeat!
     assert not validated[0].text.lower().startswith("staying with nvidia for a moment")
     assert validated[0].text.startswith("This story just took an even sharper turn")
+
+
+def test_unbound_story_lead_detection():
+    h = "Heated Rivalry could be getting 2 more seasons and a movie, sources say"
+    # Unbound openers missing the entity
+    assert podcast.is_unbound_story_lead("Sources say the series will get two more seasons and a movie.", h) is True
+    assert podcast.is_unbound_story_lead("The series will get two more seasons and a movie.", h) is True
+    assert podcast.is_unbound_story_lead("Sources say that the drama could wrap up with a movie.", h) is True
+    assert podcast.is_unbound_story_lead("They are reportedly planning two more seasons.", h) is True
+    assert podcast.is_unbound_story_lead("He said the show will film in Montreal.", h) is True
+
+    # Valid openers that name the entity
+    assert podcast.is_unbound_story_lead("Sources say Heated Rivalry will get two more seasons.", h) is False
+    assert podcast.is_unbound_story_lead("The series Heated Rivalry is getting two more seasons.", h) is False
+    assert podcast.is_unbound_story_lead("Heated Rivalry could be getting two more seasons and a movie.", h) is False
+
+
+def test_validate_story_dialogue_rejects_unbound_story_lead():
+    brief = {
+        "story_id": "ent-1",
+        "section": "entertainment",
+        "rank": 2,
+        "sober": False,
+        "story_format": "lead_takeaway",
+        "headline": "Heated Rivalry could be getting 2 more seasons and a movie, sources say",
+        "facts": [
+            {"id": "F1", "fact": "Heated Rivalry could be getting 2 more seasons and a movie, sources say"},
+            {"id": "F2", "fact": "Each season will be six episodes and finish filming by early December."},
+        ],
+    }
+    # Turn 1 missing subject entity
+    bad_dialogue = {
+        "turns": [
+            {"speaker": "a", "purpose": "lead", "fact_refs": ["F1"], "text": "Sources say the series will get two more seasons and a movie."},
+            {"speaker": "b", "purpose": "takeaway", "fact_refs": ["F2"], "text": "Each season will be six episodes and finish filming by early December."},
+        ]
+    }
+    assert podcast.validate_story_dialogue(bad_dialogue, brief, HOSTS) is None
+
+    # Turn 1 naming subject entity explicitly
+    good_dialogue = {
+        "turns": [
+            {"speaker": "a", "purpose": "lead", "fact_refs": ["F1"], "text": "Sources say Heated Rivalry could be getting two more seasons and a movie."},
+            {"speaker": "b", "purpose": "takeaway", "fact_refs": ["F2"], "text": "Each season will be six episodes and finish filming by early December."},
+        ]
+    }
+    validated = podcast.validate_story_dialogue(good_dialogue, brief, HOSTS)
+    assert validated is not None
+    assert "Heated Rivalry" in validated[0].text
+
+
+def test_fallback_story_dialogue_prevents_unbound_opener():
+    story = {
+        "section": "entertainment",
+        "rank": 2,
+        "headline": "Heated Rivalry could be getting 2 more seasons and a movie, sources say",
+        "source": "Deadline",
+        "summary": "Sources say the series will get two more seasons and a movie. Each season will be six episodes and finish filming by early December. Jacob Tierney often jokes he works at lightning speed when producing.",
+    }
+    dial = podcast.fallback_story_dialogue(story, HOSTS)
+    assert len(dial.turns) >= 2
+    # Turn 1 must name Heated Rivalry from the headline because body_fact[0] is unbound
+    assert "Heated Rivalry" in dial.turns[0].text
+    # Turn 2 should take the next informative fact rather than repeating the redundant headline
+    assert "early December" in dial.turns[1].text
+
+
+def test_strip_metadata_noise_preserves_sources_say():
+    from app.summarizer import strip_metadata_noise
+    line = "Sources say the series will get two more seasons and a movie."
+    cleaned = strip_metadata_noise(line)
+    assert cleaned == line
+    assert "Sources say" in cleaned
+
+    # Genuine metadata labels should still be stripped
+    meta = "Source: Reuters\nAuthor: Jane Doe\nDate: Nov 10, 2026\nReal news story begins here."
+    cleaned_meta = strip_metadata_noise(meta)
+    assert "Real news story begins here." in cleaned_meta
+    assert "Source: Reuters" not in cleaned_meta
+    assert "Author: Jane Doe" not in cleaned_meta
