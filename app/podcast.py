@@ -46,8 +46,8 @@ READY_KEY = "podcast_ready"
 
 # Word caps per piece keep the whole chat to roughly 60-90 seconds: news is the priority.
 # open accommodates Part 1 (Brand Intro) + Part 2 (Conversational Open) across 4-6 short lines.
-MAX_WORDS = {"open": 55, "tease": 38, "bridge": 20, "close": 42}
-MAX_TURNS = {"open": 6, "tease": 3, "bridge": 2, "close": 4}
+MAX_WORDS = {"open": 55, "open_ca": 55, "open_us": 55, "open_in": 55, "tease": 38, "bridge": 20, "close": 42}
+MAX_TURNS = {"open": 6, "open_ca": 6, "open_us": 6, "open_in": 6, "tease": 3, "bridge": 2, "close": 4}
 
 # How each section should sound, for the AI prompt and the template pools.
 TONE = {
@@ -114,6 +114,18 @@ def plan_pieces(scripts: list[dict]) -> list[Piece]:
         sec = s.get("section")
         if sec in topics.ALL_SECTIONS and (sec not in top or s.get("rank", 99) < top[sec].get("rank", 99)):
             top[sec] = s
+
+    # Dedicated regional show openers hooking lead national stories for Canada, US, and India
+    if "top" in top:
+        pieces.append(Piece("pod_open_ca_1", "open_ca", "top",
+                            _clean(top["top"].get("title", "")), _clean(top["top"].get("summary", ""))[:300]))
+    if "top_us" in top:
+        pieces.append(Piece("pod_open_us_1", "open_us", "top_us",
+                            _clean(top["top_us"].get("title", "")), _clean(top["top_us"].get("summary", ""))[:300]))
+    if "top_in" in top:
+        pieces.append(Piece("pod_open_in_1", "open_in", "top_in",
+                            _clean(top["top_in"].get("title", "")), _clean(top["top_in"].get("summary", ""))[:300]))
+
     for sec, story in top.items():
         summary_raw = _clean(story.get("summary", ""))
         summary_safe = summary_raw[:297].rsplit(" ", 1)[0] + "..." if len(summary_raw) > 300 else summary_raw
@@ -159,6 +171,21 @@ OPEN_TEMPLATES: list[list[Turn]] = [
     [(0, "This is Hark Daily. I'm {a} alongside {b}."),
      (1, "Your essential daily brief in minutes: the context, the implications, and why it matters."),
      (0, "Let's kick things off with today's lead stories.")],
+]
+OPEN_TEMPLATES_CA: list[list[Turn]] = [
+    [(0, "From Hark Daily, I'm {a} alongside {b}."),
+     (1, "Today we are tracking key stories across Canada, starting with {h}."),
+     (0, "Let's get right into the briefing.")],
+]
+OPEN_TEMPLATES_US: list[list[Turn]] = [
+    [(0, "From Hark Daily, I'm {a} alongside {b}."),
+     (1, "Tracking today's major stories across the country, led by {h}."),
+     (0, "Let's unpack what you need to know.")],
+]
+OPEN_TEMPLATES_IN: list[list[Turn]] = [
+    [(0, "From Hark Daily, I'm {a} alongside {b}."),
+     (1, "Bringing you the essential national briefing, starting with {h}."),
+     (0, "Here is what is making headlines today.")],
 ]
 CLOSE_TEMPLATES: list[list[Turn]] = [
     [(0, "And that is Hark Daily for today."),
@@ -210,6 +237,12 @@ def template_piece(piece: Piece, hosts: tuple[str, str]) -> Written:
     if piece.kind == "open":
         n = int(piece.key.rsplit("_", 1)[1]) - 1
         turns = OPEN_TEMPLATES[n % len(OPEN_TEMPLATES)]
+    elif piece.kind == "open_ca":
+        turns = OPEN_TEMPLATES_CA[0]
+    elif piece.kind == "open_us":
+        turns = OPEN_TEMPLATES_US[0]
+    elif piece.kind == "open_in":
+        turns = OPEN_TEMPLATES_IN[0]
     elif piece.kind == "close":
         n = int(piece.key.rsplit("_", 1)[1]) - 1
         turns = CLOSE_TEMPLATES[n % len(CLOSE_TEMPLATES)]
@@ -365,18 +398,35 @@ STRICT LANGUAGE & ANTI-SLOP RULES (THIS WILL BE READ ALOUD BY TTS):
 - Paralinguistic voice tags: [chuckle], [laugh], [sigh], [gasp]. Use very sparingly (most pieces should have ZERO tags, at most {max_tags} tags per piece). Never place tags on tragedy, politics, or serious hardship.
 
 Return ONLY JSON of this shape:
-{{"open": [turns, ...{open_n} variants], "close": [turns, ...{close_n} variants],
- "tease": {{"<section>": turns}}, "bridge": {{"<section>": turns}}}}
+{{"open": [turns, ...{open_n} variants],
+  "open_ca": turns, "open_us": turns, "open_in": turns,
+  "close": [turns, ...{close_n} variants],
+  "tease": {{"<section>": turns}}, "bridge": {{"<section>": turns}}}}
 where turns is a list of {{"speaker": "a" or "b", "text": "..."}}.
 
 SEGMENT RULES (MODELED ON PREMIER DAILY NEWS PODCASTS LIKE NPR "UP FIRST", NYT "THE DAILY", VOX "TODAY, EXPLAINED"):
+- open_ca (<= {w_open} words, 3 to 4 turns):
+  Show open specifically tailored for the Canadian edition:
+  * Must include the show name "Hark Daily" and introduce hosts ({a} and {b}).
+  * Mention {weekday} and hook today's Canadian lead story/tension (from "top" / "markets") before introducing the hosts.
+- open_us (<= {w_open} words, 3 to 4 turns):
+  Show open specifically tailored for the United States edition:
+  * Must include the show name "Hark Daily" and introduce hosts ({a} and {b}).
+  * Mention {weekday} and hook today's US lead story/tension (from "top_us" / "markets_us") before introducing the hosts.
+  * NEVER mention provincial Canadian politics (e.g. Alberta, Ontario, Ottawa) or Indian news. Focus strictly on US national headlines.
+- open_in (<= {w_open} words, 3 to 4 turns):
+  Show open specifically tailored for the India edition:
+  * Must include the show name "Hark Daily" and introduce hosts ({a} and {b}).
+  * Mention {weekday} and hook today's Indian lead story/tension (from "top_in" / "markets_in") before introducing the hosts.
+  * NEVER mention Canadian provinces or US state ballot measures. Focus strictly on Indian national headlines.
 - open (<= {w_open} words, 3 to 5 short turns per variant):
-  Write an authentic, human show open that sets an engaging, professional tone:
+  Universal global show open:
   * Must include the show name "Hark Daily" and introduce both hosts by name ({a} and {b}) naturally.
-  * Mention the day of the week ({weekday}) and hook today's core news tension or overarching theme in plain, engaging English.
+  * Mention the day of the week ({weekday}) and focus on broad global themes (technology, markets, global trends).
+  * Strictly neutral across regions—NO country-specific provincial or state political references.
   * Absolutely NO cheesy fake banter about anchor voices, taglines, or meta-jokes. Talk like two smart audio journalists setting the table for their listeners.
   * Each variant must use a distinct opening style:
-    - Variant 1 (Hook & Stakes): Start directly with the tension or central conflict of today's lead stories before the host intro.
+    - Variant 1 (Hook & Stakes): Start directly with the tension or central conflict of broad global news before the host intro.
     - Variant 2 (Fast-Paced Briefing): Clean, crisp brand intro, outlining the 2-3 key pillars shaping the news day.
     - Variant 3 (Relatable Perspective): A grounded conversational observation about how today's news affects markets, technology, or daily life.
 - tease (<= {w_tease} words, 2 to 3 turns): A natural journalistic reaction or tension setup for that section's top story. Never recite the raw headline verbatim—set up the core conflict, dilemma, or question. Have {a} lead heavy sections (top, politics, markets) and {b} lead lighter or fast-moving sections (ai, tech, science, entertainment, sports).
@@ -538,7 +588,11 @@ def ask_ai(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
 def _collect(data: dict, pieces: list[Piece], model: str) -> dict[str, Written]:
     out: dict[str, Written] = {}
     for p in pieces:
-        if p.kind in ("open", "close"):
+        if p.kind.startswith("open_"):
+            raw = data.get(p.kind)
+            if isinstance(raw, list) and raw and isinstance(raw[0], list):
+                raw = raw[0]
+        elif p.kind in ("open", "close"):
             variants = data.get(p.kind)
             n = int(p.key.rsplit("_", 1)[1]) - 1
             raw = variants[n] if isinstance(variants, list) and n < len(variants) else None

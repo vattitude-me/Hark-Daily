@@ -101,6 +101,49 @@ test('opening varies from day to day', () => {
   assert.ok(seen.size > 1);
 });
 
+test('planPodcast isolates regional openers and prevents foreign provincial news leaks', () => {
+  const customClips = [
+    pc('podcast_ready', 0),
+    { hosts: 'a+b', clip_key: 'pod_open_1', text: 'Record oil profits in Alberta versus brand new subsidies. I am Matthew.', duration: 15, audio_path: 'p/open1.mp3' },
+    { hosts: 'a+b', clip_key: 'pod_open_2', text: 'Tech giants and Nvidia face major questions today. I am Kelly.', duration: 15, audio_path: 'p/open2.mp3' },
+    { hosts: 'a+b', clip_key: 'pod_open_3', text: 'Markets are tracking central bank interest rate decisions. I am Matthew.', duration: 15, audio_path: 'p/open3.mp3' },
+    pc('pod_close_1', 10),
+    pc('pod_tease_top', 15),
+    pc('pod_tease_top_us', 15),
+    pc('pod_tease_top_in', 15),
+  ];
+
+  // 1. With today's seed, Canada receives the Alberta opening
+  const caPlan = planPodcast(customClips, ['top'], '2026-11-10:matthew_reference+kelly_reference', 'ca');
+  assert.equal(caPlan.open.clip_key, 'pod_open_1');
+  assert.ok(caPlan.open.text.includes('Alberta'), 'Canada should hear the Alberta intro');
+
+  // 2. US filters out Alberta and receives a neutral tech/market opener across all seeds
+  for (const date of ['2026-11-09', '2026-11-10', '2026-11-11', '2026-11-12']) {
+    const usPlan = planPodcast(customClips, ['top_us'], `${date}:matthew_reference+kelly_reference`, 'us');
+    assert.ok(usPlan.open.clip_key !== 'pod_open_1', `US must not receive the Alberta opener on ${date}`);
+    assert.ok(!usPlan.open.text.includes('Alberta'), `US text must not mention Alberta on ${date}`);
+  }
+
+  // 3. India filters out Alberta and receives a neutral tech/market opener across all seeds
+  for (const date of ['2026-11-09', '2026-11-10', '2026-11-11', '2026-11-12']) {
+    const inPlan = planPodcast(customClips, ['top_in'], `${date}:matthew_reference+kelly_reference`, 'in');
+    assert.ok(inPlan.open.clip_key !== 'pod_open_1', `India must not receive the Alberta opener on ${date}`);
+    assert.ok(!inPlan.open.text.includes('Alberta'), `India text must not mention Alberta on ${date}`);
+  }
+
+  // 4. Dedicated regional openers (pod_open_us_1, pod_open_in_1, pod_open_ca_1) are preferred when present
+  const dedicatedClips = [
+    ...customClips,
+    { hosts: 'a+b', clip_key: 'pod_open_ca_1', text: 'Canada lead story', duration: 15, audio_path: 'p/open_ca.mp3' },
+    { hosts: 'a+b', clip_key: 'pod_open_us_1', text: 'US California ballot', duration: 15, audio_path: 'p/open_us.mp3' },
+    { hosts: 'a+b', clip_key: 'pod_open_in_1', text: 'India Mumbai air quality', duration: 15, audio_path: 'p/open_in.mp3' },
+  ];
+  assert.equal(planPodcast(dedicatedClips, ['top'], 'seed:v', 'ca').open.clip_key, 'pod_open_ca_1');
+  assert.equal(planPodcast(dedicatedClips, ['top_us'], 'seed:v', 'us').open.clip_key, 'pod_open_us_1');
+  assert.equal(planPodcast(dedicatedClips, ['top_in'], 'seed:v', 'in').open.clip_key, 'pod_open_in_1');
+});
+
 test('podcast alternates voices between hosts for successive stories', () => {
   const multiRows = [
     { date: 'd', section: 'top', rank: 1, voice: 'a', title: 'top1', duration: 10, audio_path: 's/a/top1.mp3' },

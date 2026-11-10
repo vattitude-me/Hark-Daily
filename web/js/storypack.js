@@ -263,18 +263,60 @@ export function storyKey(row) {
  * section bridges are added while they fit the budget, so 3 categories get a short chat and 7 do
  * not get a long one. Missing pieces are simply skipped: banter is never required for the news.
  */
-export function planPodcast(clips, sections, seed = '') {
+export function planPodcast(clips, sections, seed = '', edition = 'ca') {
   const rows = clips || [];
   const hosts = rows.filter((c) => c.clip_key === PODCAST_READY_KEY).map((c) => c.hosts).sort()[0];
   if (!hosts) return null;
   const mine = rows.filter((c) => c.hosts === hosts && c.clip_key !== PODCAST_READY_KEY && c.audio_path);
   const byKey = new Map(mine.map((c) => [c.clip_key, c]));
-  const variant = (kind) => {
-    const all = mine.filter((c) => c.clip_key.startsWith(`pod_${kind}_`)).sort((a, b) => a.clip_key.localeCompare(b.clip_key));
-    return all.length ? all[stableHash(`${seed}:${kind}`) % all.length] : null;
+
+  // Auto-detect edition: use explicit edition parameter if valid, otherwise inspect the leading section
+  const firstSec = (sections || [])[0] || '';
+  const detectedEd = firstSec.endsWith('_us') ? 'us' : (firstSec.endsWith('_in') ? 'in' : 'ca');
+  const effectiveEdition = (edition && ['ca', 'us', 'in'].includes(edition)) ? edition : detectedEd;
+
+  const variantClose = () => {
+    const all = mine.filter((c) => c.clip_key.startsWith('pod_close_')).sort((a, b) => a.clip_key.localeCompare(b.clip_key));
+    return all.length ? all[stableHash(`${seed}:close`) % all.length] : null;
   };
-  const open = variant('open');
-  const close = variant('close');
+
+  const variantOpen = (ed) => {
+    // 1. Regional opener specifically voiced for this edition (e.g. pod_open_ca_1, pod_open_us_1, pod_open_in_1)
+    const regionalOpens = mine.filter((c) => c.clip_key.startsWith(`pod_open_${ed}_`) || c.clip_key === `pod_open_${ed}`)
+      .sort((a, b) => a.clip_key.localeCompare(b.clip_key));
+    if (regionalOpens.length) {
+      return regionalOpens[stableHash(`${seed}:open:${ed}`) % regionalOpens.length];
+    }
+
+    // 2. Fall back to general pod_open_* clips (excluding other regional prefixes)
+    const generalOpens = mine.filter((c) => {
+      if (!c.clip_key.startsWith('pod_open_')) return false;
+      const sub = c.clip_key.replace(/^pod_open_/, '');
+      if (['ca', 'us', 'in'].some((code) => sub.startsWith(`${code}_`) || sub === code)) return false;
+      return true;
+    }).sort((a, b) => a.clip_key.localeCompare(b.clip_key));
+
+    if (generalOpens.length) {
+      if (ed === 'ca') {
+        // Canada can safely use any general open (including pod_open_1 which hooks Canadian news like Alberta)
+        return generalOpens[stableHash(`${seed}:open`) % generalOpens.length];
+      }
+      // For US and India, ensure we don't play an intro with local Canadian provincial terms (e.g., Alberta, Danielle Smith, Ottawa)
+      const REGIONAL_TERMS = ['alberta', 'danielle smith', 'cbc news', 'ottawa', 'premiers'];
+      const neutralOpens = generalOpens.filter((c) => {
+        const txt = (c.text || '').toLowerCase();
+        return !REGIONAL_TERMS.some((term) => txt.includes(term));
+      });
+      const candidates = neutralOpens.length ? neutralOpens : generalOpens;
+      return candidates[stableHash(`${seed}:open:${ed}`) % candidates.length];
+    }
+
+    const all = mine.filter((c) => c.clip_key.startsWith('pod_open_')).sort((a, b) => a.clip_key.localeCompare(b.clip_key));
+    return all.length ? all[stableHash(`${seed}:open`) % all.length] : null;
+  };
+
+  const open = variantOpen(effectiveEdition);
+  const close = variantClose();
   if (!open || !close) return null;
   const length = (c) => Number(c.duration) || 0;
   let used = length(open) + length(close);
@@ -282,7 +324,6 @@ export function planPodcast(clips, sections, seed = '') {
   // 1. Regional opener teaser for the very first section (e.g. US/India/Canada top stories)
   // Instead of playing multiple consecutive teasers at the start, only this single regional tease plays
   // before jumping directly into the top stories.
-  const firstSec = (sections || [])[0];
   const baseFirstSec = firstSec ? firstSec.replace(/_(us|in|ca)$/, '') : '';
   let regionalTease = (firstSec ? (byKey.get(`pod_tease_${firstSec}`) || byKey.get(`pod_tease_${baseFirstSec}`)) : null) || null;
   if (regionalTease && used + length(regionalTease) <= PODCAST_BUDGET) {
@@ -595,7 +636,7 @@ export function buildBriefing(rows, settings, {
 
   const pod = mode === 'podcast'
     ? planPodcast(podcastClips, targetSections.filter((key) => chosen.some((r) => (r.section === key || r.section === editionSectionKey(key, edition)) && r.rank === 1)),
-      `${date}:${id || ''}`)
+      `${date}:${id || ''}`, edition)
     : null;
   const isPodcast = Boolean(pod);
 

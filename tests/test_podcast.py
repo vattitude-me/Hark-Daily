@@ -49,9 +49,18 @@ def _ok(data):
 def test_plan_has_variants_and_a_tease_per_present_section():
     keys = [p.key for p in podcast.plan_pieces(SCRIPTS)]
     assert keys.count("pod_open_1") == 1 and "pod_open_3" in keys and "pod_close_2" in keys
+    assert "pod_open_ca_1" in keys
     assert "pod_tease_top" in keys and "pod_tease_ai" in keys and "pod_tease_sports" not in keys
     tease = next(p for p in podcast.plan_pieces(SCRIPTS) if p.key == "pod_tease_top")
     assert tease.headline == "Floods hit the east coast"  # rank 1, not rank 2
+
+    # When US and India top stories are present, their regional openers are planned
+    scripts_with_all = SCRIPTS + [
+        {"section": "top_us", "rank": 1, "title": "US Headline", "summary": "US Summary"},
+        {"section": "top_in", "rank": 1, "title": "India Headline", "summary": "India Summary"},
+    ]
+    all_keys = [p.key for p in podcast.plan_pieces(scripts_with_all)]
+    assert "pod_open_us_1" in all_keys and "pod_open_in_1" in all_keys
 
 
 # ------------------------------------------------------------------ validation
@@ -189,6 +198,9 @@ def test_one_failed_piece_is_skipped_but_podcast_still_ready(cfg, voice, monkeyp
 def test_no_opening_means_not_ready(cfg, voice, monkeypatch):
     store = FakeStore()
     monkeypatch.setattr(podcast, "OPEN_TEMPLATES", [[(0, "FAIL")]])
+    monkeypatch.setattr(podcast, "OPEN_TEMPLATES_CA", [[(0, "FAIL")]])
+    monkeypatch.setattr(podcast, "OPEN_TEMPLATES_US", [[(0, "FAIL")]])
+    monkeypatch.setattr(podcast, "OPEN_TEMPLATES_IN", [[(0, "FAIL")]])
     with pytest.raises(podcast.PodcastIncomplete):
         run(podcast.build_podcast(_cfg(cfg), store, SCRIPTS, day="2026-10-27", base="http://v"))
     assert podcast.READY_KEY not in {r["clip_key"] for r in store.tables.get("podcast_clips", [])}
@@ -536,7 +548,7 @@ def test_expanded_banned_phrases_and_hark_daily_brand_templates():
     assert "great point" not in podcast.clean_slop("That's a great point, Matthew.").lower()
     assert "welcome back everyone" not in podcast.clean_slop("Welcome back everyone to the show.").lower()
     assert "fascinating" not in podcast.clean_slop("That is fascinating news.").lower()
-    for tmpl in podcast.OPEN_TEMPLATES:
+    for tmpl in podcast.OPEN_TEMPLATES + podcast.OPEN_TEMPLATES_CA + podcast.OPEN_TEMPLATES_US + podcast.OPEN_TEMPLATES_IN:
         joined = " ".join(t for _, t in tmpl)
         assert "Hark Daily" in joined
         assert "Welcome back everyone" not in joined
