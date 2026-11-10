@@ -39,15 +39,15 @@ const build = (stories, podcastClips = pod, mode = 'podcast') => buildBriefing(r
 const ids = (b) => b.clips.filter((c) => !c.gap).map((c) => c.id);
 const banter = (b) => b.clips.filter((c) => c.banter).reduce((n, c) => n + c.duration, 0);
 
-test('podcast brief: open, regional teaser directly into top stories, bridges for next sections, close', () => {
+test('podcast brief: open hooks top stories and jumps directly into news, bridges for next sections, close', () => {
   const b = build({ top: 2, ai: 1 });
   assert.equal(b.mode, 'podcast');
   const list = ids(b);
   assert.match(list[0], /^pod_open_/);
   assert.match(list.at(-1), /^pod_close_/);
-  assert.equal(list[1], 'pod_tease_top');
-  assert.equal(list[2], 'top-1', 'Podcast directly jumps into top stories after regional teaser');
-  assert.equal(list.indexOf('pod_bridge_top'), -1, 'Redundant bridge is skipped when regional teaser played');
+  assert.equal(list[1], 'top-1', 'Podcast directly jumps into top stories after show open');
+  assert.equal(list.indexOf('pod_tease_top'), -1, 'Redundant coming up section is removed');
+  assert.equal(list.indexOf('pod_bridge_top'), -1, 'Redundant bridge is skipped for first section');
   assert.ok(list.indexOf('pod_bridge_ai') < list.indexOf('ai-1'), 'Subsequent sections receive their section bridge');
   assert.ok(!list.some((id) => id.startsWith('intro_') || id === 'outro' || id.startsWith('greeting')));
 });
@@ -57,7 +57,7 @@ test('banter stays within budget however many sections are chosen', () => {
     const b = build(stories);
     assert.ok(banter(b) <= PODCAST_BUDGET + 25, `${JSON.stringify(stories)} banter ${banter(b)}`); // open+close are always kept
   }
-  assert.ok(ids(build({ top: 2, ai: 1, tech: 1, sports: 1 })).filter((i) => i.startsWith('pod_tease')).length <= 3);
+  assert.equal(ids(build({ top: 2, ai: 1, tech: 1, sports: 1 })).filter((i) => i.startsWith('pod_tease')).length, 0);
 });
 
 test('only chosen sections are mentioned', () => {
@@ -243,7 +243,7 @@ test('buildBriefing preserves all 7 sections for US, India, and Canada editions'
   assert.equal(caBrief.stories.length, 7);
 });
 
-test('podcast mode starts with regional tease and directly enters top stories for US, India, and Canada', () => {
+test('podcast mode directly enters top stories after show open for US, India, and Canada', () => {
   const multiEdClips = [
     pc('podcast_ready', 0),
     pc('pod_open_1', 15),
@@ -258,26 +258,23 @@ test('podcast mode starts with regional tease and directly enters top stories fo
   const usB = buildBriefing(multiEdRows, { stories }, { edition: 'us', mode: 'podcast', podcastClips: multiEdClips });
   const usIds = ids(usB);
   assert.equal(usIds[0], 'pod_open_1');
-  assert.equal(usIds[1], 'pod_tease_top_us');
-  assert.equal(usIds[2], 'top_us-1');
-  assert.equal(usIds[3], 'pod_bridge_ai');
-  assert.equal(usIds[4], 'ai-1');
+  assert.equal(usIds[1], 'top_us-1');
+  assert.equal(usIds[2], 'pod_bridge_ai');
+  assert.equal(usIds[3], 'ai-1');
 
   const inB = buildBriefing(multiEdRows, { stories }, { edition: 'in', mode: 'podcast', podcastClips: multiEdClips });
   const inIds = ids(inB);
   assert.equal(inIds[0], 'pod_open_1');
-  assert.equal(inIds[1], 'pod_tease_top_in');
-  assert.equal(inIds[2], 'top_in-1');
-  assert.equal(inIds[3], 'pod_bridge_ai');
-  assert.equal(inIds[4], 'ai-1');
+  assert.equal(inIds[1], 'top_in-1');
+  assert.equal(inIds[2], 'pod_bridge_ai');
+  assert.equal(inIds[3], 'ai-1');
 
   const caB = buildBriefing(multiEdRows, { stories }, { edition: 'ca', mode: 'podcast', podcastClips: multiEdClips });
   const caIds = ids(caB);
   assert.equal(caIds[0], 'pod_open_1');
-  assert.equal(caIds[1], 'pod_tease_top');
-  assert.equal(caIds[2], 'top-1');
-  assert.equal(caIds[3], 'pod_bridge_ai');
-  assert.equal(caIds[4], 'ai-1');
+  assert.equal(caIds[1], 'top-1');
+  assert.equal(caIds[2], 'pod_bridge_ai');
+  assert.equal(caIds[3], 'ai-1');
 });
 
 test('posKeyFor generates independent timeline keys for Canada, US, and India', () => {
