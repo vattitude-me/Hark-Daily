@@ -58,7 +58,7 @@ flowchart TD
 ## 1. Multi-Provider News Ingestion & Article Extraction
 
 ### Multi-Provider Architecture ([`app/topics.py`](file:///Users/vattitude/Coding/Morning_Brief/app/topics.py))
-The system ingests stories across 7 canonical categories configured for **Canada (CA)**, the **United States (US)**, and **India (IN)**, while sharing global technology and science coverage universally across all regions:
+The system ingests stories across 8 canonical categories configured for **Canada (CA)**, the **United States (US)**, and **India (IN)**, while sharing global technology and science coverage universally across all regions:
 
 #### 1. Universal Shared Sections (Voiced once globally, reused across all editions)
 - `ai` — TechCrunch Artificial Intelligence (`https://techcrunch.com/category/artificial-intelligence/feed/`)
@@ -68,26 +68,29 @@ The system ingests stories across 7 canonical categories configured for **Canada
 #### 2. Regional Specific Sections
 - 🇨🇦 **Canada (`ca`)**:
   - `top` — CBC News Top Stories (`https://www.cbc.ca/cmlink/rss-topstories`)
+  - `markets` — Toronto Stock Exchange (TSX) / Yahoo Finance Canada
   - `politics` — CBC News Politics (`https://www.cbc.ca/cmlink/rss-politics`)
   - `entertainment` — CBC News Arts & Entertainment (`https://www.cbc.ca/cmlink/rss-arts`)
   - `sports` — CBC News Sports (`https://www.cbc.ca/cmlink/rss-sports`)
 - 🇺🇸 **United States (`us`)**:
   - `top_us` — The New York Times (`https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml`)
+  - `markets_us` — S&P 500, Nasdaq, Wall Street MarketWatch
   - `politics_us` — NPR Politics (`https://feeds.npr.org/1014/rss.xml`)
   - `entertainment_us` — Variety (`https://variety.com/feed/`)
   - `sports_us` — CBS Sports (`https://www.cbssports.com/rss/headlines/`)
 - 🇮🇳 **India (`in`)**:
   - `top_in` — The Hindu National (`https://www.thehindu.com/news/national/feeder/default.rss`)
+  - `markets_in` — BSE Sensex & NSE Nifty 50
   - `politics_in` — The Indian Express Politics (`https://indianexpress.com/section/political-pulse/feed/`)
   - `entertainment_in` — The Indian Express Entertainment (`https://indianexpress.com/section/entertainment/feed/`)
   - `sports_in` — ESPNcricinfo (`https://www.espncricinfo.com/rss/content/story/feeds/0.xml`)
 
-#### 3. Two-Tier Batch Scheduling & Compute Reuse
-- **Morning Batch (~6:00 AM EDT)**: Runs `--edition ca,us`. Voices Canada and US regional sections, along with shared `ai`, `tech`, and `science`.
-- **Evening Batch (~6:00 PM EDT = 3:30 AM IST)**: Runs `--edition in`. Targets morning commute in Mumbai and New Delhi (~6:00 AM IST). Voices India-specific local sections while automatically reusing today's already-voiced universal `ai`, `tech`, and `science` audio.
+#### 3. Scheduled Batch Ingestion & Compute Execution
+- **Morning Batch (~6:00 AM EDT)**: Active primary pipeline running `--edition ca,us,in`. Voices regional news and financial markets across all three countries along with shared `ai`, `tech`, and `science` in a single unified run.
+- **Evening Batch (~6:00 PM EDT)**: Currently paused/disabled in launchd scheduling to optimize local compute, but available for on-demand execution.
 
 #### 4. Zero-Migration Database Model
-All clips are stored in Supabase under `story_audio` with primary key `(date, section, rank, voice)`. Regional stories use section identifiers (`top_us`, `top_in`), while universal stories use canonical keys (`ai`, `tech`, `science`). This avoids database schema migrations and guarantees full backward compatibility for older clients.
+All clips are stored in Supabase under `story_audio` with primary key `(date, section, rank, voice)`. Regional stories use section identifiers (`top_us`, `top_in`, `markets_us`, `markets_in`), while universal stories use canonical keys (`ai`, `tech`, `science`). This avoids database schema migrations and guarantees full backward compatibility for older clients.
 
 The feed order reflects editorial curation. The worker selects the top 5 articles per category with deep deduplication buffers, editorial recency backfill, and cross-run continuity to guarantee sections never starve below the requested story count.
 
@@ -143,15 +146,15 @@ Spoken framing consists of greetings, section introductions, and the briefing si
    `notes/static/{note_key}-{voice}.mp3`
 2. **Sentinel Date Indexing**:
    Static metadata rows are indexed in PostgreSQL under sentinel date `STATIC_DATE = "2000-01-01"`.
-3. **11 Canonical Notes per Voice**:
+3. **12 Canonical Notes per Voice**:
    - 3 Time-adaptive greetings (`greeting_morning`, `greeting_afternoon`, `greeting_evening`)
-   - 7 Section transitions (`intro_top`, `intro_ai`, `intro_tech`, `intro_politics`, `intro_entertainment`, `intro_science`, `intro_sports`)
+   - 8 Section transitions (`intro_top`, `intro_markets`, `intro_ai`, `intro_tech`, `intro_politics`, `intro_entertainment`, `intro_science`, `intro_sports`)
    - 1 Sign-off (`outro`)
 
 ### Pre-Closure Guard (`ensure_static_notes`)
 Before the daily batch completes and shuts down the local voice service:
 - `ensure_static_notes()` checks if any static note is missing for the active voices.
-- If all 11 static notes exist for that voice: **0 synthesis calls are made**.
+- If all 12 static notes exist for that voice: **0 synthesis calls are made**.
 - If a new voice is added or a note is missing: The pipeline synthesizes the missing notes and registers them permanently in `notes/static/`.
 - `build_notes()` links the static storage paths into today's `voice_notes` rows for the current date, ensuring 100% transparent backwards compatibility with existing Android and Web client versions.
 
@@ -212,6 +215,17 @@ X-Duration: 21.84
 <binary audio bytes>
 ```
 
+### Audio Synthesis & Engine Optimizations
+1. **Sentence Splitting with Seamless Zero-Crossing Stitching**:
+   - Long scripts are split into natural sentential clauses at punctuation boundaries.
+   - Sub-clips are stitched using zero-crossing alignment to eliminate phase discontinuities, boundary pops, and click artifacts.
+2. **MPS Memory Stability & Garbage Collection**:
+   - Following every synthesis call, the engine explicitly invokes `torch.mps.empty_cache()` and `gc.collect()`. This prevents unified memory bloat and Metal buffer retention during continuous multi-edition generation.
+3. **Phonetic Lexicon & Broadcast Normalization** ([`data/lexicon.json`](file:///Users/vattitude/Coding/Morning_Brief/data/lexicon.json)):
+   - Automated text normalization ensures tech acronyms, financial figures (e.g., "$12.4B" -> "twelve point four billion dollars"), and company names (e.g., "Nvidia" -> "en-VID-ee-uh") are spoken with native broadcast cadence.
+4. **Broadcast Profanity Filter**:
+   - Zero-tolerance sanitization layer guarding prompt generation, LLM dialogue outputs, and TTS synthesis inputs against profanity or objectionable phrases.
+
 ---
 
 ## 4. Client Assembly & Dual Listening Modes
@@ -224,8 +238,8 @@ Audio clips are synthesized once globally for all listeners. The web PWA ([`web/
 3. **Listening Modes**:
    - **Podcast (Default)**: Dynamic co-host dialogue (Matthew & Kelly) bookending each section, adapting dynamically to the listener's topic selection.
    - **Full Briefing**: Traditional radio-style listening with individual story narration, spoken section introductions (`intro_{section}`), and sign-off.
-4. **Category Ordering**: Sequences stories according to user's custom `section_order` (default: `top`, `ai`, `tech`, `politics`, `entertainment`, `science`, `sports`).
-5. **Story Counts**: Selects the top $N$ stories configured for each category.
+4. **Category Ordering**: Sequences stories according to user's custom `section_order` (default: `top`, `markets`, `ai`, `tech`, `politics`, `entertainment`, `science`, `sports`).
+5. **Story Counts**: Selects the top $N$ stories configured for each category (default: 5 for Top Stories, 3 for Markets and other categories).
 6. **Breaths**: Inserts a 0.8-second silent pause (`BREATH = 0.8`) between consecutive clips for natural broadcast pacing.
 
 ### Podcast Mode Architecture
@@ -237,6 +251,12 @@ Two co-hosts (**Matthew & Kelly**) converse around the news. Banter is generated
   - `pod_bridge_<section>`: Transition lead-ins into the section.
   - `pod_close_1..2`: Warm, conversational sign-offs.
   - Stored in `podcast_clips` with a `podcast_ready` marker.
+- **Dynamic Multi-Angle Scriptwriting Engine**:
+  - **Angle Differentiation**: When co-hosts discuss a topic, Host 1 covers headline facts and company context, while Host 2 explores broader market/consumer/economic impacts, avoiding circular redundancy.
+  - **Turn Length Discipline**: Strict maximum of 20 words per spoken turn, preventing long-winded monologues.
+  - **Anti-Repetition & De-Duplication**: Prevents consecutive stories from repeating the same topic angle or using repetitive transition phrases (*"Staying with Nvidia for a moment"*).
+  - **Format Rotation**: Dynamically alternates banter structures across days to keep morning briefings fresh and unpredictable.
+  - **Cascading Inference Engine**: LLM pipeline cascades through Antigravity CLI -> Groq -> Gemini, providing resilient dialogue generation even during external API rate-limits.
 - **Time-Neutral 24-Hour Listening**:
   - Banter prompts and writer templates are strictly time-neutral. Phrasing such as *"Good morning"*, *"morning coffee"*, *"morning brief"*, or *"see you tomorrow morning"* is prohibited.
   - Listeners opening the app in the afternoon, evening, or across varying timezones hear natural, time-agnostic announcements (*"Welcome to Hark Daily"*, *"Here is your briefing"*, *"That's today's briefing. Have a great day, and stay informed."*).
@@ -251,22 +271,54 @@ Two co-hosts (**Matthew & Kelly**) converse around the news. Banter is generated
 
 ---
 
-## 5. Story Sharing & Deep-Linking Resolution
+## 5. Story Sharing, Deep-Linking & Expired Link Recovery
 
 ### Per-Story URL Routing
 Every story card features a native Web Share / copy link trigger generating canonical deep links:
-`https://hark.vattitude.ca/?story={section}-{rank}&date={YYYY-MM-DD}`
+`https://hark.vattitude.ca/s/{date}/{slug}` or `https://hark.vattitude.ca/?story={section}-{rank}&date={YYYY-MM-DD}`
 
 ### Deep-Link Ingestion & Playback Guarantees
 When a user opens a shared link:
-1. **Target Story Extraction**: `web/js/app.js` parses the URL params (`targetStory`, `date`).
+1. **Target Story Extraction**: `web/js/app.js` parses the URL params or serverless pre-rendered state (`window.__SHARED_STORY__`).
 2. **Lineup Resilience**: If the targeted story rank exceeds the viewer's active section count (e.g. `top-4` when default is 3), the briefing assembler temporarily raises the wanted count for that section so the clip is guaranteed to be in the playlist.
 3. **Edition Fallback**: If the shared link references an edition-specific story (e.g. `top_us-1`), the client loads and positions the player on that specific story without breaking the current user's session.
 4. **Playback Positioning**: Automatically seeks and scrolls directly to the shared story card.
 
+### Expired Link & 404 Error Handling
+Because Hark Daily operates on a rolling multi-day audio storage model, older shared links eventually expire:
+1. **In-App Expired Story Modal** (`#sharedStoryNotFoundModal`):
+   - When an expired or invalid link is opened, `app.js` triggers a focused error dialog.
+   - Highlights the original broadcast date with calendar metadata.
+   - Explains the rolling archive window and offers instant 1-tap playback of today's briefing or opening the full story browser.
+2. **Standalone 404 Page** ([`web/404.html`](file:///Users/vattitude/Coding/Morning_Brief/web/404.html)):
+   - Unrecognized routes or missing static assets serve a dedicated glassmorphic 404 page with an active rolling archive badge and a CTA button leading directly back to the briefing.
+   - Included in Service Worker shell precache (`hark-daily-v95`).
+3. **Serverless OpenGraph Fallback** ([`web/api/share.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/share.js)):
+   - Social crawlers (WhatsApp, iMessage, Twitter/X, Discord) requesting missing or expired clips receive clean `Story Expired (${date}) — Hark Daily` metadata instead of broken preview cards.
+
 ---
 
-## 6. Privacy-Respecting Analytics (Google Analytics 4)
+## 6. Hamburger Navigation, Feedback & Support
+
+### Streamlined Drawer UI
+The slide-out navigation menu has been reorganized for rapid one-handed mobile ergonomics:
+- **Header Account Button**: Dedicated profile and sign-in button located in the drawer top bar (`drawerAccountBtn`).
+- **Combined Speed & Restart Row**: Compact split container (`.clean-menu-row-split`) placing playback speed adjustment (1x, 1.25x, 1.5x) and "Restart from start" side-by-side.
+- **Two-Way Morning Alerts Toggle**: Push notification switch honoring local preference (`hark_morning_alerts_disabled`) to mute daily alerts on demand.
+
+### Support & Anti-Spam Feedback
+- **"Buy a coffee" Card**: Direct external link to `https://buymeacoffee.com/vattitude` for voluntary listener support.
+- **In-App Feedback Modal (`#feedbackModal`)**:
+  - Submits listener bug reports, ideas, and general comments directly to a secure Discord webhook.
+  - Multi-tier anti-spam protection:
+    - **Honeypot Trap**: Invisible `website` field that halts submission if populated by automated scrapers.
+    - **Dynamic Math Challenge**: Random single-digit arithmetic question generated on modal open.
+    - **Rate-Limiting**: Enforces a 60-second cooldown between successive submissions via `localStorage`.
+    - **Mention Sanitization**: Injects zero-width spaces (`@\u200beveryone`, `@\u200bhere`) to neutralize Discord notification abuse.
+
+---
+
+## 7. Privacy-Respecting Analytics (Google Analytics 4)
 
 - **Measurement ID**: `G-8LV7D5TDT2`.
 - **Consent Banner**: Lightweight, non-intrusive cookie consent banner presented on first visit.
@@ -281,14 +333,14 @@ When a user opens a shared link:
 
 ---
 
-## 5. Storage & Database Schema
+## 8. Storage & Database Schema
 
 Synthesized audio files are stored in Supabase Storage (`briefings` bucket) and tracked in PostgreSQL:
 
 - **`story_audio`**: Individual story clips.
-  - Columns: `date`, `section`, `rank`, `title`, `script`, `url`, `source`, `image`, `audio_path`, `duration`, `voice`.
+  - Columns: `date`, `section`, `rank`, `title`, `script`, `url`, `source`, `image`, `audio_path`, `duration`, `voice`, `marks`.
 - **`podcast_clips`**: Conversational banter pieces.
-  - Columns: `date`, `hosts`, `clip_key`, `text`, `duration`, `audio_path`, `writer`.
+  - Columns: `date`, `hosts`, `clip_key`, `text`, `duration`, `audio_path`, `writer`, `marks`.
 - **`voice_notes`**: Spoken framing audio clips and status markers.
   - Columns: `date`, `voice`, `note_key`, `text`, `duration`, `audio_path`.
   - Permanent static rows: `date = "2000-01-01"`, `audio_path = "notes/static/{key}-{voice}.mp3"`.
@@ -298,7 +350,7 @@ Synthesized audio files are stored in Supabase Storage (`briefings` bucket) and 
 
 ---
 
-## 6. Environment Configuration
+## 9. Environment Configuration
 
 | Variable | Example Value | Description |
 | :--- | :--- | :--- |
@@ -315,20 +367,24 @@ Synthesized audio files are stored in Supabase Storage (`briefings` bucket) and 
 
 ---
 
-## 7. Operations & Automation CLI
+## 10. Operations & Automation CLI
 
 ### macOS Automated Batch Runners
 * **Morning Edition (06:00 AM)**:
   ```bash
   ./scripts/morning_pack_mac.sh
   ```
-* **Evening Edition (18:00 PM)**:
+* **Evening Edition (18:00 PM)** (Paused):
   ```bash
   ./scripts/evening_pack_mac.sh
   ```
 * **Podcast Banter Regeneration**:
   ```bash
   ./scripts/podcast_pack_mac.sh --force
+  ```
+* **Surgical Single Story / Category Regeneration**:
+  ```bash
+  python scripts/regen_story.py --date 2026-11-10 --section markets --rank 1
   ```
 * **Hardware Wake Schedule Status**:
   ```bash
@@ -337,11 +393,16 @@ Synthesized audio files are stored in Supabase Storage (`briefings` bucket) and 
 
 ---
 
-## 8. Testing
+## 11. Testing
 
-### Python Backend Unit Tests
+### JavaScript & Web App Unit Tests (Node test runner)
 ```bash
-pytest -q
+npm test
+```
+
+### Python Backend Unit Tests (Pytest)
+```bash
+.venv/bin/pytest tests/test_podcast.py -q
 ```
 
 ### Android Unit Tests

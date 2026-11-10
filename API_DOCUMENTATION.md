@@ -311,9 +311,9 @@ Hark Daily publishes atomic briefing packs to Supabase. Web and mobile clients i
   * `date` (`text`): Briefing date in ISO format (`YYYY-MM-DD`).
   * `section` (`text`): Category and regional edition identifier:
     * **Universal (All Editions)**: `ai`, `tech`, `science`.
-    * **Canada (`ca`)**: `top`, `politics`, `entertainment`, `sports`.
-    * **United States (`us`)**: `top_us`, `politics_us`, `entertainment_us`, `sports_us`.
-    * **India (`in`)**: `top_in`, `politics_in`, `entertainment_in`, `sports_in`.
+    * **Canada (`ca`)**: `top`, `markets`, `politics`, `entertainment`, `sports`.
+    * **United States (`us`)**: `top_us`, `markets_us`, `politics_us`, `entertainment_us`, `sports_us`.
+    * **India (`in`)**: `top_in`, `markets_in`, `politics_in`, `entertainment_in`, `sports_in`.
   * `rank` (`integer`): Story ranking within the section (`1` to `5`).
   * `voice` (`text`): Reference voice ID (`c3po_reference`, `matthew_reference`, `kelly_reference`, or custom neural persona).
   * `title` (`text`): Clean news headline.
@@ -323,6 +323,7 @@ Hark Daily publishes atomic briefing packs to Supabase. Web and mobile clients i
   * `script` (`text`): Spoken text voiced by the neural model.
   * `duration` (`real`): Clip audio duration in seconds.
   * `audio_path` (`text`): Content-hashed storage path (`stories/{day}/{section}-{rank}-{voice}-{hash}.mp3`).
+  * `marks` (`jsonb`, optional): Word-level timestamp alignments for real-time teleprompter highlighting.
 
 ### 4.3. Podcast Banter Table (`podcast_clips`)
 * **Endpoint**: `GET /rest/v1/podcast_clips?date=eq.{YYYY-MM-DD}&hosts=eq.{HOSTS}&select=*`
@@ -334,6 +335,39 @@ Hark Daily publishes atomic briefing packs to Supabase. Web and mobile clients i
   * `duration` (`real`): Clip audio duration in seconds.
   * `audio_path` (`text`): Storage path (`podcast/{date}/{clip_key}-{hosts}.mp3`).
   * `writer` (`text`): AI model attribution (`gemini-2.5-flash`, `openai/gpt-oss-120b`, or `built-in`).
+  * `marks` (`jsonb`, optional): Word-level timestamp alignments for co-host dialogue display.
+
+### 4.4. Serverless Social Share & OpenGraph Endpoint (`/api/share`)
+* **Endpoint**: `GET /s/:date/:slug` (rewritten to `/api/share.js`)
+* **Access**: Public
+* **Description**: Pre-renders OpenGraph and Twitter Card metadata for social platforms (WhatsApp, iMessage, X, Discord).
+* **Behavior**:
+  * **Active Story**: Looks up story in Supabase `story_audio`, injecting article headline, hero image, audio player metadata, and canonical URL.
+  * **Expired or Missing Story**: Detects missing story or expired dates past rolling archive retention, injecting graceful `Story Expired (${date}) — Hark Daily` cards with archive context.
+  * Sets `window.__SHARED_STORY__ = { story, date, notFound: true, expired: true }` so client SPA boots directly into the in-app error modal.
+
+### 4.5. In-App Feedback Endpoint (Discord Webhook Integration)
+* **Access**: Client-side form submission from `#feedbackModal`.
+* **Payload Structure**:
+  ```json
+  {
+    "username": "Hark Daily Feedback",
+    "avatar_url": "https://hark.vattitude.ca/icons/icon-192.png",
+    "embeds": [
+      {
+        "title": "Feedback Submission",
+        "color": 16103698,
+        "fields": [
+          { "name": "Email", "value": "user@example.com", "inline": true },
+          { "name": "Category", "value": "Feature Request", "inline": true },
+          { "name": "Message", "value": "Sanitized listener feedback..." }
+        ],
+        "footer": { "text": "Hark Daily Web v1.0.22" }
+      }
+    ]
+  }
+  ```
+* **Bot Protections**: Hidden honeypot, math challenge, client rate limiting, and `@everyone` / `@here` mention neutralization.
 
 ---
 

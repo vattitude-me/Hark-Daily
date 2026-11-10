@@ -205,6 +205,22 @@ real beat. The text layer splits the script into spans and pauses, voices each
 span, and joins them with exact silence — the same "voice each beat, then stitch"
 approach v1 uses.
 
+### Seamless Zero-Crossing Audio Stitching
+For long compound sentences, the text processor divides input clauses at grammatical boundaries and synthesizes them individually. Sub-clips are stitched using zero-crossing point alignment, preventing phase discontinuities, clipping noise, and click artifacts.
+
+### Memory Stability (MPS Cache Clean & GC)
+On Apple Silicon, Metal Performance Shaders can retain tensor cache buffers across successive inferences. The FastAPI `/synthesize` endpoint automatically invokes:
+```python
+if torch.backends.mps.is_available():
+    torch.mps.empty_cache()
+gc.collect()
+```
+guaranteeing flat memory utilization during long multi-edition batch synthesis.
+
+### Phonetic Lexicon & Profanity Safety
+- **Phonetic Lexicon (`data/lexicon.json`)**: Expands financial and tech terminology (e.g. "Nvidia" -> "en-VID-ee-uh", "$4.2M" -> "four point two million dollars") before phonemization.
+- **Broadcast Profanity Filter**: Zero-tolerance screening blocks profane text from reaching speech generation.
+
 ## Measured performance
 
 On an M3 Pro (36 GB, MPS), Turbo renders at roughly **0.85–1.1× realtime**
