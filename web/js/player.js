@@ -1176,6 +1176,14 @@ export class Player extends EventTarget {
       };
     }
 
+    const cleanReport = document.getElementById('cleanReportBtn');
+    if (cleanReport && (story || b.stories?.[0])) {
+      cleanReport.onclick = (e) => {
+        e.stopPropagation();
+        window.openFeedbackModal?.({ story: story || b.stories[0], category: '🎙️ Audio' });
+      };
+    }
+
     const cleanSourceLink = document.getElementById('cleanSourceLink');
     const cleanSourceLinkName = document.getElementById('cleanSourceLinkName');
     if (cleanSourceLink) {

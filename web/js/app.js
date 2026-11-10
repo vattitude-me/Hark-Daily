@@ -2699,6 +2699,7 @@ const FEEDBACK_WEBHOOK_URL = 'https://discord.com/api/webhooks/15695292599097099
 let feedbackOpenedAt = 0;
 let feedbackCaptchaExpected = 0;
 let feedbackCategory = '💡 Idea';
+let feedbackStoryContext = null;
 
 function generateFeedbackCaptcha() {
   const n1 = Math.floor(Math.random() * 8) + 2; // 2..9
@@ -2712,19 +2713,48 @@ function generateFeedbackCaptcha() {
   if (ansEl) ansEl.value = '';
 }
 
-function openFeedbackModal() {
+function openFeedbackModal(context = null) {
   const modal = $('feedbackModal');
   if (!modal) return;
   feedbackOpenedAt = Date.now();
   generateFeedbackCaptcha();
 
-  // Reset category
-  feedbackCategory = '💡 Idea';
+  feedbackStoryContext = context?.story || null;
+  const targetCat = context?.category || (feedbackStoryContext ? '🎙️ Audio' : '💡 Idea');
+  feedbackCategory = targetCat;
+
   document.querySelectorAll('#feedbackCategories .feedback-cat-pill').forEach((pill) => {
-    const isIdea = pill.dataset.cat === '💡 Idea';
-    pill.classList.toggle('active', isIdea);
-    pill.setAttribute('aria-pressed', String(isIdea));
+    const isTarget = pill.dataset.cat === targetCat;
+    pill.classList.toggle('active', isTarget);
+    pill.setAttribute('aria-pressed', String(isTarget));
   });
+
+  const subEl = $('feedbackSub');
+  const contextEl = $('feedbackStoryContext');
+  const contextHeadline = $('feedbackStoryContextHeadline');
+  const contextId = $('feedbackStoryContextId');
+  const contextMeta = $('feedbackStoryContextMeta');
+
+  if (feedbackStoryContext && contextEl) {
+    contextEl.classList.remove('hidden');
+    if (contextHeadline) {
+      contextHeadline.textContent = feedbackStoryContext.headline || feedbackStoryContext.title || 'Selected Article';
+    }
+    if (contextId) {
+      contextId.textContent = feedbackStoryContext.id ? `ID: ${feedbackStoryContext.id}` : '';
+    }
+    if (contextMeta) {
+      const curPos = typeof player?.position === 'number' ? fmtTime(player.position) : '0:00';
+      const totDur = typeof player?.duration === 'number' ? fmtTime(player.duration) : '--:--';
+      const secName = feedbackStoryContext.section || 'General';
+      const srcName = feedbackStoryContext.source_name || feedbackStoryContext.source || '';
+      contextMeta.textContent = `${secName}${srcName ? ' · ' + srcName : ''} · Time: ${curPos} / ${totDur}`;
+    }
+    if (subEl) subEl.textContent = 'Report an issue with this article or its voice audio.';
+  } else {
+    contextEl?.classList.add('hidden');
+    if (subEl) subEl.textContent = 'Help us make Hark Daily better for you.';
+  }
 
   // Prefill email if signed in
   const emailInput = $('feedbackEmail');
@@ -2734,7 +2764,12 @@ function openFeedbackModal() {
 
   // Clear message and counters
   const msgInput = $('feedbackMessage');
-  if (msgInput) msgInput.value = '';
+  if (msgInput) {
+    msgInput.value = '';
+    msgInput.placeholder = feedbackStoryContext
+      ? "Describe the issue (e.g. audio glitch, wrong narrator voice, mispronunciation, headline error)..."
+      : "What’s on your mind? Ideas, bug reports, audio suggestions...";
+  }
   const counter = $('feedbackCharCount');
   if (counter) counter.textContent = '0/1000';
 
@@ -2757,6 +2792,7 @@ function openFeedbackModal() {
   modal.classList.remove('hidden');
   msgInput?.focus();
 }
+window.openFeedbackModal = openFeedbackModal;
 
 function closeFeedbackModal() {
   $('feedbackModal')?.classList.add('hidden');
@@ -2832,22 +2868,48 @@ async function handleFeedbackSubmit(e) {
   const editionName = EDITIONS[state.edition]?.name || state.edition || 'Canada';
   const appVer = window.__APP_VERSION__ || 'Hark Daily v1.0.22';
 
+  const embedFields = [
+    { name: 'Category', value: feedbackCategory, inline: true },
+    { name: 'Edition', value: editionName, inline: true }
+  ];
+
+  if (feedbackStoryContext) {
+    embedFields.push(
+      { name: 'Story ID', value: String(feedbackStoryContext.id || 'N/A'), inline: true },
+      { name: 'Article Headline', value: String(feedbackStoryContext.headline || feedbackStoryContext.title || 'Untitled').slice(0, 250), inline: false }
+    );
+    const srcName = feedbackStoryContext.source_name || feedbackStoryContext.source;
+    if (srcName) {
+      embedFields.push({ name: 'Source', value: String(srcName), inline: true });
+    }
+    if (typeof player?.position === 'number') {
+      embedFields.push({
+        name: 'Audio Timestamp',
+        value: `${fmtTime(player.position)} / ${fmtTime(player.duration || 0)}`,
+        inline: true
+      });
+    }
+    if (feedbackStoryContext.section) {
+      embedFields.push({ name: 'Section', value: String(feedbackStoryContext.section), inline: true });
+    }
+  }
+
+  embedFields.push(
+    { name: 'Client', value: appVer, inline: true },
+    { name: 'User Profile', value: state.profile?.email || 'Guest', inline: true },
+    { name: 'Verification', value: 'Human Math Challenge Passed', inline: true }
+  );
+
   const payload = {
     username: 'Hark Feedback Bot',
     avatar_url: 'https://harkdaily.com/icons/logo-transparent.png',
     embeds: [
       {
-        title: `${feedbackCategory} from ${email}`,
+        title: `${feedbackCategory} from ${email}${feedbackStoryContext ? ' (Article Report)' : ''}`,
         description: safeMessage,
-        color: 0xF59E0B,
-        fields: [
-          { name: 'Category', value: feedbackCategory, inline: true },
-          { name: 'Edition', value: editionName, inline: true },
-          { name: 'Client', value: appVer, inline: true },
-          { name: 'User Profile', value: state.profile?.email || 'Guest', inline: true },
-          { name: 'Verification', value: 'Human Math Challenge Passed', inline: true }
-        ],
-        footer: { text: 'Hark Anti-Spam Shield' },
+        color: feedbackStoryContext ? 0xEF4444 : 0xF59E0B,
+        fields: embedFields,
+        footer: { text: feedbackStoryContext ? `Story ID: ${feedbackStoryContext.id || 'N/A'} · Hark Shield` : 'Hark Anti-Spam Shield' },
         timestamp: new Date().toISOString()
       }
     ]
@@ -3019,6 +3081,32 @@ function bindEvents() {
   $('cleanSpeedBtn')?.addEventListener('click', cyclePlaybackSpeed);
   window.addEventListener('playbackspeedchange', updateCleanSpeedDisplay);
   updateCleanSpeedDisplay();
+
+  // Floating report story / audio issue button on news player card
+  $('cleanReportBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const curStory = player?.currentStory?.() || state.briefing?.stories?.[0];
+    openFeedbackModal({ story: curStory, category: '🎙️ Audio' });
+  });
+
+  // Drawer version reload / check for updates button
+  $('cleanDrawerVersionBtn')?.addEventListener('click', async () => {
+    toast('Checking for updates & reloading…');
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) {
+          await reg.update();
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+        }
+      } catch {}
+    }
+    setTimeout(() => {
+      window.location.reload();
+    }, 350);
+  });
 
   // Settings & Actions rows
   $('menuTopicsBtn')?.addEventListener('click', () => {
@@ -3965,11 +4053,42 @@ function initPullToRefresh() {
       if (textEl) textEl.textContent = 'Checking for updates…';
 
       try {
-        await refreshBriefing();
+        let updateAvailable = false;
+
+        // Check for Service Worker update in parallel with story refresh
+        const swCheckPromise = (async () => {
+          if ('serviceWorker' in navigator) {
+            try {
+              const reg = await navigator.serviceWorker.getRegistration();
+              if (reg) {
+                await reg.update();
+                if (reg.waiting || reg.installing) {
+                  updateAvailable = true;
+                  reg.waiting?.postMessage?.({ type: 'SKIP_WAITING' });
+                }
+              }
+            } catch {}
+          }
+        })();
+
+        await Promise.allSettled([refreshBriefing(), swCheckPromise]);
         try { navigator.vibrate?.(15); } catch {}
         if (spinnerEl) spinnerEl.classList.add('hidden');
         if (checkEl) checkEl.classList.remove('hidden');
-        if (textEl) textEl.textContent = 'Up to date';
+
+        if (updateAvailable) {
+          if (textEl) textEl.textContent = 'Updated app!';
+          if (!window.player?.isPlaying) {
+            setTimeout(() => {
+              window.location.reload();
+            }, 350);
+            return;
+          } else {
+            toast('New app design ready · Refreshing after playback');
+          }
+        } else {
+          if (textEl) textEl.textContent = 'Up to date';
+        }
       } catch (err) {
         console.warn('Pull refresh error:', err);
         if (textEl) textEl.textContent = 'Refresh failed';
@@ -3988,6 +4107,45 @@ function initPullToRefresh() {
   shell.addEventListener('touchcancel', handleEnd, { passive: true });
 }
 
+async function checkAppUpdate(silent = true) {
+  if (!('serviceWorker' in navigator)) return false;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) return false;
+    await reg.update();
+    if (reg.waiting || reg.installing) {
+      reg.waiting?.postMessage?.({ type: 'SKIP_WAITING' });
+      if (!silent && !window.player?.isPlaying) {
+        window.location.reload();
+      }
+      return true;
+    }
+  } catch (err) {
+    console.warn('[SW] checkAppUpdate failed:', err);
+  }
+  return false;
+}
+
+function initAppLifecycle() {
+  // 1. Capacitor native app resume
+  if (window.Capacitor?.Plugins?.App) {
+    try {
+      window.Capacitor.Plugins.App.addListener('appStateChange', (appState) => {
+        if (appState?.isActive) {
+          checkAppUpdate(true);
+        }
+      });
+    } catch {}
+  }
+
+  // 2. Web visibilitychange (PWA & browser)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      checkAppUpdate(true);
+    }
+  });
+}
+
 async function init() {
   window.addEventListener('error', (e) => { recordError(e.error || e.message, 'window.onerror'); });
   window.addEventListener('unhandledrejection', (e) => { recordError(e.reason, 'window.unhandledrejection'); });
@@ -3999,6 +4157,7 @@ async function init() {
   }
   setTextSize(localStorage.getItem('mb-text-size') || 'md');
   bindEvents();
+  initAppLifecycle();
   syncInstallBtn();
   syncAdminTab();
   syncEditionPicker();
