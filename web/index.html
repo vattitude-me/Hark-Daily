@@ -452,7 +452,10 @@
               <span class="clean-brand-name">hark</span><span class="clean-brand-sub">DAILY</span>
             </div>
           </div>
-          <div style="width:44px"></div>
+          <button class="clean-drawer-account-btn" id="drawerAccountBtn" type="button" aria-label="Account">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M5 20a7 7 0 0114 0"/></svg>
+            <span id="drawerAccountLabel">Account</span>
+          </button>
         </div>
 
         <div class="clean-drawer-scroll">
@@ -511,19 +514,24 @@
               <svg class="clean-menu-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
             </button>
 
-            <button class="clean-menu-item" type="button" id="menuSpeedBtn">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.6 17.6a9 9 0 1112.8 0"/><path d="M12 13l3.5-3.5"/><circle cx="12" cy="13" r="1.5"/></svg>
-              <span class="clean-menu-label">Playback speed</span>
-              <span class="clean-menu-val" id="menuSpeedVal">1×</span>
-              <svg class="clean-menu-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
-            </button>
-
-            <button class="clean-menu-item" type="button" id="menuRestartBtn">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-              <span class="clean-menu-label">Restart briefing</span>
-              <span class="clean-menu-val">From start</span>
-              <svg class="clean-menu-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
-            </button>
+            <!-- Combined Playback Speed & Restart Row -->
+            <div class="clean-menu-row-split">
+              <button class="clean-menu-split-btn" type="button" id="menuSpeedBtn" aria-label="Playback speed">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.6 17.6a9 9 0 1112.8 0"/><path d="M12 13l3.5-3.5"/><circle cx="12" cy="13" r="1.5"/></svg>
+                <div class="clean-menu-split-text">
+                  <span class="clean-menu-label">Speed</span>
+                  <span class="clean-menu-val" id="menuSpeedVal">1×</span>
+                </div>
+              </button>
+              <div class="clean-menu-split-divider" aria-hidden="true"></div>
+              <button class="clean-menu-split-btn" type="button" id="menuRestartBtn" aria-label="Restart briefing from start">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                <div class="clean-menu-split-text">
+                  <span class="clean-menu-label">Restart</span>
+                  <span class="clean-menu-sub">From start</span>
+                </div>
+              </button>
+            </div>
 
             <button class="clean-menu-item" type="button" id="menuPushBtn" role="switch" aria-checked="false">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
@@ -531,22 +539,16 @@
               <span class="clean-menu-switch" id="menuPushSwitch" aria-hidden="true"><span class="clean-menu-switch-knob"></span></span>
             </button>
 
-            <button class="clean-menu-item" type="button" id="menuInstallBtn">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+            <!-- Hidden elements preserved for backwards-compatibility -->
+            <button class="clean-menu-item" type="button" id="menuInstallBtn" style="display:none!important;">
               <span class="clean-menu-label" id="menuInstallLabel">Install App</span>
               <span class="clean-menu-val" id="menuInstallVal">Add to device</span>
-              <svg class="clean-menu-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
             </button>
-
-            <button class="clean-menu-item" type="button" id="menuAccountBtn" aria-expanded="false">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M5 20a7 7 0 0114 0"/></svg>
+            <button class="clean-menu-item" type="button" id="menuAccountBtn" aria-expanded="false" style="display:none!important;">
               <span class="clean-menu-label">Account</span>
               <span class="clean-menu-val" id="menuAccountVal">Sign in</span>
-              <svg class="clean-menu-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
             </button>
-
-            <!-- Expandable Account Actions Tray when Signed In -->
-            <div class="clean-account-tray hidden" id="menuAccountTray">
+            <div class="clean-account-tray hidden" id="menuAccountTray" style="display:none!important;">
               <div class="clean-account-email" id="menuAccountEmail"></div>
               <div class="clean-account-btns">
                 <button type="button" class="clean-account-sub-btn hidden" id="menuAdminBtn">Admin</button>
@@ -554,6 +556,37 @@
                 <button type="button" class="clean-account-sub-btn danger" id="menuDeleteAccountBtn">Delete account</button>
               </div>
             </div>
+          </div>
+
+          <!-- Section 4: Buy a Coffee & Feedback Action Grid -->
+          <div class="clean-drawer-actions-grid">
+            <a href="https://buymeacoffee.com/vattitude" target="_blank" rel="noopener noreferrer" class="clean-action-card clean-action-coffee" id="drawerCoffeeBtn" aria-label="Buy me a coffee - Support Hark">
+              <div class="clean-action-icon coffee" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
+                  <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
+                  <line x1="6" y1="1" x2="6" y2="4"/>
+                  <line x1="10" y1="1" x2="10" y2="4"/>
+                  <line x1="14" y1="1" x2="14" y2="4"/>
+                </svg>
+              </div>
+              <div class="clean-action-text">
+                <span class="clean-action-title">Buy a coffee</span>
+                <span class="clean-action-sub">Support Hark</span>
+              </div>
+            </a>
+
+            <button type="button" class="clean-action-card clean-action-feedback" id="drawerFeedbackBtn" aria-label="Share feedback or an idea">
+              <div class="clean-action-icon feedback" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+              </div>
+              <div class="clean-action-text">
+                <span class="clean-action-title">Feedback</span>
+                <span class="clean-action-sub">Share an idea</span>
+              </div>
+            </button>
           </div>
 
           <!-- Legal & AI Attribution Note with Links -->
@@ -998,6 +1031,131 @@
       </div>
     </div>
   </aside>
+
+  <!-- Feedback Modal Dialog -->
+  <div class="clean-modal-backdrop hidden" id="feedbackModal" role="dialog" aria-modal="true" aria-labelledby="feedbackTitle">
+    <div class="feedback-card">
+      <div class="feedback-head">
+        <div class="feedback-title-wrap">
+          <div class="feedback-badge-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <div>
+            <h2 id="feedbackTitle" class="feedback-title">Send Feedback</h2>
+            <p class="feedback-sub">Help us make Hark Daily better for you.</p>
+          </div>
+        </div>
+        <button class="clean-glass-circle sm" id="feedbackCloseBtn" type="button" aria-label="Close feedback">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>
+        </button>
+      </div>
+
+      <form class="feedback-form" id="feedbackForm" novalidate>
+        <!-- Honeypot anti-bot field -->
+        <div class="feedback-hp" aria-hidden="true" style="display:none!important; position:absolute; left:-9999px;">
+          <label for="feedbackHpWebsite">Leave this field blank</label>
+          <input type="text" id="feedbackHpWebsite" name="website" tabindex="-1" autocomplete="off">
+        </div>
+
+        <!-- Category Selection -->
+        <div class="feedback-field">
+          <label class="feedback-label">Feedback Type</label>
+          <div class="feedback-categories" id="feedbackCategories" role="radiogroup" aria-label="Feedback type">
+            <button type="button" class="feedback-cat-pill active" data-cat="💡 Idea" aria-pressed="true">💡 Idea</button>
+            <button type="button" class="feedback-cat-pill" data-cat="🐛 Bug" aria-pressed="false">🐛 Bug</button>
+            <button type="button" class="feedback-cat-pill" data-cat="🎙️ Audio" aria-pressed="false">🎙️ Audio</button>
+            <button type="button" class="feedback-cat-pill" data-cat="✨ Other" aria-pressed="false">✨ Other</button>
+          </div>
+        </div>
+
+        <!-- Message Textarea -->
+        <div class="feedback-field">
+          <div class="feedback-label-row">
+            <label class="feedback-label" for="feedbackMessage">Your Message <span class="feedback-req">*</span></label>
+            <span class="feedback-counter" id="feedbackCharCount">0/1000</span>
+          </div>
+          <textarea id="feedbackMessage" class="feedback-textarea" rows="4" maxlength="1000" placeholder="What’s on your mind? Ideas, bug reports, audio suggestions..." required></textarea>
+        </div>
+
+        <!-- Optional Email -->
+        <div class="feedback-field">
+          <label class="feedback-label" for="feedbackEmail">Your Email <span class="feedback-opt">(optional, for replies)</span></label>
+          <input type="email" id="feedbackEmail" class="feedback-input" placeholder="you@example.com" autocomplete="email">
+        </div>
+
+        <!-- Anti-Bot Human Math Challenge -->
+        <div class="feedback-field feedback-captcha-row">
+          <label class="feedback-label" for="feedbackCaptchaAnswer">
+            Security check: <span id="feedbackCaptchaPrompt" class="feedback-captcha-math"></span> <span class="feedback-req">*</span>
+          </label>
+          <input type="number" id="feedbackCaptchaAnswer" class="feedback-input sm" placeholder="Answer" required autocomplete="off">
+        </div>
+
+        <!-- Status / Error message -->
+        <div class="feedback-status hidden" id="feedbackStatus" role="alert"></div>
+
+        <!-- Action Buttons -->
+        <div class="feedback-actions">
+          <button type="button" class="btn btn-ghost" id="feedbackCancelBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="feedbackSubmitBtn">
+            <span id="feedbackSubmitText">Send Feedback</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Account Modal Dialog -->
+  <div class="clean-modal-backdrop hidden" id="accountModal" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
+    <div class="account-card">
+      <div class="account-head">
+        <div class="account-head-info">
+          <div class="account-avatar" id="accountModalAvatar" aria-hidden="true">👤</div>
+          <div>
+            <h2 id="accountModalTitle" class="account-title">Account</h2>
+            <div class="account-email" id="accountModalEmail">Signed in</div>
+          </div>
+        </div>
+        <button class="clean-glass-circle sm" id="accountModalCloseBtn" type="button" aria-label="Close account modal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>
+        </button>
+      </div>
+
+      <div class="account-body">
+        <div class="account-sync-banner">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+          <span>Preferences, speed, and sources synced across devices</span>
+        </div>
+
+        <div class="account-actions-list">
+          <button type="button" class="account-action-item hidden" id="accountModalAdminBtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3 7h7l-5.5 4.5 2 7-6.5-4.5-6.5 4.5 2-7L2 9h7z"/></svg>
+            <div class="account-action-label">
+              <span class="account-action-primary">Admin Portal</span>
+              <span class="account-action-sub">View analytics and pipelines</span>
+            </div>
+            <svg class="clean-menu-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+
+          <button type="button" class="account-action-item" id="accountModalSignOutBtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+            <div class="account-action-label">
+              <span class="account-action-primary">Sign Out</span>
+              <span class="account-action-sub">Sign out of Hark on this device</span>
+            </div>
+          </button>
+
+          <button type="button" class="account-action-item danger" id="accountModalDeleteBtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            <div class="account-action-label">
+              <span class="account-action-primary">Delete Account</span>
+              <span class="account-action-sub">Permanently delete your profile and preferences</span>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
