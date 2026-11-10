@@ -84,7 +84,7 @@
   <meta name="theme-color" content="#17120E">
   <link rel="preload" href="/fonts/plus-jakarta-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/css/styles.css?v=59">
+  <link rel="stylesheet" href="/css/styles.css?v=60">
   <script>
     try {
       const t = localStorage.getItem('mb-theme');
@@ -1157,9 +1157,45 @@
     </div>
   </div>
 
+  <!-- Shared Story Not Found / Expired Link Modal Dialog -->
+  <div class="clean-modal-backdrop hidden" id="sharedStoryNotFoundModal" role="dialog" aria-modal="true" aria-labelledby="sharedErrorTitle">
+    <div class="shared-error-card">
+      <div class="shared-error-head">
+        <button class="clean-glass-circle sm shared-error-close" id="sharedErrorCloseBtn" type="button" aria-label="Close error message">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>
+        </button>
+        <div class="shared-error-badge" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </div>
+        <h2 id="sharedErrorTitle" class="shared-error-title">Story Link Expired</h2>
+        <div class="shared-error-meta hidden" id="sharedErrorMeta">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span id="sharedErrorDateText"></span>
+        </div>
+      </div>
+
+      <p class="shared-error-desc" id="sharedErrorDesc">
+        This story is no longer available. Hark Daily stores audio briefings for a rolling window of recent days.
+      </p>
+
+      <div class="shared-error-actions">
+        <button type="button" class="btn btn-primary" id="sharedErrorListenTodayBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span>Listen to Today's Briefing</span>
+        </button>
+        <button type="button" class="btn btn-ghost" id="sharedErrorBrowseBtn">
+          <span>Browse Today's Stories</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/vendor/supabase.min.js"></script>
-  <script type="module" src="/js/app.js?v=85"></script>
+  <script type="module" src="/js/app.js?v=86"></script>
 </body>
 </html>
