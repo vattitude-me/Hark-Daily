@@ -2078,10 +2078,113 @@ const EDITION_SHORT_LABELS = {
 };
 
 function isPushEnabled() {
-  if (window.HarkNative) {
+  if (typeof localStorage !== 'undefined' && localStorage.getItem('hark_morning_alerts_disabled') === 'true') {
+    return false;
+  }
+  if (typeof window !== 'undefined' && window.HarkNative) {
     return Boolean(window.HarkNative.hasNotificationPermission?.());
   }
   return typeof Notification !== 'undefined' && Notification.permission === 'granted';
+}
+
+async function toggleMorningAlerts() {
+  const currentlyOn = isPushEnabled();
+  const turnOn = !currentlyOn;
+
+  if (!turnOn) {
+    // User is toggling OFF Morning alerts
+    try {
+      localStorage.setItem('hark_morning_alerts_disabled', 'true');
+    } catch {}
+    try {
+      if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager?.getSubscription?.();
+        if (sub) {
+          await api.pushUnsubscribe(sub.toJSON()).catch(() => {});
+          await sub.unsubscribe().catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.warn('[Push] Unsubscribe error:', err);
+    }
+    const pushBtn = $('menuPushBtn');
+    if (pushBtn) pushBtn.setAttribute('aria-checked', 'false');
+    toast('Morning alerts turned off 🔕');
+    updateMenuDrawer();
+    return;
+  }
+
+  // User is toggling ON Morning alerts
+  try {
+    localStorage.removeItem('hark_morning_alerts_disabled');
+  } catch {}
+
+  if (typeof window !== 'undefined' && window.HarkNative) {
+    if (!window.HarkNative.hasNotificationPermission?.()) {
+      try {
+        window.HarkNative.requestNotificationPermission?.();
+        setTimeout(() => {
+          const granted = Boolean(window.HarkNative.hasNotificationPermission?.());
+          if (granted) {
+            try { localStorage.removeItem('hark_morning_alerts_disabled'); } catch {}
+            $('menuPushBtn')?.setAttribute('aria-checked', 'true');
+            toast('Morning alerts enabled! Daily briefings will alert your phone.');
+            try { window.HarkNative.postNotification?.('Hark Daily', 'Daily briefing alerts are now enabled.'); } catch (_) {}
+          } else {
+            try { localStorage.setItem('hark_morning_alerts_disabled', 'true'); } catch {}
+            $('menuPushBtn')?.setAttribute('aria-checked', 'false');
+            toast('Notification permission was not granted.', { error: true });
+          }
+          updateMenuDrawer();
+        }, 1200);
+      } catch (err) {
+        toast(err.message || "Couldn't set up notifications.", { error: true });
+      }
+      return;
+    }
+    $('menuPushBtn')?.setAttribute('aria-checked', 'true');
+    toast('Morning alerts enabled! Daily briefings will alert your phone 🔔');
+    updateMenuDrawer();
+    return;
+  }
+
+  const isDenied = typeof Notification !== 'undefined' && Notification.permission === 'denied';
+  if (isDenied) {
+    try { localStorage.setItem('hark_morning_alerts_disabled', 'true'); } catch {}
+    $('menuPushBtn')?.setAttribute('aria-checked', 'false');
+    toast('Notifications are blocked in your browser settings. Please allow them via the address bar.', { error: true, ms: 5000 });
+    updateMenuDrawer();
+    return;
+  }
+
+  try {
+    const hasGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
+    if (!hasGranted) {
+      const perm = await requestNotificationPermission();
+      if (perm !== 'granted') {
+        try { localStorage.setItem('hark_morning_alerts_disabled', 'true'); } catch {}
+        $('menuPushBtn')?.setAttribute('aria-checked', 'false');
+        toast('Notification permission was not granted.', { error: true });
+        updateMenuDrawer();
+        return;
+      }
+    }
+
+    const status = await api.status().catch(() => ({}));
+    if (status?.vapid_public_key) {
+      await enablePush(status.vapid_public_key);
+    }
+    $('menuPushBtn')?.setAttribute('aria-checked', 'true');
+    toast('Morning alerts enabled! You will be notified before sunrise 🔔');
+    if (!state.profile) {
+      openSignIn('push');
+    }
+  } catch (err) {
+    console.error('[Push] Setup error:', err);
+    toast(err.message || "Couldn't enable notifications.", { error: true });
+  }
+  updateMenuDrawer();
 }
 
 function openMenuDrawer() {
@@ -2441,8 +2544,50 @@ function openAllStoriesSheet() {
   $('allStoriesSheet')?.classList.remove('hidden');
 }
 
-/* ------------------------------------------------------------------ account modal */
+/* ------------------------------------------------------------------ account modal & sign out */
+async function performSignOut() {
+  closeAccountModal();
+  closeMenuDrawer();
+
+  try {
+    if (typeof api !== 'undefined' && api?.signOut) {
+      await api.signOut();
+    } else if (typeof sb !== 'undefined' && sb?.auth?.signOut) {
+      await sb.auth.signOut();
+    }
+  } catch (err) {
+    console.warn('[Auth] Remote signOut call error:', err);
+  }
+
+  // Clear local app profile
+  state.profile = null;
+
+  // Clear residual Supabase tokens in localStorage so session does not re-hydrate
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('sb-') || key.includes('auth-token') || key === 'supabase.auth.token')) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch (storageErr) {
+    console.warn('[Auth] localStorage cleanup error:', storageErr);
+  }
+
+  syncAdminTab();
+  renderHeader();
+  renderGuestBanner();
+  updateMenuDrawer();
+  toast('Signed out cleanly. Continuing in guest mode.');
+}
+
 function openAccountModal() {
+  const hasAccount = Boolean(state.profile?.id || state.profile?.email);
+  if (!hasAccount) {
+    closeAccountModal();
+    openSignIn('menu');
+    return;
+  }
   const modal = $('accountModal');
   if (!modal) return;
   const emailEl = $('accountModalEmail');
@@ -2646,6 +2791,9 @@ window.closeAccountModal = closeAccountModal;
 window.openFeedbackModal = openFeedbackModal;
 window.closeFeedbackModal = closeFeedbackModal;
 window.handleFeedbackSubmit = handleFeedbackSubmit;
+window.performSignOut = performSignOut;
+window.toggleMorningAlerts = toggleMorningAlerts;
+window.isPushEnabled = isPushEnabled;
 
 /* ------------------------------------------------------------------ events */
 function bindEvents() {
@@ -2699,14 +2847,7 @@ function bindEvents() {
     closeMenuDrawer();
     openAuxSheet('admin');
   });
-  $('accountModalSignOutBtn')?.addEventListener('click', () => {
-    closeAccountModal();
-    closeMenuDrawer();
-    if (sb?.auth?.signOut) {
-      sb.auth.signOut();
-    }
-    toast('Signed out cleanly');
-  });
+  $('accountModalSignOutBtn')?.addEventListener('click', performSignOut);
   $('accountModalDeleteBtn')?.addEventListener('click', () => {
     closeAccountModal();
     closeMenuDrawer();
@@ -2776,10 +2917,7 @@ function bindEvents() {
     player.restart();
     toast('Restarted briefing from start ↺');
   });
-  $('menuPushBtn')?.addEventListener('click', async () => {
-    await bannerSetupPush();
-    updateMenuDrawer();
-  });
+  $('menuPushBtn')?.addEventListener('click', toggleMorningAlerts);
   $('menuInstallBtn')?.addEventListener('click', install);
   $('menuAccountBtn')?.addEventListener('click', () => {
     const hasAccount = Boolean(state.profile?.id || state.profile?.email);
@@ -2804,10 +2942,10 @@ function bindEvents() {
     if (deleteAccountSheet) deleteAccountSheet.open(state.profile?.email);
   });
   $('menuAuthBtn')?.addEventListener('click', () => {
-    closeMenuDrawer();
     if (state.profile) {
-      sb.auth.signOut();
+      performSignOut();
     } else {
+      closeMenuDrawer();
       openSignIn('menu');
     }
   });
@@ -3794,6 +3932,7 @@ async function init() {
       syncAdminTab();
       renderHeader();
       renderGuestBanner();
+      updateMenuDrawer();
       toast('Signed out. Continuing in guest mode.');
     } else if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
       closeSignIn();
