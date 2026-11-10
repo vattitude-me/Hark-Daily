@@ -249,6 +249,36 @@ def test_clean_replaces_emdashes_and_endashes():
     assert turns == [(0, "Hello, how are you?")]
 
 
+def test_validate_turns_enforces_and_auto_repairs_host_identity():
+    hosts = ("Matthew", "Kelly")
+    # Swapped names: speaker 'a' (Matthew) says "And I am Kelly", speaker 'b' (Kelly) says "I am Matthew"
+    swapped = [
+        {"speaker": "a", "text": "Record oil profits in Alberta."},
+        {"speaker": "b", "text": "It is Tuesday, and we are unpacking that. I am Matthew."},
+        {"speaker": "a", "text": "And I am Kelly. You are listening to Hark Daily."},
+    ]
+    turns = podcast.validate_turns(swapped, "open", hosts=hosts)
+    assert turns is not None
+    assert turns[1] == (1, "It is Tuesday, and we are unpacking that. I am Kelly.")
+    assert turns[2] == (0, "And I am Matthew. You are listening to Hark Daily.")
+
+    # Legitimate cross-referencing of co-host:
+    valid_cross = [
+        {"speaker": "a", "text": "From Hark Daily, I'm Matthew alongside Kelly."},
+        {"speaker": "b", "text": "Great to be here with you, Matthew."},
+    ]
+    turns_valid = podcast.validate_turns(valid_cross, "open", hosts=hosts)
+    assert turns_valid is not None
+    assert turns_valid[0] == (0, "From Hark Daily, I'm Matthew alongside Kelly.")
+    assert turns_valid[1] == (1, "Great to be here with you, Matthew.")
+
+    # Blatant unrepairable contradiction: speaker 'a' says "This is Kelly"
+    contradiction = [
+        {"speaker": "a", "text": "This is Kelly here on the show."},
+    ]
+    assert podcast.validate_turns(contradiction, "open", hosts=hosts) is None
+
+
 # ------------------------------------------------------------------ story dialogue & PCM stitching
 SAMPLE_STORY = {
     "id": "s-ai-1",
