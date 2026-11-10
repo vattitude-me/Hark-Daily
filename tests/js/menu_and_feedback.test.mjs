@@ -55,3 +55,21 @@ test('Sign out flow and morning alerts toggle bindings exist in app.js', () => {
   assert.ok(appJs.includes("menuPushBtn')?.addEventListener('click', toggleMorningAlerts)"), 'Must bind menu push button to toggleMorningAlerts');
 });
 
+test('Article floating report button and story context banner are configured', () => {
+  const html = readFileSync(resolve('web/index.html'), 'utf8');
+  assert.ok(html.includes('id="cleanReportBtn"'), 'Must contain cleanReportBtn in cover actions');
+  assert.ok(html.includes('id="feedbackStoryContext"'), 'Must contain feedbackStoryContext container in modal');
+  assert.ok(html.includes('id="feedbackStoryContextHeadline"'), 'Must contain feedbackStoryContextHeadline');
+  assert.ok(html.includes('id="feedbackStoryContextId"'), 'Must contain feedbackStoryContextId');
+  assert.ok(html.includes('id="cleanDrawerVersionBtn"'), 'Must contain cleanDrawerVersionBtn for 1-tap reload');
+});
+
+test('App lifecycle update check and smart pull-to-refresh reload logic exist in app.js', () => {
+  const appJs = readFileSync(resolve('web/js/app.js'), 'utf8');
+  assert.ok(appJs.includes('async function checkAppUpdate'), 'Must implement checkAppUpdate');
+  assert.ok(appJs.includes('function initAppLifecycle'), 'Must implement initAppLifecycle');
+  assert.ok(appJs.includes("appStateChange"), 'Must listen for Capacitor native appStateChange');
+  assert.ok(appJs.includes("visibilitychange"), 'Must listen for web visibilitychange');
+  assert.ok(appJs.includes("updateAvailable"), 'Pull to refresh must track service worker update availability');
+});
+

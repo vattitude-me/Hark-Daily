@@ -3621,11 +3621,18 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
 @keyframes eqPulse2 { 0% { height: 12px; y: 1px; } 100% { height: 5px; y: 8px; } }
 @keyframes eqPulse3 { 0% { height: 8px; y: 5px; } 100% { height: 13px; y: 0.5px; } }
 
-/* Small Glass Icon Share Button on Art */
-.clean-cover-share-btn {
+/* Floating Glass Actions on Art (Report & Share) */
+.clean-cover-actions {
   position: absolute;
   top: 12px;
   right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 20;
+}
+.clean-cover-action-btn,
+.clean-cover-share-btn {
   width: 36px;
   height: 36px;
   min-width: 36px;
@@ -3647,17 +3654,18 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
   outline: none;
   transition: transform .15s ease, background .15s ease, border-color .15s ease;
 }
+.clean-cover-action-btn svg,
 .clean-cover-share-btn svg {
   display: block;
-  width: 17px;
-  height: 17px;
   stroke: #FFFFFF;
 }
+.clean-cover-action-btn:hover,
 .clean-cover-share-btn:hover {
   background: rgba(245, 158, 11, 0.3) !important;
   border-color: rgba(245, 158, 11, 0.6) !important;
   transform: scale(1.08);
 }
+.clean-cover-action-btn:active,
 .clean-cover-share-btn:active {
   transform: scale(0.95);
 }
@@ -4490,13 +4498,49 @@ body.playing .clean-play-circle .clean-pause-icon {
 .clean-drawer-legal-dot {
   color: rgba(255, 255, 255, 0.35);
 }
+.clean-drawer-version-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.clean-drawer-version-btn {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  color: #FBBF24;
+  font-size: 11px;
+  font-weight: 600;
+  transition: all .15s ease;
+}
+.clean-drawer-version-btn svg {
+  display: block;
+}
+.clean-drawer-version-btn:hover {
+  background: rgba(245, 158, 11, 0.22);
+  border-color: rgba(245, 158, 11, 0.45);
+  transform: translateY(-1px);
+}
+.clean-drawer-version-btn:active {
+  transform: scale(0.96);
+}
 .clean-drawer-version {
   font-family: var(--font-head);
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.04em;
-  color: rgba(255, 255, 255, 0.45);
-  margin-top: 1px;
+  color: rgba(255, 255, 255, 0.55);
+}
+  display: block;
 }
 
 /* Bottom Footer Bar: Close (default) / Discard & Save changes (when dirty) */
@@ -4789,6 +4833,51 @@ body.playing .clean-play-circle .clean-pause-icon {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+/* Feedback Story Context Banner */
+.feedback-story-context {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.feedback-story-context.hidden {
+  display: none !important;
+}
+.feedback-story-context-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.feedback-story-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #F59E0B;
+  letter-spacing: 0.04em;
+}
+.feedback-story-id {
+  font-size: 11px;
+  font-family: monospace;
+  color: rgba(255, 255, 255, 0.6);
+}
+.feedback-story-headline {
+  font-size: 13px;
+  font-weight: 600;
+  color: #FFFFFF;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.feedback-story-meta {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.65);
 }
 .feedback-field {
   display: flex;
