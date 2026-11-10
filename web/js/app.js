@@ -1363,6 +1363,8 @@ function getTargetStoryInfo() {
     const hashMatch = (s.hash || s.key || s.audio || s.slug || s.story || '').match(/(?:-|^)([0-9a-f]{8})(?:\.mp3)?$/i);
     const hash = hashMatch ? hashMatch[1].toLowerCase() : null;
     return {
+      notFound: Boolean(s.notFound),
+      expired: Boolean(s.expired),
       story: s.story || hash || null,
       title: s.title || null,
       audio: s.audio || null,
@@ -1404,11 +1406,64 @@ function getTargetStoryInfo() {
   };
 }
 
+/* ------------------------------------------------------------------ shared story error handling */
+export function showSharedStoryError(info = {}) {
+  const modal = $('sharedStoryNotFoundModal');
+  if (!modal) return;
+
+  const titleEl = $('sharedErrorTitle');
+  const descEl = $('sharedErrorDesc');
+  const metaEl = $('sharedErrorMeta');
+  const dateTextEl = $('sharedErrorDateText');
+
+  const { todayStr } = getLocalDateInfo();
+  const date = info.date;
+  const isPast = Boolean(date && date < todayStr);
+
+  if (titleEl) {
+    titleEl.textContent = isPast ? 'Story Link Expired' : 'Story Not Found';
+  }
+
+  if (metaEl && dateTextEl) {
+    if (date) {
+      metaEl.classList.remove('hidden');
+      const formatted = formatFreshnessDate(date);
+      dateTextEl.textContent = `${formatted} (${date})`;
+    } else {
+      metaEl.classList.add('hidden');
+    }
+  }
+
+  if (descEl) {
+    if (isPast) {
+      const formatted = formatFreshnessDate(date);
+      descEl.textContent = `This news story is from ${formatted} (${date}). Hark Daily stores audio briefings for a rolling window of recent days, so this audio clip has been archived. Enjoy today's fresh briefing below.`;
+    } else {
+      descEl.textContent = "We couldn't locate this specific story. It may have been updated in a subsequent edition or the shared link is incomplete. Enjoy today's full briefing below.";
+    }
+  }
+
+  modal.classList.remove('hidden');
+}
+
+export function closeSharedStoryError() {
+  $('sharedStoryNotFoundModal')?.classList.add('hidden');
+  clearDeepLink();
+}
+window.showSharedStoryError = showSharedStoryError;
+window.closeSharedStoryError = closeSharedStoryError;
+
 let lastDeepLinkedStory = null;
 export async function handleStoryDeepLink(storyInfo) {
   if (!storyInfo) return;
   const info = typeof storyInfo === 'string' ? { story: storyInfo } : storyInfo;
-  const { story: storyId, title, audio, hash, date: targetDate } = info;
+  const { story: storyId, title, audio, hash, date: targetDate, notFound } = info;
+
+  // If already flagged as notFound or expired on server side, show error immediately
+  if (notFound) {
+    showSharedStoryError(info);
+    return;
+  }
 
   // If a specific target date is requested and differs from currently loaded briefing date,
   // load the target date's pack first so we don't display or match against today's briefing!
@@ -1426,7 +1481,12 @@ export async function handleStoryDeepLink(storyInfo) {
     }
   }
 
-  if (!state.briefing?.stories?.length) return;
+  if (!state.briefing?.stories?.length) {
+    if (storyId || title || hash || targetDate) {
+      showSharedStoryError(info);
+    }
+    return;
+  }
 
   // 1. Match by unique 8-char story key first (region-agnostic reference key /s/:date/:key)
   let story = hash
@@ -1445,11 +1505,13 @@ export async function handleStoryDeepLink(storyInfo) {
   }
 
   if (!story) {
-    if (storyId || title) {
+    if (storyId || title || hash || targetDate) {
       trackEvent('shared_story_not_found', {
         requested_story: storyId || '',
         requested_title: title || '',
+        requested_date: targetDate || '',
       });
+      showSharedStoryError(info);
     }
     return;
   }
@@ -1933,7 +1995,14 @@ function displayBriefing() {
   renderAllStoriesSheet();
   updateMenuDrawer();
   const storyInfo = getTargetStoryInfo();
-  if (storyInfo.story || storyInfo.title || storyInfo.audio || storyInfo.hash) handleStoryDeepLink(storyInfo);
+  if (storyInfo.story || storyInfo.title || storyInfo.audio || storyInfo.hash || storyInfo.notFound || state.targetDateExpired) {
+    if (state.targetDateExpired && !storyInfo.story) {
+      showSharedStoryError({ date: state.targetDateExpired, expired: true });
+      state.targetDateExpired = null;
+    } else {
+      handleStoryDeepLink(storyInfo);
+    }
+  }
   dismissSplash();
 }
 window.displayBriefing = displayBriefing;
@@ -2812,6 +2881,10 @@ function bindEvents() {
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (!$('sharedStoryNotFoundModal')?.classList.contains('hidden')) {
+        closeSharedStoryError();
+        return;
+      }
       if (!$('feedbackModal')?.classList.contains('hidden')) {
         closeFeedbackModal();
         return;
@@ -2824,6 +2897,22 @@ function bindEvents() {
         closeMenuDrawer();
       }
     }
+  });
+
+  // Shared Story Not Found / Expired Modal Handlers
+  $('sharedErrorCloseBtn')?.addEventListener('click', closeSharedStoryError);
+  $('sharedErrorBrowseBtn')?.addEventListener('click', () => {
+    closeSharedStoryError();
+    openAllStoriesSheet();
+  });
+  $('sharedErrorListenTodayBtn')?.addEventListener('click', () => {
+    closeSharedStoryError();
+    if (player && !player.isPlaying) {
+      player.play().catch(() => {});
+    }
+  });
+  $('sharedStoryNotFoundModal')?.addEventListener('click', (e) => {
+    if (e.target === $('sharedStoryNotFoundModal')) closeSharedStoryError();
   });
 
   // Header Account Button in Menu Drawer
@@ -3434,6 +3523,9 @@ async function start() {
     // 3. Fallback to today / latest date if target date is not ready
     let briefing = freshBriefing;
     if (!briefing && targetDate !== today) {
+      if (targetDate) {
+        state.targetDateExpired = targetDate;
+      }
       briefing = await withTimeout(loadStoryPack(today), 6000, null);
     }
     if (!briefing) {
