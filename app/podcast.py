@@ -361,6 +361,18 @@ def _enforce_host_identity(text: str, who: str, hosts: tuple[str, str]) -> str |
     return text
 
 
+ALIEN_BRIDGE_TERMS: dict[str, re.Pattern] = {
+    "science": re.compile(r"\b(sports?|athletes?|game|scores?|nfl|nba|nhl|mlb|brier|cricket|tournament|league|gridiron|politics?|parliament|congress|senate|election|campaign|markets?|wall street|stocks?|investors?|nasdaq|dow|entertainment|hollywood|box office|movie|film|actor|actress|album)\b", re.I),
+    "sports": re.compile(r"\b(science|scientific|laboratory|scientists?|biology|physics|astronomy|top headlines?|lead stories|top stories|global headlines?|politics?|parliament|congress|senate|election|campaign|markets?|wall street|stocks?|shares?|investors?|nasdaq|dow)\b", re.I),
+    "entertainment": re.compile(r"\b(science lab|science|scientific|laboratory|biology|physics|sports?|nfl|nba|nhl|mlb|cricket|gridiron|markets?|wall street|stocks?|nasdaq|dow)\b", re.I),
+    "markets": re.compile(r"\b(artificial intelligence boom|ai boom|over in ai|sports?|entertainment|hollywood|movie|politics?|parliament|congress|senate|election)\b", re.I),
+    "ai": re.compile(r"\b(broader tech sector|tech space|national politics|politics?|sports?|entertainment|hollywood)\b", re.I),
+    "tech": re.compile(r"\b(national politics|politics?|parliament|congress|senate|election|sports?|entertainment|hollywood)\b", re.I),
+    "politics": re.compile(r"\b(lighter story|entertainment|hollywood|creative world|box office|sports?|nfl|nba|cricket|science|laboratory)\b", re.I),
+    "top": re.compile(r"\b(financial markets?|markets?|wall street|stocks?|sports?|entertainment|hollywood)\b", re.I),
+}
+
+
 def validate_turns(raw, kind: str, section: str | None = None, hosts: tuple[str, str] = ("Matthew", "Kelly")) -> list[Turn] | None:
     """Turn the AI's JSON for one piece into clean turns, or None if any rule is broken.
 
@@ -391,6 +403,13 @@ def validate_turns(raw, kind: str, section: str | None = None, hosts: tuple[str,
         turns.append((0 if who == "a" else 1, text))
     if words > MAX_WORDS[kind] or tags > MAX_TAGS:
         return None
+    if kind == "bridge" and section:
+        base_sec = (section or "").replace("_us", "").replace("_in", "").replace("_ca", "")
+        alien = ALIEN_BRIDGE_TERMS.get(base_sec)
+        full_text = " ".join(t[1] for t in turns)
+        if alien and alien.search(full_text):
+            log.warning("Rejecting mismatched bridge for %s: contains alien category reference %r", section, full_text[:80])
+            return None
     return turns
 
 
@@ -459,7 +478,17 @@ SEGMENT RULES (MODELED ON PREMIER DAILY NEWS PODCASTS LIKE NPR "UP FIRST", NYT "
     - Variant 2 (Fast-Paced Briefing): Clean, crisp brand intro, outlining the 2-3 key pillars shaping the news day.
     - Variant 3 (Relatable Perspective): A grounded conversational observation about how today's news affects markets, technology, or daily life.
 - tease (<= {w_tease} words, 2 to 3 turns): A natural journalistic reaction or tension setup for that section's top story. Never recite the raw headline verbatim—set up the core conflict, dilemma, or question. Have {a} lead heavy sections (top, politics, markets) and {b} lead lighter or fast-moving sections (ai, tech, science, entertainment, sports).
-- bridge (<= {w_bridge} words, 1 to 2 turns): A natural transition into that section using a thematic link ("Speaking of money..."), a reaction, or a clean pivot ("Okay, lighter note."). Use "Next up" or "Moving on" at most once across the entire JSON output.
+- bridge (<= {w_bridge} words, 1 to 2 turns per section):
+  CRITICAL CATEGORY ALIGNMENT: `bridge["<section>"]` is the transition ENTERING AND INTRODUCING that specific section. It plays immediately before `<section>` begins.
+  The words spoken MUST explicitly introduce the target `<section>` (e.g. name the category or its subject) and MUST NEVER introduce, preview, or name any other category!
+  * bridge["markets"] / bridge["markets_us"] / bridge["markets_in"]: Transition INTO Business, Markets & Economy (e.g. "Looking at the markets now...", "Speaking of money..."). NEVER introduce AI or politics.
+  * bridge["ai"]: Transition INTO Artificial Intelligence (e.g. "Over in the AI world...", "Turning to artificial intelligence..."). NEVER introduce general tech, politics, or markets.
+  * bridge["tech"] / bridge["tech_us"] / bridge["tech_in"]: Transition INTO Technology & Hardware (e.g. "Shifting over to tech...", "In the tech sector..."). NEVER introduce politics or AI.
+  * bridge["politics"] / bridge["politics_us"] / bridge["politics_in"]: Transition INTO Politics & Government (e.g. "Turning to politics...", "In national politics..."). NEVER introduce entertainment or markets.
+  * bridge["entertainment"] / bridge["entertainment_us"] / bridge["entertainment_in"]: Transition INTO Entertainment & Culture (e.g. "On a lighter note in entertainment...", "Heading over to entertainment..."). NEVER introduce science or sports.
+  * bridge["science"]: Transition INTO Science & Discovery (e.g. "In the world of science...", "Speaking of big questions, here's science..."). NEVER introduce sports, politics, or entertainment.
+  * bridge["sports"] / bridge["sports_us"] / bridge["sports_in"]: Transition INTO Sports & Athletics (e.g. "Over in sports...", "Turning to the sports world..."). NEVER introduce headlines, economics, or science.
+  * bridge["top"] / bridge["top_us"] / bridge["top_in"]: Transition INTO Top Stories (e.g. "Starting with the day's lead stories..."). NEVER introduce markets.
 - close (<= {w_close} words, 2 to 3 turns): End cleanly and warmly like premier daily podcasts (NPR "Up First", NYT "The Daily", WSJ "The Journal"): a crisp wrap mentioning {weekday}, a quick call to follow the show for tomorrow's brief, and a warm host sign-off including "Hark Daily".
 - ANTI-REPETITION: Any example lines in this prompt are for tone only. Never reuse their wording or structure. If yesterday's opening is provided in the user payload, make today's clearly different."""
 
@@ -573,7 +602,16 @@ def ask_ai(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
                             "headline": p.headline, "summary": p.summary}
                 for p in pieces if p.kind == "tease"}
     weekday = _date.fromisoformat(day).strftime("%A")
-    payload: dict = {"date": day, "day_of_week": weekday, "sections": sections}
+    payload: dict = {
+        "date": day,
+        "day_of_week": weekday,
+        "sections": sections,
+        "category_bridge_rules": (
+            "CRITICAL CATEGORY ALIGNMENT: bridge[X] MUST strictly be the spoken transition ENTERING AND INTRODUCING section X. "
+            "For example, bridge['science'] MUST introduce Science and NEVER mention sports. "
+            "bridge['sports'] MUST introduce Sports and NEVER mention science or top headlines."
+        ),
+    }
     if yesterdays_opening:
         payload["yesterdays_opening"] = yesterdays_opening
     own = client is None

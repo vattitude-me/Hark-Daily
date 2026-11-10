@@ -547,10 +547,11 @@ export class Player extends EventTarget {
     const direct = stories.find((s) => s.id === chapter.id);
     if (direct) return direct;
 
-    // If chapter has an explicit section (e.g. section bridge banter 'bridge-entertainment'),
+    // If chapter has an explicit section (e.g. section bridge banter 'pod_bridge_entertainment'),
     // associate it with the first story of that section
     if (chapter.section) {
-      const secStory = stories.find((s) => s.section === chapter.section);
+      const baseSec = chapter.section.replace(/_(us|in|ca)$/, '');
+      const secStory = stories.find((s) => s.section === chapter.section || s.section === baseSec || (s.section || '').replace(/_(us|in|ca)$/, '') === baseSec);
       if (secStory) return secStory;
     }
 
@@ -1103,6 +1104,16 @@ export class Player extends EventTarget {
     const ch = this.currentChapter(t);
     const story = this.storyFor(ch);
     const section = this.sectionTitle(ch);
+    const isIntroOrBanter = Boolean(ch && (
+      (typeof ch.id === 'string' && (
+        ch.id.startsWith('pod_open') ||
+        ch.id.startsWith('pod_tease') ||
+        ch.id.startsWith('pod_bridge') ||
+        ch.id.startsWith('greeting') ||
+        ch.id.startsWith('pod_close') ||
+        ch.id === 'outro'
+      )) || ch.kind === 'note'
+    ));
     const started = t >= 0.5;
     if (el.state) {
       el.state.textContent = !started && !this.isPlaying
@@ -1110,7 +1121,9 @@ export class Player extends EventTarget {
         : (this.isPlaying ? 'Now playing' : 'Paused');
     }
     if (el.title) {
-      el.title.textContent = story?.headline || ch?.title || b.stories?.[0]?.headline || b.title;
+      el.title.textContent = (isIntroOrBanter && ch?.title)
+        ? ch.title
+        : (story?.headline || ch?.title || b.stories?.[0]?.headline || b.title);
     }
 
     // Hero section label & count
@@ -1200,10 +1213,12 @@ export class Player extends EventTarget {
 
     let activeSpeaker = null;
     if (transBox && transText && transBody) {
-      const text = story?.script || story?.summary || story?.headline || ch?.text || ch?.title || b.stories?.[0]?.script || b.stories?.[0]?.summary || '';
+      const text = isIntroOrBanter
+        ? (ch?.text || ch?.title || '')
+        : (story?.script || story?.summary || story?.headline || ch?.text || ch?.title || b.stories?.[0]?.script || b.stories?.[0]?.summary || '');
       if (text) {
         transBox.classList.remove('hidden');
-        const currentId = story?.id || ch?.id || '';
+        const currentId = isIntroOrBanter ? (ch?.id || '') : (story?.id || ch?.id || '');
         if (transText.dataset.storyId !== currentId) {
           transText.dataset.storyId = currentId;
           transBody.scrollTop = 0;
@@ -1348,20 +1363,11 @@ export class Player extends EventTarget {
     // Cover image determination:
     // During intro chat, host banter, or outro sign-off, show the official podcast logo.
     // When a story is playing, show the story's editorial image (or category default SVG fallback).
-    const isIntroOrBanter = !story && ch && (
-      (typeof ch.id === 'string' && (
-        ch.id.startsWith('pod_open') ||
-        ch.id.startsWith('pod_tease') ||
-        ch.id.startsWith('greeting') ||
-        ch.id.startsWith('pod_close') ||
-        ch.id === 'outro'
-      )) || ch.kind === 'note'
-    );
     let img = null;
-    if (story?.image) {
-      img = story.image;
-    } else if (isIntroOrBanter) {
+    if (isIntroOrBanter) {
       img = '/icons/covers/default.svg';
+    } else if (story?.image) {
+      img = story.image;
     } else {
       const upNext = this.chapters.find((c) => c.kind === 'story' && c.start >= t - 0.01);
       img = (story || this.storyFor(upNext))?.image || null;
@@ -1435,7 +1441,7 @@ export class Player extends EventTarget {
     // Clean Player Story Metadata & Actions
     const cleanCat = document.getElementById('cleanCatBadge');
     if (cleanCat) {
-      cleanCat.textContent = (section || story?.section || b.stories?.[0]?.section || 'TOP STORIES').toUpperCase();
+      cleanCat.textContent = (ch?.section || section || story?.section || b.stories?.[0]?.section || 'TOP STORIES').toUpperCase();
     }
     const cleanSrc = document.getElementById('cleanSourceTitle');
     if (cleanSrc) {

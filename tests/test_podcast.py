@@ -78,6 +78,20 @@ def test_validate_accepts_good_piece():
         == [(0, "Hi there"), (1, "Hey")]
 
 
+def test_validate_rejects_alien_bridge_categories():
+    # Science bridge mentioning sports or politics must be rejected
+    bad_science = [{"speaker": "a", "text": "And in sports."}]
+    assert podcast.validate_turns(bad_science, "bridge", section="science") is None
+
+    # Sports bridge mentioning science or top headlines must be rejected
+    bad_sports = [{"speaker": "b", "text": "Now for the top headlines."}]
+    assert podcast.validate_turns(bad_sports, "bridge", section="sports") is None
+
+    # Legitimate science bridge is accepted
+    good_science = [{"speaker": "a", "text": "In the world of science and discovery."}]
+    assert podcast.validate_turns(good_science, "bridge", section="science") is not None
+
+
 def test_clean_slop_purges_ai_cliches():
     assert podcast.clean_slop("Alright Kelly, let's roll!") == "Alright Kelly, let's get started!"
     assert podcast.clean_slop("It has been a whirlwind today.") == "It has been a lot happening today."
