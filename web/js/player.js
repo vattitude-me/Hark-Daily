@@ -717,9 +717,18 @@ export class Player extends EventTarget {
   setupCardSwipe() {
     if (typeof document === 'undefined') return;
     const card = document.getElementById('cleanPlayerCard');
-    const bg1 = document.getElementById('cleanCardStackBg');
+    const rearCard = document.getElementById('cleanCardStackBg');
     const bg2 = document.getElementById('cleanCardStackBg2');
+    const deckWrap = document.getElementById('cleanDeckWrap');
     if (!card) return;
+
+    const BASE_FRONT_X = -8;
+    const BASE_REAR_X = 10;
+    const BASE_REAR_SCALE = 0.95;
+    const BASE_REAR_OPACITY = 0.70;
+    const BASE_L2_X = 14;
+    const BASE_L2_SCALE = 0.90;
+    const BASE_L2_OPACITY = 0.30;
 
     let startX = 0;
     let startY = 0;
@@ -729,8 +738,10 @@ export class Player extends EventTarget {
     let isLockedHorizontal = false;
     let currentDeltaX = 0;
 
+    const getBaseFrontX = () => (deckWrap?.classList.contains('is-last-card') ? 0 : BASE_FRONT_X);
+
     const onPointerDown = (e) => {
-      // Do not initiate card swipe if clicking buttons, links, scrubber, or bottom controls
+      // Do not initiate card swipe if clicking buttons, links, scrubber, or interactive controls
       if (e.target.closest('.clean-card-bottom-dock, .clean-cover-actions, .clean-source-link, button, a, [role="slider"], input, select, textarea')) {
         return;
       }
@@ -758,10 +769,10 @@ export class Player extends EventTarget {
           return;
         }
         // If horizontal movement is intentional, lock to horizontal card swipe
-        if (Math.abs(deltaX) > Math.abs(deltaY) + 5 && Math.abs(deltaX) > 8) {
+        if (Math.abs(deltaX) > Math.abs(deltaY) + 4 && Math.abs(deltaX) > 7) {
           isLockedHorizontal = true;
           card.style.transition = 'none';
-          if (bg1) bg1.style.transition = 'none';
+          if (rearCard) rearCard.style.transition = 'none';
           if (bg2) bg2.style.transition = 'none';
         } else {
           return;
@@ -787,24 +798,32 @@ export class Player extends EventTarget {
       currentDeltaX = effectiveDeltaX;
 
       const cardWidth = card.clientWidth || 360;
-      const rotation = (effectiveDeltaX / cardWidth) * 11;
-      card.style.transform = `translateX(${effectiveDeltaX}px) rotate(${rotation}deg)`;
+      const rotation = (effectiveDeltaX / cardWidth) * 9;
+      const baseFront = getBaseFrontX();
+      card.style.transform = `translateX(${baseFront + effectiveDeltaX}px) rotate(${rotation}deg)`;
 
-      // Dynamic depth scaling of background stack
-      const progress = Math.min(1, Math.abs(effectiveDeltaX) / 140);
-      if (bg1) {
-        const s1 = 0.96 + 0.04 * progress;
-        const y1 = 9 - 9 * progress;
-        const op1 = 0.55 + 0.35 * progress;
-        bg1.style.transform = `scale(${s1}) translateY(${y1}px)`;
-        bg1.style.opacity = String(op1);
-      }
-      if (bg2) {
-        const s2 = 0.92 + 0.04 * progress;
-        const y2 = 17 - 8 * progress;
-        const op2 = 0.28 + 0.27 * progress;
-        bg2.style.transform = `scale(${s2}) translateY(${y2}px)`;
-        bg2.style.opacity = String(op2);
+      if (effectiveDeltaX < 0 && canGoNext) {
+        // Swiping Left: Front card moves out to left, rear card steps IN from the right (+10px -> 0px) and scales up to 1.0!
+        const progress = Math.min(1, Math.abs(effectiveDeltaX) / 130);
+        if (rearCard) {
+          const rX = BASE_REAR_X * (1 - progress);
+          const rScale = BASE_REAR_SCALE + (1 - BASE_REAR_SCALE) * progress;
+          const rOp = BASE_REAR_OPACITY + (1 - BASE_REAR_OPACITY) * progress;
+          rearCard.style.transform = `translateX(${rX}px) scale(${rScale})`;
+          rearCard.style.opacity = String(rOp);
+        }
+        if (bg2) {
+          const lX = BASE_L2_X - (BASE_L2_X - BASE_REAR_X) * progress;
+          const lScale = BASE_L2_SCALE + (BASE_REAR_SCALE - BASE_L2_SCALE) * progress;
+          const lOp = BASE_L2_OPACITY + (BASE_REAR_OPACITY - BASE_L2_OPACITY) * progress;
+          bg2.style.transform = `translateX(${lX}px) scale(${lScale})`;
+          bg2.style.opacity = String(lOp);
+        }
+      } else if (effectiveDeltaX > 0 && canGoPrev) {
+        // Swiping Right: Front card moves right
+        if (rearCard) {
+          rearCard.style.opacity = String(Math.max(0.2, BASE_REAR_OPACITY - (effectiveDeltaX / 120) * 0.4));
+        }
       }
     };
 
@@ -817,85 +836,96 @@ export class Player extends EventTarget {
 
       const elapsed = Date.now() - startTime;
       const velocity = Math.abs(currentDeltaX) / Math.max(elapsed, 1);
-      const passedThreshold = Math.abs(currentDeltaX) > 65 || (velocity > 0.35 && Math.abs(currentDeltaX) > 25);
+      const passedThreshold = Math.abs(currentDeltaX) > 55 || (velocity > 0.32 && Math.abs(currentDeltaX) > 22);
 
       const ch = this.currentChapter();
       const chIdx = this.chapters.indexOf(ch);
       const canGoNext = chIdx >= 0 && chIdx < this.chapters.length - 1;
       const canGoPrev = chIdx > 0 || (ch && this.position - ch.start > 3);
 
-      if (currentDeltaX < -25 && passedThreshold && canGoNext) {
-        // Swiped Left -> Advance to next story
-        card.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.2s ease';
-        card.style.transform = 'translateX(-120%) rotate(-12deg)';
+      if (currentDeltaX < -20 && passedThreshold && canGoNext) {
+        // Swiped Left -> Animate front card OUT to left, rear card IN to center
+        card.style.transition = 'transform 0.24s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.22s ease';
+        card.style.transform = 'translateX(-120%) rotate(-10deg)';
         card.style.opacity = '0';
-        if (bg1) {
-          bg1.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.2s ease';
-          bg1.style.transform = 'scale(1) translateY(0)';
-          bg1.style.opacity = '1';
+
+        if (rearCard) {
+          rearCard.style.transition = 'transform 0.24s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.22s ease';
+          rearCard.style.transform = 'translateX(0px) scale(1)';
+          rearCard.style.opacity = '1';
+        }
+        if (bg2) {
+          bg2.style.transition = 'transform 0.24s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.22s ease';
+          bg2.style.transform = `translateX(${BASE_REAR_X}px) scale(${BASE_REAR_SCALE})`;
+          bg2.style.opacity = String(BASE_REAR_OPACITY);
         }
 
         setTimeout(() => {
           this.nextChapter();
-          // Reset card position with smooth pop-in from scale 0.96
+          // Front card seamlessly takes over at baseFront with full opacity (no popping or reverse jump)
+          const baseFront = getBaseFrontX();
           card.style.transition = 'none';
-          card.style.transform = 'scale(0.96) translateY(8px)';
+          card.style.transform = `translateX(${baseFront}px)`;
           card.style.opacity = '1';
-          if (bg1) {
-            bg1.style.transition = 'none';
-            bg1.style.transform = 'scale(0.96) translateY(9px)';
-            bg1.style.opacity = '0.55';
+
+          // Reset rear card and bg2 to their back stack positions
+          if (rearCard) {
+            rearCard.style.transition = 'none';
+            rearCard.style.transform = `translateX(${BASE_REAR_X}px) scale(${BASE_REAR_SCALE})`;
+            rearCard.style.opacity = String(BASE_REAR_OPACITY);
           }
           if (bg2) {
             bg2.style.transition = 'none';
-            bg2.style.transform = 'scale(0.92) translateY(17px)';
-            bg2.style.opacity = '0.28';
+            bg2.style.transform = `translateX(${BASE_L2_X}px) scale(${BASE_L2_SCALE})`;
+            bg2.style.opacity = String(BASE_L2_OPACITY);
           }
-          requestAnimationFrame(() => {
-            card.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)';
-            card.style.transform = 'none';
-          });
-        }, 220);
-      } else if (currentDeltaX > 25 && passedThreshold && canGoPrev) {
+        }, 240);
+      } else if (currentDeltaX > 20 && passedThreshold && canGoPrev) {
         // Swiped Right -> Go to previous story
         card.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.2s ease';
-        card.style.transform = 'translateX(120%) rotate(12deg)';
+        card.style.transform = 'translateX(120%) rotate(10deg)';
         card.style.opacity = '0';
 
         setTimeout(() => {
           this.prevChapter();
           card.style.transition = 'none';
-          card.style.transform = 'translateX(-60px) scale(0.98)';
-          card.style.opacity = '1';
-          if (bg1) {
-            bg1.style.transition = 'none';
-            bg1.style.transform = 'scale(0.96) translateY(9px)';
-            bg1.style.opacity = '0.55';
+          card.style.transform = 'translateX(-70px) scale(0.97)';
+          card.style.opacity = '0.7';
+
+          if (rearCard) {
+            rearCard.style.transition = 'none';
+            rearCard.style.transform = `translateX(${BASE_REAR_X}px) scale(${BASE_REAR_SCALE})`;
+            rearCard.style.opacity = String(BASE_REAR_OPACITY);
           }
           if (bg2) {
             bg2.style.transition = 'none';
-            bg2.style.transform = 'scale(0.92) translateY(17px)';
-            bg2.style.opacity = '0.28';
+            bg2.style.transform = `translateX(${BASE_L2_X}px) scale(${BASE_L2_SCALE})`;
+            bg2.style.opacity = String(BASE_L2_OPACITY);
           }
+
           requestAnimationFrame(() => {
-            card.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)';
-            card.style.transform = 'none';
+            const baseFront = getBaseFrontX();
+            card.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease';
+            card.style.transform = `translateX(${baseFront}px)`;
+            card.style.opacity = '1';
           });
         }, 220);
       } else {
-        // Snap back to active center
-        card.style.transition = 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease';
-        card.style.transform = 'none';
+        // Snap back to active rest position
+        const baseFront = getBaseFrontX();
+        card.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease';
+        card.style.transform = `translateX(${baseFront}px)`;
         card.style.opacity = '1';
-        if (bg1) {
-          bg1.style.transition = 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease';
-          bg1.style.transform = 'scale(0.96) translateY(9px)';
-          bg1.style.opacity = '0.55';
+
+        if (rearCard) {
+          rearCard.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease';
+          rearCard.style.transform = `translateX(${BASE_REAR_X}px) scale(${BASE_REAR_SCALE})`;
+          rearCard.style.opacity = String(BASE_REAR_OPACITY);
         }
         if (bg2) {
-          bg2.style.transition = 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease';
-          bg2.style.transform = 'scale(0.92) translateY(17px)';
-          bg2.style.opacity = '0.28';
+          bg2.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease';
+          bg2.style.transform = `translateX(${BASE_L2_X}px) scale(${BASE_L2_SCALE})`;
+          bg2.style.opacity = String(BASE_L2_OPACITY);
         }
       }
     };
@@ -1362,6 +1392,42 @@ export class Player extends EventTarget {
       if (deckWrap) {
         const isLast = idx >= (b.stories?.length || 1);
         deckWrap.classList.toggle('is-last-card', Boolean(isLast));
+      }
+
+      // Populate Peeking Rear Card Preview (Up Next Story)
+      const currentStoryIdx = story ? b.stories.indexOf(story) : 0;
+      const nextStory = b.stories?.[currentStoryIdx + 1];
+      if (nextStory) {
+        const rearCoverImg = document.getElementById('rearCoverImg');
+        if (rearCoverImg) {
+          const nextSec = nextStory.section || 'top';
+          const nextImg = nextStory.image_url || getDefaultCover(nextSec);
+          if (rearCoverImg.dataset.src !== nextImg) {
+            rearCoverImg.dataset.src = nextImg;
+            rearCoverImg.src = nextImg;
+          }
+        }
+        const rearCat = document.getElementById('rearCatBadge');
+        if (rearCat) {
+          rearCat.textContent = (nextStory.section || 'TOP STORIES').toUpperCase();
+        }
+        const rearSrc = document.getElementById('rearSourceTitle');
+        if (rearSrc) {
+          const srcRaw = nextStory.source;
+          rearSrc.textContent = srcRaw ? srcRaw.split('·')[0].trim() : 'Up Next';
+        }
+        const rearCounter = document.getElementById('rearStoryCounter');
+        if (rearCounter) {
+          rearCounter.textContent = `${currentStoryIdx + 2} / ${b.stories?.length || 1}`;
+        }
+        const rearHeadline = document.getElementById('rearStoryHeadline');
+        if (rearHeadline) {
+          rearHeadline.textContent = nextStory.headline || 'Next story';
+        }
+        const rearSnippet = document.getElementById('rearSnippet');
+        if (rearSnippet) {
+          rearSnippet.textContent = nextStory.summary || nextStory.content?.slice(0, 120) || 'Up next on Hark Daily…';
+        }
       }
     }
     const cleanHeadline = document.getElementById('cleanStoryHeadline');

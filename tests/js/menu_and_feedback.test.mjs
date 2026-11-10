@@ -113,12 +113,23 @@ test('3D Stacked Cards deck and swipe gesture navigation are properly configured
   assert.ok(html.includes('id="cleanDeckWrap"'), 'Must contain cleanDeckWrap wrapper');
   assert.ok(html.includes('id="cleanCardStackBg"'), 'Must contain primary background card layer-1');
   assert.ok(html.includes('id="cleanCardStackBg2"'), 'Must contain secondary background card layer-2');
+  assert.ok(html.includes('id="rearCoverImg"'), 'Must contain rearCoverImg for up next story preview');
+  assert.ok(html.includes('id="rearStoryHeadline"'), 'Must contain rearStoryHeadline for up next preview');
+  assert.ok(html.includes('id="rearSnippet"'), 'Must contain rearSnippet preview');
+
+  // Verify bottom dock is stationed outside cleanDeckWrap so controls do not swipe away
+  const deckWrapIndex = html.indexOf('id="cleanDeckWrap"');
+  const deckCloseIndex = html.indexOf('</div>\n\n      <!-- Stationed Bottom Dock', deckWrapIndex);
+  const dockIndex = html.indexOf('class="clean-card-bottom-dock"', deckWrapIndex);
+  assert.ok(deckCloseIndex !== -1 && dockIndex > deckCloseIndex, 'clean-card-bottom-dock must sit outside cleanDeckWrap');
 
   const css = readFileSync(resolve('web/css/styles.css'), 'utf8');
   assert.ok(css.includes('.clean-deck-wrap {'), 'Must contain clean-deck-wrap styles');
   assert.ok(css.includes('.clean-card-stack-bg {'), 'Must contain clean-card-stack-bg styles');
   assert.ok(css.includes('.clean-card-stack-bg.layer-1'), 'Must contain layer-1 transform');
   assert.ok(css.includes('.clean-card-stack-bg.layer-2'), 'Must contain layer-2 transform');
+  assert.ok(css.includes('.clean-player-card-front {'), 'Must contain front card shifted positioning');
+  assert.ok(css.includes('.clean-player-card-rear {'), 'Must contain rear card preview styles');
   assert.ok(css.includes('.clean-deck-wrap.is-last-card'), 'Must hide background cards on the last briefing story');
 
   const playerJs = readFileSync(resolve('web/js/player.js'), 'utf8');
@@ -127,5 +138,7 @@ test('3D Stacked Cards deck and swipe gesture navigation are properly configured
   assert.ok(playerJs.includes('isLockedVertical'), 'Must safeguard vertical teleprompter scrolling');
   assert.ok(playerJs.includes('this.nextChapter()'), 'Must advance to next story on left swipe');
   assert.ok(playerJs.includes('this.prevChapter()'), 'Must return to previous story on right swipe');
+  assert.ok(playerJs.includes('rearCoverImg'), 'Player tick must populate rear cover image');
+  assert.ok(playerJs.includes('rearStoryHeadline'), 'Player tick must populate rear story headline');
 });
 

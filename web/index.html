@@ -84,7 +84,7 @@
   <meta name="theme-color" content="#17120E">
   <link rel="preload" href="/fonts/plus-jakarta-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/css/styles.css?v=65">
+  <link rel="stylesheet" href="/css/styles.css?v=66">
   <script>
     try {
       const t = localStorage.getItem('mb-theme');
@@ -362,105 +362,126 @@
 
       <!-- Main Glass Player Card Deck with 3D Stack -->
       <div class="clean-deck-wrap" id="cleanDeckWrap">
-        <!-- Peeking Background Stack Cards (Visual Depth Hierarchy) -->
+        <!-- Layer 2: Peeking background card for visual deck depth -->
         <div class="clean-card-stack-bg layer-2" id="cleanCardStackBg2" aria-hidden="true"></div>
-        <div class="clean-card-stack-bg layer-1" id="cleanCardStackBg" aria-hidden="true"></div>
 
-        <div class="clean-player-card" id="cleanPlayerCard">
-        <!-- Taller Cover Image Wrap with Share button overlaid on top right -->
-        <div class="clean-cover-wrap" id="playerCoverWrap" role="button" tabindex="0" title="Tap to play or pause">
-          <img id="playerCoverImg" class="clean-cover-img" alt="" referrerpolicy="no-referrer" src="/icons/covers/default.svg">
-          <div class="clean-cover-fallback hidden" id="playerCoverFallback">
-            <div class="clean-fallback-orb orb-1"></div>
-            <div class="clean-fallback-orb orb-2"></div>
-          </div>
-          <div class="clean-now-voicing-badge" id="playerNowVoicingBadge">
-            <svg class="clean-eq-svg" width="16" height="14" viewBox="0 0 16 14" fill="#F59E0B" aria-hidden="true">
-              <rect class="clean-eq-bar-1" x="1" y="5" width="3" height="8" rx="1.5"/>
-              <rect class="clean-eq-bar-2" x="6.5" y="1" width="3" height="12" rx="1.5"/>
-              <rect class="clean-eq-bar-3" x="12" y="4" width="3" height="9" rx="1.5"/>
-            </svg>
-            <span id="playerCoverBadgeText">AI Duo · Matthew &amp; Kelly</span>
-          </div>
-          <div class="clean-cover-actions">
-            <button class="clean-cover-share-btn clean-cover-action-btn" type="button" id="cleanReportBtn" aria-label="Report article or audio issue" title="Report issue with this story">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-            </button>
-            <button class="clean-cover-share-btn clean-cover-action-btn" type="button" id="cleanShareBtn" aria-label="Share story" title="Share story">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 15V4M8 8l4-4 4 4M5 12v7h14v-7"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Story Metadata Row with subtle Read Article link -->
-        <div class="clean-meta-row">
-          <div class="clean-meta-left">
-            <span class="clean-cat-pill" id="cleanCatBadge">TOP STORIES</span>
-            <span class="clean-source-title" id="cleanSourceTitle">Hark Daily</span>
-            <a class="clean-source-link" id="cleanSourceLink" target="_blank" rel="noopener noreferrer" aria-label="Read original coverage">
-              <span id="cleanSourceLinkName">Read article</span>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg>
-            </a>
-          </div>
-          <span class="clean-story-counter" id="cleanStoryCounter"></span>
-        </div>
-
-        <!-- Headline -->
-        <h1 class="clean-story-headline" id="cleanStoryHeadline">Loading today's briefing…</h1>
-
-        <!-- Teleprompter / Read-Along (Clean plain text, highlighted spoken phrase, soft fade) -->
-        <div class="clean-teleprompter" id="transcriptBody" tabindex="0" aria-label="Read along with speech">
-          <p class="clean-sentences" id="transcriptText">Tap play to listen and read along.</p>
-        </div>
-
-        <!-- Bottom section pinned inside the card: Waveform flanked by Restart & Speed above Controls -->
-        <div class="clean-card-bottom-dock">
-          <div class="clean-scrubber-row" id="cleanScrubberRow">
-            <button class="clean-scrubber-btn" id="cleanRestartBtn" type="button" aria-label="Restart briefing from start" title="Restart briefing from start">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/>
-                <path d="M3 3v5h5"/>
-              </svg>
-            </button>
-
-            <!-- 40-Bar Acoustic Waveform Scrubber -->
-            <div class="clean-waveform-wrap" id="cleanWaveformWrap">
-              <div class="clean-waveform-bars" id="cleanWaveBars" role="slider" aria-label="Seek through briefing" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                <!-- Dynamically populated 40 acoustic waveform bars -->
-              </div>
-              <div class="clean-waveform-times">
-                <span id="cleanCurTime">0:00</span>
-                <span id="cleanDurTime">--:--</span>
-              </div>
+        <!-- Layer 1: Peeking Rear Card (Up Next Story Preview) -->
+        <div class="clean-card-stack-bg layer-1 clean-player-card clean-player-card-rear" id="cleanCardStackBg" aria-hidden="true">
+          <div class="clean-cover-wrap clean-rear-cover-wrap">
+            <img id="rearCoverImg" class="clean-cover-img" alt="" referrerpolicy="no-referrer" src="/icons/covers/default.svg">
+            <div class="clean-now-voicing-badge clean-rear-badge">
+              <span>Up Next</span>
             </div>
+          </div>
+          <div class="clean-meta-row">
+            <div class="clean-meta-left">
+              <span class="clean-cat-pill" id="rearCatBadge">UP NEXT</span>
+              <span class="clean-source-title" id="rearSourceTitle">Hark Daily</span>
+            </div>
+            <span class="clean-story-counter" id="rearStoryCounter"></span>
+          </div>
+          <h2 class="clean-story-headline clean-rear-headline" id="rearStoryHeadline">Next story preview</h2>
+          <div class="clean-teleprompter clean-rear-teleprompter">
+            <p class="clean-sentences" id="rearSnippet">Up next on Hark Daily…</p>
+          </div>
+        </div>
 
-            <button class="clean-scrubber-btn clean-speed-btn" id="cleanSpeedBtn" type="button" aria-label="Playback speed" title="Playback speed (tap to cycle)">
-              <span id="cleanSpeedVal">1×</span>
-            </button>
+        <!-- Front Active Story Card (Shifted slightly left to reveal stack) -->
+        <div class="clean-player-card clean-player-card-front" id="cleanPlayerCard">
+          <!-- Taller Cover Image Wrap with Share button overlaid on top right -->
+          <div class="clean-cover-wrap" id="playerCoverWrap" role="button" tabindex="0" title="Tap to play or pause">
+            <img id="playerCoverImg" class="clean-cover-img" alt="" referrerpolicy="no-referrer" src="/icons/covers/default.svg">
+            <div class="clean-cover-fallback hidden" id="playerCoverFallback">
+              <div class="clean-fallback-orb orb-1"></div>
+              <div class="clean-fallback-orb orb-2"></div>
+            </div>
+            <div class="clean-now-voicing-badge" id="playerNowVoicingBadge">
+              <svg class="clean-eq-svg" width="16" height="14" viewBox="0 0 16 14" fill="#F59E0B" aria-hidden="true">
+                <rect class="clean-eq-bar-1" x="1" y="5" width="3" height="8" rx="1.5"/>
+                <rect class="clean-eq-bar-2" x="6.5" y="1" width="3" height="12" rx="1.5"/>
+                <rect class="clean-eq-bar-3" x="12" y="4" width="3" height="9" rx="1.5"/>
+              </svg>
+              <span id="playerCoverBadgeText">AI Duo · Matthew &amp; Kelly</span>
+            </div>
+            <div class="clean-cover-actions">
+              <button class="clean-cover-share-btn clean-cover-action-btn" type="button" id="cleanReportBtn" aria-label="Report article or audio issue" title="Report issue with this story">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+              </button>
+              <button class="clean-cover-share-btn clean-cover-action-btn" type="button" id="cleanShareBtn" aria-label="Share story" title="Share story">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 15V4M8 8l4-4 4 4M5 12v7h14v-7"/>
+                </svg>
+              </button>
+            </div>
           </div>
 
-          <!-- Bottom Transport Dock pinned at bottom of card -->
-          <div class="clean-transport-dock">
-            <button class="clean-nav-btn" id="cleanPrevBtn" type="button" aria-label="Previous story">
-              <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14L8 12z" fill="#FFFFFF"/><path d="M5.5 5v14" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"/></svg>
-            </button>
-            <button class="clean-play-circle" id="cleanPlayBtn" type="button" aria-label="Play briefing">
-              <svg class="clean-play-icon" width="50" height="50" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="#1F1A14"/></svg>
-              <svg class="clean-pause-icon" width="42" height="42" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="5" width="3.5" height="14" rx="1" fill="#1F1A14"/><rect x="14" y="5" width="3.5" height="14" rx="1" fill="#1F1A14"/></svg>
-            </button>
-            <button class="clean-nav-btn" id="cleanNextBtn" type="button" aria-label="Next story">
-              <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14l11-7z" fill="#FFFFFF"/><path d="M18.5 5v14" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"/></svg>
-            </button>
+          <!-- Story Metadata Row with subtle Read Article link -->
+          <div class="clean-meta-row">
+            <div class="clean-meta-left">
+              <span class="clean-cat-pill" id="cleanCatBadge">TOP STORIES</span>
+              <span class="clean-source-title" id="cleanSourceTitle">Hark Daily</span>
+              <a class="clean-source-link" id="cleanSourceLink" target="_blank" rel="noopener noreferrer" aria-label="Read original coverage">
+                <span id="cleanSourceLinkName">Read article</span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg>
+              </a>
+            </div>
+            <span class="clean-story-counter" id="cleanStoryCounter"></span>
+          </div>
+
+          <!-- Headline -->
+          <h1 class="clean-story-headline" id="cleanStoryHeadline">Loading today's briefing…</h1>
+
+          <!-- Teleprompter / Read-Along (Clean plain text, highlighted spoken phrase, soft fade) -->
+          <div class="clean-teleprompter" id="transcriptBody" tabindex="0" aria-label="Read along with speech">
+            <p class="clean-sentences" id="transcriptText">Tap play to listen and read along.</p>
           </div>
         </div>
       </div>
-    </div>
+
+      <!-- Stationed Bottom Dock: Waveform flanked by Restart & Speed above Controls (Fixed, non-swiping) -->
+      <div class="clean-card-bottom-dock">
+        <div class="clean-scrubber-row" id="cleanScrubberRow">
+          <button class="clean-scrubber-btn" id="cleanRestartBtn" type="button" aria-label="Restart briefing from start" title="Restart briefing from start">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
+            </svg>
+          </button>
+
+          <!-- 40-Bar Acoustic Waveform Scrubber -->
+          <div class="clean-waveform-wrap" id="cleanWaveformWrap">
+            <div class="clean-waveform-bars" id="cleanWaveBars" role="slider" aria-label="Seek through briefing" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <!-- Dynamically populated 40 acoustic waveform bars -->
+            </div>
+            <div class="clean-waveform-times">
+              <span id="cleanCurTime">0:00</span>
+              <span id="cleanDurTime">--:--</span>
+            </div>
+          </div>
+
+          <button class="clean-scrubber-btn clean-speed-btn" id="cleanSpeedBtn" type="button" aria-label="Playback speed" title="Playback speed (tap to cycle)">
+            <span id="cleanSpeedVal">1×</span>
+          </button>
+        </div>
+
+        <!-- Bottom Transport Dock -->
+        <div class="clean-transport-dock">
+          <button class="clean-nav-btn" id="cleanPrevBtn" type="button" aria-label="Previous story">
+            <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14L8 12z" fill="#FFFFFF"/><path d="M5.5 5v14" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"/></svg>
+          </button>
+          <button class="clean-play-circle" id="cleanPlayBtn" type="button" aria-label="Play briefing">
+            <svg class="clean-play-icon" width="50" height="50" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="#1F1A14"/></svg>
+            <svg class="clean-pause-icon" width="42" height="42" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="5" width="3.5" height="14" rx="1" fill="#1F1A14"/><rect x="14" y="5" width="3.5" height="14" rx="1" fill="#1F1A14"/></svg>
+          </button>
+          <button class="clean-nav-btn" id="cleanNextBtn" type="button" aria-label="Next story">
+            <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14l11-7z" fill="#FFFFFF"/><path d="M18.5 5v14" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Persistent dual audio elements for seamless background baton-pass handoff -->
@@ -1259,6 +1280,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/vendor/supabase.min.js"></script>
-  <script type="module" src="/js/app.js?v=92"></script>
+  <script type="module" src="/js/app.js?v=93"></script>
 </body>
 </html>
