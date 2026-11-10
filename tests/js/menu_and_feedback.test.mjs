@@ -91,3 +91,20 @@ test('App lifecycle update check and smart pull-to-refresh reload logic exist in
   assert.ok(appJs.includes("updateAvailable"), 'Pull to refresh must track service worker update availability');
 });
 
+test('Drawer footer button bar clean-drawer-foot is robustly styled without CSS syntax errors', () => {
+  const css = readFileSync(resolve('web/css/styles.css'), 'utf8');
+  assert.ok(css.includes('.clean-drawer-foot {'), 'Must contain clean-drawer-foot rule');
+  assert.ok(css.includes('grid-template-columns: 1fr;'), 'Default state must provide 1fr single-column grid');
+  assert.ok(css.includes('width: 100%;'), 'Drawer footer and buttons must have width: 100% to prevent shrinking');
+  assert.ok(!css.includes('.clean-drawer-version {\n  font-family: var(--font-head);\n  font-size: 11px;\n  font-weight: 500;\n  letter-spacing: 0.04em;\n  color: rgba(255, 255, 255, 0.55);\n}\n  display: block;\n}'), 'Must not contain stray orphan declaration outside rule');
+
+  // Verify full CSS brace balance
+  let balance = 0;
+  for (const ch of css) {
+    if (ch === '{') balance++;
+    else if (ch === '}') balance--;
+    assert.ok(balance >= 0, 'CSS must never have premature closing braces');
+  }
+  assert.strictEqual(balance, 0, 'All CSS rule blocks must be cleanly closed');
+});
+
