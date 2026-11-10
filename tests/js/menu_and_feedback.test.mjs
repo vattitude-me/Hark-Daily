@@ -10,12 +10,13 @@ test('Drawer Header contains dedicated Account button', () => {
   assert.ok(html.includes('clean-drawer-account-btn'), 'Must have clean-drawer-account-btn class');
 });
 
-test('Playback Speed and Restart briefing are combined into a single split row', () => {
+test('Restart briefing and Playback Speed are placed on the homepage player flanking the scrubber', () => {
   const html = readFileSync(resolve('web/index.html'), 'utf8');
-  assert.ok(html.includes('class="clean-menu-row-split"'), 'Must contain clean-menu-row-split container');
-  assert.ok(html.includes('id="menuSpeedBtn"'), 'Must contain menuSpeedBtn inside split row');
-  assert.ok(html.includes('id="menuRestartBtn"'), 'Must contain menuRestartBtn inside split row');
-  assert.ok(html.includes('id="menuSpeedVal"'), 'Must contain menuSpeedVal for dynamic speed label');
+  assert.ok(html.includes('id="cleanScrubberRow"'), 'Must contain cleanScrubberRow container');
+  assert.ok(html.includes('id="cleanRestartBtn"'), 'Must contain cleanRestartBtn on the left of scrubber');
+  assert.ok(html.includes('id="cleanSpeedBtn"'), 'Must contain cleanSpeedBtn on the right of scrubber');
+  assert.ok(html.includes('id="cleanSpeedVal"'), 'Must contain cleanSpeedVal for dynamic playback rate display');
+  assert.ok(!html.includes('class="clean-menu-row-split"'), 'Speed and restart must be moved out of settings drawer');
 });
 
 test('Buy a coffee link is configured with external URL and security attributes', () => {

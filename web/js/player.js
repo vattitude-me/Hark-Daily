@@ -741,6 +741,9 @@ export class Player extends EventTarget {
     }
     this.syncSpeedPills();
     this.syncPositionState();
+    try {
+      window.dispatchEvent(new CustomEvent('playbackspeedchange', { detail: { speed: rate } }));
+    } catch {}
   }
 
   setPlaying(on) {

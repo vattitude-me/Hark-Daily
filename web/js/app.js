@@ -2382,6 +2382,7 @@ function updateMenuDrawer() {
     const s = Number(player?.speed || 1);
     speedVal.textContent = `${s.toFixed(2).replace(/\.?0+$/, '')}×`;
   }
+  updateCleanSpeedDisplay();
 
   const pushBtn = $('menuPushBtn');
   if (pushBtn) {
@@ -2447,11 +2448,30 @@ function updateMenuDrawer() {
   }
 }
 
+function updateCleanSpeedDisplay() {
+  const s = Number(player?.speed || 1);
+  const formatted = `${s.toFixed(2).replace(/\.?0+$/, '')}×`;
+  const speedVal = $('cleanSpeedVal');
+  if (speedVal) {
+    speedVal.textContent = formatted;
+  }
+  const speedBtn = $('cleanSpeedBtn');
+  if (speedBtn) {
+    speedBtn.setAttribute('aria-label', `Playback speed: ${formatted}`);
+    speedBtn.setAttribute('title', `Playback speed: ${formatted} (tap to cycle)`);
+  }
+  const menuSpeedVal = $('menuSpeedVal');
+  if (menuSpeedVal) {
+    menuSpeedVal.textContent = formatted;
+  }
+}
+
 function cyclePlaybackSpeed() {
   const cur = Number(player?.speed || 1);
   const idx = PLAYBACK_SPEEDS.findIndex((s) => Math.abs(s - cur) < 0.04);
   const next = PLAYBACK_SPEEDS[(idx + 1) % PLAYBACK_SPEEDS.length];
   player.setRate(next);
+  updateCleanSpeedDisplay();
   updateMenuDrawer();
   toast(`Playback speed: ${next.toFixed(2).replace(/\.?0+$/, '')}×`);
 }
@@ -2991,6 +3011,15 @@ function bindEvents() {
     });
   });
 
+  // Homepage Scrubber Controls: Restart and Playback Speed
+  $('cleanRestartBtn')?.addEventListener('click', () => {
+    player?.restart();
+    toast('Restarted briefing from start ↺');
+  });
+  $('cleanSpeedBtn')?.addEventListener('click', cyclePlaybackSpeed);
+  window.addEventListener('playbackspeedchange', updateCleanSpeedDisplay);
+  updateCleanSpeedDisplay();
+
   // Settings & Actions rows
   $('menuTopicsBtn')?.addEventListener('click', () => {
     closeMenuDrawer();
@@ -3003,7 +3032,7 @@ function bindEvents() {
   $('menuSpeedBtn')?.addEventListener('click', cyclePlaybackSpeed);
   $('menuRestartBtn')?.addEventListener('click', () => {
     closeMenuDrawer();
-    player.restart();
+    player?.restart();
     toast('Restarted briefing from start ↺');
   });
   $('menuPushBtn')?.addEventListener('click', toggleMorningAlerts);
