@@ -544,12 +544,18 @@ function openSignIn(reason = 'default') {
   const title = $('signinTitle');
   const hint = $('loginHint');
   if (title) {
-    title.textContent = reason === 'push' ? 'Connect for notifications' : 'Sign in to Hark Daily';
+    title.textContent = reason === 'push'
+      ? 'Connect for notifications'
+      : reason === 'feedback'
+        ? 'Sign in to send feedback'
+        : 'Sign in to Hark Daily';
   }
   if (hint) {
     hint.textContent = reason === 'push'
       ? 'Sign in once to receive your morning brief notification before sunrise.'
-      : 'Sign in to sync your preferences and sources across your devices and the Android app.';
+      : reason === 'feedback'
+        ? 'Sign in to share ideas or report issues directly to our team.'
+        : 'Sign in to sync your preferences and sources across your devices and the Android app.';
   }
   $('providerStep')?.classList.remove('hidden');
   $('emailForm')?.classList.add('hidden');
@@ -2697,78 +2703,116 @@ function closeAccountModal() {
 /* ------------------------------------------------------------------ feedback modal & anti-bot */
 const FEEDBACK_WEBHOOK_URL = 'https://discord.com/api/webhooks/1569529259909709988/TlX75xr2GElMLPAJkZePfC-4NVCWNgtlCI39jKRXYO4owJRBdelZ5UygchsVzryhceZn';
 let feedbackOpenedAt = 0;
-let feedbackCaptchaExpected = 0;
-let feedbackCategory = '💡 Idea';
+let feedbackCategory = 'Idea';
 let feedbackStoryContext = null;
+let pendingFeedbackContext = null;
 
-function generateFeedbackCaptcha() {
-  const n1 = Math.floor(Math.random() * 8) + 2; // 2..9
-  const n2 = Math.floor(Math.random() * 8) + 1; // 1..8
-  feedbackCaptchaExpected = n1 + n2;
-  const promptEl = $('feedbackCaptchaPrompt');
-  if (promptEl) {
-    promptEl.textContent = `${n1} + ${n2} = ?`;
+const FEEDBACK_CATEGORIES = {
+  Audio: {
+    placeholder: 'Tell us what you heard, such as a name said wrong...',
+    embedColor: 0xF59E0B
+  },
+  'Wrong info': {
+    placeholder: 'Tell us what was incorrect or outdated in this summary...',
+    embedColor: 0xEF4444
+  },
+  Bug: {
+    placeholder: "Describe what went wrong or didn't work as expected...",
+    embedColor: 0xEC4899
+  },
+  Idea: {
+    placeholder: 'What feature or improvement would you like to see?',
+    embedColor: 0x3B82F6
   }
-  const ansEl = $('feedbackCaptchaAnswer');
-  if (ansEl) ansEl.value = '';
+};
+
+function selectFeedbackCategory(cat = 'Idea') {
+  if (!FEEDBACK_CATEGORIES[cat]) cat = 'Idea';
+  feedbackCategory = cat;
+
+  document.querySelectorAll('#feedbackCategories .feedback-cat-tile').forEach((tile) => {
+    const isTarget = tile.dataset.cat === cat;
+    tile.classList.toggle('active', isTarget);
+    tile.setAttribute('aria-checked', String(isTarget));
+  });
+
+  const msgInput = $('feedbackMessage');
+  if (msgInput) {
+    msgInput.placeholder = FEEDBACK_CATEGORIES[cat].placeholder;
+  }
 }
+window.selectFeedbackCategory = selectFeedbackCategory;
 
 function openFeedbackModal(context = null) {
+  // Post-login restriction: prompt sign in for anonymous visitors to eliminate bots
+  const hasAccount = Boolean(state.profile?.id || state.profile?.email);
+  if (!hasAccount) {
+    pendingFeedbackContext = context || { general: true };
+    closeFeedbackModal();
+    $('menuDrawer')?.classList.add('hidden');
+    openSignIn('feedback');
+    toast('Please sign in to send feedback');
+    return;
+  }
+
   const modal = $('feedbackModal');
   if (!modal) return;
   feedbackOpenedAt = Date.now();
-  generateFeedbackCaptcha();
 
   feedbackStoryContext = context?.story || null;
-  const targetCat = context?.category || (feedbackStoryContext ? '🎙️ Audio' : '💡 Idea');
-  feedbackCategory = targetCat;
-
-  document.querySelectorAll('#feedbackCategories .feedback-cat-pill').forEach((pill) => {
-    const isTarget = pill.dataset.cat === targetCat;
-    pill.classList.toggle('active', isTarget);
-    pill.setAttribute('aria-pressed', String(isTarget));
-  });
+  const initialCat = context?.category || (feedbackStoryContext ? 'Audio' : 'Idea');
+  selectFeedbackCategory(initialCat);
 
   const subEl = $('feedbackSub');
   const contextEl = $('feedbackStoryContext');
-  const contextHeadline = $('feedbackStoryContextHeadline');
-  const contextId = $('feedbackStoryContextId');
-  const contextMeta = $('feedbackStoryContextMeta');
+  const headlineEl = $('feedbackStoryContextHeadline');
+  const metaLineEl = $('feedbackStoryMetaLine');
+  const thumbEl = $('feedbackStoryThumb');
+  const idEl = $('feedbackStoryContextId');
 
   if (feedbackStoryContext && contextEl) {
     contextEl.classList.remove('hidden');
-    if (contextHeadline) {
-      contextHeadline.textContent = feedbackStoryContext.headline || feedbackStoryContext.title || 'Selected Article';
+    if (headlineEl) {
+      headlineEl.textContent = feedbackStoryContext.headline || feedbackStoryContext.title || 'Selected Article';
     }
-    if (contextId) {
-      contextId.textContent = feedbackStoryContext.id ? `ID: ${feedbackStoryContext.id}` : '';
+    if (idEl) {
+      idEl.textContent = feedbackStoryContext.id ? `ID: ${feedbackStoryContext.id}` : '';
     }
-    if (contextMeta) {
+    if (metaLineEl) {
       const curPos = typeof player?.position === 'number' ? fmtTime(player.position) : '0:00';
-      const totDur = typeof player?.duration === 'number' ? fmtTime(player.duration) : '--:--';
-      const secName = feedbackStoryContext.section || 'General';
-      const srcName = feedbackStoryContext.source_name || feedbackStoryContext.source || '';
-      contextMeta.textContent = `${secName}${srcName ? ' · ' + srcName : ''} · Time: ${curPos} / ${totDur}`;
+      metaLineEl.textContent = `ABOUT THIS STORY · AT ${curPos}`;
     }
-    if (subEl) subEl.textContent = 'Report an issue with this article or its voice audio.';
+    if (thumbEl) {
+      const imgUrl = feedbackStoryContext.image_url || feedbackStoryContext.cover_url || '';
+      if (imgUrl) {
+        thumbEl.src = imgUrl;
+        thumbEl.style.display = 'block';
+      } else {
+        thumbEl.style.display = 'block';
+        thumbEl.removeAttribute('src');
+      }
+    }
+    if (subEl) subEl.textContent = 'Help us make Hark better';
   } else {
     contextEl?.classList.add('hidden');
-    if (subEl) subEl.textContent = 'Help us make Hark Daily better for you.';
+    if (subEl) subEl.textContent = 'Help us make Hark better';
   }
 
-  // Prefill email if signed in
-  const emailInput = $('feedbackEmail');
-  if (emailInput) {
-    emailInput.value = state.profile?.email || '';
+  // Reply by email state
+  const replySwitch = $('feedbackReplySwitch');
+  if (replySwitch) {
+    replySwitch.classList.add('on');
+    replySwitch.setAttribute('aria-checked', 'true');
+  }
+  const replyEmailEl = $('feedbackReplyEmail');
+  if (replyEmailEl) {
+    replyEmailEl.textContent = state.profile?.email ? `to ${state.profile.email}` : '';
   }
 
   // Clear message and counters
   const msgInput = $('feedbackMessage');
   if (msgInput) {
     msgInput.value = '';
-    msgInput.placeholder = feedbackStoryContext
-      ? "Describe the issue (e.g. audio glitch, wrong narrator voice, mispronunciation, headline error)..."
-      : "What’s on your mind? Ideas, bug reports, audio suggestions...";
   }
   const counter = $('feedbackCharCount');
   if (counter) counter.textContent = '0/1000';
@@ -2787,7 +2831,7 @@ function openFeedbackModal(context = null) {
   const submitBtn = $('feedbackSubmitBtn');
   if (submitBtn) submitBtn.disabled = false;
   const submitText = $('feedbackSubmitText');
-  if (submitText) submitText.textContent = 'Send Feedback';
+  if (submitText) submitText.textContent = 'Send feedback';
 
   modal.classList.remove('hidden');
   msgInput?.focus();
@@ -2814,14 +2858,14 @@ async function handleFeedbackSubmit(e) {
   if (hpValue) {
     // Fake success response to misdirect bot without executing webhook
     closeFeedbackModal();
-    toast('Thank you for your feedback! ❤️');
+    toast('Feedback received! Thank you for helping us make Hark better ❤️');
     return;
   }
 
   // 2. Speed-trap check (submitted too fast, < 2.0s)
   const duration = Date.now() - feedbackOpenedAt;
   if (duration < 2000) {
-    showFeedbackStatus('Please take a moment to type your feedback.', 'error');
+    showFeedbackStatus('Please take a moment to write your feedback.', 'error');
     return;
   }
 
@@ -2834,32 +2878,22 @@ async function handleFeedbackSubmit(e) {
     return;
   }
 
-  // 4. Human verification captcha check
-  const answerVal = parseInt($('feedbackCaptchaAnswer')?.value || '', 10);
-  if (isNaN(answerVal) || answerVal !== feedbackCaptchaExpected) {
-    showFeedbackStatus('Incorrect security answer. Please solve the math check.', 'error');
-    generateFeedbackCaptcha();
-    return;
-  }
-
-  // 5. Message length validation
+  // 4. Message length validation
   const message = $('feedbackMessage')?.value?.trim() || '';
   if (message.length < 5) {
     showFeedbackStatus('Please enter at least 5 characters for your message.', 'error');
     return;
   }
 
-  // 6. Optional email validation
-  const email = $('feedbackEmail')?.value?.trim() || (state.profile?.email || 'Anonymous');
-  if (email && email !== 'Anonymous' && !email.includes('@')) {
-    showFeedbackStatus('Please enter a valid email address or leave it blank.', 'error');
-    return;
-  }
+  // 5. Reply by email preference
+  const isReplyOn = $('feedbackReplySwitch')?.classList.contains('on') ?? true;
+  const userEmail = state.profile?.email || 'Authenticated User';
+  const replyField = isReplyOn ? `Yes (${userEmail})` : 'No (reply not requested)';
 
-  // 7. Sanitize Discord mentions
+  // 6. Sanitize Discord mentions
   const safeMessage = message.replace(/@(everyone|here)/gi, '@\u200b$1');
 
-  // 8. Prepare Discord Rich Embed
+  // 7. Prepare Discord Rich Embed
   const submitBtn = $('feedbackSubmitBtn');
   const submitText = $('feedbackSubmitText');
   if (submitBtn) submitBtn.disabled = true;
@@ -2867,9 +2901,11 @@ async function handleFeedbackSubmit(e) {
 
   const editionName = EDITIONS[state.edition]?.name || state.edition || 'Canada';
   const appVer = window.__APP_VERSION__ || 'Hark Daily v1.0.22';
+  const catConfig = FEEDBACK_CATEGORIES[feedbackCategory] || { embedColor: 0xF59E0B };
 
   const embedFields = [
     { name: 'Category', value: feedbackCategory, inline: true },
+    { name: 'Reply Requested', value: replyField, inline: true },
     { name: 'Edition', value: editionName, inline: true }
   ];
 
@@ -2896,8 +2932,7 @@ async function handleFeedbackSubmit(e) {
 
   embedFields.push(
     { name: 'Client', value: appVer, inline: true },
-    { name: 'User Profile', value: state.profile?.email || 'Guest', inline: true },
-    { name: 'Verification', value: 'Human Math Challenge Passed', inline: true }
+    { name: 'User Profile', value: userEmail, inline: true }
   );
 
   const payload = {
@@ -2905,11 +2940,11 @@ async function handleFeedbackSubmit(e) {
     avatar_url: 'https://harkdaily.com/icons/logo-transparent.png',
     embeds: [
       {
-        title: `${feedbackCategory} from ${email}${feedbackStoryContext ? ' (Article Report)' : ''}`,
+        title: `[${feedbackCategory}] Feedback from ${userEmail}${feedbackStoryContext ? ' (Story Attached)' : ''}`,
         description: safeMessage,
-        color: feedbackStoryContext ? 0xEF4444 : 0xF59E0B,
+        color: catConfig.embedColor,
         fields: embedFields,
-        footer: { text: feedbackStoryContext ? `Story ID: ${feedbackStoryContext.id || 'N/A'} · Hark Shield` : 'Hark Anti-Spam Shield' },
+        footer: { text: feedbackStoryContext ? `Story ID: ${feedbackStoryContext.id || 'N/A'} · Hark Feedback Shield` : 'Hark Feedback Shield' },
         timestamp: new Date().toISOString()
       }
     ]
@@ -2928,12 +2963,12 @@ async function handleFeedbackSubmit(e) {
 
     localStorage.setItem('hark_feedback_last_sent', String(Date.now()));
     closeFeedbackModal();
-    toast('Feedback received! Thank you for supporting Hark ❤️');
+    toast('Feedback received! Thank you for helping us make Hark better ❤️');
   } catch (err) {
     console.error('[Feedback] Webhook dispatch error:', err);
     showFeedbackStatus('Could not send feedback. Please try again later.', 'error');
     if (submitBtn) submitBtn.disabled = false;
-    if (submitText) submitText.textContent = 'Send Feedback';
+    if (submitText) submitText.textContent = 'Send feedback';
   }
 }
 
@@ -3028,7 +3063,7 @@ function bindEvents() {
   });
 
   // Feedback Action Button & Modal Handlers
-  $('drawerFeedbackBtn')?.addEventListener('click', openFeedbackModal);
+  $('drawerFeedbackBtn')?.addEventListener('click', () => openFeedbackModal());
   $('feedbackCloseBtn')?.addEventListener('click', closeFeedbackModal);
   $('feedbackCancelBtn')?.addEventListener('click', closeFeedbackModal);
   $('feedbackModal')?.addEventListener('click', (e) => {
@@ -3039,16 +3074,16 @@ function bindEvents() {
     const counter = $('feedbackCharCount');
     if (counter) counter.textContent = `${e.target.value.length}/1000`;
   });
-  document.querySelectorAll('#feedbackCategories .feedback-cat-pill').forEach((pill) => {
-    pill.addEventListener('click', () => {
-      document.querySelectorAll('#feedbackCategories .feedback-cat-pill').forEach((p) => {
-        p.classList.remove('active');
-        p.setAttribute('aria-pressed', 'false');
-      });
-      pill.classList.add('active');
-      pill.setAttribute('aria-pressed', 'true');
-      feedbackCategory = pill.dataset.cat || '💡 Idea';
+  document.querySelectorAll('#feedbackCategories .feedback-cat-tile').forEach((tile) => {
+    tile.addEventListener('click', () => {
+      selectFeedbackCategory(tile.dataset.cat || 'Idea');
     });
+  });
+  $('feedbackReplySwitch')?.addEventListener('click', () => {
+    const sw = $('feedbackReplySwitch');
+    if (!sw) return;
+    const isOn = sw.classList.toggle('on');
+    sw.setAttribute('aria-checked', String(isOn));
   });
 
   // NEWS FROM: Multi-day date selector dropdown
@@ -3086,7 +3121,7 @@ function bindEvents() {
   $('cleanReportBtn')?.addEventListener('click', (e) => {
     e.stopPropagation();
     const curStory = player?.currentStory?.() || state.briefing?.stories?.[0];
-    openFeedbackModal({ story: curStory, category: '🎙️ Audio' });
+    openFeedbackModal({ story: curStory, category: 'Audio' });
   });
 
   // Drawer version reload / check for updates button
@@ -3570,10 +3605,24 @@ async function enterApp() {
     syncAdminTab();
     renderHeader();
     renderGuestBanner();
+    if (pendingFeedbackContext) {
+      const ctx = pendingFeedbackContext;
+      pendingFeedbackContext = null;
+      setTimeout(() => {
+        openFeedbackModal(ctx.general ? null : ctx);
+      }, 350);
+    }
     return;
   }
   started = true;
   await start();
+  if (pendingFeedbackContext) {
+    const ctx = pendingFeedbackContext;
+    pendingFeedbackContext = null;
+    setTimeout(() => {
+      openFeedbackModal(ctx.general ? null : ctx);
+    }, 350);
+  }
   const voice = store.get('pending-voice', null);
   if (voice && !state.profile?.settings?.voice) {
     try { await api.saveSettings({ voice }); state.profile = await api.profile(); } catch { /* keep default */ }
