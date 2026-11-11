@@ -149,10 +149,12 @@ export default async function handler(req, res) {
   // Protect against host header injection and web cache poisoning:
   // Strictly enforce canonical origin unless running on verified preview or local dev
   let origin = CANONICAL_ORIGIN;
-  if (reqHost.endsWith('.vercel.app')) {
-    origin = `https://${reqHost}`;
-  } else if (reqHost.startsWith('localhost') || reqHost.startsWith('127.0.0.1')) {
+  const isLocal = /^localhost(:\d+)?$/.test(reqHost) || /^127\.0\.0\.1(:\d+)?$/.test(reqHost);
+  const isHarkVercel = /^(hark|morning-brief)[a-z0-9-]*\.vercel\.app$/.test(reqHost);
+  if (isLocal) {
     origin = `http://${reqHost}`;
+  } else if (isHarkVercel) {
+    origin = `https://${reqHost}`;
   }
 
   const urlObj = new URL(req.url, origin);
@@ -196,21 +198,21 @@ export default async function handler(req, res) {
   const eThumb = escapeHtml(thumbUrl);
 
   html = html
-    .replace(/<title>[\s\S]*?<\/title>/i, `<title>${eTitle}</title>`)
-    .replace(/<meta\s+name="description"\s+content="[^"]*">/i, `<meta name="description" content="${eDesc}">`)
-    .replace(/<link\s+rel="canonical"\s+href="[^"]*">/i, `<link rel="canonical" href="${eUrl}">`)
-    .replace(/<meta\s+property="og:url"\s+content="[^"]*">/i, `<meta property="og:url" content="${eUrl}">`)
-    .replace(/<meta\s+property="og:title"\s+content="[^"]*">/i, `<meta property="og:title" content="${eTitle}">`)
-    .replace(/<meta\s+property="og:description"\s+content="[^"]*">/i, `<meta property="og:description" content="${eDesc}">`)
-    .replace(/<meta\s+property="og:image"\s+content="[^"]*">/i, `<meta property="og:image" content="${eThumb}">`)
-    .replace(/<meta\s+property="og:image:secure_url"\s+content="[^"]*">/i, `<meta property="og:image:secure_url" content="${eThumb}">`)
-    .replace(/<meta\s+property="og:image:width"\s+content="[^"]*">/i, `<meta property="og:image:width" content="${isCustomThumb ? '1200' : '192'}">`)
-    .replace(/<meta\s+property="og:image:height"\s+content="[^"]*">/i, `<meta property="og:image:height" content="${isCustomThumb ? '630' : '192'}">`)
-    .replace(/<meta\s+name="twitter:card"\s+content="[^"]*">/i, isCustomThumb ? '<meta name="twitter:card" content="summary_large_image">' : '<meta name="twitter:card" content="summary">')
-    .replace(/<meta\s+name="twitter:url"\s+content="[^"]*">/i, `<meta name="twitter:url" content="${eUrl}">`)
-    .replace(/<meta\s+name="twitter:title"\s+content="[^"]*">/i, `<meta name="twitter:title" content="${eTitle}">`)
-    .replace(/<meta\s+name="twitter:description"\s+content="[^"]*">/i, `<meta name="twitter:description" content="${eDesc}">`)
-    .replace(/<meta\s+name="twitter:image"\s+content="[^"]*">/i, `<meta name="twitter:image" content="${eThumb}">`);
+    .replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${eTitle}</title>`)
+    .replace(/<meta\s+name="description"\s+content="[^"]*">/i, () => `<meta name="description" content="${eDesc}">`)
+    .replace(/<link\s+rel="canonical"\s+href="[^"]*">/i, () => `<link rel="canonical" href="${eUrl}">`)
+    .replace(/<meta\s+property="og:url"\s+content="[^"]*">/i, () => `<meta property="og:url" content="${eUrl}">`)
+    .replace(/<meta\s+property="og:title"\s+content="[^"]*">/i, () => `<meta property="og:title" content="${eTitle}">`)
+    .replace(/<meta\s+property="og:description"\s+content="[^"]*">/i, () => `<meta property="og:description" content="${eDesc}">`)
+    .replace(/<meta\s+property="og:image"\s+content="[^"]*">/i, () => `<meta property="og:image" content="${eThumb}">`)
+    .replace(/<meta\s+property="og:image:secure_url"\s+content="[^"]*">/i, () => `<meta property="og:image:secure_url" content="${eThumb}">`)
+    .replace(/<meta\s+property="og:image:width"\s+content="[^"]*">/i, () => `<meta property="og:image:width" content="${isCustomThumb ? '1200' : '192'}">`)
+    .replace(/<meta\s+property="og:image:height"\s+content="[^"]*">/i, () => `<meta property="og:image:height" content="${isCustomThumb ? '630' : '192'}">`)
+    .replace(/<meta\s+name="twitter:card"\s+content="[^"]*">/i, () => (isCustomThumb ? '<meta name="twitter:card" content="summary_large_image">' : '<meta name="twitter:card" content="summary">'))
+    .replace(/<meta\s+name="twitter:url"\s+content="[^"]*">/i, () => `<meta name="twitter:url" content="${eUrl}">`)
+    .replace(/<meta\s+name="twitter:title"\s+content="[^"]*">/i, () => `<meta name="twitter:title" content="${eTitle}">`)
+    .replace(/<meta\s+name="twitter:description"\s+content="[^"]*">/i, () => `<meta name="twitter:description" content="${eDesc}">`)
+    .replace(/<meta\s+name="twitter:image"\s+content="[^"]*">/i, () => `<meta name="twitter:image" content="${eThumb}">`);
 
   const sharedPayload = {
     notFound: isNotFound,
@@ -226,7 +228,7 @@ export default async function handler(req, res) {
     script: storyRow?.script || null,
   };
   const safeJson = JSON.stringify(sharedPayload).replace(/</g, '\\u003c');
-  html = html.replace('</head>', `  <script>window.__SHARED_STORY__ = ${safeJson};</script>\n</head>`);
+  html = html.replace('</head>', () => `  <script>window.__SHARED_STORY__ = ${safeJson};</script>\n</head>`);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=86400');

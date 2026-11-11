@@ -202,7 +202,8 @@ class Worker:
             self.publish(running=False, step=None, progress=1, last_pack={
                 "day": day, "voices": chosen or list(self.cfg.story_voices or ()), "notes_only": notes_only,
                 "force": force, "detail": detail, "seconds": round(time.monotonic() - clock, 1),
-                "started_at": started, "at": now_iso(), "ok": True, "by": (profile or {}).get("email"),
+                "started_at": started, "at": now_iso(), "ok": True,
+                "by": "admin" if (profile or {}).get("email") else "worker",
             })
             # The run log is what the admin page reads, so a rebuild from here belongs in it.
             storypack.record(self.store, day=day, status="ok",
@@ -217,14 +218,14 @@ class Worker:
             log.warning("Pack rebuild delayed: %s", exc)
             self.publish(running=False, step=None, progress=0, last_pack={
                 "error": str(exc), "at": now_iso(), "ok": False,
-                "by": (profile or {}).get("email"),
+                "by": "admin" if (profile or {}).get("email") else "worker",
             })
             return "error", str(exc)
         except Exception as exc:  # noqa: BLE001 - the request row carries the reason
             log.exception("Pack rebuild failed")
             self.publish(running=False, step=None, progress=0, last_pack={
-                "error": f"{exc.__class__.__name__}: {exc}"[:300], "at": now_iso(), "ok": False,
-                "by": (profile or {}).get("email"),
+                "error": "Rebuild failed. See admin run log for details.", "at": now_iso(), "ok": False,
+                "by": "admin" if (profile or {}).get("email") else "worker",
             })
             storypack.record(self.store, day=(options.get("day") or datetime.now(self.tz).date().isoformat()),
                              status="failed", title="✗ Rebuild failed",

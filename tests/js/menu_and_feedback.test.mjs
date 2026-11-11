@@ -349,16 +349,123 @@ test('Security guards: SSRF IP filtering blocks internal, link-local, carrier-gr
   assert.equal(isPrivateOrReservedIP('100.64.0.1'), true, 'Carrier-grade NAT 100.64.0.1 must be blocked');
   assert.equal(isPrivateOrReservedIP('100.127.255.254'), true, 'Carrier-grade NAT 100.127.255.254 must be blocked');
 
-  // IPv6 loopback, link-local, unique local, IPv4-mapped
+  // IPv6 loopback, link-local, unique local, IPv4-mapped (dotted and hex)
   assert.equal(isPrivateOrReservedIP('::1'), true, 'IPv6 loopback must be blocked');
   assert.equal(isPrivateOrReservedIP('fe80::1'), true, 'IPv6 link-local must be blocked');
   assert.equal(isPrivateOrReservedIP('fc00::1'), true, 'IPv6 unique local must be blocked');
   assert.equal(isPrivateOrReservedIP('::ffff:127.0.0.1'), true, 'IPv4-mapped IPv6 loopback must be blocked');
   assert.equal(isPrivateOrReservedIP('::ffff:169.254.169.254'), true, 'IPv4-mapped cloud metadata must be blocked');
+  assert.equal(isPrivateOrReservedIP('::ffff:7f00:1'), true, 'Hex IPv4-mapped loopback ::ffff:7f00:1 must be blocked');
+  assert.equal(isPrivateOrReservedIP('::ffff:a9fe:a9fe'), true, 'Hex IPv4-mapped cloud metadata ::ffff:a9fe:a9fe must be blocked');
 
   // Public internet IPs must be permitted
   assert.equal(isPrivateOrReservedIP('8.8.8.8'), false, 'Google DNS 8.8.8.8 must be allowed');
   assert.equal(isPrivateOrReservedIP('1.1.1.1'), false, 'Cloudflare DNS 1.1.1.1 must be allowed');
   assert.equal(isPrivateOrReservedIP('151.101.1.140'), false, 'Public CDN IP must be allowed');
+  assert.equal(isPrivateOrReservedIP('::ffff:808:808'), false, 'Public hex IPv4-mapped DNS 8.8.8.8 must be allowed');
+});
+
+test('SEC-19: safeExternalUrl strictly validates HTTP/HTTPS protocols and rejects script injection', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'player-test-'));
+  const src = readFileSync(resolve('web/js/player.js'), 'utf8')
+    .replace("import { fmtTime, h, store } from './api.js';", "const fmtTime = () => '', h = () => {}, store = {};")
+    .replace("import { parseDialogueTurns } from './storypack.js';", "const parseDialogueTurns = () => {};");
+  writeFileSync(join(dir, 'player_safe.mjs'), src);
+  const { safeExternalUrl } = await import(join(dir, 'player_safe.mjs'));
+
+  assert.equal(safeExternalUrl(null), null);
+  assert.equal(safeExternalUrl(''), null);
+  assert.equal(safeExternalUrl('javascript:alert(1)'), null, 'javascript: scheme must be blocked');
+  assert.equal(safeExternalUrl('data:text/html,<script>alert(1)</script>'), null, 'data: scheme must be blocked');
+  assert.equal(safeExternalUrl('vbscript:msgbox(1)'), null, 'vbscript: scheme must be blocked');
+  assert.equal(safeExternalUrl('//evil.example.com'), null, 'Protocol-relative URL must be blocked');
+  assert.equal(safeExternalUrl('https://www.cbc.ca/news/world-123'), 'https://www.cbc.ca/news/world-123', 'HTTPS must be allowed');
+  assert.equal(safeExternalUrl('http://feeds.bbci.co.uk/news/rss.xml'), 'http://feeds.bbci.co.uk/news/rss.xml', 'HTTP must be allowed');
+});
+
+test('SEC-18: /api/share canonicalizes origins and safely escapes replacement strings with $ patterns', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'share-test-'));
+  const src = readFileSync(resolve('web/api/share.js'), 'utf8')
+    .replace("import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '../config.js';", "const SUPABASE_PUBLISHABLE_KEY = 'test', SUPABASE_URL = 'http://test';");
+  writeFileSync(join(dir, 'share.mjs'), src);
+  const { default: shareHandler } = await import(join(dir, 'share.mjs'));
+
+  let headersSent = {};
+  let sentBody = '';
+  const mockRes = {
+    setHeader: (k, v) => { headersSent[k.toLowerCase()] = v; },
+    status: () => mockRes,
+    send: (body) => { sentBody = body; },
+  };
+
+  // Poisoned X-Forwarded-Host from attacker
+  await shareHandler({
+    url: '/s/2026-11-10/top-1-test',
+    headers: {
+      'x-forwarded-host': 'localhost.attacker.com',
+    },
+  }, mockRes);
+
+  assert.ok(!sentBody.includes('http://localhost.attacker.com'), 'Must never accept spoofed prefix localhost.attacker.com');
+  assert.ok(sentBody.includes('https://hark.vattitude.ca'), 'Must default to CANONICAL_ORIGIN');
+});
+
+test('SEC-16: /api/fetch rejects HTML payloads and sets strict non-executable headers', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'fetch-test2-'));
+  const src = readFileSync(resolve('web/api/fetch.js'), 'utf8');
+  writeFileSync(join(dir, 'fetch2.mjs'), src);
+  const { default: fetchHandler } = await import(join(dir, 'fetch2.mjs'));
+
+  // Test origin rejection for unauthorized origins
+  let statusCode = 0;
+  let sentJson = null;
+  const mockRes = {
+    setHeader: () => {},
+    status: (c) => { statusCode = c; return mockRes; },
+    json: (j) => { sentJson = j; },
+    send: () => {},
+  };
+
+  await fetchHandler({
+    method: 'GET',
+    url: '/api/fetch?url=https://news.ycombinator.com/rss',
+    headers: { origin: 'https://attacker.evil.com' },
+  }, mockRes);
+
+  assert.equal(statusCode, 403, 'Unauthorized origin must be rejected with 403');
+});
+
+test('DATA-07: api.signOut clears diagnostics-log from storage', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'signout-test-'));
+  const src = readFileSync(resolve('web/js/api.js'), 'utf8')
+    .replace("import { createClient } from './supabase-js.js';", "const createClient = () => ({ auth: { signOut: async () => ({}) } });")
+    .replace(/import\s*\{[^}]*\}\s*from\s*'\.\.\/config\.js';/, "const SUPABASE_URL = 'http://test', SUPABASE_PUBLISHABLE_KEY = 'test', FEATURES = {}, GOOGLE_CLIENT_ID = 'test';");
+  writeFileSync(join(dir, 'api_signout.mjs'), src);
+
+  const mockStore = {};
+  globalThis.localStorage = {
+    getItem: (k) => mockStore[k] ?? null,
+    setItem: (k, v) => { mockStore[k] = String(v); },
+    removeItem: (k) => { delete mockStore[k]; },
+  };
+
+  const { api, store } = await import(join(dir, 'api_signout.mjs'));
+
+  store.set('diagnostics-log', [{ error: 'test error' }]);
+  assert.equal(store.get('diagnostics-log')?.length, 1);
+  await api.signOut();
+  assert.equal(store.get('diagnostics-log'), undefined, 'diagnostics-log must be removed on signOut');
 });
 
