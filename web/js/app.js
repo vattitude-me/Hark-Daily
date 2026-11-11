@@ -2787,7 +2787,7 @@ function openFeedbackModal(context = null) {
       metaLineEl.textContent = `ABOUT THIS STORY · AT ${curPos}`;
     }
     if (thumbEl) {
-      const imgUrl = feedbackStoryContext.image_url || feedbackStoryContext.cover_url || '';
+      const imgUrl = feedbackStoryContext.image || feedbackStoryContext.image_url || feedbackStoryContext.cover_url || '';
       if (imgUrl) {
         thumbEl.src = imgUrl;
         thumbEl.style.display = 'block';

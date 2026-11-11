@@ -202,6 +202,24 @@ export class Player extends EventTarget {
       });
     }
 
+    const rearCoverImg = document.getElementById('rearCoverImg');
+    if (rearCoverImg) {
+      rearCoverImg.addEventListener('error', () => {
+        const failed = rearCoverImg.dataset.src || rearCoverImg.src;
+        if (failed && !failed.startsWith('/icons/covers/')) {
+          this.failedImages.add(failed);
+          const b = this.briefing;
+          const story = this.currentStory();
+          const currentStoryIdx = story ? b.stories.indexOf(story) : 0;
+          const nextStory = b.stories?.[currentStoryIdx + 1];
+          const nextSec = nextStory?.section || 'top';
+          const fallback = getDefaultCover(nextSec);
+          rearCoverImg.dataset.src = fallback;
+          rearCoverImg.src = fallback;
+        }
+      });
+    }
+
     // 40-bar acoustic waveform scrubber
     this.setupCleanWaveform();
 
@@ -1465,11 +1483,19 @@ export class Player extends EventTarget {
         const rearCoverImg = document.getElementById('rearCoverImg');
         if (rearCoverImg) {
           const nextSec = nextStory.section || 'top';
-          const nextImg = nextStory.image_url || getDefaultCover(nextSec);
+          const nextImg = (nextStory.image && !this.failedImages.has(nextStory.image))
+            ? nextStory.image
+            : (nextStory.image_url || getDefaultCover(nextSec));
           if (rearCoverImg.dataset.src !== nextImg) {
             rearCoverImg.dataset.src = nextImg;
             rearCoverImg.src = nextImg;
           }
+        }
+        // Preload next-next story image in browser cache so rapid successive swipes are instant
+        const afterNext = b.stories?.[currentStoryIdx + 2];
+        if (afterNext?.image && !this.failedImages.has(afterNext.image)) {
+          const prefetch = new Image();
+          prefetch.src = afterNext.image;
         }
         const rearCat = document.getElementById('rearCatBadge');
         if (rearCat) {

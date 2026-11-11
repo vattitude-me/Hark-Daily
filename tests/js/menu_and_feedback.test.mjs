@@ -139,6 +139,7 @@ test('3D Stacked Cards deck and swipe gesture navigation are properly configured
   assert.ok(playerJs.includes('this.nextChapter()'), 'Must advance to next story on left swipe');
   assert.ok(playerJs.includes('this.prevChapter()'), 'Must return to previous story on right swipe');
   assert.ok(playerJs.includes('rearCoverImg'), 'Player tick must populate rear cover image');
+  assert.ok(playerJs.includes('nextStory.image'), 'Rear card must load nextStory.image instead of falling back to default icon');
   assert.ok(playerJs.includes('rearStoryHeadline'), 'Player tick must populate rear story headline');
 });
 
