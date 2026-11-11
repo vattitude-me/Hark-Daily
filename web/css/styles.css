@@ -4592,8 +4592,15 @@ body.playing .clean-play-circle .clean-pause-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  margin-top: 4px;
+  gap: 8px;
+  margin-top: 6px;
+}
+.clean-drawer-version {
+  font-family: var(--font-head);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: rgba(255, 255, 255, 0.4);
 }
 .clean-drawer-version-btn {
   all: unset;
@@ -4603,32 +4610,38 @@ body.playing .clean-play-circle .clean-pause-icon {
   justify-content: center;
   gap: 4px;
   cursor: pointer;
-  padding: 3px 8px;
-  border-radius: 12px;
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.28);
-  color: #FBBF24;
-  font-size: 11px;
-  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   transition: all .15s ease;
 }
 .clean-drawer-version-btn svg {
   display: block;
+  opacity: 0.7;
+  transition: opacity .15s ease;
 }
 .clean-drawer-version-btn:hover {
-  background: rgba(245, 158, 11, 0.22);
-  border-color: rgba(245, 158, 11, 0.45);
-  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
+}
+.clean-drawer-version-btn:hover svg {
+  opacity: 1;
 }
 .clean-drawer-version-btn:active {
   transform: scale(0.96);
 }
-.clean-drawer-version {
-  font-family: var(--font-head);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  color: rgba(255, 255, 255, 0.55);
+.clean-drawer-version-btn.is-checking svg {
+  animation: cleanSpin .7s linear infinite;
+}
+@keyframes cleanSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* Bottom Footer Bar: Close (default) / Discard & Save changes (when dirty) */
