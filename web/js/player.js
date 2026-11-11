@@ -958,35 +958,47 @@ export class Player extends EventTarget {
           }
         }, 240);
       } else if (currentDeltaX > 20 && passedThreshold && canGoPrev) {
-        // Swiped Right -> Go to previous story
-        card.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.2s ease';
-        card.style.transform = 'translateX(120%) rotate(10deg)';
-        card.style.opacity = '0';
+        // Swiped Right -> Pull previous story IN from the left, step current story down into rear stack
+        // 1. Immediately switch playback to previous story so DOM content updates
+        this.prevChapter();
 
-        setTimeout(() => {
-          this.prevChapter();
-          card.style.transition = 'none';
-          card.style.transform = 'translateX(-70px) scale(0.97)';
-          card.style.opacity = '0.7';
+        // 2. Position front card off-screen to the left (where it was previously dealt)
+        card.style.transition = 'none';
+        card.style.transform = 'translateX(-110%) rotate(-8deg)';
+        card.style.opacity = '0.9';
 
-          if (rearCard) {
-            rearCard.style.transition = 'none';
-            rearCard.style.transform = `translateX(${BASE_REAR_X}px) scale(${BASE_REAR_SCALE})`;
-            rearCard.style.opacity = String(BASE_REAR_OPACITY);
-          }
-          if (bg2) {
-            bg2.style.transition = 'none';
-            bg2.style.transform = `translateX(${BASE_L2_X}px) scale(${BASE_L2_SCALE})`;
-            bg2.style.opacity = String(BASE_L2_OPACITY);
-          }
+        // 3. Position rear card at center (displaying the story that was just on front)
+        if (rearCard) {
+          rearCard.style.transition = 'none';
+          rearCard.style.transform = 'translateX(0px) scale(1)';
+          rearCard.style.opacity = '1';
+        }
+        if (bg2) {
+          bg2.style.transition = 'none';
+          bg2.style.transform = `translateX(${BASE_REAR_X}px) scale(${BASE_REAR_SCALE})`;
+          bg2.style.opacity = String(BASE_REAR_OPACITY);
+        }
 
-          requestAnimationFrame(() => {
-            const baseFront = getBaseFrontX();
-            card.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease';
-            card.style.transform = `translateX(${baseFront}px)`;
-            card.style.opacity = '1';
-          });
-        }, 220);
+        // Force browser reflow to commit initial positions before triggering animation
+        void card.offsetWidth;
+
+        // 4. Animate front card gliding in smoothly from the left into center
+        const baseFront = getBaseFrontX();
+        card.style.transition = 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.24s ease';
+        card.style.transform = `translateX(${baseFront}px) rotate(0deg)`;
+        card.style.opacity = '1';
+
+        // 5. Animate rear card settling back down into its back-stack rest position
+        if (rearCard) {
+          rearCard.style.transition = 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.24s ease';
+          rearCard.style.transform = `translateX(${BASE_REAR_X}px) scale(${BASE_REAR_SCALE})`;
+          rearCard.style.opacity = String(BASE_REAR_OPACITY);
+        }
+        if (bg2) {
+          bg2.style.transition = 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.24s ease';
+          bg2.style.transform = `translateX(${BASE_L2_X}px) scale(${BASE_L2_SCALE})`;
+          bg2.style.opacity = String(BASE_L2_OPACITY);
+        }
       } else {
         // Snap back to active rest position
         const baseFront = getBaseFrontX();
