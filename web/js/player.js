@@ -1391,11 +1391,12 @@ export class Player extends EventTarget {
     }
 
     // Cover image determination:
-    // During intro chat, host banter, or outro sign-off, show the official podcast logo.
+    // During intro chat, host banter, or outro sign-off, show the category SVG artwork.
     // When a story is playing, show the story's editorial image (or category default SVG fallback).
     let img = null;
     if (isIntroOrBanter) {
-      img = '/icons/covers/default.svg';
+      const secKey = (ch?.section || story?.section || this.currentSection || '').replace(/_(us|in|ca)$/, '');
+      img = getDefaultCover(secKey);
     } else if (story?.image) {
       img = story.image;
     } else {
@@ -1471,12 +1472,29 @@ export class Player extends EventTarget {
     // Clean Player Story Metadata & Actions
     const cleanCat = document.getElementById('cleanCatBadge');
     if (cleanCat) {
-      cleanCat.textContent = (ch?.section || section || story?.section || b.stories?.[0]?.section || 'TOP STORIES').toUpperCase();
+      let catText = 'TOP STORIES';
+      if (isIntroOrBanter) {
+        if (ch?.id?.startsWith('pod_open') || ch?.id?.startsWith('greeting')) {
+          catText = 'PREVIEW';
+        } else if (ch?.id?.startsWith('pod_close') || ch?.id === 'outro') {
+          catText = 'SIGN-OFF';
+        } else {
+          const secKey = ch?.section || story?.section || section;
+          catText = (secKey || 'UP NEXT').replace(/_(us|in|ca)$/, '');
+        }
+      } else {
+        catText = ch?.section || section || story?.section || b.stories?.[0]?.section || 'TOP STORIES';
+      }
+      cleanCat.textContent = catText.toUpperCase();
     }
     const cleanSrc = document.getElementById('cleanSourceTitle');
     if (cleanSrc) {
-      const srcRaw = story?.source || b.stories?.[0]?.source;
-      cleanSrc.textContent = srcRaw ? srcRaw.split('·')[0].trim() : 'Daily News';
+      if (isIntroOrBanter) {
+        cleanSrc.textContent = 'Hark Daily';
+      } else {
+        const srcRaw = story?.source || b.stories?.[0]?.source;
+        cleanSrc.textContent = srcRaw ? srcRaw.split('·')[0].trim() : 'Daily News';
+      }
     }
     const cleanCounter = document.getElementById('cleanStoryCounter');
     if (cleanCounter) {
@@ -1558,14 +1576,18 @@ export class Player extends EventTarget {
     const cleanSourceLink = document.getElementById('cleanSourceLink');
     const cleanSourceLinkName = document.getElementById('cleanSourceLinkName');
     if (cleanSourceLink) {
-      const sTarget = story || b.stories?.[0];
-      if (sTarget?.url) {
-        cleanSourceLink.href = sTarget.url;
-        const srcName = sTarget?.source ? sTarget.source.split('·')[0].trim() : 'original source';
-        if (cleanSourceLinkName) cleanSourceLinkName.textContent = `Read on ${srcName}`;
-        cleanSourceLink.classList.remove('hidden');
-      } else {
+      if (isIntroOrBanter) {
         cleanSourceLink.classList.add('hidden');
+      } else {
+        const sTarget = story || b.stories?.[0];
+        if (sTarget?.url) {
+          cleanSourceLink.href = sTarget.url;
+          const srcName = sTarget?.source ? sTarget.source.split('·')[0].trim() : 'original source';
+          if (cleanSourceLinkName) cleanSourceLinkName.textContent = `Read on ${srcName}`;
+          cleanSourceLink.classList.remove('hidden');
+        } else {
+          cleanSourceLink.classList.add('hidden');
+        }
       }
     }
 

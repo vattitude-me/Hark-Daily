@@ -2904,7 +2904,7 @@ async function handleFeedbackSubmit(e) {
   if (submitText) submitText.textContent = 'Sending...';
 
   const editionName = EDITIONS[state.edition]?.name || state.edition || 'Canada';
-  const appVer = window.__APP_VERSION__ || 'Hark Daily v1.0.22';
+  const appVer = window.__APP_VERSION__ || 'Hark Daily v1.0.23';
   const payload = {
     category: feedbackCategory,
     message: safeMessage,
