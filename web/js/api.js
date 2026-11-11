@@ -124,7 +124,11 @@ export async function detectEditionFromIp() {
     if (country === 'IN') return 'in';
     if (country === 'US') return 'us';
     if (country === 'CA') return 'ca';
-    // Fall back to browser timezone and language heuristics without third-party IP leaks (DATA-02)
+    if (country) {
+      // Known visitor country outside the 3 regional editions: default to Canada
+      return 'ca';
+    }
+    // Fall back to browser timezone and language heuristics when country is undetermined (DATA-02)
     return defaultEdition();
   } catch {
     return defaultEdition();
