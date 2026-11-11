@@ -2701,7 +2701,11 @@ function closeAccountModal() {
 }
 
 /* ------------------------------------------------------------------ feedback modal & anti-bot */
-const FEEDBACK_WEBHOOK_URL = 'https://discord.com/api/webhooks/1569529259909709988/TlX75xr2GElMLPAJkZePfC-4NVCWNgtlCI39jKRXYO4owJRBdelZ5UygchsVzryhceZn';
+function getFeedbackEndpoint() {
+  const origin = window.location?.origin || '';
+  const isLocalHost = origin.startsWith('http://localhost') || origin.startsWith('capacitor://');
+  return isLocalHost ? 'https://hark.vattitude.ca/api/feedback' : '/api/feedback';
+}
 let feedbackOpenedAt = 0;
 let feedbackCategory = 'Idea';
 let feedbackStoryContext = null;
@@ -2901,57 +2905,25 @@ async function handleFeedbackSubmit(e) {
 
   const editionName = EDITIONS[state.edition]?.name || state.edition || 'Canada';
   const appVer = window.__APP_VERSION__ || 'Hark Daily v1.0.22';
-  const catConfig = FEEDBACK_CATEGORIES[feedbackCategory] || { embedColor: 0xF59E0B };
-
-  const embedFields = [
-    { name: 'Category', value: feedbackCategory, inline: true },
-    { name: 'Reply Requested', value: replyField, inline: true },
-    { name: 'Edition', value: editionName, inline: true }
-  ];
-
-  if (feedbackStoryContext) {
-    embedFields.push(
-      { name: 'Story ID', value: String(feedbackStoryContext.id || 'N/A'), inline: true },
-      { name: 'Article Headline', value: String(feedbackStoryContext.headline || feedbackStoryContext.title || 'Untitled').slice(0, 250), inline: false }
-    );
-    const srcName = feedbackStoryContext.source_name || feedbackStoryContext.source;
-    if (srcName) {
-      embedFields.push({ name: 'Source', value: String(srcName), inline: true });
-    }
-    if (typeof player?.position === 'number') {
-      embedFields.push({
-        name: 'Audio Timestamp',
-        value: `${fmtTime(player.position)} / ${fmtTime(player.duration || 0)}`,
-        inline: true
-      });
-    }
-    if (feedbackStoryContext.section) {
-      embedFields.push({ name: 'Section', value: String(feedbackStoryContext.section), inline: true });
-    }
-  }
-
-  embedFields.push(
-    { name: 'Client', value: appVer, inline: true },
-    { name: 'User Profile', value: userEmail, inline: true }
-  );
-
   const payload = {
-    username: 'Hark Feedback Bot',
-    avatar_url: 'https://harkdaily.com/icons/logo-transparent.png',
-    embeds: [
-      {
-        title: `[${feedbackCategory}] Feedback from ${userEmail}${feedbackStoryContext ? ' (Story Attached)' : ''}`,
-        description: safeMessage,
-        color: catConfig.embedColor,
-        fields: embedFields,
-        footer: { text: feedbackStoryContext ? `Story ID: ${feedbackStoryContext.id || 'N/A'} · Hark Feedback Shield` : 'Hark Feedback Shield' },
-        timestamp: new Date().toISOString()
-      }
-    ]
+    category: feedbackCategory,
+    message: safeMessage,
+    reply_requested: isReplyOn,
+    email: userEmail,
+    edition: editionName,
+    app_version: appVer,
+    website: hpValue || '',
+    story: feedbackStoryContext ? {
+      id: feedbackStoryContext.id,
+      headline: feedbackStoryContext.headline || feedbackStoryContext.title,
+      source: feedbackStoryContext.source_name || feedbackStoryContext.source,
+      section: feedbackStoryContext.section,
+      position: typeof player?.position === 'number' ? `${fmtTime(player.position)} / ${fmtTime(player.duration || 0)}` : null
+    } : null
   };
 
   try {
-    const res = await fetch(FEEDBACK_WEBHOOK_URL, {
+    const res = await fetch(getFeedbackEndpoint(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
