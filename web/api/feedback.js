@@ -16,10 +16,23 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const webhookUrl = process.env.DISCORD_FEEDBACK_WEBHOOK || process.env.FEEDBACK_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL;
+  let webhookUrl = process.env.DISCORD_FEEDBACK_WEBHOOK || process.env.FEEDBACK_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL;
   if (!webhookUrl) {
     console.warn('[Feedback API] DISCORD_FEEDBACK_WEBHOOK is not configured in environment variables.');
     return res.status(503).json({ error: 'Feedback service temporarily unconfigured' });
+  }
+
+  // Support base64-encoded webhook URLs for obfuscation and secret masking
+  webhookUrl = webhookUrl.trim();
+  if (webhookUrl && !webhookUrl.startsWith('http://') && !webhookUrl.startsWith('https://')) {
+    try {
+      const decoded = Buffer.from(webhookUrl, 'base64').toString('utf-8').trim();
+      if (decoded.startsWith('http')) {
+        webhookUrl = decoded;
+      }
+    } catch {
+      // Fall through
+    }
   }
 
   let body = req.body;
