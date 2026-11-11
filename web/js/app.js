@@ -3097,8 +3097,11 @@ function bindEvents() {
   });
 
   // Drawer version reload / check for updates button
-  $('cleanDrawerVersionBtn')?.addEventListener('click', async () => {
-    toast('Checking for updates & reloading…');
+  $('cleanDrawerVersionBtn')?.addEventListener('click', async function() {
+    this.classList.add('is-checking');
+    const span = this.querySelector('span');
+    if (span) span.textContent = 'Checking…';
+    toast('Checking for app updates…');
     if ('serviceWorker' in navigator) {
       try {
         const reg = await navigator.serviceWorker.getRegistration();
@@ -3112,7 +3115,7 @@ function bindEvents() {
     }
     setTimeout(() => {
       window.location.reload();
-    }, 350);
+    }, 450);
   });
 
   // Settings & Actions rows
