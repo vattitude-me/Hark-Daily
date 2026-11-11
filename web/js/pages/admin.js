@@ -1,5 +1,5 @@
 // Admin tab: Hark Daily Mission Control & Operations Console
-// The tab appears for the admin account only (vatsakrish@gmail.com).
+// The tab appears for authorized admin accounts only (profile.is_admin === true).
 // Every action is checked again server-side: row-level security on `build_requests`,
 // the worker daemon, and the batch pack lease lock.
 import { BUILTIN_VOICES, SECTIONS, VOICES, api, deleteCustomVoice, h, icon, isAdmin, saveCustomVoice, toast } from '../api.js';
@@ -213,7 +213,7 @@ export class AdminPage {
         h('div', { class: 'admin-restricted-icon' }, icon('shield')),
         h('h2', { class: 'admin-restricted-title' }, 'Administrator Access Restricted'),
         h('p', { class: 'admin-restricted-msg' },
-          'This mission control console is restricted to authenticated Hark administrators (vatsakrish@gmail.com). Please sign in using your authorized administrator account.'),
+          'This mission control console is restricted to authenticated Hark administrators. Please sign in using your authorized administrator account.'),
         h('button', {
           type: 'button',
           class: 'pill-btn glass-btn',
@@ -228,7 +228,7 @@ export class AdminPage {
   }
 
   renderHeader(isRunning) {
-    const adminEmail = (typeof window !== 'undefined' ? window.state?.profile?.email : '') || 'vatsakrish@gmail.com';
+    const adminEmail = (typeof window !== 'undefined' ? window.state?.profile?.email : '') || 'Admin';
     return h('header', { class: 'admin-topbar' },
       h('div', { class: 'admin-topbar-meta' },
         h('div', { class: 'admin-badge-row' },

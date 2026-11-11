@@ -84,7 +84,10 @@ class Worker:
                 report.add("build_failed", f"{exc.__class__.__name__}: {exc}"[:300], level="error")
             report.finished_at = report.finished_at or now_iso()
             log.info("Run finished: %s %s", report.summary(), report.admin_detail())
-            last = {**report.to_dict(), "date": datetime.now(self.tz).date().isoformat()}
+            sanitized_report = report.to_dict()
+            if "failures" in sanitized_report:
+                sanitized_report["failures"] = [{"type": f.get("type", "error")} for f in sanitized_report.get("failures", [])]
+            last = {**sanitized_report, "date": datetime.now(self.tz).date().isoformat()}
             if scheduled:
                 self.publish(running=False, step=None, progress=1, last_run=last)
             else:

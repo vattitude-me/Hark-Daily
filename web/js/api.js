@@ -645,20 +645,6 @@ export const api = {
     }
   },
 
-  /** Upload formatted reference WAV to Supabase storage. */
-  async uploadVoiceFile(voiceId, wavBlob) {
-    const path = `voices/${voiceId}.wav`;
-    try {
-      const res = await sb.storage.from('briefings').upload(path, wavBlob, {
-        upsert: true,
-        contentType: 'audio/wav',
-      });
-      return { ok: !res.error, path, error: res.error?.message };
-    } catch (err) {
-      return { ok: false, error: err.message };
-    }
-  },
-
   // -------------------------------------------------------------- requests
   async request(kind) {
     const row = check(await sb.from('build_requests').insert({ kind }).select('id').single());

@@ -211,5 +211,56 @@ def test_pick_unique_caps_same_topic_cluster_when_alternatives_exist():
     assert "Supreme Court Hears Major Environmental Regulation Challenge" in picked_titles
 
 
+def test_pick_unique_deduplicates_cross_section_stories():
+    from app.topics import pick_unique
+
+    ai_candidates = [
+        Item(
+            title="OpenAI acquires Odessia, travel startup created by Sonder founder",
+            summary="OpenAI has acquired Odessia, a stealth travel startup founded by Francis Davidson, co-founder of hospitality firm Sonder.",
+            url="https://techcrunch.com/2026/11/10/openai-acquires-odessia-travel-startup-created-by-sonder-founder/",
+            source_id=1,
+            source_name="TechCrunch · AI",
+            section="ai",
+        ),
+        Item(
+            title="Google DeepMind announces next-generation AlphaFold 3 capabilities",
+            summary="DeepMind researchers reveal molecular biology model updates.",
+            url="https://techcrunch.com/2026/11/10/deepmind-alphafold-3/",
+            source_id=1,
+            source_name="TechCrunch · AI",
+            section="ai",
+        ),
+    ]
+
+    tech_candidates = [
+        Item(
+            title="OpenAI acquires Sonder co-founder’s new travel tech company Odessia",
+            summary="OpenAI has acquired Odessia, a travel technology startup co-founded by Francis Davidson, the former CEO of Sonder.",
+            url="https://betakit.com/openai-acquires-sonder-co-founders-new-travel-tech-company-odessia/",
+            source_id=2,
+            source_name="BetaKit · Tech",
+            section="tech",
+        ),
+        Item(
+            title="Tenstorrent raises $693M CAD to challenge Nvidia in AI hardware",
+            summary="Toronto-based semiconductor firm Tenstorrent closes massive Series D round.",
+            url="https://betakit.com/tenstorrent-raises-series-d/",
+            source_id=2,
+            source_name="BetaKit · Tech",
+            section="tech",
+        ),
+    ]
+
+    res = pick_unique({"ai": ai_candidates, "tech": tech_candidates}, per_section=1)
+    assert len(res["ai"]) == 1
+    assert "OpenAI acquires Odessia" in res["ai"][0].title
+    # Tech section must drop the duplicate Odessia story and advance to Tenstorrent
+    assert len(res["tech"]) == 1
+    assert "Tenstorrent raises" in res["tech"][0].title
+    assert "Odessia" not in res["tech"][0].title
+
+
+
 
 

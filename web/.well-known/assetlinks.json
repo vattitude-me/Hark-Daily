@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "me.vattitude.morningbrief",
+      "sha256_cert_fingerprints": [
+        "92:DB:DD:81:4E:6F:4E:B6:0A:17:27:A5:98:E0:76:EE:EA:AF:F2:67:1B:68:F6:B7:33:62:4E:FA:B8:2B:40:6E"
+      ]
+    }
+  }
+]

@@ -416,7 +416,7 @@ test('SEC-18: /api/share canonicalizes origins and safely escapes replacement st
   assert.ok(sentBody.includes('https://hark.vattitude.ca'), 'Must default to CANONICAL_ORIGIN');
 });
 
-test('SEC-16: /api/fetch rejects HTML payloads and sets strict non-executable headers', async () => {
+test('SEC-26: /api/fetch, /api/llm, and /api/tts are discontinued and return 410 Gone with no-store', async () => {
   const { mkdtempSync, writeFileSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
@@ -425,11 +425,11 @@ test('SEC-16: /api/fetch rejects HTML payloads and sets strict non-executable he
   writeFileSync(join(dir, 'fetch2.mjs'), src);
   const { default: fetchHandler } = await import(join(dir, 'fetch2.mjs'));
 
-  // Test origin rejection for unauthorized origins
   let statusCode = 0;
   let sentJson = null;
+  const headersSet = {};
   const mockRes = {
-    setHeader: () => {},
+    setHeader: (k, v) => { headersSet[k.toLowerCase()] = v; },
     status: (c) => { statusCode = c; return mockRes; },
     json: (j) => { sentJson = j; },
     send: () => {},
@@ -441,7 +441,9 @@ test('SEC-16: /api/fetch rejects HTML payloads and sets strict non-executable he
     headers: { origin: 'https://attacker.evil.com' },
   }, mockRes);
 
-  assert.equal(statusCode, 403, 'Unauthorized origin must be rejected with 403');
+  assert.equal(statusCode, 410, 'Discontinued endpoint must return 410 Gone');
+  assert.equal(headersSet['cache-control'], 'no-store', 'Discontinued endpoint must set Cache-Control: no-store');
+  assert.ok(sentJson?.error?.includes('discontinued'), 'Must return discontinued error message');
 });
 
 test('DATA-07: api.signOut clears diagnostics-log from storage', async () => {
@@ -468,4 +470,56 @@ test('DATA-07: api.signOut clears diagnostics-log from storage', async () => {
   await api.signOut();
   assert.equal(store.get('diagnostics-log'), undefined, 'diagnostics-log must be removed on signOut');
 });
+
+test('SEC-27: /api/share rejects wildcard vercel.app spoofing and isolates non-canonical cache', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'share-sec27-'));
+  const src = readFileSync(resolve('web/api/share.js'), 'utf8')
+    .replace("import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '../config.js';", "const SUPABASE_PUBLISHABLE_KEY = 'test', SUPABASE_URL = 'http://test';")
+    .replace("import { createClient } from '@supabase/supabase-js';", "const createClient = () => ({ from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: null }) }) }) }) });")
+    .replace("const indexHtml = readFileSync(resolve(process.cwd(), 'web/index.html'), 'utf8');", "const indexHtml = '<!DOCTYPE html><html><head><title>Test</title></head><body></body></html>';");
+  writeFileSync(join(dir, 'share.mjs'), src);
+  const { default: shareHandler } = await import(join(dir, 'share.mjs'));
+
+  // Test attacker-controlled Vercel subdomain spoofing
+  let sentBody = '';
+  const headersSet = {};
+  const mockRes = {
+    setHeader: (k, v) => { headersSet[k.toLowerCase()] = v; },
+    status: () => mockRes,
+    send: (b) => { sentBody = b; },
+  };
+
+  await shareHandler({
+    url: '/s/2026-11-11/test-slug',
+    headers: { 'x-forwarded-host': 'hark-phishing.vercel.app' },
+  }, mockRes);
+
+  assert.ok(!sentBody.includes('https://hark-phishing.vercel.app'), 'Must not accept wildcard Vercel subdomain');
+  assert.ok(sentBody.includes('https://hark.vattitude.ca'), 'Must default to CANONICAL_ORIGIN');
+  assert.equal(headersSet['cache-control'], 'public, s-maxage=300, stale-while-revalidate=86400', 'Canonical origin receives CDN caching');
+
+  // Test localhost receives private, no-store
+  const localHeaders = {};
+  const localRes = {
+    setHeader: (k, v) => { localHeaders[k.toLowerCase()] = v; },
+    status: () => localRes,
+    send: () => {},
+  };
+  await shareHandler({
+    url: '/s/2026-11-11/test-slug',
+    headers: { host: 'localhost:3000' },
+  }, localRes);
+  assert.equal(localHeaders['cache-control'], 'private, no-store', 'Non-canonical origin must be private, no-store');
+});
+
+test('SEC-29: Service Worker excludes /api/ routes and validates notificationclick targets', () => {
+  const swSrc = readFileSync(resolve('web/sw.js'), 'utf8');
+  assert.ok(swSrc.includes("if (url.pathname.startsWith('/api/')) return;"), 'SW must bypass all /api/ endpoints');
+  assert.ok(swSrc.includes("e.request.mode === 'navigate'"), 'SW must only fall back to / for navigation requests');
+  assert.ok(swSrc.includes("parsed.origin === self.location.origin"), 'SW must validate notification click origin');
+});
+
 

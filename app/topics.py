@@ -194,16 +194,27 @@ def _subject_tokens(item: Item) -> set[str]:
     return out
 
 
+def is_same_story(toks_a: set[str], toks_b: set[str]) -> bool:
+    """Whether two items represent the same news event/story across different outlets or feeds."""
+    if not toks_a or not toks_b:
+        return False
+    common = toks_a & toks_b
+    shared = len(common)
+    if shared >= 3 and (shared / len(toks_a | toks_b) >= 0.35 or shared / min(len(toks_a), len(toks_b)) >= 0.45):
+        return True
+    return False
+
+
 def pick_unique(picked: dict[str, list[Item]],
                 per_section: int = DEFAULT_PER_SECTION,
                 max_same_topic: int = 2) -> dict[str, list[Item]]:
     """Each story is told once, in the first section that carries it.
 
-    A provider can run the same article in more than one feed, so without this the day's brief can
-    read its top story twice: once under Top stories and again under Tech or Sport. Sections keep
-    their reading order, so the earlier one wins and the later one moves down its list. Two entries
-    count as the same story when their links agree once query strings are dropped, or when their
-    headlines do.
+    A provider can run the same article in more than one feed, or different outlets can report
+    the same breaking event across feeds (e.g. BetaKit under Tech and TechCrunch under AI).
+    Sections keep their reading order, so the earlier section wins and the later section selects
+    its next distinct candidate. Two entries count as the same story when their links or titles
+    agree, or when their substantive entity tokens exhibit high semantic overlap (is_same_story).
 
     Within a single section, caps the number of stories sharing the same event cluster (>= 2 shared
     substantive subject words, e.g. 'nvidia' + 'huang' or 'nvidia' + 'china') at `max_same_topic`
@@ -211,6 +222,7 @@ def pick_unique(picked: dict[str, list[Item]],
     """
     urls: set[str] = set()
     titles: set[str] = set()
+    all_chosen_tokens: list[set[str]] = []
     out: dict[str, list[Item]] = {}
     for key, items in picked.items():
         chosen: list[Item] = []
@@ -221,6 +233,9 @@ def pick_unique(picked: dict[str, list[Item]],
             if url in urls or (title and title in titles):
                 continue
             toks = _subject_tokens(item)
+            # Cross-section & intra-section duplicate story prevention
+            if any(is_same_story(toks, prev) for prev in all_chosen_tokens):
+                continue
             same_cluster_count = sum(1 for prev in chosen_tokens if len(toks & prev) >= 2)
             if same_cluster_count >= max_same_topic:
                 deferred.append(item)
@@ -230,6 +245,7 @@ def pick_unique(picked: dict[str, list[Item]],
                 titles.add(title)
             chosen.append(item)
             chosen_tokens.append(toks)
+            all_chosen_tokens.append(toks)
             if len(chosen) == per_section:
                 break
         # If the feed did not have enough distinct stories, backfill from deferred items
@@ -239,10 +255,14 @@ def pick_unique(picked: dict[str, list[Item]],
             url, title = bare_url(item.url), plain_title(item.title)
             if url in urls or (title and title in titles):
                 continue
+            toks = _subject_tokens(item)
+            if any(is_same_story(toks, prev) for prev in all_chosen_tokens):
+                continue
             urls.add(url)
             if title:
                 titles.add(title)
             chosen.append(item)
+            all_chosen_tokens.append(toks)
         out[key] = chosen
     return out
 

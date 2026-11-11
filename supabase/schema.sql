@@ -103,7 +103,7 @@ delete from public.briefings;
 
 -- ------------------------------------------------------ push subscriptions
 create table if not exists public.push_subscriptions (
-  endpoint    text primary key check (endpoint ~* '^https://' and char_length(endpoint) <= 2048),
+  endpoint    text primary key check (endpoint ~* '^https://([a-zA-Z0-9.-]+\.)?(push\.services\.mozilla\.com|googleapis\.com|push\.apple\.com|notify\.windows\.com)(:\d+)?(/.*)?$' and char_length(endpoint) <= 2048),
   user_id     uuid not null default auth.uid() references auth.users (id) on delete cascade,
   p256dh      text not null check (char_length(p256dh) <= 512),
   auth        text not null check (char_length(auth) <= 256),
@@ -304,6 +304,31 @@ alter table public.story_audio add column if not exists image text;
 -- Exact turn marks [(start_sec, end_sec), ...] for millisecond-accurate teleprompter alignment & tap-to-seek
 alter table public.story_audio add column if not exists marks jsonb;
 
+-- Idempotent constraint migrations for existing production tables (DATA-08 / SEC-19 / SEC-22 / DATA-04 / DATA-06):
+alter table public.profiles drop constraint if exists profiles_settings_size_check;
+alter table public.profiles add constraint profiles_settings_size_check
+  check (pg_column_size(settings) <= 16384);
+
+alter table public.push_subscriptions drop constraint if exists push_subscriptions_endpoint_check;
+alter table public.push_subscriptions add constraint push_subscriptions_endpoint_check
+  check (endpoint ~* '^https://([a-zA-Z0-9.-]+\.)?(push\.services\.mozilla\.com|googleapis\.com|push\.apple\.com|notify\.windows\.com)(:\d+)?(/.*)?$' and char_length(endpoint) <= 2048);
+
+alter table public.push_subscriptions drop constraint if exists push_subscriptions_p256dh_check;
+alter table public.push_subscriptions add constraint push_subscriptions_p256dh_check
+  check (char_length(p256dh) <= 512);
+
+alter table public.push_subscriptions drop constraint if exists push_subscriptions_auth_check;
+alter table public.push_subscriptions add constraint push_subscriptions_auth_check
+  check (char_length(auth) <= 256);
+
+alter table public.build_requests drop constraint if exists build_requests_payload_size_check;
+alter table public.build_requests add constraint build_requests_payload_size_check
+  check (payload is null or pg_column_size(payload) <= 4096);
+
+alter table public.story_audio drop constraint if exists story_audio_url_check;
+alter table public.story_audio add constraint story_audio_url_check
+  check (url is null or (char_length(url) <= 2000 and url ~* '^https?://'));
+
 alter table public.story_audio enable row level security;
 drop policy if exists "read story audio" on public.story_audio;
 create policy "read story audio" on public.story_audio for select to anon, authenticated using (true);
@@ -414,8 +439,13 @@ begin
 
   select feed_token into u_token from public.profiles where id = uid;
   if u_token is not null and u_token <> '' then
-    -- Clean up user audio objects in briefings bucket if present (DATA-03)
-    delete from storage.objects where bucket_id = 'briefings' and name like (u_token || '/%');
+    -- Clean up user audio objects in briefings bucket if present (DATA-03 / DATA-09)
+    begin
+      delete from storage.objects where bucket_id = 'briefings' and starts_with(name, u_token || '/');
+    exception when others then
+      -- If direct deletion on storage.objects is prevented by storage triggers, continue with user deletion
+      null;
+    end;
   end if;
 
   delete from auth.users where id = uid;
