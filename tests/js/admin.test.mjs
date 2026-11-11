@@ -57,12 +57,15 @@ test('isAdmin security gate checks admin privileges', () => {
   assert.equal(isAdmin({ email: 'user@example.com' }), false);
   assert.equal(isAdmin({ email: 'User@Example.Com', is_admin: false }), false);
 
-  // Authorized admin email
-  assert.equal(isAdmin({ email: 'vatsakrish@gmail.com' }), true);
-  assert.equal(isAdmin({ email: 'Vatsakrish@Gmail.Com' }), true);
-
   // Custom is_admin flag
   assert.equal(isAdmin({ is_admin: true, email: 'custom@hark.ca' }), true);
+  assert.equal(isAdmin({ is_admin: true }), true);
+
+  // Configured ADMIN_EMAILS allowlist
+  ADMIN_EMAILS.push('admin@hark.ca');
+  assert.equal(isAdmin({ email: 'admin@hark.ca' }), true);
+  assert.equal(isAdmin({ email: 'Admin@Hark.Ca' }), true);
+  ADMIN_EMAILS.pop();
 });
 
 test('minutes formatter correctly formats seconds and minutes', () => {
