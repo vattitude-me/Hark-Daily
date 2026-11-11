@@ -173,7 +173,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - **🎙️ Broadcast & Editions Matrix**: Deep-dive audio inspector for Canada, United States, and India editions covering all 7 categories (`top`, `ai`, `tech`, `politics`, `entertainment`, `science`, `sports`), plus podcast banter clips (cold open, topic teasers, category handoffs, sign-off) with an in-line **interactive audio audition previewer**.
     - **⚡ Production Operations & Safe Rebuild**: Multi-tier rebuild controls with live-listener protection warnings, granular edition targets (All, CA, US, IN), and selective scopes (`framing only`, `incremental missing`, `full force re-record`).
     - **🛠️ Diagnostics**: Real-time client and network exception tracking with single-click clipboard export and log clearing.
-  - **Strict Security Gatekeeping**: Gated to authorized Hark administrators (`vatsakrish@gmail.com` or `is_admin = true`), rendering an unauthorized shield screen and suppressing telemetry queries for unauthenticated callers.
+  - **Strict Security Gatekeeping**: Gated to authorized Hark administrators (`is_admin = true`), rendering an unauthorized shield screen and suppressing telemetry queries for unauthenticated callers.
   - **Automated Unit Tests**: Added unit tests in `tests/js/admin.test.mjs` verifying security gatekeeping, executive report generation, edition coverage, duration formatting, and tab state management.
 
 ---

@@ -1,6 +1,6 @@
 // Offline shell: stale-while-revalidate for static shell assets, network-first for HTML.
 // Supabase (data, audio) and CDN requests are cross-origin and go straight to the network.
-const CACHE = 'hark-daily-v111';
+const CACHE = 'hark-daily-v112';
 const SHELL = [
   '/', '/404.html', '/config.js', '/css/styles.css', '/css/legal.css', '/manifest.webmanifest', '/audio/gap.mp3',
   '/fonts/plus-jakarta-sans.woff2', '/fonts/space-grotesk.woff2',
@@ -28,7 +28,9 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   // Dynamic audio streams (packs, stories) stream with range requests; bypass SW.
   // Static shell audio (/audio/separator.mp3, /audio/gap.mp3) is served from cache.
+  // Serverless APIs (/api/*) are dynamic and should never be cached or intercepted by SW.
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  if (url.pathname.startsWith('/api/')) return;
   if (url.pathname.endsWith('.mp3') && !url.pathname.startsWith('/audio/')) return;
 
   // Stale-while-revalidate for static assets (instant load from local device cache)
@@ -55,7 +57,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Network-first for HTML shell so latest deploy is picked up immediately
+  // Network-first for HTML shell navigation requests so latest deploy is picked up immediately
   e.respondWith(
     fetch(e.request).then((res) => {
       if (res.ok) {
@@ -63,7 +65,13 @@ self.addEventListener('fetch', (e) => {
         caches.open(CACHE).then((c) => c.put(e.request, copy));
       }
       return res;
-    }).catch(() => caches.match(e.request).then((r) => r || caches.match('/')))
+    }).catch(() => {
+      return caches.match(e.request).then((cached) => {
+        if (cached) return cached;
+        if (e.request.mode === 'navigate') return caches.match('/');
+        return new Response('Network error', { status: 503, statusText: 'Service Unavailable' });
+      });
+    })
   );
 });
 
@@ -87,7 +95,16 @@ self.addEventListener('push', (e) => {
 
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
-  const target = e.notification.data?.url || '/';
+  const rawTarget = e.notification.data?.url || '/';
+  let target = '/';
+  try {
+    const parsed = new URL(rawTarget, self.location.origin);
+    if (parsed.origin === self.location.origin) {
+      target = parsed.pathname + parsed.search + parsed.hash;
+    }
+  } catch {
+    target = '/';
+  }
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
     for (const w of wins) {
       if ('focus' in w) {

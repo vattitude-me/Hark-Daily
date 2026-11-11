@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import re
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -13,6 +14,19 @@ from pywebpush import WebPushException, webpush
 from .config import Config
 
 log = logging.getLogger(__name__)
+
+# Official Web Push services (Chrome/FCM, Firefox/Mozilla, Safari/Apple, Edge/WNS)
+_ALLOWED_PUSH_HOSTS = re.compile(
+    r"^https://([a-zA-Z0-9.-]+\.)?(push\.services\.mozilla\.com|googleapis\.com|push\.apple\.com|notify\.windows\.com)(:\d+)?(/.*)?$",
+    re.IGNORECASE,
+)
+
+
+def is_safe_push_endpoint(endpoint: str) -> bool:
+    """Validates that a push endpoint belongs to a recognized browser push service (prevents SSRF & VAPID leakage)."""
+    if not endpoint or not isinstance(endpoint, str):
+        return False
+    return bool(_ALLOWED_PUSH_HOSTS.match(endpoint.strip()))
 
 
 def _b64(data: bytes) -> str:
@@ -46,9 +60,13 @@ def send(cfg: Config, subscriptions: list[dict], title: str, body: str, url: str
     payload = json.dumps({"title": title, "body": body, "url": url})
     sent, gone = 0, []
     for sub in subscriptions:
+        endpoint = (sub.get("endpoint") or "").strip()
+        if not is_safe_push_endpoint(endpoint):
+            log.warning("Skipping untrusted or malformed push endpoint: %s", endpoint)
+            continue
         try:
             webpush(
-                subscription_info={"endpoint": sub["endpoint"], "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]}},
+                subscription_info={"endpoint": endpoint, "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]}},
                 data=payload, vapid_private_key=vapid, vapid_claims={"sub": cfg.vapid_subject},
                 ttl=6 * 3600,
             )

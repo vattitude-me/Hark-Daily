@@ -150,10 +150,13 @@ export default async function handler(req, res) {
   // Strictly enforce canonical origin unless running on verified preview or local dev
   let origin = CANONICAL_ORIGIN;
   const isLocal = /^localhost(:\d+)?$/.test(reqHost) || /^127\.0\.0\.1(:\d+)?$/.test(reqHost);
-  const isHarkVercel = /^(hark|morning-brief)[a-z0-9-]*\.vercel\.app$/.test(reqHost);
+  const isVerifiedVercel = Boolean(
+    (process.env.VERCEL_URL && reqHost === process.env.VERCEL_URL.toLowerCase()) ||
+    (process.env.VERCEL_BRANCH_URL && reqHost === process.env.VERCEL_BRANCH_URL.toLowerCase())
+  );
   if (isLocal) {
     origin = `http://${reqHost}`;
-  } else if (isHarkVercel) {
+  } else if (isVerifiedVercel) {
     origin = `https://${reqHost}`;
   }
 
@@ -231,6 +234,10 @@ export default async function handler(req, res) {
   html = html.replace('</head>', () => `  <script>window.__SHARED_STORY__ = ${safeJson};</script>\n</head>`);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=86400');
+  if (origin !== CANONICAL_ORIGIN) {
+    res.setHeader('Cache-Control', 'private, no-store');
+  } else {
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=86400');
+  }
   return res.status(200).send(html);
 }
