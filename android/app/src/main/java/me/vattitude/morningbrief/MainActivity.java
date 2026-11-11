@@ -125,16 +125,25 @@ public class MainActivity extends BridgeActivity {
     }
 
     public void openExternalAuth(String url) {
+        if (url == null || url.trim().isEmpty()) return;
         try {
-            Uri uri = Uri.parse(url);
+            Uri uri = Uri.parse(url.trim());
+            String scheme = uri.getScheme();
+            if (!"https".equalsIgnoreCase(scheme)) {
+                android.util.Log.w("HarkNative", "Blocked non-HTTPS URL navigation: " + url);
+                return;
+            }
             CustomTabsIntent customTabsIntent = new CustomTabsIntent.Builder()
                 .setShowTitle(true)
                 .build();
             customTabsIntent.launchUrl(this, uri);
         } catch (Exception e) {
             try {
-                Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                startActivity(browserIntent);
+                Uri uri = Uri.parse(url.trim());
+                if ("https".equalsIgnoreCase(uri.getScheme())) {
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, uri);
+                    startActivity(browserIntent);
+                }
             } catch (Exception ignored) {}
         }
     }
@@ -323,7 +332,9 @@ public class MainActivity extends BridgeActivity {
     private void configureSmartShell() {
         WebView webView = getBridge() != null ? getBridge().getWebView() : null;
         if (webView != null) {
-            WebView.setWebContentsDebuggingEnabled(true);
+            if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+                WebView.setWebContentsDebuggingEnabled(true);
+            }
 
             WebSettings settings = webView.getSettings();
             settings.setMediaPlaybackRequiresUserGesture(false);

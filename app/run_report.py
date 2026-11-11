@@ -332,13 +332,17 @@ def notify_macos(rep: dict) -> bool:
         icon = "✓" if st == "OK" else "⚠️"
         total = rep["stories"]["total_count"]
         dur = rep["stories"]["total_duration_min"]
-        edition = rep["edition"].title()
+        edition = str(rep.get("edition", "All")).title()
         
-        title = f"{icon} Hark Daily {edition} Edition Ready"
-        subtitle = f"{total} stories ({dur}m audio)"
-        body = f"Canada, US & India editions live on Supabase · Banter active"
+        raw_title = f"{icon} Hark Daily {edition} Edition Ready"
+        raw_sub = f"{total} stories ({dur}m audio)"
+        raw_body = "Canada, US & India editions live on Supabase · Banter active"
+
+        safe_title = raw_title.replace('\\', '\\\\').replace('"', '\\"')
+        safe_sub = raw_sub.replace('\\', '\\\\').replace('"', '\\"')
+        safe_body = raw_body.replace('\\', '\\\\').replace('"', '\\"')
         
-        script = f'display notification "{body}" with title "{title}" subtitle "{subtitle}" sound name "Glass"'
+        script = f'display notification "{safe_body}" with title "{safe_title}" subtitle "{safe_sub}" sound name "Glass"'
         subprocess.run(["osascript", "-e", script], capture_output=True, timeout=3)
         return True
     except Exception as exc:  # noqa: BLE001
@@ -358,7 +362,8 @@ def send_email_report(rep: dict, cfg: Config) -> bool:
         e.strip() for e in (os.getenv("REPORT_EMAIL_TO") or "").split(",") if e.strip()
     ]
     if not recipients:
-        recipients = list(cfg.admin_emails) or ["vatsakrish@gmail.com"]
+        admin_default = os.getenv("ADMIN_EMAIL", "admin@example.com")
+        recipients = list(cfg.admin_emails) or [admin_default]
 
     if not (smtp_host and smtp_user and smtp_pass):
         log.info("SMTP not configured in .env (SMTP_HOST, SMTP_USER, SMTP_PASS). Skipping email dispatch.")
@@ -439,7 +444,7 @@ def send_webhook_report(rep: dict) -> bool:
                             {"name": "Banter", "value": "Ready" if rep.get("podcast", {}).get("ready") else "Missing", "inline": True},
                             {"name": "Status", "value": "✓ Finished on Mac" if rep.get("status") == "ok" else "⚠️ Check Logs", "inline": True},
                         ],
-                        "footer": {"text": "Hark Daily Primary Runner (Mac 10.0.0.15)"},
+                        "footer": {"text": f"Hark Daily Primary Runner ({os.getenv('RUNNER_HOST_LABEL', 'Mac Runner')})"},
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 ],

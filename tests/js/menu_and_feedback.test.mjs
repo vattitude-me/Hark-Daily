@@ -325,3 +325,40 @@ test('Serverless feedback handler (/api/feedback) enforces security guards and v
   }
 });
 
+test('Security guards: SSRF IP filtering blocks internal, link-local, carrier-grade, and cloud metadata', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'fetch-test-'));
+  const src = readFileSync(resolve('web/api/fetch.js'), 'utf8');
+  writeFileSync(join(dir, 'fetch.mjs'), src);
+  const { isPrivateOrReservedIP } = await import(join(dir, 'fetch.mjs'));
+
+  // Loopback and private ranges
+  assert.equal(isPrivateOrReservedIP('127.0.0.1'), true, '127.0.0.1 loopback must be blocked');
+  assert.equal(isPrivateOrReservedIP('127.0.0.2'), true, '127.0.0.2 loopback must be blocked');
+  assert.equal(isPrivateOrReservedIP('10.0.0.1'), true, '10.0.0.1 private must be blocked');
+  assert.equal(isPrivateOrReservedIP('172.16.0.1'), true, '172.16.0.1 private must be blocked');
+  assert.equal(isPrivateOrReservedIP('192.168.1.1'), true, '192.168.1.1 private must be blocked');
+
+  // Cloud metadata & link-local
+  assert.equal(isPrivateOrReservedIP('169.254.169.254'), true, 'Cloud metadata 169.254.169.254 must be blocked');
+  assert.equal(isPrivateOrReservedIP('169.254.1.1'), true, 'Link-local 169.254.1.1 must be blocked');
+
+  // Carrier-grade NAT (100.64.0.0/10)
+  assert.equal(isPrivateOrReservedIP('100.64.0.1'), true, 'Carrier-grade NAT 100.64.0.1 must be blocked');
+  assert.equal(isPrivateOrReservedIP('100.127.255.254'), true, 'Carrier-grade NAT 100.127.255.254 must be blocked');
+
+  // IPv6 loopback, link-local, unique local, IPv4-mapped
+  assert.equal(isPrivateOrReservedIP('::1'), true, 'IPv6 loopback must be blocked');
+  assert.equal(isPrivateOrReservedIP('fe80::1'), true, 'IPv6 link-local must be blocked');
+  assert.equal(isPrivateOrReservedIP('fc00::1'), true, 'IPv6 unique local must be blocked');
+  assert.equal(isPrivateOrReservedIP('::ffff:127.0.0.1'), true, 'IPv4-mapped IPv6 loopback must be blocked');
+  assert.equal(isPrivateOrReservedIP('::ffff:169.254.169.254'), true, 'IPv4-mapped cloud metadata must be blocked');
+
+  // Public internet IPs must be permitted
+  assert.equal(isPrivateOrReservedIP('8.8.8.8'), false, 'Google DNS 8.8.8.8 must be allowed');
+  assert.equal(isPrivateOrReservedIP('1.1.1.1'), false, 'Cloudflare DNS 1.1.1.1 must be allowed');
+  assert.equal(isPrivateOrReservedIP('151.101.1.140'), false, 'Public CDN IP must be allowed');
+});
+

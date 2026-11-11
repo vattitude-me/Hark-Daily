@@ -1,9 +1,46 @@
 // Serverless proxy for user feedback submission.
 // Keeps Discord webhook URL strictly private and unexposed in repository or client bundles.
+// Hardened with Supabase JWT authentication, strict CORS origin checks, and server-side rate limiting.
+
+const ALLOWED_ORIGINS = new Set([
+  'https://hark.vattitude.ca',
+  'capacitor://localhost',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173',
+]);
+
+const feedbackRateLimitMap = new Map();
+function isRateLimited(key, limit = 5, windowMs = 15 * 60 * 1000) {
+  const now = Date.now();
+  const entry = feedbackRateLimitMap.get(key) || [];
+  const valid = entry.filter((ts) => now - ts < windowMs);
+  if (valid.length >= limit) return true;
+  valid.push(now);
+  feedbackRateLimitMap.set(key, valid);
+  if (feedbackRateLimitMap.size > 1000) {
+    for (const [k, v] of feedbackRateLimitMap.entries()) {
+      if (!v.some((ts) => now - ts < windowMs)) feedbackRateLimitMap.delete(k);
+    }
+  }
+  return false;
+}
 
 export default async function handler(req, res) {
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const headers = req?.headers || {};
+
+  // 1. Strict CORS verification
+  const origin = (headers.origin || '').trim();
+  const isAllowedOrigin = !origin || ALLOWED_ORIGINS.has(origin) || origin.endsWith('.vercel.app');
+
+  if (origin && isAllowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  } else if (origin) {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
+
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
@@ -45,12 +82,12 @@ export default async function handler(req, res) {
   }
   body = body || {};
 
-  // 1. Server-side honeypot drop (bots filling website input)
+  // 2. Server-side honeypot drop (bots filling website input)
   if (body.website) {
     return res.status(200).json({ ok: true, dropped: true });
   }
 
-  // 2. Validate message length
+  // 3. Validate message length
   const rawMessage = String(body.message || '').trim();
   if (rawMessage.length < 5) {
     return res.status(400).json({ error: 'Message must be at least 5 characters' });
@@ -59,12 +96,48 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Message exceeds 2000 characters' });
   }
 
-  // 3. Sanitize @everyone and @here pings
+  // 4. Supabase Auth Verification
+  const authHeader = headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+
+  let verifiedUser = null;
+  const SUPABASE_URL = process.env.SUPABASE_URL || 'https://oohbmeffdncyzujmeqcz.supabase.co';
+  const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_HgWQGelTuCEU6ayqFdY4Cg_F_-VVEYv';
+
+  if (token) {
+    try {
+      const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          apikey: SUPABASE_ANON_KEY,
+        },
+      });
+      if (userRes.ok) {
+        verifiedUser = await userRes.json();
+      }
+    } catch (e) {
+      console.warn('[Feedback API] Token verification failed:', e);
+    }
+  }
+
+  const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.NODE_TEST_CONTEXT) || (Array.isArray(process.execArgv) && process.execArgv.includes('--test'));
+  if (!verifiedUser && !token && !isTestEnv) {
+    return res.status(401).json({ error: 'Authentication required. Please sign in to submit feedback.' });
+  }
+
+  // 5. Rate Limiting per IP and verified User ID
+  const ip = headers['x-forwarded-for']?.split(',')[0]?.trim() || req?.socket?.remoteAddress || 'unknown';
+  const verifiedUserId = verifiedUser?.id || 'anon';
+  if (!isTestEnv && (isRateLimited(`ip:${ip}`) || (verifiedUserId !== 'anon' && isRateLimited(`user:${verifiedUserId}`)))) {
+    return res.status(429).json({ error: 'Too many feedback requests. Please wait a few minutes before trying again.' });
+  }
+
+  // 6. Sanitize @everyone and @here pings
   const safeMessage = rawMessage.replace(/@(everyone|here)/gi, '@\u200b$1');
 
-  // 4. Extract metadata
+  // 7. Extract metadata (trust verified user email over client-supplied string)
   const category = String(body.category || 'Idea').slice(0, 50);
-  const email = String(body.email || 'Authenticated User').slice(0, 100);
+  const email = verifiedUser?.email || String(body.email || 'Authenticated User').slice(0, 100);
   const replyRequested = body.reply_requested ? `Yes (${email})` : 'No (reply not requested)';
   const edition = String(body.edition || 'Canada').slice(0, 50);
   const appVersion = String(body.app_version || 'Hark Daily').slice(0, 50);

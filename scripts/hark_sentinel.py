@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Hark Daily — 24/7 NAS Sentinel Watchdog & Disaster Recovery Alert.
+"""Hark Daily — 24/7 Sentinel Watchdog & Disaster Recovery Alert.
 
-Runs on the always-on Ubuntu NAS (10.0.0.233). Operates as an independent Dead Man's Switch:
+Runs on an independent watchdog host. Operates as an independent Dead Man's Switch:
 Checks Supabase at 05:45 AM (morning) and 18:45 PM (evening) to verify whether
-the day's audio pack was successfully published by the primary Mac (10.0.0.15).
+the day's audio pack was successfully published by the primary runner.
 
 If Healthy: Sends a clean green run summary card to Discord.
 If Missing: Pings Mac, sends Wake-on-LAN magic packet, and fires an IMMEDIATE RED DR ALERT.
@@ -43,12 +43,14 @@ for candidate in (Path(__file__).parent / ".env", Path(__file__).resolve().paren
 
 # Target configurations
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://oohbmeffdncyzujmeqcz.supabase.co")
-SUPABASE_KEY = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_ANON_KEY", "")
-MAC_IP = os.getenv("MAC_IP", "10.0.0.15")
-MAC_HW_ADDR = os.getenv("MAC_HW_ADDR", "80:a9:97:13:97:a7")
-BROADCAST_IP = os.getenv("BROADCAST_IP", "10.0.0.255")
+SUPABASE_KEY = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_PUBLISHABLE_KEY", "")
+MAC_IP = os.getenv("MAC_IP", "127.0.0.1")
+MAC_HW_ADDR = os.getenv("MAC_HW_ADDR", "")
+BROADCAST_IP = os.getenv("BROADCAST_IP", "255.255.255.255")
 TIMEZONE = os.getenv("TIMEZONE", "America/Toronto")
 ADMIN_URL = os.getenv("ADMIN_URL", "https://hark.vattitude.ca/")
+
+EVENING_RUN_PAUSED = os.getenv("EVENING_RUN_PAUSED", "true").lower() in ("true", "1", "yes")
 
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK_URL") or os.getenv("REPORT_WEBHOOK_URL", "")
 
@@ -146,7 +148,7 @@ def send_discord(title: str, description: str, color: int, fields: list[dict] | 
                 "description": description,
                 "color": color,  # 0x2bd67b (green) or 0xef4444 (red)
                 "fields": fields or [],
-                "footer": {"text": "24/7 Watchdog on NAS (10.0.0.233) • Hark Daily"},
+                "footer": {"text": "24/7 Watchdog Sentinel • Hark Daily"},
                 "timestamp": datetime.now(ZoneInfo(TIMEZONE)).isoformat(),
             }
         ]
@@ -161,9 +163,47 @@ def send_discord(title: str, description: str, color: int, fields: list[dict] | 
         return False
 
 
+def check_evening_health(day: str | None = None) -> int:
+    """Runs a lightweight evening health check when the evening audio run is paused."""
+    if not day:
+        day = get_today_str()
+    log.info("Running Sentinel Evening Health Check (%s)...", day)
+
+    pack = query_supabase_pack(day)
+    supabase_ok = pack["stories_count"] > 0
+    mac_online = ping_mac()
+    mac_status = "🟢 Online" if mac_online else "💤 Standby / Sleep (Next wake ~04:58 AM)"
+
+    mins = round(pack["total_duration_sec"] / 60.0, 1)
+    regions_str = ", ".join(sorted(pack["regions"])) or "All"
+    daily_pack_str = f"{pack['stories_count']} voiced ({mins}m) · {regions_str}" if supabase_ok else "No stories found today"
+
+    title = "🌙 Hark Daily — Evening Health Check"
+    desc = "Evening audio run is paused (morning-only schedule active). Service health verified."
+    fields = [
+        {"name": "Date", "value": day, "inline": True},
+        {"name": "Supabase Status", "value": "🟢 Connected & Serving" if supabase_ok else "⚠️ No Stories Found", "inline": True},
+        {"name": "Daily Pack", "value": daily_pack_str, "inline": True},
+        {"name": "Mac Producer", "value": f"{mac_status} ({MAC_IP})", "inline": True},
+        {"name": "Schedule", "value": "Morning-only • Next run 05:00 AM", "inline": True},
+        {"name": "Watchdog Host", "value": os.getenv("WATCHDOG_HOST_LABEL", "Ubuntu Sentinel"), "inline": True},
+    ]
+
+    # Calm twilight blue (0x58A6FF) or alert amber if Supabase has zero stories
+    color = 0x58A6FF if supabase_ok else 0xE67E22
+    send_discord(title, desc, color, fields)
+    log.info("Evening health check dispatched to Discord.")
+    return 0 if supabase_ok else 1
+
+
 def check_and_alert(edition: str = "morning") -> int:
     today = get_today_str()
     log.info("Running Sentinel check for %s edition (%s)...", edition, today)
+
+    # If edition is evening and evening run is paused, run the simpler health check
+    if edition in ("evening", "health"):
+        if edition == "health" or EVENING_RUN_PAUSED:
+            return check_evening_health(today)
 
     pack = query_supabase_pack(today)
     is_healthy = pack["stories_count"] > 0
@@ -211,7 +251,7 @@ def check_and_alert(edition: str = "morning") -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Hark Daily 24/7 NAS Sentinel Watchdog")
-    parser.add_argument("--edition", choices=["morning", "evening"], default="morning", help="Edition to check")
+    parser.add_argument("--edition", choices=["morning", "evening", "health"], default="morning", help="Edition or check type")
     parser.add_argument("--test", action="store_true", help="Send a test notification to verify Discord webhook")
     parser.add_argument("--wol", action="store_true", help="Send a test Wake-on-LAN packet to the Mac")
     parser.add_argument("--webhook", help="Override Discord Webhook URL for testing")
@@ -230,7 +270,7 @@ def main() -> int:
         log.info("Sending test notification to Discord...")
         mac_up = ping_mac()
         fields = [
-            {"name": "Watchdog Host", "value": "NAS (10.0.0.233)", "inline": True},
+            {"name": "Watchdog Host", "value": os.getenv("WATCHDOG_HOST_LABEL", "Ubuntu Sentinel"), "inline": True},
             {"name": "Mac Ping Status", "value": f"{MAC_IP} ({'🟢 Online' if mac_up else '🔴 Offline'})", "inline": True},
             {"name": "Wake-on-LAN Target", "value": f"{MAC_HW_ADDR}", "inline": True},
             {"name": "Status", "value": "🛡️ Sentinel Connected", "inline": True},

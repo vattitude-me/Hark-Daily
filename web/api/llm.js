@@ -22,11 +22,15 @@ export default async function handler(req, res) {
   catch { return res.status(400).json({ error: 'Invalid JSON body.' }); }
   const { provider, apiKey, model, messages, maxTokens = 600, json = true } = body;
   if (!apiKey) return res.status(400).json({ error: 'An API key is required.' });
+  const cleanModel = String(model || 'gemini-2.5-flash').trim();
+  if (model && !/^[a-zA-Z0-9._-]+$/.test(cleanModel)) {
+    return res.status(400).json({ error: 'Invalid model name parameter.' });
+  }
 
   try {
     let text;
     if (provider === 'gemini') {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model || 'gemini-3.8-flash'}:generateContent`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent`;
       const contents = (messages || [])
         .filter((m) => m.role !== 'system')
         .map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));

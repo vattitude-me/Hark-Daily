@@ -225,7 +225,15 @@ create policy "create requests" on public.build_requests for insert to authentic
   with check (user_id = auth.uid() and status = 'queued' and (kind in ('push_test', 'delete_account') or public.is_admin()));
 
 drop policy if exists "send reports" on public.content_reports;
-create policy "send reports" on public.content_reports for insert to anon, authenticated with check (true);
+create policy "send reports" on public.content_reports for insert to anon, authenticated
+  with check (
+    char_length(coalesce(headline, '')) > 0 and
+    char_length(headline) <= 500 and
+    char_length(coalesce(note, '')) <= 1000 and
+    char_length(coalesce(summary, '')) <= 4000 and
+    (user_id is null or user_id = auth.uid()) and
+    reason in ('inaccurate', 'offensive', 'broken', 'other')
+  );
 
 drop policy if exists "read app status" on public.app_status;
 create policy "read app status" on public.app_status for select to authenticated using (true);
