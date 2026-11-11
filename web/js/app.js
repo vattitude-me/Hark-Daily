@@ -1,5 +1,5 @@
 import { api, fmtTime, h, icon, isAdmin, recordError, sb, store, timeAgo, toast, VOICES, voiceFor, voiceName, SECTIONS, DEFAULT_VOICE_ID, EDITIONS, defaultEdition, detectEditionFromIp } from './api.js';
-import { Player, posKeyFor } from './player.js';
+import { Player, posKeyFor, safeExternalUrl } from './player.js';
 import { Landing } from './landing.js';
 import { WelcomeSheet, DeleteAccountSheet, enablePush, installMode, isIOS, isInstalled, onInstallChange, promptInstall, pushSupported, requestNotificationPermission, wireSheet } from './sheets.js';
 import { SourcesPage } from './pages/sources.js';
@@ -1063,7 +1063,7 @@ function storyRow(story) {
     story.also?.length ? h('p', { class: 'also' }, `Also covered by ${story.also.join(', ')}`) : null,
     h('div', { class: 'story-actions' },
       h('button', { class: 'pill-btn sm', type: 'button', onclick: () => player.playChapter(story.id) }, icon('play'), 'Play from here'),
-      story.url ? h('a', { class: 'pill-btn glass-btn sm', href: story.url, target: '_blank', rel: 'noopener noreferrer' }, 'Read article', icon('external')) : null,
+      safeExternalUrl(story.url) ? h('a', { class: 'pill-btn glass-btn sm', href: safeExternalUrl(story.url), target: '_blank', rel: 'noopener noreferrer' }, 'Read article', icon('external')) : null,
       h('button', {
         class: 'pill-btn glass-btn sm story-share-btn',
         type: 'button',

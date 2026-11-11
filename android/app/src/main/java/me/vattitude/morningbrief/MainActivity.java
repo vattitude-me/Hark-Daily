@@ -26,6 +26,7 @@ import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.common.api.CommonStatusCodes;
 import com.google.android.gms.tasks.Task;
 import java.lang.ref.WeakReference;
+import org.json.JSONObject;
 
 public class MainActivity extends BridgeActivity {
     public static final String BRIEFING_CHANNEL_ID = "hark_daily_briefing";
@@ -80,9 +81,9 @@ public class MainActivity extends BridgeActivity {
             WebView webView = getBridge() != null ? getBridge().getWebView() : null;
             if (webView != null) {
                 webView.post(() -> {
-                    String safeUri = fullUri.replace("\\", "\\\\").replace("'", "\\'");
+                    String quotedUri = JSONObject.quote(fullUri);
                     webView.evaluateJavascript(
-                        "window.handleNativeAuthCallback && window.handleNativeAuthCallback('" + safeUri + "');",
+                        "window.handleNativeAuthCallback && window.handleNativeAuthCallback(" + quotedUri + ");",
                         null
                     );
                 });
@@ -113,9 +114,9 @@ public class MainActivity extends BridgeActivity {
                 WebView webView = getBridge() != null ? getBridge().getWebView() : null;
                 if (webView != null) {
                     webView.post(() -> {
-                        String safeUri = fullUri.replace("\\", "\\\\").replace("'", "\\'");
+                        String quotedUri = JSONObject.quote(fullUri);
                         webView.evaluateJavascript(
-                            "window.handleDeepLinkUrl && window.handleDeepLinkUrl('" + safeUri + "');",
+                            "window.handleDeepLinkUrl && window.handleDeepLinkUrl(" + quotedUri + ");",
                             null
                         );
                     });
@@ -195,9 +196,9 @@ public class MainActivity extends BridgeActivity {
         WebView webView = getBridge() != null ? getBridge().getWebView() : null;
         if (webView != null) {
             webView.post(() -> {
-                String safeToken = idToken.replace("\\", "\\\\").replace("'", "\\'");
+                String quotedToken = JSONObject.quote(idToken);
                 webView.evaluateJavascript(
-                    "window.handleNativeGoogleIdToken && window.handleNativeGoogleIdToken('" + safeToken + "');",
+                    "window.handleNativeGoogleIdToken && window.handleNativeGoogleIdToken(" + quotedToken + ");",
                     null
                 );
             });
@@ -220,9 +221,9 @@ public class MainActivity extends BridgeActivity {
         WebView webView = getBridge() != null ? getBridge().getWebView() : null;
         if (webView != null) {
             webView.post(() -> {
-                String safeMsg = errorMsg != null ? errorMsg.replace("\\", "\\\\").replace("'", "\\'") : "Unknown error";
+                String quotedMsg = JSONObject.quote(errorMsg != null ? errorMsg : "Unknown error");
                 webView.evaluateJavascript(
-                    "window.handleNativeAuthError && window.handleNativeAuthError(" + statusCode + ", '" + safeMsg + "');",
+                    "window.handleNativeAuthError && window.handleNativeAuthError(" + statusCode + ", " + quotedMsg + ");",
                     null
                 );
             });

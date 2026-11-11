@@ -189,8 +189,8 @@ def parse_feed(body: bytes, source: dict) -> tuple[str, list[Item]]:
     items = []
     for pos, entry in enumerate(entries):
         title = clean_text(entry.get("title"))
-        link = entry.get("link")
-        if not title or not link:
+        link = (entry.get("link") or "").strip()
+        if not title or not link or not re.match(r"^https?://", link, re.IGNORECASE):
             continue
         summary = clean_text(entry.get("summary") or "")
         source_name = source.get("name", "")

@@ -14,7 +14,7 @@ create table if not exists public.profiles (
   is_admin    boolean not null default false,
   -- Unguessable folder name for this user's MP3s in the public bucket.
   feed_token  text not null unique default replace(gen_random_uuid()::text, '-', ''),
-  settings    jsonb not null default '{}'::jsonb,
+  settings    jsonb not null default '{}'::jsonb check (pg_column_size(settings) <= 16384),
   -- Written by the worker: last build time, last error, notes for the user.
   status      jsonb not null default '{}'::jsonb,
   created_at  timestamptz not null default now()
@@ -103,10 +103,10 @@ delete from public.briefings;
 
 -- ------------------------------------------------------ push subscriptions
 create table if not exists public.push_subscriptions (
-  endpoint    text primary key check (char_length(endpoint) <= 2048),
+  endpoint    text primary key check (endpoint ~* '^https://' and char_length(endpoint) <= 2048),
   user_id     uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  p256dh      text not null,
-  auth        text not null,
+  p256dh      text not null check (char_length(p256dh) <= 512),
+  auth        text not null check (char_length(auth) <= 256),
   created_at  timestamptz not null default now()
 );
 
@@ -122,7 +122,7 @@ create table if not exists public.build_requests (
   kind         text not null default 'build' check (kind in ('build', 'push_test', 'delete_account', 'pack')),
   status       text not null default 'queued' check (status in ('queued', 'running', 'done', 'error')),
   message      text,
-  payload      jsonb,
+  payload      jsonb check (payload is null or pg_column_size(payload) <= 4096),
   created_at   timestamptz not null default now(),
   finished_at  timestamptz
 );
@@ -208,7 +208,11 @@ create policy "read own briefings" on public.briefings for select to authenticat
 
 drop policy if exists "own push subscriptions" on public.push_subscriptions;
 create policy "own push subscriptions" on public.push_subscriptions for all to authenticated
-  using (user_id = auth.uid()) with check (user_id = auth.uid());
+  using (user_id = auth.uid())
+  with check (
+    user_id = auth.uid() and
+    (select count(*) from public.push_subscriptions where user_id = auth.uid()) < 10
+  );
 
 drop policy if exists "read own requests" on public.build_requests;
 create policy "read own requests" on public.build_requests for select to authenticated using (user_id = auth.uid());
@@ -217,12 +221,18 @@ drop policy if exists "admins read requests" on public.build_requests;
 create policy "admins read requests" on public.build_requests for select to authenticated
   using (public.is_admin());
 -- The web admin page is gated the same way. Flag the account that owns it:
---   update public.profiles set is_admin = true where lower(email) = 'vatsakrish@gmail.com';
+--   update public.profiles set is_admin = true where lower(email) = 'admin@example.com';
 -- ADMIN_EMAILS on the worker does the same job for the rebuild itself, without the database.
 -- 'build' and 'pack' need public.is_admin(); the other two are open to everyone.
 drop policy if exists "create requests" on public.build_requests;
 create policy "create requests" on public.build_requests for insert to authenticated
-  with check (user_id = auth.uid() and status = 'queued' and (kind in ('push_test', 'delete_account') or public.is_admin()));
+  with check (
+    user_id = auth.uid() and status = 'queued' and (kind in ('push_test', 'delete_account') or public.is_admin())
+    and (
+      public.is_admin() or
+      (select count(*) from public.build_requests where user_id = auth.uid() and status in ('queued', 'running')) < 3
+    )
+  );
 
 drop policy if exists "send reports" on public.content_reports;
 create policy "send reports" on public.content_reports for insert to anon, authenticated
@@ -250,7 +260,7 @@ grant insert (reason, note, headline, summary, url, source, writer, app) on publ
 grant delete on public.sources to authenticated;
 grant insert (endpoint, user_id, p256dh, auth) on public.push_subscriptions to authenticated;
 grant delete on public.push_subscriptions to authenticated;
-grant insert (user_id, kind) on public.build_requests to authenticated;
+grant insert (user_id, kind, payload) on public.build_requests to authenticated;
 
 -- ---------------------------------------------------------------- storage
 -- Public bucket: MP3s live under /<feed_token>/<date>.mp3, voice samples under /previews/ and the
@@ -277,7 +287,7 @@ create table if not exists public.story_audio (
   rank       smallint not null check (rank between 1 and 20),
   voice      text     not null,
   title      text     not null check (char_length(title) <= 500),
-  url        text     check (url is null or char_length(url) <= 2000),
+  url        text     check (url is null or (char_length(url) <= 2000 and url ~* '^https?://')),
   source     text     check (source is null or char_length(source) <= 200),
   image      text     check (image is null or char_length(image) <= 2000),
   script     text,
@@ -392,13 +402,26 @@ create or replace function public.delete_user_account()
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
+declare
+  uid uuid := auth.uid();
+  u_token text;
 begin
-  delete from auth.users where id = auth.uid();
+  if uid is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  select feed_token into u_token from public.profiles where id = uid;
+  if u_token is not null and u_token <> '' then
+    -- Clean up user audio objects in briefings bucket if present (DATA-03)
+    delete from storage.objects where bucket_id = 'briefings' and name like (u_token || '/%');
+  end if;
+
+  delete from auth.users where id = uid;
 end;
 $$;
 
-revoke all on function public.delete_user_account() from anon;
+revoke all on function public.delete_user_account() from public, anon;
 grant execute on function public.delete_user_account() to authenticated;
 

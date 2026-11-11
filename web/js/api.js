@@ -116,27 +116,18 @@ export async function detectEditionFromIp() {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2500);
-    let res = await fetch('/api/geo', { signal: controller.signal }).catch(() => null);
-    let data = res && res.ok ? await res.json().catch(() => null) : null;
+    const res = await fetch('/api/geo', { signal: controller.signal }).catch(() => null);
+    const data = res && res.ok ? await res.json().catch(() => null) : null;
     clearTimeout(timer);
 
-    let country = data?.country?.toUpperCase?.();
-    if (!country) {
-      const c2 = new AbortController();
-      const t2 = setTimeout(() => c2.abort(), 2000);
-      res = await fetch('https://api.country.is/', { signal: c2.signal }).catch(() => null);
-      data = res && res.ok ? await res.json().catch(() => null) : null;
-      clearTimeout(t2);
-      country = data?.country?.toUpperCase?.();
-    }
-
+    const country = data?.country?.toUpperCase?.();
     if (country === 'IN') return 'in';
     if (country === 'US') return 'us';
     if (country === 'CA') return 'ca';
-    // Outside these 3 countries: default to US or Canada
-    return 'ca';
+    // Fall back to browser timezone and language heuristics without third-party IP leaks (DATA-02)
+    return defaultEdition();
   } catch {
-    return 'ca';
+    return defaultEdition();
   }
 }
 
@@ -148,6 +139,9 @@ export const store = {
   },
   set(key, value) {
     try { localStorage.setItem(`mb-${key}`, JSON.stringify(value)); } catch { /* storage unavailable */ }
+  },
+  remove(key) {
+    try { localStorage.removeItem(`mb-${key}`); } catch { /* storage unavailable */ }
   },
 };
 
@@ -244,9 +238,9 @@ export const voiceName = (id) => voiceFor(id).name;
  * Who gets the admin tab. This only decides what the page shows: every admin action is
  * checked again by row-level security and by the worker, so a forged flag gets nowhere.
  */
-export const ADMIN_EMAILS = ['vatsakrish@gmail.com'];
+export const ADMIN_EMAILS = [];
 export const isAdmin = (profile) =>
-  !!profile && (profile.is_admin === true || ADMIN_EMAILS.includes((profile.email || '').toLowerCase()));
+  !!profile && (profile.is_admin === true || (Array.isArray(ADMIN_EMAILS) && ADMIN_EMAILS.includes((profile.email || '').toLowerCase())));
 
 export const DEFAULT_STORIES = {
   top: 5,
@@ -484,7 +478,10 @@ export const api = {
   verifyCode: async (email, token) => check(await sb.auth.verifyOtp({ email, token, type: 'email' })),
   signOut: async () => {
     me = null;
-    return sb.auth.signOut();
+    try {
+      store.remove('diagnostics-log');
+    } catch {}
+    return sb ? sb.auth.signOut() : Promise.resolve();
   },
 
   async profile() {

@@ -42,6 +42,14 @@ export function getDefaultCover(section = '') {
   return '/icons/covers/default.svg';
 }
 
+/** Validates that external URLs start strictly with http:// or https:// to prevent javascript: and data: URI XSS (SEC-19). */
+export function safeExternalUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return null;
+}
+
 export class Player extends EventTarget {
   constructor({ audio, preloader } = {}) {
     super();
@@ -1166,8 +1174,9 @@ export class Player extends EventTarget {
     }
     const heroArticle = document.getElementById('heroArticle');
     if (heroArticle) {
-      if (story?.url) {
-        heroArticle.href = story.url;
+      const safeUrl = safeExternalUrl(story?.url);
+      if (safeUrl) {
+        heroArticle.href = safeUrl;
         heroArticle.classList.remove('hidden');
       } else {
         heroArticle.classList.add('hidden');
@@ -1219,8 +1228,9 @@ export class Player extends EventTarget {
     }
     const readerArticleLink = document.getElementById('readerArticleLink');
     if (readerArticleLink) {
-      if (story?.url) {
-        readerArticleLink.href = story.url;
+      const safeUrl = safeExternalUrl(story?.url);
+      if (safeUrl) {
+        readerArticleLink.href = safeUrl;
         const srcName = story?.source ? story.source.split('·')[0].trim() : 'original source';
         const span = readerArticleLink.querySelector?.('span');
         if (span) span.textContent = `Full story on ${srcName}`;
@@ -1580,8 +1590,9 @@ export class Player extends EventTarget {
         cleanSourceLink.classList.add('hidden');
       } else {
         const sTarget = story || b.stories?.[0];
-        if (sTarget?.url) {
-          cleanSourceLink.href = sTarget.url;
+        const safeUrl = safeExternalUrl(sTarget?.url);
+        if (safeUrl) {
+          cleanSourceLink.href = safeUrl;
           const srcName = sTarget?.source ? sTarget.source.split('·')[0].trim() : 'original source';
           if (cleanSourceLinkName) cleanSourceLinkName.textContent = `Read on ${srcName}`;
           cleanSourceLink.classList.remove('hidden');
