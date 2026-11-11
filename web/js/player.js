@@ -202,8 +202,29 @@ export class Player extends EventTarget {
       });
     }
 
+    const rearCoverImg = document.getElementById('rearCoverImg');
+    if (rearCoverImg) {
+      rearCoverImg.addEventListener('error', () => {
+        const failed = rearCoverImg.dataset.src || rearCoverImg.src;
+        if (failed && !failed.startsWith('/icons/covers/')) {
+          this.failedImages.add(failed);
+          const b = this.briefing;
+          const story = this.currentStory();
+          const currentStoryIdx = story ? b.stories.indexOf(story) : 0;
+          const nextStory = b.stories?.[currentStoryIdx + 1];
+          const nextSec = nextStory?.section || 'top';
+          const fallback = getDefaultCover(nextSec);
+          rearCoverImg.dataset.src = fallback;
+          rearCoverImg.src = fallback;
+        }
+      });
+    }
+
     // 40-bar acoustic waveform scrubber
     this.setupCleanWaveform();
+
+    // 3D Stacked cards gesture swipe navigation
+    this.setupCardSwipe();
 
     // Speed pills
     this.renderSpeedPills();
@@ -539,16 +560,49 @@ export class Player extends EventTarget {
   }
 
   storyFor(chapter) {
-    return this.briefing?.stories?.find((s) => s.id === chapter?.id);
+    if (!chapter || !this.briefing?.stories?.length) return null;
+    const stories = this.briefing.stories;
+    const direct = stories.find((s) => s.id === chapter.id);
+    if (direct) return direct;
+
+    // If chapter has an explicit section (e.g. section bridge banter 'pod_bridge_entertainment'),
+    // associate it with the first story of that section
+    if (chapter.section) {
+      const baseSec = chapter.section.replace(/_(us|in|ca)$/, '');
+      const secStory = stories.find((s) => s.section === chapter.section || s.section === baseSec || (s.section || '').replace(/_(us|in|ca)$/, '') === baseSec);
+      if (secStory) return secStory;
+    }
+
+    // Resolve by timeline timestamp: find the story covering or immediately following this chapter
+    const t = typeof chapter.start === 'number' ? chapter.start : this.position;
+    const active = stories.find((s) => t >= s.start - 0.05 && t < s.end);
+    if (active) return active;
+
+    const next = stories.find((s) => s.start >= t - 0.1);
+    if (next) return next;
+
+    const prev = [...stories].reverse().find((s) => s.start <= t + 0.1);
+    if (prev) return prev;
+
+    return stories[0] || null;
   }
 
   currentStory(t = this.position) {
-    return this.storyFor(this.currentChapter(t));
+    const ch = this.currentChapter(t);
+    if (ch) return this.storyFor(ch);
+    const stories = this.briefing?.stories;
+    if (!stories?.length) return null;
+    const active = stories.find((s) => t >= s.start - 0.05 && t < s.end);
+    if (active) return active;
+    const next = stories.find((s) => s.start >= t - 0.1);
+    if (next) return next;
+    return stories[stories.length - 1] || null;
   }
 
   sectionTitle(chapter) {
     const story = this.storyFor(chapter);
-    return this.briefing?.sections?.find((s) => s.key === story?.section)?.title || '';
+    const secKey = chapter?.section || story?.section;
+    return this.briefing?.sections?.find((s) => s.key === secKey)?.title || '';
   }
 
   currentChapter(t = this.position) {
@@ -648,6 +702,16 @@ export class Player extends EventTarget {
   }
 
   nextChapter() {
+    const story = this.currentStory();
+    const b = this.briefing;
+    if (story && b?.stories?.length) {
+      const idx = b.stories.indexOf(story);
+      if (idx >= 0 && idx < b.stories.length - 1) {
+        const nextStory = b.stories[idx + 1];
+        this.playChapter(nextStory.id);
+        return;
+      }
+    }
     const ch = this.currentChapter();
     const i = this.chapters.indexOf(ch);
     if (i >= 0 && i < this.chapters.length - 1) this.playChapter(this.chapters[i + 1].id);
@@ -655,10 +719,22 @@ export class Player extends EventTarget {
 
   prevChapter() {
     const ch = this.currentChapter();
-    const i = this.chapters.indexOf(ch);
     if (ch && this.position - ch.start > 3) {
       this.playChapter(ch.id);
-    } else if (i > 0) {
+      return;
+    }
+    const story = this.currentStory();
+    const b = this.briefing;
+    if (story && b?.stories?.length) {
+      const idx = b.stories.indexOf(story);
+      if (idx > 0) {
+        const prevStory = b.stories[idx - 1];
+        this.playChapter(prevStory.id);
+        return;
+      }
+    }
+    const i = this.chapters.indexOf(ch);
+    if (i > 0) {
       this.playChapter(this.chapters[i - 1].id);
     } else {
       this.seekTo(0);
@@ -709,6 +785,245 @@ export class Player extends EventTarget {
       dragging = false;
       try { barsWrap.releasePointerCapture(e.pointerId); } catch {}
     });
+  }
+
+  setupCardSwipe() {
+    if (typeof document === 'undefined') return;
+    const card = document.getElementById('cleanPlayerCard');
+    const rearCard = document.getElementById('cleanCardStackBg');
+    const bg2 = document.getElementById('cleanCardStackBg2');
+    const deckWrap = document.getElementById('cleanDeckWrap');
+    if (!card) return;
+
+    const BASE_FRONT_X = -8;
+    const BASE_REAR_X = 10;
+    const BASE_REAR_SCALE = 0.95;
+    const BASE_REAR_OPACITY = 0.70;
+    const BASE_L2_X = 14;
+    const BASE_L2_SCALE = 0.90;
+    const BASE_L2_OPACITY = 0.30;
+
+    let startX = 0;
+    let startY = 0;
+    let startTime = 0;
+    let isTracking = false;
+    let isLockedVertical = false;
+    let isLockedHorizontal = false;
+    let currentDeltaX = 0;
+
+    const getBaseFrontX = () => (deckWrap?.classList.contains('is-last-card') ? 0 : BASE_FRONT_X);
+
+    const onPointerDown = (e) => {
+      // Do not initiate card swipe if clicking buttons, links, scrubber, or interactive controls
+      if (e.target.closest('.clean-card-bottom-dock, .clean-cover-actions, .clean-source-link, button, a, [role="slider"], input, select, textarea')) {
+        return;
+      }
+      isTracking = true;
+      isLockedVertical = false;
+      isLockedHorizontal = false;
+      startX = e.clientX ?? (e.touches && e.touches[0]?.clientX) ?? 0;
+      startY = e.clientY ?? (e.touches && e.touches[0]?.clientY) ?? 0;
+      startTime = Date.now();
+      currentDeltaX = 0;
+    };
+
+    const onPointerMove = (e) => {
+      if (!isTracking || isLockedVertical) return;
+
+      const clientX = e.clientX ?? (e.touches && e.touches[0]?.clientX) ?? 0;
+      const clientY = e.clientY ?? (e.touches && e.touches[0]?.clientY) ?? 0;
+      const deltaX = clientX - startX;
+      const deltaY = clientY - startY;
+
+      if (!isLockedHorizontal) {
+        // If vertical movement dominates, lock to vertical scrolling for teleprompter reading
+        if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 7) {
+          isLockedVertical = true;
+          return;
+        }
+        // If horizontal movement is intentional, lock to horizontal card swipe
+        if (Math.abs(deltaX) > Math.abs(deltaY) + 4 && Math.abs(deltaX) > 7) {
+          isLockedHorizontal = true;
+          card.style.transition = 'none';
+          if (rearCard) rearCard.style.transition = 'none';
+          if (bg2) bg2.style.transition = 'none';
+        } else {
+          return;
+        }
+      }
+
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+
+      const story = this.currentStory();
+      const b = this.briefing;
+      const ch = this.currentChapter();
+      const storyIdx = (story && b?.stories) ? b.stories.indexOf(story) : -1;
+      const canGoNext = storyIdx >= 0 ? storyIdx < b.stories.length - 1 : Boolean(this.chapters.indexOf(ch) < this.chapters.length - 1);
+      const canGoPrev = storyIdx > 0 || (story && this.position - (story.start || 0) > 3) || (ch && this.position - ch.start > 3);
+
+      // Rubberband resistance if boundary reached
+      let effectiveDeltaX = deltaX;
+      if (deltaX < 0 && !canGoNext) {
+        effectiveDeltaX = deltaX * 0.22;
+      } else if (deltaX > 0 && !canGoPrev) {
+        effectiveDeltaX = deltaX * 0.22;
+      }
+      currentDeltaX = effectiveDeltaX;
+
+      const cardWidth = card.clientWidth || 360;
+      const rotation = (effectiveDeltaX / cardWidth) * 9;
+      const baseFront = getBaseFrontX();
+      card.style.transform = `translateX(${baseFront + effectiveDeltaX}px) rotate(${rotation}deg)`;
+
+      if (effectiveDeltaX < 0 && canGoNext) {
+        // Swiping Left: Front card moves out to left, rear card steps IN from the right (+10px -> 0px) and scales up to 1.0!
+        const progress = Math.min(1, Math.abs(effectiveDeltaX) / 130);
+        if (rearCard) {
+          const rX = BASE_REAR_X * (1 - progress);
+          const rScale = BASE_REAR_SCALE + (1 - BASE_REAR_SCALE) * progress;
+          const rOp = BASE_REAR_OPACITY + (1 - BASE_REAR_OPACITY) * progress;
+          rearCard.style.transform = `translateX(${rX}px) scale(${rScale})`;
+          rearCard.style.opacity = String(rOp);
+        }
+        if (bg2) {
+          const lX = BASE_L2_X - (BASE_L2_X - BASE_REAR_X) * progress;
+          const lScale = BASE_L2_SCALE + (BASE_REAR_SCALE - BASE_L2_SCALE) * progress;
+          const lOp = BASE_L2_OPACITY + (BASE_REAR_OPACITY - BASE_L2_OPACITY) * progress;
+          bg2.style.transform = `translateX(${lX}px) scale(${lScale})`;
+          bg2.style.opacity = String(lOp);
+        }
+      } else if (effectiveDeltaX > 0 && canGoPrev) {
+        // Swiping Right: Front card moves right
+        if (rearCard) {
+          rearCard.style.opacity = String(Math.max(0.2, BASE_REAR_OPACITY - (effectiveDeltaX / 120) * 0.4));
+        }
+      }
+    };
+
+    const onPointerUp = () => {
+      if (!isTracking) return;
+      isTracking = false;
+
+      if (!isLockedHorizontal) return;
+      isLockedHorizontal = false;
+
+      const elapsed = Date.now() - startTime;
+      const velocity = Math.abs(currentDeltaX) / Math.max(elapsed, 1);
+      const passedThreshold = Math.abs(currentDeltaX) > 55 || (velocity > 0.32 && Math.abs(currentDeltaX) > 22);
+
+      const story = this.currentStory();
+      const b = this.briefing;
+      const ch = this.currentChapter();
+      const storyIdx = (story && b?.stories) ? b.stories.indexOf(story) : -1;
+      const canGoNext = storyIdx >= 0 ? storyIdx < b.stories.length - 1 : Boolean(this.chapters.indexOf(ch) < this.chapters.length - 1);
+      const canGoPrev = storyIdx > 0 || (story && this.position - (story.start || 0) > 3) || (ch && this.position - ch.start > 3);
+
+      if (currentDeltaX < -20 && passedThreshold && canGoNext) {
+        // Swiped Left -> Animate front card OUT to left, rear card IN to center
+        card.style.transition = 'transform 0.24s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.22s ease';
+        card.style.transform = 'translateX(-120%) rotate(-10deg)';
+        card.style.opacity = '0';
+
+        if (rearCard) {
+          rearCard.style.transition = 'transform 0.24s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.22s ease';
+          rearCard.style.transform = 'translateX(0px) scale(1)';
+          rearCard.style.opacity = '1';
+        }
+        if (bg2) {
+          bg2.style.transition = 'transform 0.24s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.22s ease';
+          bg2.style.transform = `translateX(${BASE_REAR_X}px) scale(${BASE_REAR_SCALE})`;
+          bg2.style.opacity = String(BASE_REAR_OPACITY);
+        }
+
+        setTimeout(() => {
+          this.nextChapter();
+          // Front card seamlessly takes over at baseFront with full opacity (no popping or reverse jump)
+          const baseFront = getBaseFrontX();
+          card.style.transition = 'none';
+          card.style.transform = `translateX(${baseFront}px)`;
+          card.style.opacity = '1';
+
+          // Reset rear card and bg2 to their back stack positions
+          if (rearCard) {
+            rearCard.style.transition = 'none';
+            rearCard.style.transform = `translateX(${BASE_REAR_X}px) scale(${BASE_REAR_SCALE})`;
+            rearCard.style.opacity = String(BASE_REAR_OPACITY);
+          }
+          if (bg2) {
+            bg2.style.transition = 'none';
+            bg2.style.transform = `translateX(${BASE_L2_X}px) scale(${BASE_L2_SCALE})`;
+            bg2.style.opacity = String(BASE_L2_OPACITY);
+          }
+        }, 240);
+      } else if (currentDeltaX > 20 && passedThreshold && canGoPrev) {
+        // Swiped Right -> Pull previous story IN from the left, step current story down into rear stack
+        // 1. Immediately switch playback to previous story so DOM content updates
+        this.prevChapter();
+
+        // 2. Position front card off-screen to the left (where it was previously dealt)
+        card.style.transition = 'none';
+        card.style.transform = 'translateX(-110%) rotate(-8deg)';
+        card.style.opacity = '0.9';
+
+        // 3. Position rear card at center (displaying the story that was just on front)
+        if (rearCard) {
+          rearCard.style.transition = 'none';
+          rearCard.style.transform = 'translateX(0px) scale(1)';
+          rearCard.style.opacity = '1';
+        }
+        if (bg2) {
+          bg2.style.transition = 'none';
+          bg2.style.transform = `translateX(${BASE_REAR_X}px) scale(${BASE_REAR_SCALE})`;
+          bg2.style.opacity = String(BASE_REAR_OPACITY);
+        }
+
+        // Force browser reflow to commit initial positions before triggering animation
+        void card.offsetWidth;
+
+        // 4. Animate front card gliding in smoothly from the left into center
+        const baseFront = getBaseFrontX();
+        card.style.transition = 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.24s ease';
+        card.style.transform = `translateX(${baseFront}px) rotate(0deg)`;
+        card.style.opacity = '1';
+
+        // 5. Animate rear card settling back down into its back-stack rest position
+        if (rearCard) {
+          rearCard.style.transition = 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.24s ease';
+          rearCard.style.transform = `translateX(${BASE_REAR_X}px) scale(${BASE_REAR_SCALE})`;
+          rearCard.style.opacity = String(BASE_REAR_OPACITY);
+        }
+        if (bg2) {
+          bg2.style.transition = 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.24s ease';
+          bg2.style.transform = `translateX(${BASE_L2_X}px) scale(${BASE_L2_SCALE})`;
+          bg2.style.opacity = String(BASE_L2_OPACITY);
+        }
+      } else {
+        // Snap back to active rest position
+        const baseFront = getBaseFrontX();
+        card.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease';
+        card.style.transform = `translateX(${baseFront}px)`;
+        card.style.opacity = '1';
+
+        if (rearCard) {
+          rearCard.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease';
+          rearCard.style.transform = `translateX(${BASE_REAR_X}px) scale(${BASE_REAR_SCALE})`;
+          rearCard.style.opacity = String(BASE_REAR_OPACITY);
+        }
+        if (bg2) {
+          bg2.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease';
+          bg2.style.transform = `translateX(${BASE_L2_X}px) scale(${BASE_L2_SCALE})`;
+          bg2.style.opacity = String(BASE_L2_OPACITY);
+        }
+      }
+    };
+
+    // Attach passive touch and pointer events
+    card.addEventListener('touchstart', onPointerDown, { passive: true });
+    card.addEventListener('touchmove', onPointerMove, { passive: false });
+    card.addEventListener('touchend', onPointerUp, { passive: true });
+    card.addEventListener('touchcancel', onPointerUp, { passive: true });
   }
 
   renderSpeedPills() {
@@ -819,6 +1134,16 @@ export class Player extends EventTarget {
     const ch = this.currentChapter(t);
     const story = this.storyFor(ch);
     const section = this.sectionTitle(ch);
+    const isIntroOrBanter = Boolean(ch && (
+      (typeof ch.id === 'string' && (
+        ch.id.startsWith('pod_open') ||
+        ch.id.startsWith('pod_tease') ||
+        ch.id.startsWith('pod_bridge') ||
+        ch.id.startsWith('greeting') ||
+        ch.id.startsWith('pod_close') ||
+        ch.id === 'outro'
+      )) || ch.kind === 'note'
+    ));
     const started = t >= 0.5;
     if (el.state) {
       el.state.textContent = !started && !this.isPlaying
@@ -826,7 +1151,9 @@ export class Player extends EventTarget {
         : (this.isPlaying ? 'Now playing' : 'Paused');
     }
     if (el.title) {
-      el.title.textContent = story?.headline || ch?.title || b.stories?.[0]?.headline || b.title;
+      el.title.textContent = (isIntroOrBanter && ch?.title)
+        ? ch.title
+        : (story?.headline || ch?.title || b.stories?.[0]?.headline || b.title);
     }
 
     // Hero section label & count
@@ -895,11 +1222,11 @@ export class Player extends EventTarget {
       if (story?.url) {
         readerArticleLink.href = story.url;
         const srcName = story?.source ? story.source.split('·')[0].trim() : 'original source';
-        const span = readerArticleLink.querySelector('span');
+        const span = readerArticleLink.querySelector?.('span');
         if (span) span.textContent = `Full story on ${srcName}`;
-        readerArticleLink.classList.remove('hidden');
+        readerArticleLink.classList?.remove?.('hidden');
       } else {
-        readerArticleLink.classList.add('hidden');
+        readerArticleLink.classList?.add?.('hidden');
       }
     }
     const readerShareBtn = document.getElementById('readerShareBtn');
@@ -916,10 +1243,12 @@ export class Player extends EventTarget {
 
     let activeSpeaker = null;
     if (transBox && transText && transBody) {
-      const text = story?.script || story?.summary || story?.headline || ch?.text || ch?.title || b.stories?.[0]?.script || b.stories?.[0]?.summary || '';
+      const text = isIntroOrBanter
+        ? (ch?.text || ch?.title || '')
+        : (story?.script || story?.summary || story?.headline || ch?.text || ch?.title || b.stories?.[0]?.script || b.stories?.[0]?.summary || '');
       if (text) {
         transBox.classList.remove('hidden');
-        const currentId = story?.id || ch?.id || '';
+        const currentId = isIntroOrBanter ? (ch?.id || '') : (story?.id || ch?.id || '');
         if (transText.dataset.storyId !== currentId) {
           transText.dataset.storyId = currentId;
           transBody.scrollTop = 0;
@@ -1062,22 +1391,14 @@ export class Player extends EventTarget {
     }
 
     // Cover image determination:
-    // During intro chat, host banter, or outro sign-off, show the official podcast logo.
+    // During intro chat, host banter, or outro sign-off, show the category SVG artwork.
     // When a story is playing, show the story's editorial image (or category default SVG fallback).
-    const isIntroOrBanter = !story && ch && (
-      (typeof ch.id === 'string' && (
-        ch.id.startsWith('pod_open') ||
-        ch.id.startsWith('pod_tease') ||
-        ch.id.startsWith('greeting') ||
-        ch.id.startsWith('pod_close') ||
-        ch.id === 'outro'
-      )) || ch.kind === 'note'
-    );
     let img = null;
-    if (story?.image) {
+    if (isIntroOrBanter) {
+      const secKey = (ch?.section || story?.section || this.currentSection || '').replace(/_(us|in|ca)$/, '');
+      img = getDefaultCover(secKey);
+    } else if (story?.image) {
       img = story.image;
-    } else if (isIntroOrBanter) {
-      img = '/icons/covers/default.svg';
     } else {
       const upNext = this.chapters.find((c) => c.kind === 'story' && c.start >= t - 0.01);
       img = (story || this.storyFor(upNext))?.image || null;
@@ -1151,21 +1472,89 @@ export class Player extends EventTarget {
     // Clean Player Story Metadata & Actions
     const cleanCat = document.getElementById('cleanCatBadge');
     if (cleanCat) {
-      cleanCat.textContent = (section || story?.section || b.stories?.[0]?.section || 'TOP STORIES').toUpperCase();
+      let catText = 'TOP STORIES';
+      if (isIntroOrBanter) {
+        if (ch?.id?.startsWith('pod_open') || ch?.id?.startsWith('greeting')) {
+          catText = 'PREVIEW';
+        } else if (ch?.id?.startsWith('pod_close') || ch?.id === 'outro') {
+          catText = 'SIGN-OFF';
+        } else {
+          const secKey = ch?.section || story?.section || section;
+          catText = (secKey || 'UP NEXT').replace(/_(us|in|ca)$/, '');
+        }
+      } else {
+        catText = ch?.section || section || story?.section || b.stories?.[0]?.section || 'TOP STORIES';
+      }
+      cleanCat.textContent = catText.toUpperCase();
     }
     const cleanSrc = document.getElementById('cleanSourceTitle');
     if (cleanSrc) {
-      const srcRaw = story?.source || b.stories?.[0]?.source;
-      cleanSrc.textContent = srcRaw ? srcRaw.split('·')[0].trim() : 'Daily News';
+      if (isIntroOrBanter) {
+        cleanSrc.textContent = 'Hark Daily';
+      } else {
+        const srcRaw = story?.source || b.stories?.[0]?.source;
+        cleanSrc.textContent = srcRaw ? srcRaw.split('·')[0].trim() : 'Daily News';
+      }
     }
     const cleanCounter = document.getElementById('cleanStoryCounter');
     if (cleanCounter) {
       const idx = story ? b.stories.indexOf(story) + 1 : 1;
       cleanCounter.textContent = `${idx} / ${b.stories?.length || 1}`;
+      const deckWrap = document.getElementById('cleanDeckWrap');
+      if (deckWrap) {
+        const isLast = idx >= (b.stories?.length || 1);
+        deckWrap.classList.toggle('is-last-card', Boolean(isLast));
+      }
+
+      // Populate Peeking Rear Card Preview (Up Next Story)
+      const currentStoryIdx = story ? b.stories.indexOf(story) : 0;
+      const nextStory = b.stories?.[currentStoryIdx + 1];
+      if (nextStory) {
+        const rearCoverImg = document.getElementById('rearCoverImg');
+        if (rearCoverImg) {
+          const nextSec = nextStory.section || 'top';
+          const nextImg = (nextStory.image && !this.failedImages.has(nextStory.image))
+            ? nextStory.image
+            : (nextStory.image_url || getDefaultCover(nextSec));
+          if (rearCoverImg.dataset.src !== nextImg) {
+            rearCoverImg.dataset.src = nextImg;
+            rearCoverImg.src = nextImg;
+          }
+        }
+        // Preload next-next story image in browser cache so rapid successive swipes are instant
+        const afterNext = b.stories?.[currentStoryIdx + 2];
+        if (afterNext?.image && !this.failedImages.has(afterNext.image)) {
+          const prefetch = new Image();
+          prefetch.src = afterNext.image;
+        }
+        const rearCat = document.getElementById('rearCatBadge');
+        if (rearCat) {
+          rearCat.textContent = (nextStory.section || 'TOP STORIES').toUpperCase();
+        }
+        const rearSrc = document.getElementById('rearSourceTitle');
+        if (rearSrc) {
+          const srcRaw = nextStory.source;
+          rearSrc.textContent = srcRaw ? srcRaw.split('·')[0].trim() : 'Up Next';
+        }
+        const rearCounter = document.getElementById('rearStoryCounter');
+        if (rearCounter) {
+          rearCounter.textContent = `${currentStoryIdx + 2} / ${b.stories?.length || 1}`;
+        }
+        const rearHeadline = document.getElementById('rearStoryHeadline');
+        if (rearHeadline) {
+          rearHeadline.textContent = nextStory.headline || 'Next story';
+        }
+        const rearSnippet = document.getElementById('rearSnippet');
+        if (rearSnippet) {
+          rearSnippet.textContent = nextStory.summary || nextStory.content?.slice(0, 120) || 'Up next on Hark Daily…';
+        }
+      }
     }
     const cleanHeadline = document.getElementById('cleanStoryHeadline');
     if (cleanHeadline) {
-      cleanHeadline.textContent = story?.headline || ch?.title || b.stories?.[0]?.headline || b.title;
+      cleanHeadline.textContent = (isIntroOrBanter && ch?.title)
+        ? ch.title
+        : (story?.headline || ch?.title || b.stories?.[0]?.headline || b.title);
     }
 
     const cleanShare = document.getElementById('cleanShareBtn');
@@ -1187,14 +1576,18 @@ export class Player extends EventTarget {
     const cleanSourceLink = document.getElementById('cleanSourceLink');
     const cleanSourceLinkName = document.getElementById('cleanSourceLinkName');
     if (cleanSourceLink) {
-      const sTarget = story || b.stories?.[0];
-      if (sTarget?.url) {
-        cleanSourceLink.href = sTarget.url;
-        const srcName = sTarget?.source ? sTarget.source.split('·')[0].trim() : 'original source';
-        if (cleanSourceLinkName) cleanSourceLinkName.textContent = `Read on ${srcName}`;
-        cleanSourceLink.classList.remove('hidden');
-      } else {
+      if (isIntroOrBanter) {
         cleanSourceLink.classList.add('hidden');
+      } else {
+        const sTarget = story || b.stories?.[0];
+        if (sTarget?.url) {
+          cleanSourceLink.href = sTarget.url;
+          const srcName = sTarget?.source ? sTarget.source.split('·')[0].trim() : 'original source';
+          if (cleanSourceLinkName) cleanSourceLinkName.textContent = `Read on ${srcName}`;
+          cleanSourceLink.classList.remove('hidden');
+        } else {
+          cleanSourceLink.classList.add('hidden');
+        }
       }
     }
 
