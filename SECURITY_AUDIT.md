@@ -1,13 +1,13 @@
 # Hark Daily (`Morning_Brief`) — Full Repository Security & Data Risk Audit
 
-**Last Updated:** November 11, 2026 (Post-Commit `5b03088` & `524e0c4` Verification + Phase 2 Deep Audit)  
+**Last Updated:** November 11, 2026 (Post-Commit `b368cfb` Verification + Phase 3 Fresh Deep Audit)  
 **Scope:** Full repository (`web/`, `web/api/`, `app/`, `voice_service/`, `android/`, `ios/`, `scripts/`, `supabase/`, `.github/workflows/`, and Git history)
 
 ---
 
 ## 1. Phase 1 Remediation Review (Verification of Commit `5b03088`)
 
-We reviewed commit `5b03088` (`fix(security): resolve all critical, high, and medium audit findings (SEC-01 - SEC-14)`) line-by-line. While 11 of the 14 original items were cleanly resolved, **3 fixes contain subtle logic flaws or incomplete patches** that still leave attack vectors open:
+We reviewed commit `5b03088` (`fix(security): resolve all critical, high, and medium audit findings (SEC-01 - SEC-14)`) and commit `b368cfb` (`fix(security): resolve phase 2 security and data risks (SEC-15 - SEC-24, DATA-01 - DATA-07)`). All 14 Phase 1 items are verified resolved:
 
 | ID | Original Severity | Original Finding | Commit `5b03088` Verification Status |
 | :--- | :--- | :--- | :--- |
@@ -286,3 +286,158 @@ Beyond code execution and network vulnerabilities, we audited how user data, PII
   2. `public.content_reports` retains `user_id` and report rows indefinitely with no automated cleanup/TTL policy.
 - **Remediation:**
   Clear `mb-diagnostics-log` inside `api.signOut()` and periodically prune `content_reports` older than 90 days.
+
+---
+
+## 4. Phase 3 Fresh Audit: Security, Architectural & Data Risks (Post-Commit `b368cfb`)
+
+Following commit `b368cfb` (#53), we verified all 17 Phase 2 fixes (`SEC-15`–`SEC-24` and `DATA-01`–`DATA-07`) and performed a fresh end-to-end audit across the backend worker, serverless APIs, database schema, Service Worker, and CI/CD pipelines.
+
+### 4.1 Phase 3 Security Risks (`SEC-25` – `SEC-31`)
+
+| ID | Severity | Vulnerability | Component / Location | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **SEC-25** | 🟠 **High** | Blind `POST` SSRF (Internal Home LAN Access) & VAPID JWT Leakage via Unconstrained `push_subscriptions.endpoint` Host | [`app/push.py`](file:///Users/vattitude/Coding/Morning_Brief/app/push.py#L48-L55), [`supabase/schema.sql`](file:///Users/vattitude/Coding/Morning_Brief/supabase/schema.sql#L106) | ⚠️ **Open** |
+| **SEC-26** | 🟠 **High** | Dead Legacy BYOK Proxy Endpoints (`/api/llm`, `/api/tts`, `/api/fetch`) Exposed in Production Without Auth or Rate Limiting | [`web/api/llm.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/llm.js#L35-L41), [`web/api/tts.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/tts.js#L35-L41), [`web/api/fetch.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/fetch.js#L89) | ⚠️ **Open** |
+| **SEC-27** | 🟠 **High** | Permissive Vercel Subdomain Regex (`(hark\|morning-brief)[a-z0-9-]*\.vercel\.app`) Allows Third-Party Vercel Cache Poisoning & CORS Bypass | [`web/api/share.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/share.js#L153), [`web/api/feedback.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/feedback.js#L38), [`web/api/fetch.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/fetch.js#L99) | ⚠️ **Open** |
+| **SEC-28** | 🟡 **Medium** | Pre-Authentication Supabase Auth Request Amplification in `/api/feedback` (Rate Limit Checked *After* Outbound Auth Call) | [`web/api/feedback.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/feedback.js#L111-L136) | ⚠️ **Open** |
+| **SEC-29** | 🟡 **Medium** | Service Worker Intercepts & Caches `/api/*` GET Endpoints, Returns HTML Shell on API Failure, and Trusts Unvalidated Notification URLs | [`web/sw.js`](file:///Users/vattitude/Coding/Morning_Brief/web/sw.js#L27-L68), [`web/sw.js`](file:///Users/vattitude/Coding/Morning_Brief/web/sw.js#L90-L98) | ⚠️ **Open** |
+| **SEC-30** | 🟡 **Medium** | Dead `api.uploadVoiceFile` Helper Interpolates Unsanitized `voiceId` Into Storage Path (`voices/${voiceId}.wav`) | [`web/js/api.js`](file:///Users/vattitude/Coding/Morning_Brief/web/js/api.js#L643-L654) | ⚠️ **Open** |
+| **SEC-31** | 🟢 **Low** | Over-Privileged GitHub Actions `contents: write` Token on Non-Release Runs, Unvalidated Tag Arithmetic, & Missing JS Security Tests in CI | [`.github/workflows/android.yml`](file:///Users/vattitude/Coding/Morning_Brief/.github/workflows/android.yml#L14-L55), [`.github/workflows/tests.yml`](file:///Users/vattitude/Coding/Morning_Brief/.github/workflows/tests.yml#L1-L26) | ⚠️ **Open** |
+
+---
+
+### 4.2 Phase 3 Data, Migration & Privacy Risks (`DATA-08` – `DATA-10`)
+
+| ID | Severity | Data / Infrastructure Risk | Component / Location | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **DATA-08** | 🟠 **High** | Inline `CREATE TABLE IF NOT EXISTS` Constraints Added in Commit `b368cfb` Are Skipped on Existing Production Tables | [`supabase/schema.sql`](file:///Users/vattitude/Coding/Morning_Brief/supabase/schema.sql#L17), [`supabase/schema.sql`](file:///Users/vattitude/Coding/Morning_Brief/supabase/schema.sql#L106-L109), [`supabase/schema.sql`](file:///Users/vattitude/Coding/Morning_Brief/supabase/schema.sql#L125), [`supabase/schema.sql`](file:///Users/vattitude/Coding/Morning_Brief/supabase/schema.sql#L290) | ⚠️ **Open** |
+| **DATA-09** | 🟡 **Medium** | Direct SQL `DELETE FROM storage.objects` in `delete_user_account()` Can Abort Account Deletion Due to Supabase Storage Trigger | [`supabase/schema.sql`](file:///Users/vattitude/Coding/Morning_Brief/supabase/schema.sql#L418) | ⚠️ **Open** |
+| **DATA-10** | 🟢 **Low** | Hardcoded Admin Email Remaining in `web/js/pages/admin.js` & Unsanitized `last_run` Report Published to `public.app_status` | [`web/js/pages/admin.js`](file:///Users/vattitude/Coding/Morning_Brief/web/js/pages/admin.js#L216-L231), [`app/worker.py`](file:///Users/vattitude/Coding/Morning_Brief/app/worker.py#L87-L91) | ⚠️ **Open** |
+
+---
+
+### 4.3 Detailed Phase 3 Findings & Remediations
+
+#### SEC-25 (High): Blind `POST` SSRF (Internal Home LAN Access) & VAPID JWT Leakage via `push_subscriptions.endpoint`
+- **Location:** [`app/push.py`](file:///Users/vattitude/Coding/Morning_Brief/app/push.py#L48-L55) and [`supabase/schema.sql`](file:///Users/vattitude/Coding/Morning_Brief/supabase/schema.sql#L106)
+- **Root Cause:**
+  1. In [`supabase/schema.sql`](file:///Users/vattitude/Coding/Morning_Brief/supabase/schema.sql#L106), `push_subscriptions.endpoint` only checks `endpoint ~* '^https://'`. Any authenticated user can insert a row into `public.push_subscriptions` with an arbitrary `endpoint` (e.g., `https://attacker.example/hook` or an internal HTTPS service on the Mac worker's local network such as `https://10.0.0.233:5001/api/...`) and then queue a `push_test` request (`api.pushTest()`).
+  2. Within 10 seconds, `Worker.poll_requests()` running on the primary Mac inside the home LAN calls `webpush(subscription_info={"endpoint": sub["endpoint"], ...})` ([`app/push.py`](file:///Users/vattitude/Coding/Morning_Brief/app/push.py#L48-L55)) without calling `check_public_url()` or verifying that the hostname belongs to a legitimate browser push service.
+  3. In addition to blind `POST` SSRF from inside the home network, `pywebpush` sends a signed VAPID `Authorization` JWT (`vapid_claims={"sub": self.subject, "aud": origin}`) and your public VAPID key directly to the attacker's server.
+- **Remediation:**
+  Enforce an allowlist of official Web Push service domains in both [`app/push.py`](file:///Users/vattitude/Coding/Morning_Brief/app/push.py) (alongside `check_public_url()`) and [`supabase/schema.sql`](file:///Users/vattitude/Coding/Morning_Brief/supabase/schema.sql):
+  - `*.push.services.mozilla.com` / `*.mozaws.net` (Firefox)
+  - `fcm.googleapis.com` / `*.google.com` / `*.googleapis.com` (Chrome / Android / Edge)
+  - `*.push.apple.com` (Safari / iOS / macOS)
+  - `*.notify.windows.com` (WNS)
+
+---
+
+#### SEC-26 (High): Dead Legacy BYOK Proxy Endpoints (`/api/llm`, `/api/tts`, `/api/fetch`) Exposed in Production
+- **Location:** [`web/api/llm.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/llm.js), [`web/api/tts.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/tts.js), and [`web/api/fetch.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/fetch.js)
+- **Root Cause:**
+  As documented in [`web/js/pages/settings.js`](file:///Users/vattitude/Coding/Morning_Brief/web/js/pages/settings.js#L3) (*"The BYOK voice list and the AI-key panel went with the builder they served"*), the client-side BYOK pack builder was removed from the web app, and zero production files in `web/` invoke `/api/llm`, `/api/tts`, or `/api/fetch`. However, all three serverless endpoints remain live on Vercel (`https://hark.vattitude.ca/api/llm`, `/api/tts`, `/api/fetch`):
+  1. `/api/llm` and `/api/tts` have **no authentication, no CORS origin check, no rate limiting, and no request body size cap**, allowing anyone on the internet to use `hark.vattitude.ca` as a free anonymizing proxy for Groq, OpenRouter, and Gemini API calls while consuming your Vercel serverless function execution time and bandwidth quota.
+  2. `/api/fetch` remains an unauthenticated public XML proxy that is still susceptible to DNS rebinding (TOCTOU between `dns.lookup()` at line 150 and `fetch()` at line 164).
+- **Remediation:**
+  Remove `/api/llm.js`, `/api/tts.js`, and `/api/fetch.js` from the public Vercel deployment (or disable them with `410 Gone` / require a verified admin Supabase JWT if kept for internal testing).
+
+---
+
+#### SEC-27 (High): Permissive Vercel Subdomain Regex Allows Third-Party Vercel Cache Poisoning & CORS Bypass
+- **Location:** [`web/api/share.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/share.js#L153), [`web/api/feedback.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/feedback.js#L38), and [`web/api/fetch.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/fetch.js#L99)
+- **Root Cause:**
+  Commit `b368cfb` tightened `.endsWith('.vercel.app')` to:
+  ```javascript
+  const isHarkVercel = /^(hark|morning-brief)[a-z0-9-]*\.vercel\.app$/i.test(reqHost);
+  ```
+  However, `.vercel.app` is a public shared domain where any Vercel user worldwide can register a project named `hark-phishing` (`https://hark-phishing.vercel.app`) or `morning-brief-evil.vercel.app`.
+  1. In [`web/api/share.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/share.js#L153-L234), sending `GET https://hark.vattitude.ca/s/<id>` with header `X-Forwarded-Host: hark-phishing.vercel.app` satisfies `isHarkVercel`, sets `origin = "https://hark-phishing.vercel.app"`, and caches that poisoned HTML (`og:url`, `<link rel="canonical">`, `og:image`) across the Vercel CDN for all subsequent users (`Cache-Control: public, s-maxage=300, stale-while-revalidate=86400`).
+  2. In [`web/api/feedback.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/feedback.js#L38) and [`web/api/fetch.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/fetch.js#L99), `https://hark-phishing.vercel.app` is granted cross-origin `Access-Control-Allow-Origin` access.
+- **Remediation:**
+  1. In [`web/api/share.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/share.js), always use `CANONICAL_ORIGIN` (`https://hark.vattitude.ca`) unless `reqHost` matches `/^(localhost|127\.0\.0\.1)(:\d+)?$/` or equals `process.env.VERCEL_URL` (and when serving non-canonical origins, set `Vary: Host, X-Forwarded-Host` or `Cache-Control: private, no-store`).
+  2. In `feedback.js` and `fetch.js`, only allow `https://${process.env.VERCEL_URL}` and `https://${process.env.VERCEL_BRANCH_URL}` (plus `https://hark.vattitude.ca`) instead of wildcard `[a-z0-9-]*\.vercel\.app`.
+
+---
+
+#### DATA-08 (High): Inline `CREATE TABLE IF NOT EXISTS` Constraints Are Skipped on Existing Production Tables
+- **Location:** [`supabase/schema.sql`](file:///Users/vattitude/Coding/Morning_Brief/supabase/schema.sql#L17), [`supabase/schema.sql`](file:///Users/vattitude/Coding/Morning_Brief/supabase/schema.sql#L106-L109), [`supabase/schema.sql`](file:///Users/vattitude/Coding/Morning_Brief/supabase/schema.sql#L125), and [`supabase/schema.sql`](file:///Users/vattitude/Coding/Morning_Brief/supabase/schema.sql#L290)
+- **Root Cause:**
+  Commit `b368cfb` added four `CHECK` constraints inline inside `create table if not exists` blocks:
+  - `public.profiles`: `check (pg_column_size(settings) <= 16384)` (`DATA-04`)
+  - `public.push_subscriptions`: `check (endpoint ~* '^https://' ...)`, `p256dh <= 512`, `auth <= 256` (`DATA-06`)
+  - `public.build_requests`: `check (payload is null or pg_column_size(payload) <= 2048)` (`SEC-22`)
+  - `public.story_audio`: `check (url is null or (char_length(url) <= 2000 and url ~* '^https?://'))` (`SEC-19`)
+  In PostgreSQL, when `CREATE TABLE IF NOT EXISTS` runs against a database where the table already exists, the entire statement is a no-op — **none of the new inline `CHECK` constraints are added to your existing Supabase production tables**.
+- **Remediation:**
+  Add explicit idempotent `ALTER TABLE ... DROP CONSTRAINT IF EXISTS ...; ALTER TABLE ... ADD CONSTRAINT ... NOT VALID; ALTER TABLE ... VALIDATE CONSTRAINT ...;` migration statements to [`supabase/schema.sql`](file:///Users/vattitude/Coding/Morning_Brief/supabase/schema.sql).
+
+---
+
+#### DATA-09 (Medium): Direct SQL `DELETE FROM storage.objects` in `delete_user_account()` Can Fail Under Supabase Storage Trigger
+- **Location:** [`supabase/schema.sql`](file:///Users/vattitude/Coding/Morning_Brief/supabase/schema.sql#L416-L420)
+- **Root Cause:**
+  Commit `b368cfb` added:
+  ```sql
+  if u_token is not null and char_length(u_token) > 0 then
+    delete from storage.objects
+    where bucket_id = 'briefings' and name like (u_token || '/%');
+  end if;
+  ```
+  Supabase Storage installs a protective trigger (`storage.protect_delete()`) on `storage.objects` in hosted Supabase projects that raises `ERROR: Direct deletion from storage tables is not allowed. Use the Storage API instead.` Unless bypassed or caught, this exception aborts the entire `delete_user_account()` transaction and prevents `delete from auth.users where id = uid;` from executing. Furthermore, `u_token` should escape `_` and `%` if used with `LIKE`, or use `left(name, char_length(u_token) + 1) = (u_token || '/')`.
+- **Remediation:**
+  Wrap the `storage.objects` delete in a `begin ... exception when others then null; end;` block inside `delete_user_account()` and use exact prefix comparison (`starts_with(name, u_token || '/')`), while also allowing the client/worker Storage API cleanup to run before invoking the RPC.
+
+---
+
+#### SEC-28 (Medium): Pre-Authentication Supabase Auth Request Amplification in `/api/feedback`
+- **Location:** [`web/api/feedback.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/feedback.js#L111-L136)
+- **Root Cause:**
+  In [`web/api/feedback.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/feedback.js), `isRateLimited('ip:' + ip)` is checked at line 135 — **after** performing an outbound HTTP call `await fetch("${SUPABASE_URL}/auth/v1/user")` at line 113 and returning `401` at line 129.
+  An attacker sending floods of requests with random invalid Bearer tokens (`Authorization: Bearer invalid-123`) returns at line 129 before `isRateLimited('ip:' + ip)` is ever recorded, amplifying traffic against your Supabase Auth instance and Vercel function duration.
+- **Remediation:**
+  Check `isRateLimited('ip:' + ip)` **before** making the outbound `fetch("${SUPABASE_URL}/auth/v1/user")` call.
+
+---
+
+#### SEC-29 (Medium): Service Worker Intercepts `/api/*` GET Endpoints, Falls Back to HTML Shell, and Trusts Unvalidated Notification URLs
+- **Location:** [`web/sw.js`](file:///Users/vattitude/Coding/Morning_Brief/web/sw.js#L27-L68) and [`web/sw.js`](file:///Users/vattitude/Coding/Morning_Brief/web/sw.js#L90-L98)
+- **Root Cause:**
+  1. In [`web/sw.js`](file:///Users/vattitude/Coding/Morning_Brief/web/sw.js#L27-L68), the `fetch` handler intercepts all same-origin `GET` requests except `/audio/` and `/briefings/`. It does **not** exclude `/api/*` (or `/s/*`). Consequently, `GET /api/geo` is cached inside `CACHE_NAME` by the Service Worker, and if a network error occurs, line 66 (`.catch(() => caches.match('/'))`) returns the HTML of `index.html` with HTTP 200 to `fetch('/api/geo')` callers!
+  2. In [`web/sw.js`](file:///Users/vattitude/Coding/Morning_Brief/web/sw.js#L90-L98), `notificationclick` reads `const target = e.notification.data?.url || '/';` and passes it directly to `client.navigate(target)` or `self.clients.openWindow(target)` without validating that `target` is a relative path (`target.startsWith('/')`) or same-origin URL.
+- **Remediation:**
+  1. Add `if (url.pathname.startsWith('/api/')) return;` to the Service Worker `fetch` event listener, and only fall back to `caches.match('/')` when `e.request.mode === 'navigate'`.
+  2. Restrict `notificationclick` navigation targets to same-origin paths (`new URL(target, self.location.origin).origin === self.location.origin`).
+
+---
+
+#### SEC-30 (Medium): Dead `api.uploadVoiceFile` Helper Uses Unsanitized `voiceId` Path
+- **Location:** [`web/js/api.js`](file:///Users/vattitude/Coding/Morning_Brief/web/js/api.js#L643-L654)
+- **Root Cause:**
+  `uploadVoiceFile(voiceId, wavBlob)` builds `const path = "voices/" + voiceId + ".wav";` without validating `voiceId` against `/^[a-zA-Z0-9_-]+$/` and attempts to upload to the public `briefings` bucket. Because BYOK voice cloning was removed from the client app, this method is unused dead code.
+- **Remediation:**
+  Remove `uploadVoiceFile()` from [`web/js/api.js`](file:///Users/vattitude/Coding/Morning_Brief/web/js/api.js) (or enforce `/^[a-zA-Z0-9_-]{1,64}$/.test(voiceId)`).
+
+---
+
+#### SEC-31 (Low): Over-Privileged GitHub Actions `contents: write` Token, Unvalidated Tag Arithmetic, & Missing JS Security Tests in CI
+- **Location:** [`.github/workflows/android.yml`](file:///Users/vattitude/Coding/Morning_Brief/.github/workflows/android.yml#L14-L55) and [`.github/workflows/tests.yml`](file:///Users/vattitude/Coding/Morning_Brief/.github/workflows/tests.yml#L1-L26)
+- **Root Cause:**
+  1. [`.github/workflows/android.yml`](file:///Users/vattitude/Coding/Morning_Brief/.github/workflows/android.yml#L14) grants `permissions: contents: write` at the job level even when triggered by `pull_request` or non-tag `push` to `main`.
+  2. Lines 48–50 of `android.yml` parse `VERSION_NAME` and evaluate `$(( major * 10000 + minor * 100 + ${patch:-0} ))` in bash arithmetic without stripping pre-release suffixes (e.g., `1.0.22-rc1`) or validating digits (`^[0-9]+\.[0-9]+\.[0-9]+$`), and `$RUNNER_TEMP/release.jks` is not wiped in an `if: always()` cleanup step.
+  3. [`.github/workflows/tests.yml`](file:///Users/vattitude/Coding/Morning_Brief/.github/workflows/tests.yml) lacks an explicit `permissions: contents: read` block and only runs `pytest`, completely skipping `npm test` (`node --test tests/js`), where all JavaScript security regression tests (`SEC-01`–`SEC-24`) reside.
+- **Remediation:**
+  1. Add `permissions: contents: read` to `tests.yml` and run `npm test` alongside `pytest`.
+  2. Validate `VERSION_NAME` against `^[0-9]+\.[0-9]+\.[0-9]+$` in `android.yml` and delete `$RUNNER_TEMP/release.jks` in an `if: always()` step.
+
+---
+
+#### DATA-10 (Low): Hardcoded Admin Email Remaining in `web/js/pages/admin.js` & Unsanitized `last_run` in `public.app_status`
+- **Location:** [`web/js/pages/admin.js`](file:///Users/vattitude/Coding/Morning_Brief/web/js/pages/admin.js#L216-L231) and [`app/worker.py`](file:///Users/vattitude/Coding/Morning_Brief/app/worker.py#L87-L91)
+- **Root Cause:**
+  1. While commit `b368cfb` removed `vatsakrish@gmail.com` from `web/js/api.js` and `supabase/schema.sql`, [`web/js/pages/admin.js`](file:///Users/vattitude/Coding/Morning_Brief/web/js/pages/admin.js#L216-L231) still hardcodes `vatsakrish@gmail.com` in `renderRestricted()` (shown directly to non-admin users who visit `/admin`) and `renderHeader()`.
+  2. While `Worker.run_pack()` sanitized `last_pack` in `public.app_status`, `Worker.run_batch()` ([`app/worker.py`](file:///Users/vattitude/Coding/Morning_Brief/app/worker.py#L87-L91)) still writes `last_run=report.to_dict()` (including internal `failures` strings) to `public.app_status`, which is readable by all authenticated users.
+- **Remediation:**
+  Remove the hardcoded email from [`web/js/pages/admin.js`](file:///Users/vattitude/Coding/Morning_Brief/web/js/pages/admin.js#L216-L231) (use `profile?.email || 'Admin'` in `renderHeader()` and generic wording in `renderRestricted()`) and redact `failures` details from `last_run` in `public.app_status` (keeping full details in admin-only `public.run_log`).
+

@@ -35,7 +35,8 @@ export default async function handler(req, res) {
   const isAllowedOrigin =
     !origin ||
     ALLOWED_ORIGINS.has(origin) ||
-    /^https:\/\/(hark|morning-brief)[a-z0-9-]*\.vercel\.app$/i.test(origin) ||
+    (process.env.VERCEL_URL && origin === `https://${process.env.VERCEL_URL}`) ||
+    (process.env.VERCEL_BRANCH_URL && origin === `https://${process.env.VERCEL_BRANCH_URL}`) ||
     /^https:\/\/[a-z0-9-]+\.vattitude\.ca$/i.test(origin);
 
   if (origin && isAllowedOrigin) {
@@ -100,7 +101,15 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Message exceeds 2000 characters' });
   }
 
-  // 4. Supabase Auth Verification
+  const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.NODE_TEST_CONTEXT) || (Array.isArray(process.execArgv) && process.execArgv.includes('--test'));
+
+  // 4. Rate Limiting per IP before any outbound authentication calls (SEC-28 anti-amplification)
+  const ip = (headers['x-real-ip'] || headers['x-forwarded-for']?.split(',').pop()?.trim() || req?.socket?.remoteAddress || 'unknown').trim();
+  if (!isTestEnv && isRateLimited(`ip:${ip}`, 10, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: 'Too many feedback requests. Please wait a few minutes before trying again.' });
+  }
+
+  // 5. Supabase Auth Verification
   const authHeader = headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
 
@@ -124,19 +133,17 @@ export default async function handler(req, res) {
     }
   }
 
-  const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.NODE_TEST_CONTEXT) || (Array.isArray(process.execArgv) && process.execArgv.includes('--test'));
   if (!verifiedUser && !isTestEnv) {
     return res.status(401).json({ error: 'Authentication required. Please sign in to submit feedback.' });
   }
 
-  // 5. Rate Limiting per IP and verified User ID
-  const ip = (headers['x-real-ip'] || headers['x-forwarded-for']?.split(',').pop()?.trim() || req?.socket?.remoteAddress || 'unknown').trim();
+  // 6. User-level Rate Limiting for authenticated user
   const verifiedUserId = verifiedUser?.id || 'anon';
-  if (!isTestEnv && (isRateLimited(`ip:${ip}`) || (verifiedUserId !== 'anon' && isRateLimited(`user:${verifiedUserId}`)))) {
+  if (!isTestEnv && verifiedUserId !== 'anon' && isRateLimited(`user:${verifiedUserId}`)) {
     return res.status(429).json({ error: 'Too many feedback requests. Please wait a few minutes before trying again.' });
   }
 
-  // 6. Sanitize @everyone and @here pings
+  // 7. Sanitize @everyone and @here pings
   const safeMessage = rawMessage.replace(/@(everyone|here)/gi, '@\u200b$1');
 
   // 7. Extract metadata (trust verified user email over client-supplied string)

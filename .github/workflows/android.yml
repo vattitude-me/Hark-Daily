@@ -47,6 +47,10 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           version="${GITHUB_REF_NAME#android-v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "Invalid version tag format: $version" >&2
+            exit 1
+          fi
           IFS=. read -r major minor patch <<< "${version%%-*}"
           code=$(( major * 10000 + minor * 100 + ${patch:-0} ))
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
@@ -56,6 +60,10 @@ jobs:
           cp app/build/outputs/bundle/release/hark-daily-release.aab "$aab" || cp app/build/outputs/bundle/release/*release.aab "$aab"
           echo "APK=android/app/build/outputs/apk/release/hark-daily-$version.apk" >> "$GITHUB_ENV"
           echo "AAB=android/$aab" >> "$GITHUB_ENV"
+
+      - name: Wipe temporary keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
 
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/android-v')
