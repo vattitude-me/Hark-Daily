@@ -121,7 +121,7 @@ async function fetchStoryMeta(date, parsed) {
 
 let cachedIndexHtml = null;
 
-async function loadIndexHtml(origin) {
+async function loadIndexHtml() {
   if (cachedIndexHtml) return cachedIndexHtml;
   const candidates = [
     path.resolve(process.cwd(), 'index.html'),
@@ -137,15 +137,23 @@ async function loadIndexHtml(origin) {
       // Fall through
     }
   }
-  const resp = await fetch(`${origin}/index.html`);
+  const resp = await fetch('https://hark.vattitude.ca/index.html');
   cachedIndexHtml = await resp.text();
   return cachedIndexHtml;
 }
 
 export default async function handler(req, res) {
-  const proto = req.headers['x-forwarded-proto'] || 'https';
-  const host = req.headers['x-forwarded-host'] || req.headers.host || 'hark.vattitude.ca';
-  const origin = `${proto}://${host}`;
+  const CANONICAL_ORIGIN = 'https://hark.vattitude.ca';
+  const reqHost = ((req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0] || '').trim().toLowerCase();
+
+  // Protect against host header injection and web cache poisoning:
+  // Strictly enforce canonical origin unless running on verified preview or local dev
+  let origin = CANONICAL_ORIGIN;
+  if (reqHost.endsWith('.vercel.app')) {
+    origin = `https://${reqHost}`;
+  } else if (reqHost.startsWith('localhost') || reqHost.startsWith('127.0.0.1')) {
+    origin = `http://${reqHost}`;
+  }
 
   const urlObj = new URL(req.url, origin);
   let date = urlObj.searchParams.get('date') || '';
@@ -162,7 +170,7 @@ export default async function handler(req, res) {
   const parsed = parseShareSlug(slug);
   const storyRow = await fetchStoryMeta(date, parsed);
 
-  let html = await loadIndexHtml(origin);
+  let html = await loadIndexHtml();
 
   const isNotFound = !storyRow;
   const nowStr = new Date().toISOString().slice(0, 10);
