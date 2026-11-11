@@ -29,8 +29,11 @@ export default async function handler(req, res) {
   try {
     let audio;
     if (provider === 'gemini') {
-      const model = body.model || 'gemini-2.5-flash-preview-tts';
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+      const cleanModel = String(body.model || 'gemini-2.5-flash-preview-tts').trim();
+      if (body.model && !/^[a-zA-Z0-9._-]+$/.test(cleanModel)) {
+        return res.status(400).json({ error: 'Invalid model name parameter.' });
+      }
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent`;
       const r = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },

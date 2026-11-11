@@ -2535,6 +2535,16 @@ function openAuxSheet(tab) {
   switchTab(tab);
 }
 
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function renderAllStoriesSheet() {
   const b = state.briefing;
   if (!b) return;
@@ -2584,7 +2594,7 @@ function renderAllStoriesSheet() {
       btn.innerHTML = `
         <span class="clean-topic-icon">${getTopicIcon(sec.logicalKey || sec.key)}</span>
         <span class="clean-topic-info">
-          <span class="clean-topic-name">${sec.title}</span>
+          <span class="clean-topic-name">${escapeHtml(sec.title)}</span>
           <span class="clean-topic-count">${isCurrent ? 'Playing now' : `${count} stories`}</span>
         </span>
       `;
@@ -2610,11 +2620,15 @@ function renderAllStoriesSheet() {
       item.dataset.storyId = story.id;
       const isCur = player.current === story.id;
       if (isCur) item.classList.add('current');
+      const safeSec = escapeHtml((story.section || 'NEWS').toUpperCase());
+      const safeTitle = escapeHtml(story.headline || story.title || 'Untitled');
+      const safeSrc = escapeHtml(story.source ? story.source.split('·')[0].trim() : 'Daily News');
+      const safeDur = escapeHtml(story.duration ? fmtTime(story.duration) : '20s');
       item.innerHTML = `
-        <span class="clean-cat-pill" style="font-size:10px;padding:2px 6px;">${(story.section || 'NEWS').toUpperCase()}</span>
+        <span class="clean-cat-pill" style="font-size:10px;padding:2px 6px;">${safeSec}</span>
         <div class="clean-story-item-text">
-          <div class="clean-story-item-title">${i + 1}. ${story.headline || story.title}</div>
-          <div class="clean-story-item-sub">${story.source ? story.source.split('·')[0].trim() : 'Daily News'} · ${story.duration ? fmtTime(story.duration) : '20s'}</div>
+          <div class="clean-story-item-title">${i + 1}. ${safeTitle}</div>
+          <div class="clean-story-item-sub">${safeSrc} · ${safeDur}</div>
         </div>
       `;
       item.addEventListener('click', () => {
@@ -2904,7 +2918,7 @@ async function handleFeedbackSubmit(e) {
   if (submitText) submitText.textContent = 'Sending...';
 
   const editionName = EDITIONS[state.edition]?.name || state.edition || 'Canada';
-  const appVer = window.__APP_VERSION__ || 'Hark Daily v1.0.23';
+  const appVer = window.__APP_VERSION__ || 'Hark Daily v1.0.24';
   const payload = {
     category: feedbackCategory,
     message: safeMessage,
@@ -2923,9 +2937,16 @@ async function handleFeedbackSubmit(e) {
   };
 
   try {
+    const session = await api.session?.();
+    const token = session?.access_token || '';
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const res = await fetch(getFeedbackEndpoint(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(payload)
     });
 

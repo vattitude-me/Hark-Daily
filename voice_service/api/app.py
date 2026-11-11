@@ -27,7 +27,7 @@ from pathlib import Path
 
 import soundfile as sf
 import torch
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
@@ -40,9 +40,17 @@ log = logging.getLogger(__name__)
 
 app = FastAPI(title="Morning Brief v2 voice", version="2.0.0")
 
-# The web app runs on a different origin (its own localhost port, or Vercel), so the
-# browser needs CORS to call this service. Comma-separated allowlist; "*" for local dev.
-CORS_ORIGINS = [o.strip() for o in os.getenv("VOICE_CORS_ORIGINS", "*").split(",") if o.strip()]
+# Restrict CORS to authorized frontend origins. Configurable via VOICE_CORS_ORIGINS.
+CORS_ORIGINS = [o.strip() for o in os.getenv("VOICE_CORS_ORIGINS", "").split(",") if o.strip()]
+if not CORS_ORIGINS:
+    CORS_ORIGINS = [
+        "https://hark.vattitude.ca",
+        "capacitor://localhost",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
@@ -56,6 +64,21 @@ CLIP_SUFFIXES = {".wav", ".mp3", ".m4a", ".aiff", ".aif", ".flac", ".ogg"}
 
 _voice: TurboVoice | None = None
 _voice_lock = threading.Lock()
+
+VOICE_API_KEY = os.getenv("VOICE_API_KEY")
+
+
+def verify_api_key(authorization: str | None = Header(None, alias="Authorization")) -> None:
+    """Optional bearer token check if VOICE_API_KEY is configured in the environment."""
+    if not VOICE_API_KEY:
+        return
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:].strip()
+    elif authorization:
+        token = authorization.strip()
+    if token != VOICE_API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized voice service access")
 
 
 @app.on_event("startup")
@@ -178,7 +201,7 @@ def _cleanup_memory() -> None:
 
 # --------------------------------------------------------------------- models
 class SynthRequest(BaseModel):
-    text: str = Field(..., min_length=1)
+    text: str = Field(..., min_length=1, max_length=10000, description="Script text to synthesize (max 10,000 characters)")
     beat: float | None = Field(None, gt=0, le=5.0)
     voice: str | None = Field(None, description="Clip name from /voices; defaults to reference.wav")
     temperature: float | None = Field(None, gt=0.1, le=1.5, description="Sampling temperature for expressiveness (default 0.87)")
@@ -189,7 +212,7 @@ class SynthRequest(BaseModel):
 
 
 class SampleRequest(BaseModel):
-    text: str | None = None
+    text: str | None = Field(None, max_length=2000, description="Sample text (max 2,000 characters)")
     beat: float | None = Field(None, gt=0, le=5.0)
     voice: str | None = Field(None, description="Clip name from /voices; defaults to reference.wav")
     temperature: float | None = Field(None, gt=0.1, le=1.5)
@@ -218,7 +241,7 @@ def voices() -> dict:
     return {"dir": str(voice_dir()), "default": ref.name if ref else None, "clips": clips()}
 
 
-@app.post("/synthesize")
+@app.post("/synthesize", dependencies=[Depends(verify_api_key)])
 def synthesize(req: SynthRequest, format: str = Query("wav", pattern="^(wav|mp3)$")) -> Response:
     """Voice a script exactly as written, honouring pauses and tags.
 
@@ -261,7 +284,7 @@ def synthesize(req: SynthRequest, format: str = Query("wav", pattern="^(wav|mp3)
     )
 
 
-@app.post("/news/sample")
+@app.post("/news/sample", dependencies=[Depends(verify_api_key)])
 def news_sample(req: SampleRequest) -> dict:
     """Build a sample bulletin and return it with timings, for the PWA demo."""
     text = req.text or SAMPLE_STORY
