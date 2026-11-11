@@ -143,6 +143,7 @@ How the spoken beats should sound:
 - Numbers the way people say them: rounded, at most two in a sentence, written with "percent" and
   "dollars" in words (55 percent, 64 million dollars, 11 a.m., first quarter).
 - Sentences of 8 to 20 words, with the subject and verb near the start. No long lead-in clauses.
+- SUBJECT IDENTIFICATION: Listeners cannot see the screen or headline. The first beat MUST explicitly name the specific person, company, show/movie title, product, team, or entity the story is about. Never open with vague references like "The series...", "The company...", "Officials say...", or "He said..." without clearly naming the entity first.
 - Attribution after the fact, not before it: "The plant will close in March, the company said."
 - Commas only where a speaker would breathe. No semicolons, colons, dashes, brackets or quotation marks;
   paraphrase quotes instead.

@@ -108,3 +108,220 @@ test('Drawer footer button bar clean-drawer-foot is robustly styled without CSS 
   assert.strictEqual(balance, 0, 'All CSS rule blocks must be cleanly closed');
 });
 
+test('3D Stacked Cards deck and swipe gesture navigation are properly configured', () => {
+  const html = readFileSync(resolve('web/index.html'), 'utf8');
+  assert.ok(html.includes('id="cleanDeckWrap"'), 'Must contain cleanDeckWrap wrapper');
+  assert.ok(html.includes('id="cleanCardStackBg"'), 'Must contain primary background card layer-1');
+  assert.ok(html.includes('id="cleanCardStackBg2"'), 'Must contain secondary background card layer-2');
+  assert.ok(html.includes('id="rearCoverImg"'), 'Must contain rearCoverImg for up next story preview');
+  assert.ok(html.includes('id="rearStoryHeadline"'), 'Must contain rearStoryHeadline for up next preview');
+  assert.ok(html.includes('id="rearSnippet"'), 'Must contain rearSnippet preview');
+
+  // Verify bottom dock is stationed outside cleanDeckWrap so controls do not swipe away
+  const deckWrapIndex = html.indexOf('id="cleanDeckWrap"');
+  const deckCloseIndex = html.indexOf('</div>\n\n      <!-- Stationed Bottom Dock', deckWrapIndex);
+  const dockIndex = html.indexOf('class="clean-card-bottom-dock"', deckWrapIndex);
+  assert.ok(deckCloseIndex !== -1 && dockIndex > deckCloseIndex, 'clean-card-bottom-dock must sit outside cleanDeckWrap');
+
+  const css = readFileSync(resolve('web/css/styles.css'), 'utf8');
+  assert.ok(css.includes('.clean-deck-wrap {'), 'Must contain clean-deck-wrap styles');
+  assert.ok(css.includes('.clean-card-stack-bg {'), 'Must contain clean-card-stack-bg styles');
+  assert.ok(css.includes('.clean-card-stack-bg.layer-1'), 'Must contain layer-1 transform');
+  assert.ok(css.includes('.clean-card-stack-bg.layer-2'), 'Must contain layer-2 transform');
+  assert.ok(css.includes('.clean-player-card-front {'), 'Must contain front card shifted positioning');
+  assert.ok(css.includes('.clean-player-card-rear {'), 'Must contain rear card preview styles');
+  assert.ok(css.includes('.clean-deck-wrap.is-last-card'), 'Must hide background cards on the last briefing story');
+
+  const playerJs = readFileSync(resolve('web/js/player.js'), 'utf8');
+  assert.ok(playerJs.includes('setupCardSwipe()'), 'Player must implement setupCardSwipe');
+  assert.ok(playerJs.includes('this.setupCardSwipe();'), 'Player must call setupCardSwipe during initialization');
+  assert.ok(playerJs.includes('isLockedVertical'), 'Must safeguard vertical teleprompter scrolling');
+  assert.ok(playerJs.includes('this.nextChapter()'), 'Must advance to next story on left swipe');
+  assert.ok(playerJs.includes('this.prevChapter()'), 'Must return to previous story on right swipe');
+  assert.ok(playerJs.includes('rearCoverImg'), 'Player tick must populate rear cover image');
+  assert.ok(playerJs.includes('nextStory.image'), 'Rear card must load nextStory.image instead of falling back to default icon');
+  assert.ok(playerJs.includes('rearStoryHeadline'), 'Player tick must populate rear story headline');
+});
+
+test('storyFor associates bridge banter with upcoming story and nextChapter navigates stories', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'player-nav-'));
+
+  writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x'; export const SUPABASE_PUBLISHABLE_KEY = 'k';");
+  const apiSrc = readFileSync(resolve('web/js/api.js'), 'utf8')
+    .replace("'../config.js'", "'./config.mjs'");
+  writeFileSync(join(dir, 'api.mjs'), apiSrc);
+
+  const storypackSrc = readFileSync(resolve('web/js/storypack.js'), 'utf8')
+    .replace("'./api.js'", "'./api.mjs'").replace("'../config.js'", "'./config.mjs'");
+  writeFileSync(join(dir, 'storypack.mjs'), storypackSrc);
+
+  const playerSrc = readFileSync(resolve('web/js/player.js'), 'utf8')
+    .replace("'./api.js'", "'./api.mjs'")
+    .replace("'./storypack.js'", "'./storypack.mjs'");
+  writeFileSync(join(dir, 'player.mjs'), playerSrc);
+  const { Player } = await import(join(dir, 'player.mjs'));
+
+  class MockAudio extends EventTarget {
+    constructor() {
+      super();
+      this.currentTime = 0;
+      this.paused = true;
+      this.playbackRate = 1.0;
+    }
+    play() { this.paused = false; return Promise.resolve(); }
+    pause() { this.paused = true; }
+    load() {}
+    removeAttribute() {}
+  }
+
+  const audio = new MockAudio();
+  const preloader = new MockAudio();
+  const player = new Player({ audio, preloader, el: {} });
+  player.briefing = {
+    mode: 'podcast',
+    title: 'Hark Daily',
+    stories: [
+      { id: 'top-1', section: 'top', headline: 'Top Story 1', start: 10, end: 30 },
+      { id: 'top-2', section: 'top', headline: 'Top Story 2', start: 30, end: 50 },
+      { id: 'ent-1', section: 'entertainment', headline: 'Entertainment Story 1', start: 56, end: 76 },
+    ],
+    sections: [
+      { key: 'top', title: 'Top Stories' },
+      { key: 'entertainment', title: 'Entertainment' },
+    ],
+  };
+
+  player.chapters = [
+    { id: 'open', kind: 'note', title: 'Show Open', start: 0, end: 10 },
+    { id: 'top-1', kind: 'story', title: 'Top Story 1', start: 10, end: 30, section: 'top' },
+    { id: 'top-2', kind: 'story', title: 'Top Story 2', start: 30, end: 50, section: 'top' },
+    { id: 'bridge-ent', kind: 'note', title: 'Up next • Entertainment', text: 'Tease text', start: 50, end: 56, section: 'entertainment' },
+    { id: 'ent-1', kind: 'story', title: 'Entertainment Story 1', start: 56, end: 76, section: 'entertainment' },
+  ];
+
+  // 1. storyFor on bridge chapter must return the upcoming entertainment story, NOT story 0
+  const bridgeChapter = player.chapters[3];
+  const resolvedStory = player.storyFor(bridgeChapter);
+  assert.equal(resolvedStory.id, 'ent-1', 'Bridge chapter must map to first entertainment story');
+  assert.equal(player.sectionTitle(bridgeChapter), 'Entertainment', 'Section title must be Entertainment');
+
+  // 2. nextChapter on top-2 must advance directly to ent-1, skipping intermediate banter
+  let playedChapterId = null;
+  player.playChapter = (id) => { playedChapterId = id; };
+  audio.currentTime = 35; // Inside top-2
+  player.nextChapter();
+  assert.equal(playedChapterId, 'ent-1', 'nextChapter on top-2 must advance directly to ent-1');
+
+  // 3. prevChapter on ent-1 must return to top-2
+  playedChapterId = null;
+  audio.currentTime = 57; // At start of ent-1 (< 3 seconds into story)
+  player.prevChapter();
+  assert.equal(playedChapterId, 'top-2', 'prevChapter at start of ent-1 must go to top-2');
+});
+
+test('Feedback webhook URL is NEVER hardcoded in client code and uses secure /api/feedback', () => {
+  const appJs = readFileSync(resolve('web/js/app.js'), 'utf8');
+  assert.ok(!appJs.includes('discord.com/api/webhooks'), 'Discord webhook URL must NEVER be in client-side app.js');
+  assert.ok(appJs.includes('getFeedbackEndpoint'), 'Must route feedback through getFeedbackEndpoint');
+  assert.ok(appJs.includes('/api/feedback'), 'Must point to /api/feedback endpoint');
+});
+
+test('Serverless feedback handler (/api/feedback) enforces security guards and validates input', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'feedback-test-'));
+  const src = readFileSync(resolve('web/api/feedback.js'), 'utf8');
+  writeFileSync(join(dir, 'feedback.mjs'), src);
+  const { default: handler } = await import(join(dir, 'feedback.mjs'));
+
+  const createMockRes = () => {
+    const res = {
+      statusCode: 200,
+      headers: {},
+      body: null,
+      setHeader(k, v) { res.headers[k] = v; return res; },
+      status(code) { res.statusCode = code; return res; },
+      json(data) { res.body = data; return res; },
+      end() { return res; },
+    };
+    return res;
+  };
+
+  // 1. Rejects non-POST methods
+  const getRes = createMockRes();
+  await handler({ method: 'GET' }, getRes);
+  assert.equal(getRes.statusCode, 405);
+  assert.equal(getRes.headers['Allow'], 'POST');
+
+  // 2. Returns 503 if webhook environment variable is missing
+  const oldEnv = process.env.DISCORD_FEEDBACK_WEBHOOK;
+  delete process.env.DISCORD_FEEDBACK_WEBHOOK;
+  delete process.env.FEEDBACK_WEBHOOK_URL;
+  delete process.env.DISCORD_WEBHOOK_URL;
+
+  const noEnvRes = createMockRes();
+  await handler({ method: 'POST', body: { message: 'Hello feedback' } }, noEnvRes);
+  assert.equal(noEnvRes.statusCode, 503);
+
+  // 3. Honeypot drop: when bot fills 'website', immediately returns 200 without calling Discord
+  process.env.DISCORD_FEEDBACK_WEBHOOK = 'https://mock.discord/api/webhooks/test';
+  let fetchCalled = false;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    fetchCalled = true;
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+
+  try {
+    const hpRes = createMockRes();
+    await handler({ method: 'POST', body: { message: 'Spam from bot', website: 'https://spambot.com' } }, hpRes);
+    assert.equal(hpRes.statusCode, 200);
+    assert.equal(fetchCalled, false, 'Honeypot trap must drop request without calling Discord');
+
+    // 4. Message length validation
+    const shortRes = createMockRes();
+    await handler({ method: 'POST', body: { message: 'hi' } }, shortRes);
+    assert.equal(shortRes.statusCode, 400);
+
+    // 5. Successful submission with story context
+    let sentPayload = null;
+    globalThis.fetch = async (url, opts) => {
+      sentPayload = JSON.parse(opts.body);
+      return { ok: true, status: 200, text: async () => 'ok' };
+    };
+
+    const goodRes = createMockRes();
+    await handler({
+      method: 'POST',
+      body: {
+        category: 'Audio',
+        message: 'Name pronounced incorrectly @everyone',
+        email: 'user@example.com',
+        reply_requested: true,
+        edition: 'Canada',
+        story: {
+          id: 'science-1',
+          headline: 'Breakthrough in Physics',
+          source: 'CBC News',
+          position: '1:23 / 5:00',
+          section: 'science',
+        },
+      },
+    }, goodRes);
+
+    assert.equal(goodRes.statusCode, 200);
+    assert.ok(sentPayload, 'Payload must be dispatched to Discord');
+    assert.ok(!sentPayload.embeds[0].description.includes('@everyone'), '@everyone ping must be sanitized');
+    assert.ok(sentPayload.embeds[0].description.includes('@\u200beveryone'));
+    assert.equal(sentPayload.embeds[0].fields.find((f) => f.name === 'Story ID')?.value, 'science-1');
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (oldEnv) process.env.DISCORD_FEEDBACK_WEBHOOK = oldEnv;
+    else delete process.env.DISCORD_FEEDBACK_WEBHOOK;
+  }
+});
+

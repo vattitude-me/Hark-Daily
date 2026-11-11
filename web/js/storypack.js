@@ -10,6 +10,24 @@ export const LOGICAL_SECTIONS = ['top', 'markets', 'ai', 'tech', 'politics', 'en
 export const SECTION_ORDER = LOGICAL_SECTIONS;
 export const MAX_PER_SECTION = 5;
 
+export const ALIEN_BRIDGE_PATTERNS = {
+  science: /\b(sports?|athletes?|game|scores?|nfl|nba|nhl|mlb|brier|cricket|tournament|league|gridiron|politics?|parliament|congress|senate|election|campaign|markets?|wall street|stocks?|investors?|nasdaq|dow|entertainment|hollywood|box office|movie|film|actor|actress|album)\b/i,
+  sports: /\b(science|scientific|laboratory|scientists?|biology|physics|astronomy|top headlines?|lead stories|top stories|global headlines?|politics?|parliament|congress|senate|election|campaign|markets?|wall street|stocks?|shares?|investors?|nasdaq|dow)\b/i,
+  entertainment: /\b(science lab|science|scientific|laboratory|biology|physics|sports?|nfl|nba|nhl|mlb|cricket|gridiron|markets?|wall street|stocks?|nasdaq|dow)\b/i,
+  markets: /\b(artificial intelligence boom|ai boom|over in ai|sports?|entertainment|hollywood|movie|politics?|parliament|congress|senate|election)\b/i,
+  ai: /\b(broader tech sector|tech space|national politics|politics?|sports?|entertainment|hollywood)\b/i,
+  tech: /\b(national politics|politics?|parliament|congress|senate|election|sports?|entertainment|hollywood)\b/i,
+  politics: /\b(lighter story|entertainment|hollywood|creative world|box office|sports?|nfl|nba|cricket|science|laboratory)\b/i,
+  top: /\b(financial markets?|markets?|wall street|stocks?|sports?|entertainment|hollywood)\b/i,
+};
+
+export function isMismatchedBridge(bridgeText, sectionKey) {
+  if (!bridgeText || !sectionKey) return false;
+  const baseSec = sectionKey.replace(/_(us|in|ca)$/, '');
+  const pattern = ALIEN_BRIDGE_PATTERNS[baseSec];
+  return Boolean(pattern && pattern.test(bridgeText));
+}
+
 export function editionSectionKey(logicalKey, edition = 'ca') {
   if (['ai', 'science'].includes(logicalKey)) return logicalKey;
   if (edition === 'us') return `${logicalKey}_us`;
@@ -328,7 +346,7 @@ export function planPodcast(clips, sections, seed = '', edition = 'ca') {
   for (const key of (sections || [])) {
     const baseKey = key.replace(/_(us|in|ca)$/, '');
     const c = byKey.get(`pod_bridge_${key}`) || byKey.get(`pod_bridge_${baseKey}`);
-    if (c && used + length(c) <= PODCAST_BUDGET) {
+    if (c && !isMismatchedBridge(c.text, key) && used + length(c) <= PODCAST_BUDGET) {
       bridges.set(key, c);
       used += length(c);
     }
@@ -695,7 +713,7 @@ export function buildBriefing(rows, settings, {
         const isFirstSec = currentSection === null;
         if (!isFirstSec) {
           const intro = pod.bridges.get(row.section) || pod.bridges.get(baseSec);
-          if (intro) sayBanter(intro, row.section);
+          if (intro && !isMismatchedBridge(intro.text, row.section)) sayBanter(intro, row.section);
         }
       } else {
         sayNote(byKey.has(`intro_${row.section}`) ? `intro_${row.section}` : `intro_${baseSec}`);

@@ -20,7 +20,7 @@ writeFileSync(join(dir, 'api.mjs'), `export const SECTIONS = {
   sports: { title: 'Sports' }, sports_us: { title: 'Sports' }, sports_in: { title: 'Cricket & Sports' }
 }; export const voiceName = (v) => v; export const fmtTime = (s) => String(s); export const h = () => ({ addEventListener: () => {}, classList: { toggle: () => {} } }); export const store = { get: (k, def) => (def !== undefined ? def : null), set: () => {} }; export const generateRawNonce = () => '00'; export const hashNonce = async () => '00'; export const api = { generateRawNonce: () => '00', hashNonce: async () => '00', signInWithGoogleIdToken: async () => ({}) }; export const icon = () => ({}); export const isAdmin = () => false; export const recordError = () => {}; export const sb = null; export const timeAgo = () => ''; export const toast = () => {}; export const VOICES = {}; export const voiceFor = () => ({}); export const DEFAULT_VOICE_ID = 'c3po_reference'; export const EDITIONS = {}; export const defaultEdition = () => 'ca'; export const detectEditionFromIp = () => 'ca';`);
 writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x'; export const SUPABASE_PUBLISHABLE_KEY = 'k'; export const FEATURES = { podcast: true, rapid: true }; export const GOOGLE_CLIENT_ID = 'test-id'; export const APP_VERSION = '1.0.15';");
-const { buildBriefing, planPodcast, PODCAST_BUDGET, editionSectionKey, clipsFor, parseDialogueTurns, pickVoice, clipUrl, voiceNormalize, lineup, MAX_PER_SECTION, DEFAULT_SECTION_COUNTS, LOGICAL_SECTIONS } = await import(join(dir, 'storypack.mjs'));
+const { buildBriefing, planPodcast, isMismatchedBridge, PODCAST_BUDGET, editionSectionKey, clipsFor, parseDialogueTurns, pickVoice, clipUrl, voiceNormalize, lineup, MAX_PER_SECTION, DEFAULT_SECTION_COUNTS, LOGICAL_SECTIONS } = await import(join(dir, 'storypack.mjs'));
 
 const playerSrc = readFileSync(new URL('../../web/js/player.js', import.meta.url), 'utf8')
   .replace("'./api.js'", "'./api.mjs'")
@@ -1431,6 +1431,25 @@ test('Player failsafe cover image: hides broken icon and reveals gradient orb if
   handleError();
   assert.ok(mockImg.classList.contains('hidden'), 'Broken image must be hidden');
   assert.ok(!mockFallback.classList.contains('hidden'), 'Gradient fallback orb must be visible');
+});
+
+test('isMismatchedBridge detects cross-category bridge text and drops it from briefing', () => {
+  assert.ok(isMismatchedBridge('And in sports.', 'science'));
+  assert.ok(isMismatchedBridge('Now for the top headlines.', 'sports'));
+  assert.ok(isMismatchedBridge('From the gym to the science lab.', 'entertainment'));
+  assert.ok(!isMismatchedBridge('In the world of science and discovery.', 'science'));
+  assert.ok(!isMismatchedBridge('Over in sports.', 'sports'));
+
+  // Test that mismatched bridge is skipped in planPodcast and buildBriefing
+  const badBridgePod = pod.map((c) => {
+    if (c.clip_key === 'pod_bridge_sports') {
+      return { ...c, text: 'Now for the top headlines.' };
+    }
+    return c;
+  });
+  const b = build({ top: 1, sports: 1 }, badBridgePod);
+  const clipIds = ids(b);
+  assert.ok(!clipIds.includes('pod_bridge_sports'), 'Mismatched sports bridge with top headlines reference must be skipped');
 });
 
 

@@ -114,8 +114,10 @@ def strip_metadata_noise(text: str) -> str:
     if not text:
         return ""
     # Strip multi-line metadata blocks (- Date:\n- November 9, 2026\n- Source:\n...)
+    # Requires whole word match on the metadata label and a following colon/semicolon so legitimate
+    # news lines starting with "Sources say...", "Shares rose...", etc. are never wiped out.
     s = re.sub(
-        r"(?m)^[-*•]?[^\S\r\n]*(?:date|source|summary|author|published|share|cite|journal reference)[^\S\r\n]*[:;,]?[^\S\r\n]*[^\r\n]*$",
+        r"(?m)^[-*•]?[^\S\r\n]*(?:date|source|summary|author|published|share|cite|journal reference)\b[^\S\r\n]*[:;,]+[^\S\r\n]*[^\r\n]*$",
         "",
         text,
         flags=re.I,
