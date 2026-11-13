@@ -3,125 +3,162 @@
 <head>
   <meta charset="UTF-8">
   <title>Hark Daily Feature Graphic</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
   <style>
+    @font-face {
+      font-family: 'Space Grotesk';
+      src: url('../../web/fonts/space-grotesk.woff2') format('woff2');
+      font-weight: 600 700;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'Plus Jakarta Sans';
+      src: url('../../web/fonts/plus-jakarta-sans.woff2') format('woff2');
+      font-weight: 500 700;
+      font-style: normal;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       width: 1024px;
       height: 500px;
       overflow: hidden;
-      background: #f4f2ee;
+      background: radial-gradient(circle at 25% 50%, #1c2432 0%, #0b0e14 68%, #07090d 100%);
       font-family: 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, sans-serif;
       display: flex;
       align-items: center;
       justify-content: center;
       position: relative;
+      color: #f8fafc;
     }
-    /* Ambient backdrop glow */
+    .grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse at center, rgba(0,0,0,0.8) 20%, transparent 75%);
+      pointer-events: none;
+    }
     .glow-1 {
       position: absolute;
-      top: -100px;
-      right: 150px;
-      width: 450px;
-      height: 450px;
+      top: -110px;
+      right: 120px;
+      width: 480px;
+      height: 480px;
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(245, 158, 11, 0.16) 0%, rgba(245, 158, 11, 0) 70%);
+      background: radial-gradient(circle, rgba(245, 158, 11, 0.22) 0%, rgba(245, 158, 11, 0) 68%);
       pointer-events: none;
     }
     .glow-2 {
       position: absolute;
-      bottom: -120px;
-      left: 100px;
-      width: 500px;
-      height: 500px;
+      bottom: -140px;
+      left: 70px;
+      width: 520px;
+      height: 520px;
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(75, 138, 184, 0.12) 0%, rgba(75, 138, 184, 0) 70%);
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.14) 0%, rgba(56, 189, 248, 0) 70%);
       pointer-events: none;
     }
     .container {
       display: flex;
       align-items: center;
-      gap: 52px;
+      gap: 44px;
       z-index: 2;
+      padding: 0 56px;
     }
     .badge {
-      width: 190px;
-      height: 190px;
-      background: #ffffff;
-      border-radius: 46px;
-      box-shadow: 0 20px 50px -10px rgba(16, 24, 40, 0.14), 0 2px 8px rgba(16, 24, 40, 0.04);
+      width: 196px;
+      height: 196px;
+      flex-shrink: 0;
+      border-radius: 44px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow:
+        0 28px 60px -12px rgba(0, 0, 0, 0.72),
+        0 0 44px rgba(245, 158, 11, 0.14);
+      overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
-      border: 1px solid rgba(255, 255, 255, 0.9);
-      position: relative;
     }
     .badge img {
-      width: 154px;
-      height: 154px;
-      object-fit: contain;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
     }
     .content {
       display: flex;
       flex-direction: column;
       justify-content: center;
     }
-    h1 {
-      font-size: 74px;
+    .eyebrow {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px;
       font-weight: 700;
-      color: #101828;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #f59e0b;
+      margin-bottom: 10px;
+    }
+    h1 {
+      font-size: 76px;
+      font-weight: 700;
+      color: #f8fafc;
       letter-spacing: -0.03em;
-      line-height: 1.05;
-      margin-bottom: 12px;
+      line-height: 1.02;
+      margin-bottom: 14px;
     }
     .subtitle {
       font-family: 'Plus Jakarta Sans', sans-serif;
       font-size: 24px;
       font-weight: 500;
-      color: #556070;
+      color: #94a3b8;
       letter-spacing: -0.01em;
-      margin-bottom: 22px;
+      margin-bottom: 24px;
     }
     .chips {
       display: flex;
-      gap: 10px;
+      flex-wrap: nowrap;
+      gap: 8px;
       align-items: center;
     }
     .chip {
       font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 13px;
+      font-size: 12.5px;
       font-weight: 600;
-      color: #344054;
-      background: rgba(255, 255, 255, 0.85);
-      border: 1px solid rgba(15, 23, 42, 0.09);
-      padding: 6px 14px;
+      color: #e2e8f0;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 6px 13px;
       border-radius: 999px;
-      box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+      white-space: nowrap;
+      backdrop-filter: blur(8px);
     }
     .chip.highlight {
-      background: rgba(245, 158, 11, 0.12);
-      color: #b45309;
-      border-color: rgba(217, 119, 6, 0.28);
+      background: rgba(245, 158, 11, 0.16);
+      color: #fcd34d;
+      border-color: rgba(245, 158, 11, 0.36);
     }
   </style>
 </head>
 <body>
+  <div class="grid"></div>
   <div class="glow-1"></div>
   <div class="glow-2"></div>
   <div class="container">
     <div class="badge">
-      <img src="hark-daily-logo-transparent.png" alt="Hark Daily">
+      <img src="../../web/icons/icon-512.png" alt="Hark Daily">
     </div>
     <div class="content">
+      <div class="eyebrow">Morning Audio Briefing</div>
       <h1>Hark Daily</h1>
       <p class="subtitle">The news you hear, not just read.</p>
       <div class="chips">
-        <span class="chip">CBC News</span>
-        <span class="chip">TechCrunch</span>
-        <span class="chip">BetaKit</span>
-        <span class="chip highlight">🎙️ C-3PO &amp; Alice</span>
+        <span class="chip highlight">AI Duo · Matthew &amp; Kelly</span>
+        <span class="chip">Canada · US · India</span>
+        <span class="chip">8 Curated Topics</span>
+        <span class="chip">Live Teleprompter</span>
       </div>
     </div>
   </div>

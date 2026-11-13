@@ -1,7 +1,7 @@
 apply plugin: 'com.android.application'
 
-def appVersionName = project.findProperty("versionName") ?: "1.0.22"
-def appVersionCode = project.findProperty("versionCode") ? project.findProperty("versionCode").toInteger() : 10022
+def appVersionName = project.findProperty("versionName") ?: "1.0.24"
+def appVersionCode = project.findProperty("versionCode") ? project.findProperty("versionCode").toInteger() : 10024
 
 android {
     namespace "me.vattitude.morningbrief"
