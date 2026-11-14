@@ -10,12 +10,21 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def _load_env_file() -> None:
-    env_path = ROOT / ".env"
-    if not env_path.is_file():
+def resolve_env_file(env_file: str | None = None) -> Path:
+    """Resolve the dotenv file path, defaulting to `.env` or respecting `ENV_FILE`."""
+    raw = (os.getenv("ENV_FILE", "") if env_file is None else env_file).strip()
+    if not raw:
+        return ROOT / ".env"
+    p = Path(raw)
+    return p if p.is_absolute() else ROOT / p
+
+
+def _load_env_file(env_path: Path | None = None) -> None:
+    target = env_path or resolve_env_file()
+    if not target.is_file():
         return
     try:
-        with env_path.open(encoding="utf-8") as f:
+        with target.open(encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith("#") or "=" not in line:
