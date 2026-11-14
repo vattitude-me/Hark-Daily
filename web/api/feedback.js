@@ -114,8 +114,11 @@ export default async function handler(req, res) {
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
 
   let verifiedUser = null;
-  const SUPABASE_URL = process.env.SUPABASE_URL || 'https://oohbmeffdncyzujmeqcz.supabase.co';
-  const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_HgWQGelTuCEU6ayqFdY4Cg_F_-VVEYv';
+  const isNonProdEnv = process.env.VERCEL_ENV === 'preview' || process.env.VERCEL_ENV === 'development';
+  const SUPABASE_URL = process.env.SUPABASE_URL
+    || (isNonProdEnv ? 'https://hhcygubulddewtwkedkz.supabase.co' : 'https://oohbmeffdncyzujmeqcz.supabase.co');
+  const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY
+    || (isNonProdEnv ? 'sb_publishable_8vYLo4tLmmKDbThLnLKatA_7xBhV2jC' : 'sb_publishable_HgWQGelTuCEU6ayqFdY4Cg_F_-VVEYv');
 
   if (token) {
     try {
