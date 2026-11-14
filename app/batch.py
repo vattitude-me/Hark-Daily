@@ -278,6 +278,11 @@ class Batch:
             log.warning("Couldn't update source %s: %s", source_id, exc)
 
     # ================================================================== users
+    def _fail_user(self, plan: UserPlan, result: Result, day: str, message: str) -> None:
+        result.error = message
+        self.report.failed.append(plan.email)
+        self._set_status(plan, {"ok": False, "date": day, "error": result.error, "at": now_iso()})
+
     def _build_user(self, plan: UserPlan, copies: dict[str, StoryCopy], statuses: dict[int, str],
                     weather_cache: dict, now: datetime, day: str) -> Result:
         result = Result(plan.profile)
@@ -297,22 +302,16 @@ class Batch:
             if self.notify:
                 self._notify_user(plan, result.briefing)
         except UserSkipped as exc:
-            result.error = str(exc)
-            self.report.failed.append(plan.email)
-            self._set_status(plan, {"ok": False, "date": day, "error": result.error, "at": now_iso()})
+            self._fail_user(plan, result, day, str(exc))
         except StoreError as exc:
             log.exception("Saving %s's briefing failed", plan.email)
             self.report.add("storage_failed", f"{plan.email}: {exc}", level="error", user_id=plan.id)
-            result.error = MESSAGES["storage_failed"]
-            self.report.failed.append(plan.email)
-            self._set_status(plan, {"ok": False, "date": day, "error": result.error, "at": now_iso()})
+            self._fail_user(plan, result, day, MESSAGES["storage_failed"])
         except Exception as exc:  # noqa: BLE001 - one user's failure mustn't stop the others
             log.exception("Building %s's briefing failed", plan.email)
             self.report.add("build_failed", f"{plan.email}: {exc.__class__.__name__}: {exc}"[:300],
                             level="error", user_id=plan.id)
-            result.error = MESSAGES["build_failed"]
-            self.report.failed.append(plan.email)
-            self._set_status(plan, {"ok": False, "date": day, "error": result.error, "at": now_iso()})
+            self._fail_user(plan, result, day, MESSAGES["build_failed"])
         return result
 
     def _publish_showcase(self, results: list[Result], day: str) -> None:
@@ -342,7 +341,7 @@ class Batch:
             self.report.add("showcase_failed", f"{exc.__class__.__name__}: {exc}"[:200])
 
     def _is_admin(self, profile: dict) -> bool:
-        return bool(profile.get("is_admin")) or (profile.get("email") or "").lower() in self.cfg.admin_emails
+        return self.cfg.is_admin(profile)
 
     def _set_status(self, plan: UserPlan, status: dict) -> None:
         try:
@@ -473,9 +472,8 @@ class Batch:
             body += " (See the note in the app about today's briefing.)"
         try:
             subs = self.store.push_subscriptions([plan.id])
-            _, gone = push.send(self.cfg, subs, "☀️ Your Morning Brief is ready", body)
-            for endpoint in gone:
-                self.store.delete_push_subscription(endpoint)
+            push.push_and_prune(self.cfg, self.store, subs, "☀️ Your Morning Brief is ready", body,
+                                context=f"Morning notification for {plan.email}")
         except Exception as exc:  # noqa: BLE001
             log.warning("Morning notification for %s failed: %s", plan.email, exc)
 
@@ -525,8 +523,7 @@ def admin_subscriptions(cfg: Config, store: Store | None) -> list[dict]:
     cache = cfg.data_dir / "admin_push.json"
     if store is not None:
         try:
-            admins = [p["id"] for p in store.profiles()
-                      if p.get("is_admin") or (p.get("email") or "").lower() in cfg.admin_emails]
+            admins = [p["id"] for p in store.profiles() if cfg.is_admin(p)]
             subs = store.push_subscriptions(admins) if admins else []
             cache.write_text(json.dumps(subs))
             cache.chmod(0o600)

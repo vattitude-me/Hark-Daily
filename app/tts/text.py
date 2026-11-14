@@ -175,8 +175,7 @@ def voice_normalize(text: str, preserve_tags: bool = True) -> str:
 
     # Normalize hyphens and dashes so TTS pauses naturally
     text = re.sub(r"[\u2010\u2011\u00ad]", "-", text)
-    text = re.sub(r"\s*[—–]\s*", ", ", text)
-    text = re.sub(r"\s+-\s+", ", ", text)
+    text = clean_punctuation(text)
 
     # Currencies: $5B -> 5 billion dollars, €10M -> 10 million euros, $25 -> 25 dollars, Rs./INR -> rupees
     text = re.sub(r"\b(?:Rs\.?|INR)\s*", "₹", text, flags=re.I)
@@ -213,6 +212,16 @@ def voice_normalize(text: str, preserve_tags: bool = True) -> str:
     return "\n".join(line for line in lines if line)
 
 
+def clean_punctuation(text: str, *, collapse_whitespace: bool = False) -> str:
+    """Normalize em/en/spaced dashes and stacked commas for natural TTS pacing."""
+    s = str(text or "")
+    s = re.sub(r"\s*[—–]\s*", ", ", s)
+    s = re.sub(r"\s+-\s+", ", ", s)
+    s = re.sub(r",\s*,+", ",", s)
+    s = re.sub(r",\s*([.!?])", r"\1", s)
+    return " ".join(s.split()) if collapse_whitespace else s
+
+
 def speakable(text: str) -> str:
     """Full TTS pipeline text cleaning for solo narrators (strips all brackets and guarantees end punctuation)."""
     text = re.sub(r"https?://\S+", "", text)
@@ -220,8 +229,7 @@ def speakable(text: str) -> str:
     text = voice_phonetic_normalize(text)
     text = re.sub(r"\s*[\[\]()]\s*", ", ", text)
     text = re.sub(r"[*_#|<>]", " ", text)
-    text = re.sub(r"\s+,", ",", text)
-    text = re.sub(r",\s*,+", ",", text)
+    text = clean_punctuation(re.sub(r"\s+,", ",", text))
     lines = [re.sub(r"[^\S\n]+", " ", line).strip(" ,") for line in text.splitlines()]
     text = "\n".join(line for line in lines if line)
     if text and text[-1] not in ".!?":

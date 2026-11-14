@@ -43,6 +43,11 @@ class Store:
         self.http = client or httpx.Client(timeout=60, headers=headers)
         self.http.headers.update(headers)
 
+    @classmethod
+    def from_config(cls, cfg) -> "Store":
+        """Instantiate a Store using Supabase credentials and bucket from Config."""
+        return cls(cfg.supabase_url, cfg.supabase_secret_key, cfg.bucket)
+
     # ------------------------------------------------------------------ REST
     def _call(self, method: str, path: str, *, retry: bool | None = None, **kw) -> httpx.Response:
         """One request, retried on dropped connections and transient 5xx/429 when repeating it is harmless.
@@ -226,6 +231,4 @@ class Store:
 
 def cutoff(today: date, keep_days: int) -> str:
     """Oldest date to keep: keep_days=2 keeps today and yesterday."""
-    from datetime import timedelta
-
     return (today - timedelta(days=max(1, keep_days) - 1)).isoformat()

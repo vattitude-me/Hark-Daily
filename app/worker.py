@@ -84,14 +84,9 @@ class Worker:
                 report.add("build_failed", f"{exc.__class__.__name__}: {exc}"[:300], level="error")
             report.finished_at = report.finished_at or now_iso()
             log.info("Run finished: %s %s", report.summary(), report.admin_detail())
-            sanitized_report = report.to_dict()
-            if "failures" in sanitized_report:
-                sanitized_report["failures"] = [{"type": f.get("type", "error")} for f in sanitized_report.get("failures", [])]
-            last = {**sanitized_report, "date": datetime.now(self.tz).date().isoformat()}
-            if scheduled:
-                self.publish(running=False, step=None, progress=1, last_run=last)
-            else:
-                self.publish(running=False, step=None, progress=1, last_adhoc=last)
+            last = {**report.to_dict(), "date": self.cfg.local_today()}
+            key = "last_run" if scheduled else "last_adhoc"
+            self.publish(running=False, step=None, progress=1, **{key: last})
             notify_admin(self.cfg, self.store, report, always=not scheduled)
             return report
         finally:
@@ -110,6 +105,32 @@ class Worker:
             self.run_batch("catch-up")
 
     # ============================================================ requests
+    def _handle_request(self, req: dict, profile: dict) -> tuple[str, str | None] | None:
+        kind = req["kind"]
+        if kind == "delete_account":
+            self.delete_account(req["user_id"], profile)
+            return None  # the request row went with the account; the app takes that as done
+        if kind == "push_test":
+            subs = self.store.push_subscriptions([req["user_id"]])
+            sent = push.push_and_prune(
+                self.cfg, self.store, subs, "🔔 Test notification",
+                "Notifications work. Your briefing will arrive here every morning.",
+                context="push_test",
+            )
+            return "done", f"Sent to {sent} device(s)" if sent else "No devices are subscribed yet"
+        if kind == "build":
+            if not self._is_admin(profile):
+                raise PermissionError("Only admins can rebuild on demand for now")
+            report = self.run_batch("adhoc", emails=[req["user_id"]], fresh=True, scheduled=False)
+            if report is None:
+                return "error", "A build is already running. Try again in a few minutes."
+            return ("done" if report.ok else "error"), report.summary()
+        if kind == "pack":
+            if not self._is_admin(profile):
+                raise PermissionError("Only admins can rebuild the audio")
+            return self.run_pack(req.get("payload") or {}, profile)
+        return "done", None
+
     def poll_requests(self) -> None:
         try:
             pending = self.store.pending_requests()
@@ -122,31 +143,11 @@ class Worker:
         for req in pending:
             profile = profiles.get(req["user_id"]) or {}
             self.store.update_request(req["id"], {"status": "running"})
-            status, message = "done", None
             try:
-                if req["kind"] == "delete_account":
-                    self.delete_account(req["user_id"], profile)
-                    continue  # the request row went with the account; the app takes that as done
-                if req["kind"] == "push_test":
-                    subs = self.store.push_subscriptions([req["user_id"]])
-                    sent, gone = push.send(self.cfg, subs, "🔔 Test notification",
-                                           "Notifications work. Your briefing will arrive here every morning.")
-                    for endpoint in gone:
-                        self.store.delete_push_subscription(endpoint)
-                    message = f"Sent to {sent} device(s)" if sent else "No devices are subscribed yet"
-                elif req["kind"] == "build":
-                    if not self._is_admin(profile):
-                        raise PermissionError("Only admins can rebuild on demand for now")
-                    report = self.run_batch("adhoc", emails=[req["user_id"]], fresh=True, scheduled=False)
-                    if report is None:
-                        status, message = "error", "A build is already running. Try again in a few minutes."
-                    else:
-                        status = "done" if report.ok else "error"
-                        message = report.summary()
-                elif req["kind"] == "pack":
-                    if not self._is_admin(profile):
-                        raise PermissionError("Only admins can rebuild the audio")
-                    status, message = self.run_pack(req.get("payload") or {}, profile)
+                outcome = self._handle_request(req, profile)
+                if outcome is None:
+                    continue
+                status, message = outcome
             except Exception as exc:  # noqa: BLE001
                 log.exception("Request %s failed", req["id"])
                 status, message = "error", str(exc)[:300]
@@ -157,7 +158,12 @@ class Worker:
 
     def _is_admin(self, profile: dict) -> bool:
         """Admins are flagged in the database, or listed in ADMIN_EMAILS on the server."""
-        return bool(profile.get("is_admin") or (profile.get("email") or "").lower() in self.cfg.admin_emails)
+        return self.cfg.is_admin(profile)
+
+    def _publish_pack_result(self, *, ok: bool, progress: float, profile: dict | None, **fields) -> None:
+        by = "admin" if (profile or {}).get("email") else "worker"
+        self.publish(running=False, step=None, progress=progress,
+                     last_pack={**fields, "at": now_iso(), "ok": ok, "by": by})
 
     def run_pack(self, options: dict, profile: dict | None = None) -> tuple[str, str]:
         """Re-voice the shared pack on request from the admin page.
@@ -168,14 +174,16 @@ class Worker:
         the nightly run never overlap.
         """
         from . import storypack
-        from .errors import PackBusy, PackIncomplete
+        from .errors import PackBusy
         from .gce import voice_vm_session
 
         if not self.lock.acquire():
             return "error", "A build is already running. Try again in a few minutes."
+        day = (options.get("day") or "").strip() or self.cfg.local_today()
+        actor = (profile or {}).get("email") or "the worker"
         try:
-            day = (options.get("day") or "").strip() or datetime.now(self.tz).date().isoformat()
             chosen = [v for v in (options.get("voices") or []) if v in storypack.VOICES]
+            voices_used = chosen or list(self.cfg.story_voices or ())
             notes_only = bool(options.get("notes_only"))
             force = bool(options.get("force"))
             started = now_iso()
@@ -189,7 +197,7 @@ class Worker:
             with storypack.pack_lease(self.store), voice_vm_session(self.cfg) as active_url:
                 if notes_only:
                     clips: list[dict] = []
-                    for name in chosen or list(self.cfg.story_voices or ()):
+                    for name in voices_used:
                         clips += asyncio.run(storypack.build_notes(self.cfg, self.store, day=day,
                                                                   voice=name, voice_url=active_url, force=force))
                     detail = f"{len(clips)} voice notes re-recorded for {day}"
@@ -199,42 +207,37 @@ class Worker:
                         clips += asyncio.run(storypack.build(self.cfg, self.store, day=day, voice=name,
                                                            voice_url=active_url, force=force, on_step=progress))
                     minutes = storypack.total_seconds(clips) / 60
-                    voices = ", ".join(storypack.voice_name(v) for v in (chosen or list(self.cfg.story_voices or ())))
-                    detail = f"{len(clips)} clips for {day}, {minutes:.1f} min of audio ({voices})"
+                    voice_names = ", ".join(storypack.voice_name(v) for v in voices_used)
+                    detail = f"{len(clips)} clips for {day}, {minutes:.1f} min of audio ({voice_names})"
 
-            self.publish(running=False, step=None, progress=1, last_pack={
-                "day": day, "voices": chosen or list(self.cfg.story_voices or ()), "notes_only": notes_only,
-                "force": force, "detail": detail, "seconds": round(time.monotonic() - clock, 1),
-                "started_at": started, "at": now_iso(), "ok": True,
-                "by": "admin" if (profile or {}).get("email") else "worker",
-            })
+            self._publish_pack_result(
+                ok=True, progress=1, profile=profile,
+                day=day, voices=voices_used, notes_only=notes_only, force=force,
+                detail=detail, seconds=round(time.monotonic() - clock, 1), started_at=started,
+            )
             # The run log is what the admin page reads, so a rebuild from here belongs in it.
             storypack.record(self.store, day=day, status="ok",
                              title=f"✓ Rebuild finished: {detail.split(',')[0]}",
-                             body=detail, detail=f"Rebuilt from the admin page by {(profile or {}).get('email') or 'the worker'}",
+                             body=detail, detail=f"Rebuilt from the admin page by {actor}",
                              voices=[{"id": v, "name": storypack.voice_name(v),
                                       "ready": storypack.ready(self.store, day=day, voice=v)}
-                                     for v in (chosen or list(self.cfg.story_voices or ()))])
+                                     for v in voices_used])
             log.info("Pack rebuilt: %s", detail)
             return "done", detail
         except PackBusy as exc:
             log.warning("Pack rebuild delayed: %s", exc)
-            self.publish(running=False, step=None, progress=0, last_pack={
-                "error": str(exc), "at": now_iso(), "ok": False,
-                "by": "admin" if (profile or {}).get("email") else "worker",
-            })
+            self._publish_pack_result(ok=False, progress=0, profile=profile, error=str(exc))
             return "error", str(exc)
         except Exception as exc:  # noqa: BLE001 - the request row carries the reason
             log.exception("Pack rebuild failed")
-            self.publish(running=False, step=None, progress=0, last_pack={
-                "error": "Rebuild failed. See admin run log for details.", "at": now_iso(), "ok": False,
-                "by": "admin" if (profile or {}).get("email") else "worker",
-            })
-            storypack.record(self.store, day=(options.get("day") or datetime.now(self.tz).date().isoformat()),
-                             status="failed", title="✗ Rebuild failed",
-                             body=f"{exc.__class__.__name__}: {exc}"[:300],
-                             detail=f"Rebuilt from the admin page by {(profile or {}).get('email') or 'the worker'}")
-            return "error", f"{exc.__class__.__name__}: {exc}"[:300]
+            err_msg = f"{exc.__class__.__name__}: {exc}"[:300]
+            self._publish_pack_result(
+                ok=False, progress=0, profile=profile,
+                error="Rebuild failed. See admin run log for details.",
+            )
+            storypack.record(self.store, day=day, status="failed", title="✗ Rebuild failed",
+                             body=err_msg, detail=f"Rebuilt from the admin page by {actor}")
+            return "error", err_msg
         finally:
             self.lock.release()
 

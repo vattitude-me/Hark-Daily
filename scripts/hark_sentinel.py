@@ -48,8 +48,6 @@ MAC_IP = os.getenv("MAC_IP", "127.0.0.1")
 MAC_HW_ADDR = os.getenv("MAC_HW_ADDR", "")
 BROADCAST_IP = os.getenv("BROADCAST_IP", "255.255.255.255")
 TIMEZONE = os.getenv("TIMEZONE", "America/Toronto")
-ADMIN_URL = os.getenv("ADMIN_URL", "https://hark.vattitude.ca/")
-
 EVENING_RUN_PAUSED = os.getenv("EVENING_RUN_PAUSED", "true").lower() in ("true", "1", "yes")
 
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK_URL") or os.getenv("REPORT_WEBHOOK_URL", "")
@@ -87,6 +85,12 @@ def send_magic_packet(mac: str = MAC_HW_ADDR, broadcast: str = BROADCAST_IP, por
         return False
 
 
+def _supabase_get(path_query: str, headers: dict[str, str]) -> list[dict]:
+    req = urllib.request.Request(f"{SUPABASE_URL}/rest/v1/{path_query}", headers=headers)
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
 def query_supabase_pack(day: str) -> dict:
     """Queries Supabase REST API for today's story and podcast audio status."""
     headers = {
@@ -100,32 +104,19 @@ def query_supabase_pack(day: str) -> dict:
         log.warning("SUPABASE_KEY not provided. Skipping direct Supabase query.")
         return status
 
-    # 1. Query stories
     try:
-        url = f"{SUPABASE_URL}/rest/v1/story_audio?date=eq.{day}&select=section,duration,voice"
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            status["stories_count"] = len(data)
-            status["total_duration_sec"] = sum(float(r.get("duration") or 0) for r in data)
-            for r in data:
-                sec = r.get("section") or ""
-                if sec.endswith("_us"):
-                    status["regions"].add("US")
-                elif sec.endswith("_in"):
-                    status["regions"].add("India")
-                else:
-                    status["regions"].add("Canada")
+        data = _supabase_get(f"story_audio?date=eq.{day}&select=section,duration,voice", headers)
+        status["stories_count"] = len(data)
+        status["total_duration_sec"] = sum(float(r.get("duration") or 0) for r in data)
+        for r in data:
+            sec = r.get("section") or ""
+            status["regions"].add("US" if sec.endswith("_us") else ("India" if sec.endswith("_in") else "Canada"))
     except Exception as exc:
         log.warning("Failed to query stories from Supabase: %s", exc)
 
-    # 2. Query podcast ready marker
     try:
-        url = f"{SUPABASE_URL}/rest/v1/podcast_clips?date=eq.{day}&clip_key=eq.podcast_ready"
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            status["podcast_ready"] = len(data) > 0
+        data = _supabase_get(f"podcast_clips?date=eq.{day}&clip_key=eq.podcast_ready", headers)
+        status["podcast_ready"] = len(data) > 0
     except Exception as exc:
         log.warning("Failed to query podcast clips from Supabase: %s", exc)
 

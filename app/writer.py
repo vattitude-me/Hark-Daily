@@ -8,7 +8,6 @@ The intro, section transitions and sign-off are templates, personalised per user
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import re
@@ -19,6 +18,8 @@ from pathlib import Path
 
 import httpx
 
+from . import llm
+from .llm import DEFAULT_GEMINI_MODELS, GEMINI_URL, GROQ_URL, retry_after as _retry_after
 from .ranking import Story
 from .report import RunReport
 from .sources import SECTIONS
@@ -27,8 +28,6 @@ from .tts.text import voice_normalize
 
 log = logging.getLogger(__name__)
 
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 MAX_WAIT = 65          # longest per-minute back-off we'll sit through, in seconds
 MAX_ARTICLE_CHARS = 2500
 
@@ -170,19 +169,6 @@ class AuthFailed(Exception):
     """The API key was rejected: no Groq model will work in this run."""
 
 
-def _retry_after(resp: httpx.Response) -> float:
-    try:
-        return float(resp.headers.get("retry-after", ""))
-    except ValueError:
-        pass
-    # Groq also says "Please try again in 7.66s" / "in 2m59.5s" in the message.
-    m = re.search(r"try again in (?:(\d+)h)?(?:(\d+)m)?([\d.]+)s", resp.text)
-    if m:
-        h, mins, s = (float(x) if x else 0.0 for x in m.groups())
-        return h * 3600 + mins * 60 + s
-    return 10.0
-
-
 def _is_daily(resp: httpx.Response) -> bool:
     text = resp.text.lower()
     return "per day" in text or "(tpd)" in text or "(rpd)" in text or "daily" in text
@@ -204,7 +190,7 @@ class StoryWriter:
         if api_key:
             self.models.extend(list(models))
         if gemini_api_key:
-            self.models.extend(list(gemini_models or ("gemini-3.5-flash-lite", "gemini-flash-lite-latest")))
+            self.models.extend(list(gemini_models or DEFAULT_GEMINI_MODELS))
         self.client = client or httpx.Client(timeout=60)
         self.sleep = sleep
         self.failures = 0
@@ -262,17 +248,15 @@ class StoryWriter:
         token = self.gemini_api_key if is_gemini else self.api_key
         provider = "Gemini" if is_gemini else "Groq"
 
-        body = {
-            "model": model,
-            "temperature": 0.4,
-            "max_tokens": 1200,
-            "response_format": {"type": "json_object"},
-            **({"reasoning_effort": "low"} if model.startswith("openai/gpt-oss") else {}),
-            "messages": [
+        body = llm.build_chat_body(
+            model,
+            [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
             ],
-        }
+            temperature=0.4,
+            max_tokens=1200,
+        )
         for attempt in range(4):
             resp = self.client.post(url, json=body, headers={"Authorization": f"Bearer {token}"})
             if resp.status_code in (401, 403):
@@ -304,7 +288,3 @@ class StoryWriter:
             return StoryCopy(headline=headline or lead.title, summary=summary, spoken=spoken, writer=model)
         self.report.add("ai_daily_limit", f"{model}: still rate limited after retries")
         raise LimitHit("still rate limited after retries")
-
-
-def copy_key(text: str) -> str:
-    return hashlib.sha1(text.encode()).hexdigest()[:16]

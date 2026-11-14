@@ -19,15 +19,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
 import logging
-import os
 import subprocess
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -36,10 +32,13 @@ sys.path.insert(0, str(ROOT))
 
 from app.config import load
 from app.fetcher import extract_article, parse_feed
+from app.gce import is_service_healthy
 from app import podcast, topics
 from app.storypack import (
     _publish_audio_file,
     publish_showcase,
+    story_audio_path,
+    upsert_story_audio,
     voice_name,
 )
 from app.store import Store
@@ -51,13 +50,9 @@ log = logging.getLogger("regen_story")
 def ensure_voice_service(url: str, auto_start: bool = True) -> tuple[subprocess.Popen | None, str]:
     """Check if voice service is running; if not and auto_start is True, spawn it locally."""
     clean_url = url.rstrip("/")
-    try:
-        r = httpx.get(f"{clean_url}/health", timeout=2.0)
-        if r.status_code == 200:
-            log.info("✓ Connected to active voice service at %s", clean_url)
-            return None, clean_url
-    except Exception:
-        pass
+    if is_service_healthy(clean_url, timeout=2.0):
+        log.info("✓ Connected to active voice service at %s", clean_url)
+        return None, clean_url
 
     if not auto_start:
         raise RuntimeError(f"Voice service is not running at {clean_url}. Start it or pass --auto-start.")
@@ -75,13 +70,9 @@ def ensure_voice_service(url: str, auto_start: bool = True) -> tuple[subprocess.
     )
     for _ in range(60):
         time.sleep(1)
-        try:
-            r = httpx.get("http://127.0.0.1:8090/health", timeout=1.0)
-            if r.status_code == 200:
-                log.info("✓ Local voice service is online at http://127.0.0.1:8090")
-                return proc, "http://127.0.0.1:8090"
-        except Exception:
-            pass
+        if is_service_healthy("http://127.0.0.1:8090", timeout=1.0):
+            log.info("✓ Local voice service is online at http://127.0.0.1:8090")
+            return proc, "http://127.0.0.1:8090"
 
     proc.terminate()
     raise RuntimeError("Timed out waiting for local voice service to start.")
@@ -157,24 +148,19 @@ async def _lookup_rss_summary(section: str, url: str, title: str) -> str:
             matched_summary = (item.summary or "").strip()
             break
 
-    # If the matched RSS summary is a short newsletter teaser (e.g. "Plus, R.I.P. Cybertruck."),
-    # enrich with related RSS summaries from the same feed that share key subject terms.
+    # If the matched RSS summary is a short newsletter teaser, enrich with related RSS summaries
+    # from the same feed that share key subject terms from the headline.
     if len(matched_summary.split()) < 8 and items:
-        extra_context: list[str] = []
-        if "stephen miller" in (title or "").lower() and "nvidia" in (title or "").lower():
-            return (
-                "The New York Times morning briefing pairs the Nvidia executive probe with a major Washington shake-up: "
-                "Stephen Miller is taking the reins in the White House to lead the administration's domestic policy agenda. "
-                "The edition also looks back at the end of the line for Tesla's Cybertruck."
-            )
-        key_terms = [w for w in ("nvidia", "huang", "china", "spy") if w in (title or "").lower()]
+        key_terms = [w.strip(".,:;!?\"'()").lower() for w in (title or "").split() if len(w.strip(".,:;!?\"'()")) >= 5]
         if key_terms:
-            for item in items:
-                s_txt = (item.summary or "").strip()
-                if len(s_txt.split()) >= 10 and any(k in (item.title + " " + s_txt).lower() for k in key_terms):
-                    extra_context.append(s_txt)
-        if extra_context:
-            matched_summary = " ".join([*extra_context[:3], matched_summary]).strip()
+            extra_context = [
+                (item.summary or "").strip()
+                for item in items
+                if len((item.summary or "").split()) >= 10
+                and any(k in f"{item.title} {item.summary}".lower() for k in key_terms[:5])
+            ]
+            if extra_context:
+                matched_summary = " ".join([*extra_context[:3], matched_summary]).strip()
     return matched_summary
 
 
@@ -278,9 +264,7 @@ async def regenerate_story(
         )
 
     # 5. Build storage audio path with content hash
-    content_hash = hashlib.sha256(audio).hexdigest()[:8]
-    voice_slug = voice.replace("+", "__")
-    path = f"stories/{day}/{section}-{rank}-{voice_slug}-{content_hash}.mp3"
+    path = story_audio_path(day, section, rank, voice, audio)
     spoken_script = podcast.format_dialogue_transcript(dialogue.turns, duo_names)
     marks_payload = [{"start": round(m[0], 3), "end": round(m[1], 3)} for m in marks]
 
@@ -303,14 +287,7 @@ async def regenerate_story(
         "audio_path": path,
         "marks": marks_payload,
     }
-    try:
-        store.insert("story_audio", updated_row, on_conflict="date,section,rank,voice")
-    except Exception as exc:
-        if "marks" in str(exc).lower():
-            fallback_row = {k: v for k, v in updated_row.items() if k != "marks"}
-            store.insert("story_audio", fallback_row, on_conflict="date,section,rank,voice")
-        else:
-            raise
+    upsert_story_audio(store, updated_row)
 
     log.info("✓ Updated [%s #%d] successfully in Supabase!", section, rank)
     return updated_row
@@ -331,8 +308,8 @@ def main() -> int:
     args = parser.parse_args()
 
     cfg = load()
-    store = Store(cfg.supabase_url, cfg.supabase_secret_key, cfg.bucket)
-    day = args.date or datetime.now(ZoneInfo(cfg.timezone)).date().isoformat()
+    store = Store.from_config(cfg)
+    day = args.date or cfg.local_today()
     voice = args.voice
 
     # Find existing stories in Supabase
