@@ -10,13 +10,11 @@ recorded with a different model and does not sound like the brief the app now pl
 from __future__ import annotations
 
 import argparse
-import os
+import argparse
 import subprocess
 import sys
 import tempfile
-from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -29,16 +27,6 @@ SECTION = "top"
 MAX_SECONDS = 50.0
 
 
-def env() -> dict[str, str]:
-    values: dict[str, str] = {}
-    for line in (ROOT / ".env").read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            key, _, value = line.partition("=")
-            values[key.strip()] = value.strip().strip('"').strip("'")
-    return values
-
-
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--day", help="day to sample (default: today)")
@@ -46,14 +34,13 @@ def main() -> int:
     args = ap.parse_args()
 
     sys.path.insert(0, str(ROOT))
-    for key, value in env().items():
-        os.environ.setdefault(key, value)
     from app.config import load  # noqa: PLC0415
+    from app.showcase import _probe_seconds  # noqa: PLC0415
     from app.store import Store  # noqa: PLC0415
 
     cfg = load()
-    store = Store(cfg.supabase_url, cfg.supabase_secret_key, cfg.bucket)
-    day = args.day or datetime.now(ZoneInfo(cfg.timezone)).date().isoformat()
+    store = Store.from_config(cfg)
+    day = args.day or cfg.local_today()
 
     rows = sorted(
         (r for r in store.select("story_audio", {"date": f"eq.{day}", "voice": f"eq.{args.voice}",
@@ -99,9 +86,7 @@ def main() -> int:
                         "-i", str(listing), "-c:a", "libmp3lame", "-b:a", "64k", "-ar", "24000",
                         "-ac", "1", str(OUT)], check=True)
 
-    seconds = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                                    "-of", "default=nw=1:nk=1", str(OUT)],
-                                   check=True, capture_output=True, text=True).stdout.strip())
+    seconds = _probe_seconds(OUT)
     print(f"✓ {OUT.relative_to(ROOT)}: {len(clips)} clips, {seconds:.1f}s, voice {args.voice}, day {day}")
     for clip in clips:
         label = clip.get("title") or clip.get("text") or clip.get("note_key") or ""

@@ -152,24 +152,21 @@ def _clean_img_url(url: str | None) -> str | None:
 
 
 def _entry_image(entry) -> str | None:
+    candidates: list[str] = []
     for key in ("media_content", "media_thumbnail"):
         for media in entry.get(key) or []:
-            url = media.get("url")
-            if url and (media.get("medium") in (None, "image") or "image" in (media.get("type") or "image")):
-                cleaned = _clean_img_url(url)
-                if cleaned:
-                    return cleaned
+            if media.get("url") and (media.get("medium") in (None, "image") or "image" in (media.get("type") or "image")):
+                candidates.append(media["url"])
     for enc in entry.get("enclosures") or []:
         if (enc.get("type") or "").startswith("image") and enc.get("href"):
-            cleaned = _clean_img_url(enc["href"])
-            if cleaned:
-                return cleaned
+            candidates.append(enc["href"])
     for blob in [entry.get("summary", "")] + [c.get("value", "") for c in entry.get("content") or []]:
         m = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', blob or "")
         if m:
-            cleaned = _clean_img_url(html.unescape(m.group(1)))
-            if cleaned:
-                return cleaned
+            candidates.append(html.unescape(m.group(1)))
+    for url in candidates:
+        if cleaned := _clean_img_url(url):
+            return cleaned
     return None
 
 

@@ -1,115 +1,56 @@
-"""Build the day's shared story pack: stories → cloned voice → Supabase.
-
-Thin glue around three pieces that already exist:
-
-* :mod:`app.topics` — the day's stories, no AI in the path;
-* the voice service — one MP3 per story (``voice_service/scripts/batch.py`` does the
-  same thing offline, for testing without Supabase);
-* Supabase Storage + the ``story_audio`` table.
-
-The worker runs this **once per day, per voice**, and every listener is served from
-the same clips. TTS cost therefore depends on stories × voices, never on how many
-people use the app. Each client then assembles a personal briefing by concatenating
-only the clips for the sections and counts that user asked for — see
-:func:`clips_for`, which mirrors what the PWA and Android do.
-"""
+"""Build the day's shared story pack: stories → cloned voice → Supabase."""
 from __future__ import annotations
 
 import argparse
 import asyncio
-import contextlib
 import hashlib
-import json
 import logging
-import os
-import platform
-import re
-import shutil
-import subprocess
-import tempfile
 import time
 from collections.abc import Callable
-from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import httpx
 
 from . import topics
 from .errors import DeadlineReached, PackBusy, PackIncomplete, VoiceServiceDown
+from .pack_ops import (
+    DEFAULT_VOICE,
+    PACK_READY,
+    STATIC_DATE,
+    VOICES,
+    clear_ready,
+    holder_name,
+    mark_ready,
+    notify_admins,
+    notify_listeners,
+    pack_lease,
+    prune_older,
+    ready,
+    record,
+    voice_name,
+    voice_slug,
+)
+from .showcase import (
+    OUTRO_KEY,
+    SAMPLE_BUNDLE_AUDIO,
+    SAMPLE_BUNDLE_DIR,
+    SHOWCASE_KEY,
+    SHOWCASE_PER_SECTION,
+    SHOWCASE_SECTIONS,
+    _join_clips,
+    _probe_seconds,
+    publish_showcase,
+    showcase_key,
+    showcase_payload,
+    write_sample_bundle,
+)
 from .store import StoreError
-from .summarizer import strip_headline_and_filler
-from .tts.text import voice_phonetic_normalize
+from .tts.text import clean_punctuation, voice_phonetic_normalize
 
 log = logging.getLogger(__name__)
 
 MAX_PER_SECTION = 5
 
-# The voices the pack publishes, keyed by their reference clip in the voice service.
-# C-3PO is the flagship anchor, accompanied by modular neural narrators (e.g. Matthew, Kelly).
-# Clients display these names in Settings and under each briefing.
-VOICES: dict[str, dict[str, str]] = {
-    "matthew_reference+kelly_reference": {"name": "Matthew & Kelly", "gender": "duo"},
-    "c3po_reference": {"name": "C-3PO", "gender": "male"},
-    "matthew_reference": {"name": "Matthew", "gender": "male"},
-    "kelly_reference": {"name": "Kelly", "gender": "female"},
-    "matthew_american": {"name": "Matthew", "gender": "male"},
-    "kelly": {"name": "Kelly", "gender": "female"},
-    "kelley_reference": {"name": "Kelly", "gender": "female"},
-    # Legacy narrator IDs preserved for backwards compatibility with historical packs and test suites
-    "her_reference": {"name": "Alice", "gender": "female"},
-    "him_reference": {"name": "Mike", "gender": "male"},
-    "jerry_reference": {"name": "Jerry", "gender": "male"},
-}
-DEFAULT_VOICE = "c3po_reference"
-
-
-def voice_name(voice: str | None) -> str:
-    """The name a listener would recognise for a clip: e.g. 'Matthew & Kelly', 'C-3PO'."""
-    if not voice:
-        return "the narrator"
-    if voice in VOICES:
-        return VOICES[voice]["name"]
-    if "+" in voice:
-        return " & ".join(voice_name(part) for part in voice.split("+") if part.strip())
-    # Dynamic fallback: clean up arbitrary voice ID (e.g. nora_reference -> Nora)
-    clean = (
-        voice.replace("_reference", "")
-        .replace("_american", "")
-        .replace("_male", "")
-        .replace("_female", "")
-        .replace("_", " ")
-        .strip()
-        .title()
-    )
-    return clean or voice
-
-# The landing page has to play something for people who aren't signed in, and
-# `story_audio` is not readable without a session. So every pack also publishes a
-# small public slice of itself: the greeting, a couple of sections' intros, and
-# their top stories, carrying the same clip timeline the clients assemble. No second
-# render, no extra voice work — the sample is literally the day's own clips.
-SHOWCASE_KEY = "showcase/sample.json"
-
-
-def showcase_key(voice: str) -> str:
-    """Where one narrator's landing sample lives, so a visitor can try any voice before signing in."""
-    return f"showcase/sample-{voice}.json"
-
-
-SHOWCASE_SECTIONS: tuple[str, ...] = ("top",)
-SHOWCASE_PER_SECTION = 2
-
-# The landing page's own copy of the sample, checked into the site so it plays for
-# anyone, instantly, with no account and no storage bucket in the path. Regenerate it
-# with `python -m app pack --sample-bundle`.
-SAMPLE_BUNDLE_DIR = "web/sample"
-SAMPLE_BUNDLE_AUDIO = "sample.mp3"
-
-# Spoken framing, voiced once per day like the stories. A listener opens with the
-# greeting that matches their clock, then hears the section's line before its first
-# story. Kept short on purpose — these are punctuation, not content.
 GREETINGS = {
     "greeting_morning": "Good morning.",
     "greeting_afternoon": "Good afternoon.",
@@ -125,157 +66,13 @@ INTROS = {
     "intro_science": "In science.",
     "intro_sports": "In sports.",
 }
-
-# The sign-off. Without it a brief stops dead on the last story's final word.
-OUTRO_KEY = "outro"
 OUTRO = "That's today's briefing. Have a great day, and stay informed."
-
 NOTES: dict[str, str] = {**GREETINGS, **INTROS, OUTRO_KEY: OUTRO}
-
-# Permanent sentinel date and storage path for static transition notes (greetings, intros, outro)
-STATIC_DATE = "2000-01-01"
 
 
 def static_note_path(key: str, voice: str) -> str:
     """The canonical permanent storage path for a static voice note."""
-    safe_voice = voice.replace("+", "__")
-    return f"notes/static/{key}-{safe_voice}.mp3"
-
-
-# A marker row in voice_notes meaning "this narrator's day is complete": the greeting, the intros
-# and every story are published. Clients refuse to play a day without it, so a pack that is still
-# being recorded, or being re-recorded, never plays two voices in one brief. Never spoken: the
-# clients only ever look up greeting_* and intro_* keys.
-PACK_READY = "pack_ready"
-
-
-def ready(store, *, day: str, voice: str) -> bool:
-    """Whether every clip and note for this narrator's day is published."""
-    return bool(store.select("voice_notes", {"date": f"eq.{day}", "voice": f"eq.{voice}",
-                                              "note_key": f"eq.{PACK_READY}"}))
-
-
-def mark_ready(store, *, day: str, voice: str, clips: int, notes: int) -> None:
-    """Publish the completeness marker for one narrator's day."""
-    store.insert("voice_notes", {
-        "date": day, "voice": voice, "note_key": PACK_READY,
-        "text": f"{clips} clip{'s' if clips != 1 else ''}, {notes} note{'s' if notes != 1 else ''}",
-        "duration": 0,
-        "audio_path": f"notes/{day}/{PACK_READY}-{voice}.mp3",
-    }, on_conflict="date,voice,note_key")
-
-
-def clear_ready(store, *, day: str, voice: str) -> None:
-    """Take a day off the air for a narrator whose clips are about to be replaced."""
-    store.delete("voice_notes", {"date": f"eq.{day}", "voice": f"eq.{voice}", "note_key": f"eq.{PACK_READY}"})
-
-
-def prune_older(store, *, keep: str, keep_days: int = 2, preserve_sections: list[str] | None = None) -> list[str]:
-    """Keep [keep_days] days of audio: delete every day older than cutoff, rows and files together.
-
-    Sections in [preserve_sections] (such as India edition feeds when running the morning CA/US pack)
-    are retained until their own dedicated evening batch updates them.
-    Static notes at STATIC_DATE and audio in notes/static/ are permanent and never deleted.
-    """
-    days: list[str] = []
-    preserve_set = set(preserve_sections or ())
-    try:
-        base = datetime.fromisoformat(keep).date()
-        cutoff_date = (base - timedelta(days=max(1, keep_days) - 1)).isoformat()
-    except Exception:
-        cutoff_date = keep
-
-    for table in ("story_audio", "voice_notes", "podcast_clips"):
-        rows = store.select(table, {"date": f"lt.{cutoff_date}"})
-        if table == "voice_notes":
-            rows = [r for r in rows if str(r.get("date")) > STATIC_DATE]
-        if table == "story_audio" and preserve_set:
-            rows = [r for r in rows if r.get("section") not in preserve_set]
-        if not rows:
-            continue
-        paths = [r["audio_path"] for r in rows if r.get("audio_path") and not r["audio_path"].startswith("notes/static/")]
-        if paths:
-            store.remove_objects(paths)
-        if table == "voice_notes":
-            for r in rows:
-                store.delete("voice_notes", {"date": f"eq.{r['date']}", "voice": f"eq.{r['voice']}", "note_key": f"eq.{r['note_key']}"})
-        elif table == "story_audio" and preserve_set:
-            for r in rows:
-                store.delete("story_audio", {"id": f"eq.{r['id']}"})
-        else:
-            store.delete(table, {"date": f"lt.{cutoff_date}"})
-        days += [str(r["date"]) for r in rows]
-        log.info("[prune] %s: %d rows, %d files removed (older than %s)", table, len(rows), len(paths), cutoff_date)
-    unique_days = sorted(set(days))
-    for d in unique_days:
-        try:
-            extra = [p for p in store.list_objects(f"stories/{d}") if p not in paths]
-            if extra:
-                store.remove_objects(extra)
-        except Exception as exc:  # noqa: BLE001
-            log.debug("Could not prune extra objects for %s: %s", d, exc)
-    cutoff = (datetime.fromisoformat(keep) - timedelta(days=14)).isoformat()
-    try:
-        store.delete("run_log", {"run_date": f"lt.{cutoff}"})
-    except Exception as exc:  # noqa: BLE001 — an unpruned log is harmless
-        log.debug("Could not trim the run log: %s", exc)
-    return unique_days
-
-
-def notify_listeners(cfg, store, *, title: str, body: str) -> int:
-    """Push to everyone who asked for the morning nudge. Returns how many devices were told."""
-    from . import push  # imported here so a machine without web-push installed can still render
-
-    try:
-        subs = store.push_subscriptions()
-        sent, gone = push.send(cfg, subs, title, body)
-        for endpoint in gone:
-            store.delete_push_subscription(endpoint)
-        log.info("[push] %s to %d device(s), %d expired", title, sent, len(gone))
-        return sent
-    except Exception as exc:  # noqa: BLE001 - a failed notification is not a failed brief
-        log.warning("Listener notification failed: %s", exc)
-        return 0
-
-
-def record(store, *, day: str, status: str, title: str, body: str = "", detail: str = "",
-           voices: list[dict] | None = None) -> bool:
-    """Write one line of the run log.
-
-    The admin page reads this, so a morning that failed is on record even when the phone that
-    should have been told was asleep, out of signal or signed out. `status` is 'ok', 'incomplete'
-    or 'failed'; `voices` is one entry per narrator, {id, name, ready}.
-    """
-    try:
-        store.insert("run_log", {"run_date": day, "status": status, "title": title,
-                                 "body": body, "detail": detail, "voices": voices or []})
-        return True
-    except Exception as exc:  # noqa: BLE001 — a missing log line must not break the morning
-        log.warning("Could not write to the run log: %s", exc)
-        return False
-
-
-def notify_admins(cfg, store, *, title: str, body: str, day: str = "", status: str = "ok",
-                  detail: str = "", voices: list[dict] | None = None) -> int:
-    """Record the outcome, then push it to the admins, who are the only ones who can fix it."""
-    from . import push
-    from .batch import admin_subscriptions
-
-    if day:
-        record(store, day=day, status=status, title=title, body=body, detail=detail, voices=voices)
-    try:
-        subs = admin_subscriptions(cfg, store)
-        if not subs:
-            log.info("[push] no admin devices are subscribed")
-            return 0
-        sent, gone = push.send(cfg, subs, title, body)
-        for endpoint in gone:
-            store.delete_push_subscription(endpoint)
-        log.info("[push] admin report sent to %d device(s)", sent)
-        return sent
-    except Exception as exc:  # noqa: BLE001
-        log.warning("Admin notification failed: %s", exc)
-        return 0
+    return f"notes/static/{key}-{voice_slug(voice)}.mp3"
 
 
 def greeting_key(hour: int) -> str:
@@ -293,11 +90,7 @@ def default_lineup() -> dict[str, int]:
 
 
 def lineup(settings: dict | None, default: dict[str, int] | None = None) -> dict[str, int]:
-    """The per-section story counts a user asked for (0 = off), clamped to 0..``MAX``.
-
-    Read from ``profiles.settings.stories`` — the key both clients already keep, e.g.
-    ``{"top": 5, "ai": 3, "sports": 0}`` — so no settings migration is needed.
-    """
+    """Per-section story counts from ``profiles.settings.stories``, clamped to 0..``MAX_PER_SECTION``."""
     chosen = (settings or {}).get("stories") or {}
     base = default or default_lineup()
     out: dict[str, int] = {}
@@ -311,11 +104,7 @@ def lineup(settings: dict | None, default: dict[str, int] | None = None) -> dict
 
 
 def clips_for(rows: list[dict], wanted: dict[str, int], voice: str | None = None) -> list[dict]:
-    """Order the shared clips into one listener's briefing.
-
-    Sections follow the catalog's reading order and each contributes its top ``n``
-    clips by rank, so the same rows produce a different briefing per user.
-    """
+    """Order the shared clips into one listener's briefing following the section reading order."""
     by_section: dict[str, list[dict]] = {}
     for row in rows:
         if voice and row.get("voice") != voice:
@@ -325,9 +114,8 @@ def clips_for(rows: list[dict], wanted: dict[str, int], voice: str | None = None
     ordered: list[dict] = []
     for key in topics.SECTIONS:
         count = wanted.get(key, 0)
-        if count <= 0:
-            continue
-        ordered.extend(sorted(by_section.get(key, []), key=lambda r: r.get("rank", 0))[:count])
+        if count > 0:
+            ordered.extend(sorted(by_section.get(key, []), key=lambda r: r.get("rank", 0))[:count])
     return ordered
 
 
@@ -335,247 +123,37 @@ def total_seconds(clips: list[dict]) -> float:
     return round(sum(float(c.get("duration") or 0) for c in clips), 2)
 
 
-def showcase_payload(rows: list[dict], notes: list[dict], url_for, *, day: str,
-                     voice: str | None = None,
-                     sections: tuple[str, ...] = SHOWCASE_SECTIONS,
-                     per_section: int = SHOWCASE_PER_SECTION) -> dict:
-    """The public sample of a day's pack, in the shape both clients already read.
-
-    ``clips`` carry a running timeline so the landing page can play the greeting, each
-    section's line and the top stories back to back, and ``chapters``/``stories`` tell
-    it which story is playing at any moment.
-    """
-    note_by_key = {n["note_key"]: n for n in notes if not voice or n.get("voice") == voice}
-    by_section: dict[str, list[dict]] = {}
-    for row in rows:
-        if voice and row.get("voice") != voice:
-            continue
-        by_section.setdefault(row["section"], []).append(row)
-
-    clips: list[dict] = []
-    chapters: list[dict] = []
-    stories: list[dict] = []
-    counts: dict[str, int] = {}
-    cursor = 0.0
-
-    def add(duration: float, cid: str, kind: str, title: str, path: str) -> tuple[float, float]:
-        nonlocal cursor
-        start, end = cursor, cursor + duration
-        clips.append({"url": url_for(path), "duration": round(duration, 3),
-                      "start": round(start, 3), "end": round(end, 3)})
-        chapters.append({"id": cid, "kind": kind, "title": title,
-                         "start": round(start, 3), "end": round(end, 3)})
-        cursor = end
-        return start, end
-
-    greeting = note_by_key.get("greeting_morning")
-    if greeting:
-        add(float(greeting.get("duration") or 0), "greeting", "note",
-            greeting.get("text") or "Good morning.", greeting["audio_path"])
-
-    for key in sections:
-        chosen = sorted(by_section.get(key, []), key=lambda r: r.get("rank", 0))[:per_section]
-        if not chosen:
-            continue
-        intro = note_by_key.get(f"intro_{key}")
-        if intro:
-            add(float(intro.get("duration") or 0), f"intro-{key}", "note",
-                intro.get("text") or "", intro["audio_path"])
-        for row in chosen:
-            cid = f"{key}-{row['rank']}"
-            start, end = add(float(row.get("duration") or 0), cid, "story",
-                             row.get("title") or "", row["audio_path"])
-            stories.append({
-                "id": cid, "section": key, "headline": row.get("title") or "",
-                "summary": row.get("summary") or strip_headline_and_filler(row.get("title") or "", row.get("script") or ""),
-                "source": row.get("source") or "",
-                "url": row.get("url") or "", "image": row.get("image") or "",
-                "start": round(start, 3), "end": round(end, 3),
-            })
-            counts[key] = counts.get(key, 0) + 1
-
-    outro = note_by_key.get(OUTRO_KEY)
-    if outro:
-        add(float(outro.get("duration") or 0), OUTRO_KEY, "note",
-            outro.get("text") or "", outro["audio_path"])
-
-    return {
-        "date": day,
-        "rows": rows,
-        "notes": notes,
-        "briefing": {
-            "date": day,
-            "title": "Your briefing",
-            "voice": {"id": voice or DEFAULT_VOICE, "name": voice_name(voice),
-                      "gender": (VOICES.get(voice or "") or {}).get("gender", "")},
-            "duration": round(cursor, 2),
-            "audio_url": "",  # the sample is the clips below, played back to back
-            "clips": clips,
-            "chapters": chapters,
-            "stories": stories,
-            "sections": [{"key": k, "title": topics.ALL_SECTIONS[k]["title"], "count": n}
-                         for k, n in counts.items()],
-        },
-    }
-
-
-async def publish_showcase(cfg, store, *, day: str | None = None, voice: str | None = None,
-                           sections: tuple[str, ...] = SHOWCASE_SECTIONS,
-                           per_section: int = SHOWCASE_PER_SECTION) -> dict:
-    """Publish the public sample of the day's pack, for the signed-out landing page and guest apps."""
-    day = day or datetime.now(ZoneInfo(cfg.timezone)).date().isoformat()
-    voice = voice or cfg.story_voice
-    rows = store.select("story_audio", {"date": f"eq.{day}", "voice": f"eq.{voice}"})
-    notes = store.select("voice_notes", {"date": f"eq.{day}", "voice": f"eq.{voice}"})
-    payload = showcase_payload(rows, notes, store.public_url, day=day, voice=voice,
-                              sections=sections, per_section=per_section)
-    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
-    store.upload(showcase_key(voice), body, content_type="application/json", cache="max-age=300")
-    if voice == (cfg.story_voices or (DEFAULT_VOICE,))[0]:
-        # The default narrator's sample is also the one older clients fetch.
-        store.upload(SHOWCASE_KEY, body, content_type="application/json", cache="max-age=300")
-    try:
-        all_rows = store.select("story_audio", {"date": f"eq.{day}"})
-        all_notes = store.select("voice_notes", {"date": f"eq.{day}"})
-        all_podcast = store.select("podcast_clips", {"date": f"eq.{day}"})
-        if all_rows:
-            pack_body = json.dumps(
-                {"date": day, "story_audio": all_rows, "voice_notes": all_notes, "podcast_clips": all_podcast},
-                ensure_ascii=False, separators=(",", ":"),
-            ).encode()
-            store.upload("showcase/pack.json", pack_body, content_type="application/json", cache="max-age=300")
-            store.upload(f"showcase/pack-{day}.json", pack_body, content_type="application/json", cache="max-age=300")
-    except Exception as exc:  # noqa: BLE001
-        log.debug("Could not publish full guest pack manifest: %s", exc)
-    log.info("Published the landing sample: %d clips, %.1fs",
-             len(payload["briefing"]["clips"]), payload["briefing"]["duration"])
-    return payload
-
-
-def _probe_seconds(path: Path) -> float | None:
-    """How long an audio file really is, in seconds, or None when ffprobe can't say."""
-    try:
-        out = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-             "-of", "default=nw=1:nk=1", str(path)],
-            check=True, capture_output=True, text=True).stdout.strip()
-        return float(out)
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return None
-
-
-async def _join_clips(urls: list[str], dest: Path, workdir: Path) -> bool:
-    """Stitch the sample's clips into one file. False when there's no ffmpeg to do it."""
-    if not urls or not shutil.which("ffmpeg"):
-        return False
-    parts = workdir / "parts"
-    parts.mkdir(parents=True, exist_ok=True)
-    names: list[str] = []
-    async with httpx.AsyncClient(timeout=300) as client:
-        for i, url in enumerate(urls):
-            resp = await client.get(url)
-            resp.raise_for_status()
-            name = f"{i:02d}.mp3"
-            (parts / name).write_bytes(resp.content)
-            names.append(name)
-    listing = workdir / "parts.txt"
-    listing.write_text("".join(f"file '{parts / n}'\n" for n in names))
-    try:
-        # -c copy keeps the voice bit-for-bit: same encoder produced every part.
-        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
-                        "-i", str(listing), "-c", "copy", str(dest)],
-                       check=True, capture_output=True, text=True)
-    except (OSError, subprocess.SubprocessError) as exc:
-        log.warning("Could not join the sample audio: %s", exc)
-        return False
-    return dest.exists() and dest.stat().st_size > 0
-
-
-async def write_sample_bundle(cfg, store, directory: str = SAMPLE_BUNDLE_DIR, *,
-                              day: str | None = None, voice: str | None = None,
-                              sections: tuple[str, ...] = SHOWCASE_SECTIONS,
-                              per_section: int = SHOWCASE_PER_SECTION) -> dict:
-    """Write the sample the landing page ships with: one MP3 plus its manifest.
-
-    The page has to play for a visitor who isn't signed in, on the first tap, without
-    waiting on the storage bucket — so the audio is joined into a single file and kept
-    beside the site. Chapters keep their absolute times, so the story list still lights
-    up as it plays. Without ffmpeg the clips stay a playlist and the client plays them
-    back to back, which the markup already understands.
-    """
-    day = day or datetime.now(ZoneInfo(cfg.timezone)).date().isoformat()
-    voice = voice or cfg.story_voice
-    rows = store.select("story_audio", {"date": f"eq.{day}", "voice": f"eq.{voice}"})
-    notes = store.select("voice_notes", {"date": f"eq.{day}", "voice": f"eq.{voice}"})
-    payload = showcase_payload(rows, notes, store.public_url, day=day, voice=voice,
-                               sections=sections, per_section=per_section)
-    brief = payload["briefing"]
-    clips = brief.pop("clips", [])
-
-    out = Path(directory)
-    out.mkdir(parents=True, exist_ok=True)
-    audio = out / SAMPLE_BUNDLE_AUDIO
-    with tempfile.TemporaryDirectory() as tmp:
-        joined = await _join_clips([c["url"] for c in clips], audio, Path(tmp))
-    if joined:
-        brief["audio_url"] = f"/sample/{SAMPLE_BUNDLE_AUDIO}"
-        seconds = _probe_seconds(audio)
-        if seconds:
-            brief["duration"] = round(seconds, 2)
-    else:
-        brief["clips"] = clips
-        brief["audio_url"] = ""
-        audio.unlink(missing_ok=True)
-
-    (out / "sample.json").write_text(json.dumps(payload, ensure_ascii=False, indent=1) + "\n")
-    log.info("Wrote the fixed landing sample to %s (%s, %.1fs)", out,
-             brief["audio_url"] or f"{len(clips)} clips", brief["duration"])
-    return payload
-
-
-async def synthesise(client: httpx.AsyncClient, base: str, text: str, voice: str,
-                     attempts: int = 3, *,
-                     pace: float | None = None,
-                     temperature: float | None = None,
-                     top_p: float | None = None,
-                     repetition_penalty: float | None = None,
-                     exaggeration: float | None = None,
-                     beat: float | None = None,
-                     fmt: str = "mp3") -> tuple[bytes, float]:
-    """One audio clip (MP3 or WAV) from the voice service, plus its duration (from the response header).
-
-    Transport errors and gateway-style 5xx are retried with back-off. A service that stays
-    unreachable raises VoiceServiceDown, so the run stops at once and the GPU VM is shut down
-    instead of timing out clip after clip; any other refusal is about this clip alone.
-    """
-    # Remove em-dashes and en-dashes so TTS voices pause naturally instead of rushing
-    clean_text = voice_phonetic_normalize(text)
-    clean_text = re.sub(r"\s*[—–]\s*", ", ", clean_text)
-    clean_text = re.sub(r"\s+-\s+", ", ", clean_text)
-    clean_text = re.sub(r",\s*,+", ",", clean_text)
-    clean_text = re.sub(r",\s*([.!?])", r"\1", clean_text)
-
-    payload: dict = {"text": clean_text, "voice": voice}
-    if pace is not None:
-        payload["pace"] = pace
-    if temperature is not None:
-        payload["temperature"] = temperature
-    if top_p is not None:
-        payload["top_p"] = top_p
-    if repetition_penalty is not None:
-        payload["repetition_penalty"] = repetition_penalty
-    if exaggeration is not None:
-        payload["exaggeration"] = exaggeration
-    if beat is not None:
-        payload["beat"] = beat
+async def synthesise(
+    client: httpx.AsyncClient,
+    base: str,
+    text: str,
+    voice: str,
+    attempts: int = 3,
+    *,
+    pace: float | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    repetition_penalty: float | None = None,
+    exaggeration: float | None = None,
+    beat: float | None = None,
+    fmt: str = "mp3",
+) -> tuple[bytes, float]:
+    """Request one synthesized clip (MP3 or WAV) from the voice service with retry backoff."""
+    clean_text = clean_punctuation(voice_phonetic_normalize(text))
+    payload: dict[str, Any] = {"text": clean_text, "voice": voice}
+    for param, value in (
+        ("pace", pace), ("temperature", temperature), ("top_p", top_p),
+        ("repetition_penalty", repetition_penalty), ("exaggeration", exaggeration), ("beat", beat),
+    ):
+        if value is not None:
+            payload[param] = value
 
     delay = 5
     last: Exception | None = None
     down = False
     for attempt in range(1, attempts + 1):
         try:
-            resp = await client.post(f"{base}/synthesize", params={"format": fmt},
-                                     json=payload)
+            resp = await client.post(f"{base}/synthesize", params={"format": fmt}, json=payload)
         except httpx.HTTPError as exc:
             last, down = exc, True
         else:
@@ -590,19 +168,19 @@ async def synthesise(client: httpx.AsyncClient, base: str, text: str, voice: str
             delay *= 3
     if down:
         raise VoiceServiceDown(f"voice service unavailable after {attempts} attempts: {last}")
-    raise last
+    raise last  # type: ignore[misc]
 
 
-async def ensure_static_notes(cfg, store, *, voices: list[str],
-                              voice_url: str | None = None,
-                              force: bool = False,
-                              on_note: Callable[[str, str], None] | None = None) -> dict[str, list[dict]]:
-    """Ensure static transition notes (greetings, intros, outro) are voiced once and stored permanently.
-
-    Checks the permanent static notes catalog (date=STATIC_DATE) in Supabase.
-    If any note is missing or text has changed, synthesises it using the active VM session
-    and stores it permanently at notes/static/{key}-{voice}.mp3 before VM closure.
-    """
+async def ensure_static_notes(
+    cfg,
+    store,
+    *,
+    voices: list[str],
+    voice_url: str | None = None,
+    force: bool = False,
+    on_note: Callable[[str, str], None] | None = None,
+) -> dict[str, list[dict]]:
+    """Ensure static transition notes (greetings, intros, outro) are voiced once and stored permanently."""
     base = (voice_url or cfg.voice_url or "").rstrip("/")
     if not base:
         raise VoiceServiceDown("VOICE_SERVICE_URL is not set. A running voice service is required to synthesize audio.")
@@ -616,11 +194,9 @@ async def ensure_static_notes(cfg, store, *, voices: list[str],
             }
             missing = [k for k in NOTES if force or k not in static_rows or static_rows[k].get("text") != NOTES[k]]
 
-            # Adopt any matching notes from existing historical dates if possible
             if missing and not force:
                 try:
-                    candidates = store.select("voice_notes", {"voice": f"eq.{voice}"})
-                    for r in candidates:
+                    for r in store.select("voice_notes", {"voice": f"eq.{voice}"}):
                         k = r.get("note_key")
                         if k in missing and r.get("text") == NOTES[k] and r.get("audio_path"):
                             target_path = static_note_path(k, voice)
@@ -630,11 +206,8 @@ async def ensure_static_notes(cfg, store, *, voices: list[str],
                                 except Exception:
                                     pass
                             adopted = {
-                                "date": STATIC_DATE,
-                                "voice": voice,
-                                "note_key": k,
-                                "text": NOTES[k],
-                                "duration": r.get("duration") or 0,
+                                "date": STATIC_DATE, "voice": voice, "note_key": k,
+                                "text": NOTES[k], "duration": r.get("duration") or 0,
                                 "audio_path": target_path,
                             }
                             store.insert("voice_notes", adopted, on_conflict="date,voice,note_key")
@@ -644,7 +217,6 @@ async def ensure_static_notes(cfg, store, *, voices: list[str],
                 except Exception as exc:  # noqa: BLE001
                     log.debug("Could not adopt existing notes for %s: %s", voice, exc)
 
-            # Synthesize any remaining missing notes using active voice VM
             if missing:
                 synth_voice = voice.split("+", 1)[0] if "+" in voice else voice
                 log.info("→ Synthesizing %d missing static notes for %s before VM shutdown...",
@@ -657,12 +229,8 @@ async def ensure_static_notes(cfg, store, *, voices: list[str],
                     audio, duration = await synthesise(client, base, text, synth_voice)
                     store.upload(path, audio, content_type="audio/mpeg", cache="max-age=31536000")
                     row = {
-                        "date": STATIC_DATE,
-                        "voice": voice,
-                        "note_key": key,
-                        "text": text,
-                        "duration": round(duration, 3),
-                        "audio_path": path,
+                        "date": STATIC_DATE, "voice": voice, "note_key": key,
+                        "text": text, "duration": round(duration, 3), "audio_path": path,
                     }
                     store.insert("voice_notes", row, on_conflict="date,voice,note_key")
                     static_rows[key] = row
@@ -675,32 +243,32 @@ async def ensure_static_notes(cfg, store, *, voices: list[str],
     return results
 
 
-async def build_notes(cfg, store, *, day: str | None = None, voice: str | None = None,
-                      voice_url: str | None = None, keys: list[str] | None = None,
-                      force: bool = False, on_note: Callable[[str], None] | None = None) -> list[dict]:
-    """Ensure static transition notes are voiced once and link them to the day's briefing.
-
-    A note whose text hasn't changed is never re-synthesized. Static notes are persisted
-    permanently under `notes/static/{key}-{voice}.mp3` and linked to `date=day` in Supabase.
-    """
-    day = day or datetime.now(ZoneInfo(cfg.timezone)).date().isoformat()
+async def build_notes(
+    cfg,
+    store,
+    *,
+    day: str | None = None,
+    voice: str | None = None,
+    voice_url: str | None = None,
+    keys: list[str] | None = None,
+    force: bool = False,
+    on_note: Callable[[str], None] | None = None,
+) -> list[dict]:
+    """Ensure static transition notes exist and link them to ``day`` in ``voice_notes``."""
+    day = day or cfg.local_today()
     voice = voice or cfg.story_voice
     base = (voice_url or cfg.voice_url or "").rstrip("/")
     if not base:
         raise VoiceServiceDown("VOICE_SERVICE_URL is not set. A running voice service is required to synthesize audio.")
 
-    # 1. Ensure static notes exist in the permanent static library (synthesizing any missing ones via VM)
     static_map = await ensure_static_notes(
         cfg, store, voices=[voice], voice_url=base, force=force,
-        on_note=lambda k, _: on_note(k) if on_note else None
+        on_note=lambda k, _: on_note(k) if on_note else None,
     )
-    static_list = static_map.get(voice, [])
-    static_by_key = {r["note_key"]: r for r in static_list}
+    static_by_key = {r["note_key"]: r for r in static_map.get(voice, [])}
 
-    # 2. Link them to the day's date in voice_notes
     items = [(k, NOTES[k]) for k in NOTES if not keys or k in keys]
-    done = {r["note_key"]: r for r in store.select(
-        "voice_notes", {"date": f"eq.{day}", "voice": f"eq.{voice}"})}
+    done = {r["note_key"]: r for r in store.select("voice_notes", {"date": f"eq.{day}", "voice": f"eq.{voice}"})}
 
     rows: list[dict] = []
     for key, text in items:
@@ -713,10 +281,7 @@ async def build_notes(cfg, store, *, day: str | None = None, voice: str | None =
         static_ref = static_by_key.get(key)
         if static_ref:
             row = {
-                "date": day,
-                "voice": voice,
-                "note_key": key,
-                "text": text,
+                "date": day, "voice": voice, "note_key": key, "text": text,
                 "duration": static_ref.get("duration") or 0,
                 "audio_path": static_ref.get("audio_path") or static_note_path(key, voice),
             }
@@ -728,37 +293,39 @@ async def build_notes(cfg, store, *, day: str | None = None, voice: str | None =
     return rows
 
 
-def backfill_from_existing(scripts: list[dict], store, day: str, per_section: int,
-                           sections: list[str] | None = None) -> list[dict]:
-    """If a fresh scan returned fewer than per_section stories for a category,
-    backfill remaining slots using unexpired stories from earlier today's run.
-    """
+def backfill_from_existing(
+    scripts: list[dict],
+    store,
+    day: str,
+    per_section: int,
+    sections: list[str] | None = None,
+) -> list[dict]:
+    """Backfill starved sections using unexpired stories from earlier today's run."""
     target_sections = sections or list(topics.ALL_SECTIONS)
     current_by_sec: dict[str, list[dict]] = {sec: [] for sec in target_sections}
     for s in scripts:
         if s.get("section") in current_by_sec:
             current_by_sec[s["section"]].append(s)
 
-    starved_sections = [sec for sec, items in current_by_sec.items() if len(items) < per_section]
-    if not starved_sections:
+    starved = [sec for sec, items in current_by_sec.items() if len(items) < per_section]
+    if not starved:
         return scripts
 
     try:
         rows = store.select("story_audio", {"date": f"eq.{day}"})
-    except Exception as e:
-        log.warning("Could not check existing story_audio for backfill: %s", e)
+    except Exception as exc:
+        log.warning("Could not check existing story_audio for backfill: %s", exc)
         return scripts
 
     existing_by_sec: dict[str, list[dict]] = {}
     seen_urls = {topics.bare_url(s.get("url")) for s in scripts if s.get("url")}
     seen_titles = {topics.plain_title(s.get("title")) for s in scripts if s.get("title")}
 
-    # Group existing rows by section in editorial order (rank)
     for r in sorted(rows, key=lambda x: x.get("rank", 99)):
         sec = r.get("section")
         url = topics.bare_url(r.get("url"))
         title = topics.plain_title(r.get("title"))
-        if sec in starved_sections and url and url not in seen_urls and (not title or title not in seen_titles):
+        if sec in starved and url and url not in seen_urls and (not title or title not in seen_titles):
             seen_urls.add(url)
             if title:
                 seen_titles.add(title)
@@ -789,37 +356,26 @@ def backfill_from_existing(scripts: list[dict], store, day: str, per_section: in
         for rank, item in enumerate(items, 1):
             item["rank"] = rank
             out.append(item)
-
     return out
 
 
-async def build(cfg, store, *, day: str | None = None, per_section: int | None = None,
-                sections: list[str] | None = None, edition: str | list[str] | None = None,
-                voice: str | None = None,
-                voice_url: str | None = None, notes: bool = True,
-                force: bool = False, deadline: float | None = None,
-                on_step: Callable[[str, float], None] | None = None) -> list[dict]:
-    """Voice the day's stories once and publish them as shared clips.
-
-    Every configured voice is rendered unless one is named: a listener hears the voice
-    they picked, and every listener of that voice shares the same clips. Safe to re-run —
-    rows upsert on ``(date, section, rank, voice)``, so a retry or a new voice simply adds
-    to the day's pack.
-
-    ``force`` re-records the spoken notes as well as the stories: a narrator whose reference
-    clip changed has to re-read the greeting and the intros too, or the brief comes out half
-    in the old voice.
-
-    ``on_step(text, fraction)`` is called as the work moves, which is how the admin page
-    shows a long rebuild while it runs.
-
-    ``deadline`` is a ``time.monotonic()`` instant. Past it nothing new is started, so the job ends
-    on its own terms instead of being killed with the GPU still on. A narrator that fails does not
-    take the others down: once every narrator has been tried, ``PackIncomplete`` says who is
-    missing and why, and carries the clips that were published. A voice service that cannot be
-    reached raises ``VoiceServiceDown`` straight away.
-    """
-    day = day or datetime.now(ZoneInfo(cfg.timezone)).date().isoformat()
+async def build(
+    cfg,
+    store,
+    *,
+    day: str | None = None,
+    per_section: int | None = None,
+    sections: list[str] | None = None,
+    edition: str | list[str] | None = None,
+    voice: str | None = None,
+    voice_url: str | None = None,
+    notes: bool = True,
+    force: bool = False,
+    deadline: float | None = None,
+    on_step: Callable[[str, float], None] | None = None,
+) -> list[dict]:
+    """Fetch stories, voice them per configured narrator, publish showcase, and prune old days."""
+    day = day or cfg.local_today()
     base = (voice_url or cfg.voice_url or "").rstrip("/")
     if not base:
         raise VoiceServiceDown("VOICE_SERVICE_URL is not set. A running voice service is required to synthesize audio.")
@@ -828,14 +384,14 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
 
     if not sections and edition:
         sections = topics.sections_for_editions(edition)
-    if edition is not None:
-        scripts = await topics.build_pack(per_section=per_section, sections=sections, edition=edition)
-    else:
-        scripts = await topics.build_pack(per_section=per_section, sections=sections)
+    scripts = (
+        await topics.build_pack(per_section=per_section, sections=sections, edition=edition)
+        if edition is not None
+        else await topics.build_pack(per_section=per_section, sections=sections)
+    )
     scripts = backfill_from_existing(scripts, store, day=day, per_section=per_section, sections=sections)
     log.info("Voicing %d stories for %s as %s", len(scripts), day, ", ".join(voices))
 
-    # Every clip is one unit of work, so the fraction means something to a waiting admin.
     units = len(scripts) * len(voices) + (len(NOTES) * len(voices) if notes else 0) + 1
     seen = {"n": 0}
 
@@ -852,21 +408,19 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
             failed[voice_name(name)] = "ran out of time before it started"
             continue
         try:
-            # A forced re-render is not a usable brief until it finishes, so the marker goes first: a
-            # listener hears the old recording or nothing, never half of each.
             if force:
                 clear_ready(store, day=day, voice=name)
             mine = await voice_scripts(
                 store, scripts, day=day, voice=name, base=base, force=force, deadline=deadline, cfg=cfg,
-                on_clip=lambda story, who=name: tick(f"{voice_name(who)}: {story['section']} #{story['rank']}"))
+                on_clip=lambda story, who=name: tick(f"{voice_name(who)}: {story['section']} #{story['rank']}"),
+            )
             if notes:
                 await build_notes(cfg, store, day=day, voice=name, voice_url=base, force=force,
                                   on_note=lambda key, who=name: tick(f"{voice_name(who)}: {key}"))
-            # Only a day with its stories and its framing is playable, so the marker waits for both.
             if notes and mine:
                 mark_ready(store, day=day, voice=name, clips=len(mine), notes=len(NOTES))
         except VoiceServiceDown:
-            raise  # nothing else can be voiced either; let the caller stop the GPU
+            raise
         except Exception as exc:  # noqa: BLE001 — one narrator's failure must not discard the others
             log.error("[%s] did not finish: %s", voice_name(name), exc)
             failed[voice_name(name)] = (str(exc) if isinstance(exc, DeadlineReached)
@@ -877,7 +431,6 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
 
     log.info("Published %d clips (%.1fs of audio)", len(rows), total_seconds(rows))
 
-    # Podcast banter is optional extra: whatever goes wrong here, the brief above is already published.
     if cfg.podcast_enabled and finished:
         from . import podcast
         try:
@@ -886,19 +439,16 @@ async def build(cfg, store, *, day: str | None = None, per_section: int | None =
         except Exception as exc:  # noqa: BLE001
             log.warning("Podcast not (fully) published: %s: %s", exc.__class__.__name__, exc)
         tick("podcast")
-    # The landing page's sample rides along with the pack, so it can't quietly go stale.
+
     try:
         for name in finished:
             await publish_showcase(cfg, store, day=day, voice=name)
         tick("landing sample")
-    except Exception as exc:  # noqa: BLE001 — a sample is worth having, a pack is not
+    except Exception as exc:  # noqa: BLE001
         log.warning("Could not publish the landing sample: %s", exc)
 
-    # One day of audio, and only once the day is whole for every narrator there is, not just the
-    # ones this run was asked for.
     everything = list(cfg.story_voices or (DEFAULT_VOICE,))
     if everything and all(ready(store, day=day, voice=n) for n in everything):
-        # When running morning batch (e.g. ca, us), preserve India sections from yesterday's evening batch
         ed_list = [e.strip().lower() for e in edition.split(",")] if isinstance(edition, str) else list(edition or [])
         preserve = [s for s in topics.EDITION_SECTIONS.get("in", []) if s.endswith("_in")] if ("in" not in ed_list and ed_list) else None
         gone = prune_older(store, keep=day, keep_days=cfg.keep_days, preserve_sections=preserve)
@@ -913,29 +463,37 @@ def _publish_audio_file(store, path: str, audio: bytes) -> None:
     store.upload(path, audio, content_type="audio/mpeg", cache="max-age=86400")
 
 
-def _publish_clip(store, path: str, audio: bytes, row: dict) -> None:
-    _publish_audio_file(store, path, audio)
-    store.insert("story_audio", row, on_conflict="date,section,rank,voice")
+def story_audio_path(day: str, section: str, rank: int | str, voice: str, audio: bytes) -> str:
+    """Content-hashed storage path for a voiced story clip."""
+    content_hash = hashlib.sha256(audio).hexdigest()[:8]
+    return f"stories/{day}/{section}-{rank}-{voice_slug(voice)}-{content_hash}.mp3"
 
 
-async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
-                        base: str, force: bool = False,
-                        on_clip: Callable[[dict], None] | None = None,
-                        deadline: float | None = None,
-                        cfg=None) -> list[dict]:
-    """Voice one voice's worth of the day's stories. Extracted so a second voice costs
-    one more pass over the same scripts, with the same reuse rules.
+def upsert_story_audio(store, row: dict) -> None:
+    """Upsert a ``story_audio`` row, gracefully omitting ``marks`` if the DB lacks that column."""
+    try:
+        store.insert("story_audio", row, on_conflict="date,section,rank,voice")
+    except Exception as exc:
+        if "marks" in str(exc).lower() and "marks" in row:
+            store.insert("story_audio", {k: v for k, v in row.items() if k != "marks"},
+                         on_conflict="date,section,rank,voice")
+        else:
+            raise
 
-    When ``voice`` is a duo pair (e.g. ``matthew_reference+kelly_reference``), each story is
-    written and voiced as a two-host conversation between Matthew and Kelly, stitched with
-    natural inter-turn silence.
 
-    A finished clip is uploaded on a worker thread while the GPU starts on the next one, so the
-    expensive part never waits on Storage. `deadline` is a ``time.monotonic()`` instant: past it,
-    nothing new is started."""
-    # Stories already voiced for this day are reused, so a re-run only re-renders what
-    # genuinely changed — a story that dropped out of the top five, or a new one — and
-    # metadata such as the lead image can be refreshed without paying for audio again.
+async def voice_scripts(
+    store,
+    scripts: list[dict],
+    *,
+    day: str,
+    voice: str,
+    base: str,
+    force: bool = False,
+    on_clip: Callable[[dict], None] | None = None,
+    deadline: float | None = None,
+    cfg=None,
+) -> list[dict]:
+    """Voice one narrator's (or duo pair's) stories with overlapped background uploads."""
     existing = {(r["section"], r["rank"]): r for r in store.select(
         "story_audio", {"date": f"eq.{day}", "voice": f"eq.{voice}"})}
     existing_by_url = {r["url"]: r for r in existing.values() if r.get("url")}
@@ -976,10 +534,7 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
                     done = existing_by_url.get(story["url"])
                 if not force and done and done.get("audio_path") and done.get("url") == story["url"]:
                     rows.append({
-                        **done,
-                        "section": story["section"],
-                        "rank": story["rank"],
-                        "image": image,
+                        **done, "section": story["section"], "rank": story["rank"], "image": image,
                         "title": story["title"][:500],
                         "source": (story.get("source") or done.get("source") or "")[:200],
                         "script": done.get("script") if is_duo and done.get("script") else story["script"],
@@ -993,19 +548,13 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
                 if duo_voices:
                     from . import podcast
                     dialogue = await asyncio.to_thread(
-                        podcast.generate_story_dialogue,
-                        cfg,
-                        story,
-                        duo_names,
-                        force=force,
-                        previous_story=prev_story,
-                        previous_format=prev_fmt,
-                        previous_dialogue=prev_diag,
+                        podcast.generate_story_dialogue, cfg, story, duo_names, force=force,
+                        previous_story=prev_story, previous_format=prev_fmt, previous_dialogue=prev_diag,
                     )
                     prev_dialogue_by_sec[sec_key] = dialogue
                     prev_format_by_sec[sec_key] = dialogue.story_format
                     audio, duration, marks = await podcast.synthesise_story_dialogue(
-                        client, base, dialogue, duo_voices, cache_dir=getattr(cfg, "cache_dir", None)
+                        client, base, dialogue, duo_voices, cache_dir=getattr(cfg, "cache_dir", None),
                     )
                     spoken_script = podcast.format_dialogue_transcript(dialogue.turns, duo_names)
                     marks_payload = [{"start": round(m[0], 3), "end": round(m[1], 3)} for m in marks]
@@ -1013,23 +562,16 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
                     audio, duration = await synthesise(client, base, story["script"], voice)
                     spoken_script = story["script"]
                     marks_payload = None
-                content_hash = hashlib.sha256(audio).hexdigest()[:8]
-                voice_slug = voice.replace("+", "__")
-                path = f"stories/{day}/{story['section']}-{story['rank']}-{voice_slug}-{content_hash}.mp3"
-                row = {
+
+                path = story_audio_path(day, story["section"], story["rank"], voice, audio)
+                row: dict[str, Any] = {
                     "date": day, "section": story["section"], "rank": story["rank"], "voice": voice,
                     "title": story["title"][:500], "url": story["url"],
                     "source": (story["source"] or "")[:200], "image": image,
-                    "script": spoken_script,
-                    "duration": round(duration, 3), "audio_path": path,
+                    "script": spoken_script, "duration": round(duration, 3), "audio_path": path,
+                    **({"marks": marks_payload} if marks_payload else {}),
                 }
-                if marks_payload:
-                    row["marks"] = marks_payload
-                # Upload audio file in the background so storage upload overlaps with GPU synthesis.
-                # Writing the story_audio rows is deferred until all stories for this voice finish,
-                # guaranteeing live listeners never experience mismatched cards and audio.
-                publishing.append(asyncio.ensure_future(
-                    asyncio.to_thread(_publish_audio_file, store, path, audio)))
+                publishing.append(asyncio.ensure_future(asyncio.to_thread(_publish_audio_file, store, path, audio)))
                 rows.append(row)
                 log.info("[%s %s #%s] %s — %.1fs", voice_name(voice), story["section"], story["rank"],
                          story["title"][:60], duration)
@@ -1038,17 +580,8 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
             raise
         await asyncio.gather(*publishing)
 
-    # All clips are successfully uploaded to storage.
-    # Atomically upsert this narrator's complete set of stories.
     for row in rows:
-        try:
-            store.insert("story_audio", row, on_conflict="date,section,rank,voice")
-        except Exception as exc:
-            if "marks" in str(exc).lower() and "marks" in row:
-                fallback_row = {k: v for k, v in row.items() if k != "marks"}
-                store.insert("story_audio", fallback_row, on_conflict="date,section,rank,voice")
-            else:
-                raise
+        upsert_story_audio(store, row)
     current_keys = {(r["section"], r["rank"]) for r in rows}
     built_sections = {s["section"] for s in scripts}
     stale_ranks = {(sec, rk) for (sec, rk) in existing.keys() if sec in built_sections} - current_keys
@@ -1056,39 +589,6 @@ async def voice_scripts(store, scripts: list[dict], *, day: str, voice: str,
         store.delete("story_audio", {"date": f"eq.{day}", "voice": f"eq.{voice}",
                                      "section": f"eq.{sec}", "rank": f"eq.{rk}"})
     return rows
-
-
-def holder_name() -> str:
-    """Who is asking for the GPU, in words an admin can act on."""
-    return os.getenv("CLOUD_RUN_EXECUTION") or f"{platform.node()}:{os.getpid()}"
-
-
-@contextlib.contextmanager
-def pack_lease(store, holder: str | None = None, ttl_minutes: float = 75.0):
-    """Hold the GPU for one pack run. Raises PackBusy when another run already has it.
-
-    The scheduled job, its retry, the report job and the admin's rebuild button all end up at the
-    one GPU; together they only slow each other down and keep the VM billing longer. The lease
-    expires after `ttl_minutes`, so a run that was killed cannot lock out the next one.
-    """
-    holder = holder or holder_name()
-    try:
-        busy = store.acquire_lease(holder, ttl_minutes * 60)
-    except StoreError as exc:
-        if exc.status != 404:
-            raise
-        log.warning("No pack_lease table yet (run supabase/schema.sql): overlapping pack runs are not blocked")
-        yield
-        return
-    if busy:
-        raise PackBusy(f"another pack run is using the GPU ({busy})")
-    try:
-        yield
-    finally:
-        try:
-            store.release_lease(holder)
-        except Exception as exc:  # noqa: BLE001 — it expires on its own
-            log.warning("Could not release the pack lease: %s", exc)
 
 
 def main() -> int:
@@ -1114,11 +614,10 @@ def main() -> int:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     cfg = load()
-    store = Store(cfg.supabase_url, cfg.supabase_secret_key, cfg.bucket)
+    store = Store.from_config(cfg)
     sections = args.sections.split(",") if args.sections else None
     if args.sample_bundle:
-        payload = asyncio.run(write_sample_bundle(cfg, store, args.sample_bundle,
-                                                 day=args.day, voice=args.voice))
+        payload = asyncio.run(write_sample_bundle(cfg, store, args.sample_bundle, day=args.day, voice=args.voice))
         brief = payload["briefing"]
         print(f"wrote {args.sample_bundle}: {brief['audio_url'] or 'clip playlist'}, "
               f"{brief['duration']:.1f}s, {len(brief['stories'])} stories")
@@ -1133,8 +632,7 @@ def main() -> int:
         print(f"published {len(notes)} voice notes")
         return 0 if notes else 1
     rows = asyncio.run(build(cfg, store, day=args.day, per_section=args.per_section,
-                             sections=sections, voice=args.voice, notes=not args.no_notes,
-                             force=args.force))
+                             sections=sections, voice=args.voice, notes=not args.no_notes, force=args.force))
     print(f"published {len(rows)} clips, {total_seconds(rows):.1f}s of audio")
     return 0 if rows else 1
 
