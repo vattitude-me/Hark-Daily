@@ -964,3 +964,121 @@ def test_strip_metadata_noise_preserves_sources_say():
     assert "Real news story begins here." in cleaned_meta
     assert "Source: Reuters" not in cleaned_meta
     assert "Author: Jane Doe" not in cleaned_meta
+
+
+def test_strip_speaker_prefix_removes_labels_and_preserves_prose():
+    assert podcast.strip_speaker_prefix("Kelly: Vladislav Tretiak says it will seek compensation.") == (
+        "Vladislav Tretiak says it will seek compensation."
+    )
+    assert podcast.strip_speaker_prefix("[Matthew] **Matthew:** Ottawa confirmed Russian players won't compete.") == (
+        "Ottawa confirmed Russian players won't compete."
+    )
+    assert podcast.strip_speaker_prefix("**Kelly**: The government is standing firm.") == (
+        "The government is standing firm."
+    )
+    assert podcast.strip_speaker_prefix("Speaker B: the government is standing firm.") == (
+        "The government is standing firm."
+    )
+    assert podcast.strip_speaker_prefix("Kelly:") == ""
+    # Genuine prose containing host names or determiner 'A' must stay untouched
+    assert podcast.strip_speaker_prefix("Kelly, what do you think about Ottawa?") == (
+        "Kelly, what do you think about Ottawa?"
+    )
+    assert podcast.strip_speaker_prefix("Matthew Perry was remembered at the tribute.") == (
+        "Matthew Perry was remembered at the tribute."
+    )
+    assert podcast.strip_speaker_prefix("A federal report was released today.") == (
+        "A federal report was released today."
+    )
+
+
+def test_validate_and_format_and_synth_strip_speaker_prefixes():
+    brief = {
+        "story_id": "sports-21",
+        "section": "sports",
+        "rank": 1,
+        "sober": False,
+        "story_format": "back_and_forth",
+        "headline": "Russian federation head Tretiak says it will seek compensation",
+        "facts": [
+            {"id": "F1", "fact": "Vladislav Tretiak says the Russian hockey federation will seek compensation."},
+            {"id": "F2", "fact": "Ottawa confirmed Russian players will not be permitted to compete."},
+        ],
+    }
+    raw_turns = {
+        "turns": [
+            {
+                "speaker": "b",
+                "purpose": "lead",
+                "fact_refs": ["F1"],
+                "text": "Kelly: Vladislav Tretiak, the Russian hockey federation chief, says they will demand compensation if Canada blocks their World Juniors team from playing in Alberta.",
+            },
+            {
+                "speaker": "a",
+                "purpose": "context",
+                "fact_refs": ["F2"],
+                "text": "Matthew: Ottawa confirmed Russian players won't be permitted to compete, even with valid visas, despite the arbitration panel ordering Russia's reinstatement.",
+            },
+        ]
+    }
+    validated = podcast.validate_story_dialogue(raw_turns, brief, HOSTS)
+    assert validated is not None
+    assert validated[0].text == (
+        "Vladislav Tretiak, the Russian hockey federation chief, says they will demand compensation if Canada blocks their World Juniors team from playing in Alberta."
+    )
+    assert validated[1].text == (
+        "Ottawa confirmed Russian players won't be permitted to compete, even with valid visas, despite the arbitration panel ordering Russia's reinstatement."
+    )
+
+    script = podcast.format_dialogue_transcript(
+        [
+            podcast.DialogueTurn(speaker=1, text="Kelly: The government is standing firm."),
+            podcast.DialogueTurn(speaker=0, text="[Matthew] Ottawa rejected the appeal."),
+        ],
+        HOSTS,
+    )
+    assert script == "[Kelly] The government is standing firm.\n[Matthew] Ottawa rejected the appeal."
+
+    piece_turns = podcast.validate_turns(
+        [
+            {"speaker": "a", "text": "Matthew: Welcome to Hark Daily."},
+            {"speaker": "b", "text": "[Kelly] Kelly: We're glad you're with us."},
+        ],
+        "open",
+        hosts=HOSTS,
+    )
+    assert piece_turns == [(0, "Welcome to Hark Daily."), (1, "We're glad you're with us.")]
+
+
+def test_synthesise_story_dialogue_strips_speaker_prefix_before_tts(monkeypatch):
+    import asyncio
+    from unittest.mock import AsyncMock
+    from app import storypack, audio as audio_mod
+
+    sent_texts = []
+
+    async def fake_synth(http, base, text, voice_id, **kwargs):
+        sent_texts.append(text)
+        return b"WAVDATA", 1.5
+
+    monkeypatch.setattr(storypack, "synthesise", fake_synth)
+    monkeypatch.setattr(audio_mod, "decode_audio", lambda b, sr=24000, fallback_duration=1.2: b)
+    monkeypatch.setattr(audio_mod, "stitch_turns", lambda decoded, sr=24000: (type("A", (), {"size": 24000})(), [(0.0, 1.0), (1.0, 2.0)]))
+    monkeypatch.setattr(audio_mod, "encode_mp3", lambda combined, sr=24000: b"MP3")
+
+    diag = podcast.StoryDialogue(
+        story_id="s1",
+        section="sports",
+        headline="Test",
+        summary="Test",
+        turns=[
+            podcast.DialogueTurn(speaker=1, text="Kelly: First spoken sentence."),
+            podcast.DialogueTurn(speaker=0, text="Matthew: Second spoken sentence."),
+        ],
+    )
+    asyncio.run(
+        podcast.synthesise_story_dialogue(
+            AsyncMock(), "https://voice.example", diag, ("matthew_reference", "kelly_reference")
+        )
+    )
+    assert sent_texts == ["First spoken sentence.", "Second spoken sentence."]
