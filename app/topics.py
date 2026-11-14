@@ -22,7 +22,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .fetcher import Item, enrich_items, fetch_source, make_client
-from .summarizer import CONNECTORS, drop_boilerplate, format_script, get_connector, summarize
+from .summarizer import drop_boilerplate, format_script, get_connector, summarize
 
 log = logging.getLogger(__name__)
 
@@ -75,6 +75,25 @@ EDITION_SECTIONS: dict[str, list[str]] = {
 DEFAULT_SECTIONS = list(EDITION_SECTIONS["ca"])
 
 
+def base_section(section: str | None) -> str:
+    """Return canonical logical category key by stripping regional edition suffixes (_us, _in, _ca)."""
+    s = (section or "").strip().lower()
+    for suffix in ("_us", "_in", "_ca"):
+        if s.endswith(suffix):
+            return s[: -len(suffix)]
+    return s
+
+
+def section_region(section: str | None) -> str:
+    """Return two-letter edition code ('ca', 'us', 'in') implied by a section key."""
+    s = (section or "").strip().lower()
+    if s.endswith("_us"):
+        return "us"
+    if s.endswith("_in"):
+        return "in"
+    return "ca"
+
+
 def sections_for_editions(editions: list[str] | str | None) -> list[str]:
     """The unique list of sections needed for one or more editions (e.g. ['ca', 'us'])."""
     if not editions:
@@ -94,9 +113,6 @@ PROVIDER = "Mixed sources"
 
 MAX_AGE = timedelta(hours=48)
 DEFAULT_PER_SECTION = 5
-# Extra candidates a section keeps in hand, so losing a story to an earlier section does not leave
-# it short of its count.
-DEDUP_MARGIN = 15
 CANDIDATE_POOL = 20
 
 
@@ -228,41 +244,34 @@ def pick_unique(picked: dict[str, list[Item]],
         chosen: list[Item] = []
         deferred: list[Item] = []
         chosen_tokens: list[set[str]] = []
-        for item in items:
+
+        def _try_accept(item: Item, *, allow_cluster: bool) -> bool:
             url, title = bare_url(item.url), plain_title(item.title)
             if url in urls or (title and title in titles):
-                continue
+                return False
             toks = _subject_tokens(item)
-            # Cross-section & intra-section duplicate story prevention
             if any(is_same_story(toks, prev) for prev in all_chosen_tokens):
-                continue
-            same_cluster_count = sum(1 for prev in chosen_tokens if len(toks & prev) >= 2)
-            if same_cluster_count >= max_same_topic:
+                return False
+            if not allow_cluster and sum(1 for prev in chosen_tokens if len(toks & prev) >= 2) >= max_same_topic:
                 deferred.append(item)
-                continue
+                return False
             urls.add(url)
             if title:
                 titles.add(title)
             chosen.append(item)
             chosen_tokens.append(toks)
             all_chosen_tokens.append(toks)
+            return True
+
+        for item in items:
+            _try_accept(item, allow_cluster=False)
             if len(chosen) == per_section:
                 break
         # If the feed did not have enough distinct stories, backfill from deferred items
         for item in deferred:
             if len(chosen) >= per_section:
                 break
-            url, title = bare_url(item.url), plain_title(item.title)
-            if url in urls or (title and title in titles):
-                continue
-            toks = _subject_tokens(item)
-            if any(is_same_story(toks, prev) for prev in all_chosen_tokens):
-                continue
-            urls.add(url)
-            if title:
-                titles.add(title)
-            chosen.append(item)
-            all_chosen_tokens.append(toks)
+            _try_accept(item, allow_cluster=True)
         out[key] = chosen
     return out
 

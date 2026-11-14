@@ -43,11 +43,10 @@ def resolve_output_dir() -> Path:
         p.mkdir(parents=True, exist_ok=True)
         return p
 
-    # Preferred location: brain artifact directory if active
-    artifact_dir = Path("/Users/vattitude/.gemini/antigravity-cli/brain/76b36c9f-d81c-4712-8b3d-6a75a270ab77/trending_banter")
+    local_logs = ROOT / "logs" / "trending_banter"
     try:
-        artifact_dir.mkdir(parents=True, exist_ok=True)
-        return artifact_dir
+        local_logs.mkdir(parents=True, exist_ok=True)
+        return local_logs
     except Exception:
         pass
 

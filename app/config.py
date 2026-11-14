@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -37,8 +39,14 @@ def _bool(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _list(name: str) -> tuple[str, ...]:
-    return tuple(x.strip().lower() for x in os.getenv(name, "").split(",") if x.strip())
+def _list(name: str, default: str = "", *, lower: bool = False) -> tuple[str, ...]:
+    items = (x.strip() for x in os.getenv(name, default).split(",") if x.strip())
+    return tuple(x.lower() for x in items) if lower else tuple(items)
+
+
+def local_today(tz: str) -> str:
+    """ISO date string (YYYY-MM-DD) in the given IANA timezone."""
+    return datetime.now(ZoneInfo(tz)).date().isoformat()
 
 
 @dataclass(frozen=True)
@@ -61,20 +69,14 @@ class Config:
     agy_model: str = os.getenv("AGY_MODEL", "gemini-3.8-flash-low").strip()
     # Groq writes the summaries; each model has its own free-tier limits, so we fall through the list.
     groq_api_key: str | None = os.getenv("GROQ_API_KEY") or None
-    groq_models: tuple[str, ...] = tuple(
-        m.strip() for m in os.getenv("GROQ_MODELS", "openai/gpt-oss-120b,openai/gpt-oss-20b").split(",") if m.strip()
-    )
+    groq_models: tuple[str, ...] = _list("GROQ_MODELS", "openai/gpt-oss-120b,openai/gpt-oss-20b")
     # Gemini AI Studio support
     gemini_api_key: str | None = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or None
-    gemini_models: tuple[str, ...] = tuple(
-        m.strip()
-        for m in os.getenv("GEMINI_MODELS", "gemini-3.5-flash-lite,gemini-flash-lite-latest").split(",")
-        if m.strip()
-    )
+    gemini_models: tuple[str, ...] = _list("GEMINI_MODELS", "gemini-3.5-flash-lite,gemini-flash-lite-latest")
     # Optional local / secondary OpenAI-compatible LLM endpoint (e.g. Ollama / vLLM / LM Studio)
     local_llm_url: str | None = os.getenv("LOCAL_LLM_URL") or None
     local_llm_model: str = os.getenv("LOCAL_LLM_MODEL", "llama3.1:8b")
-    admin_emails: tuple[str, ...] = _list("ADMIN_EMAILS")
+    admin_emails: tuple[str, ...] = _list("ADMIN_EMAILS", lower=True)
     # "issues" pushes the admin only when a run had problems; "always" after every run.
     admin_notify: str = os.getenv("ADMIN_NOTIFY", "issues").strip().lower()
     vapid_subject: str = os.getenv("VAPID_SUBJECT", "https://hark.vattitude.ca")
@@ -92,20 +94,12 @@ class Config:
     story_voice: str = os.getenv("STORY_VOICE", "c3po_reference")
     # Every voice the pack renders each day. A listener hears the one they picked, and the
     # clips are shared, so the cost is stories × voices rather than × listeners.
-    story_voices: tuple[str, ...] = tuple(
-        v.strip()
-        for v in os.getenv("STORY_VOICES", "c3po_reference,matthew_reference,kelly_reference").split(",")
-        if v.strip()
-    )
+    story_voices: tuple[str, ...] = _list("STORY_VOICES", "c3po_reference,matthew_reference,kelly_reference")
     stories_per_section: int = int(os.getenv("STORIES_PER_SECTION", "5"))
     # Podcast mode: two hosts chat around the news. The flag is the kill switch (server side:
     # nothing is generated and the app hides the mode); the hosts are any two voice ids.
     podcast_enabled: bool = _bool("PODCAST_ENABLED", True)
-    podcast_hosts: tuple[str, ...] = tuple(
-        v.strip()
-        for v in os.getenv("PODCAST_HOSTS", "matthew_reference,kelly_reference").split(",")
-        if v.strip()
-    )[:2]
+    podcast_hosts: tuple[str, ...] = _list("PODCAST_HOSTS", "matthew_reference,kelly_reference")[:2]
     # GCE VM automated lifecycle (Chatterbox-Turbo on-demand GPU VM)
     gcp_project: str = os.getenv("GCP_PROJECT", "project-67937e0a-4d2d-43ea-9ba")
     gce_zone: str = os.getenv("GCE_ZONE", "us-central1-c")
@@ -124,6 +118,14 @@ class Config:
     def ensure_dirs(self) -> None:
         for d in (self.data_dir, self.model_dir, self.cache_dir):
             d.mkdir(parents=True, exist_ok=True)
+
+    def local_today(self) -> str:
+        """ISO date string (YYYY-MM-DD) in the configured briefing timezone."""
+        return local_today(self.timezone)
+
+    def is_admin(self, profile: dict) -> bool:
+        """Whether a profile row has admin privileges by flag or configured admin email."""
+        return bool(profile.get("is_admin") or (profile.get("email") or "").lower() in self.admin_emails)
 
 
 def load() -> Config:

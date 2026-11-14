@@ -80,3 +80,26 @@ def send(cfg: Config, subscriptions: list[dict], title: str, body: str, url: str
         except Exception as exc:  # noqa: BLE001 - never let a notification break a build
             log.warning("Push failed: %s", exc)
     return sent, gone
+
+
+def push_and_prune(
+    cfg: Config,
+    store,
+    subscriptions: list[dict],
+    title: str,
+    body: str,
+    *,
+    url: str = "/",
+    context: str = "push",
+) -> int:
+    """Send Web Push notifications, delete expired endpoints, and swallow transport errors."""
+    if not subscriptions:
+        return 0
+    try:
+        sent, gone = send(cfg, subscriptions, title, body) if url == "/" else send(cfg, subscriptions, title, body, url=url)
+        for endpoint in gone:
+            store.delete_push_subscription(endpoint)
+        return sent
+    except Exception as exc:  # noqa: BLE001
+        log.warning("%s skipped: %s", context, exc)
+        return 0
