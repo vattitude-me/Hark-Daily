@@ -76,9 +76,9 @@ def agy_bin() -> str | None:
     found = shutil.which("agy")
     if found:
         return found
-    for candidate in ("/opt/homebrew/bin/agy", "/usr/local/bin/agy"):
-        if Path(candidate).is_file():
-            return candidate
+    for candidate in (Path.home() / ".local" / "bin" / "agy", Path("/opt/homebrew/bin/agy"), Path("/usr/local/bin/agy")):
+        if candidate.is_file():
+            return str(candidate)
     return None
 
 
