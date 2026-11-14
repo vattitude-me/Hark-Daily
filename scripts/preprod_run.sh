@@ -32,7 +32,8 @@ if [ "$cmd" = "web" ]; then
 fi
 
 if [ "$cmd" = "voice" ]; then
-  exec "$ROOT/voice_service/.venv/bin/uvicorn" api.app:app --app-dir "$ROOT/voice_service" --host 127.0.0.1 --port 8090
+  cd "$ROOT/voice_service"
+  exec "$ROOT/voice_service/.venv/bin/uvicorn" api.app:app --app-dir . --host 127.0.0.1 --port 8090
 fi
 
 if [ ! -f "$ENV_PATH" ]; then
