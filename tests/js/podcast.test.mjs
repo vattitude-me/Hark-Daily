@@ -304,6 +304,14 @@ test('parseDialogueTurns extracts speaker-labeled turns and returns null for mon
   assert.deepEqual(turns[0], { speaker: 'Matthew', text: 'Bank of Canada held its policy rate at 3.25 percent today.' });
   assert.deepEqual(turns[1], { speaker: 'Kelly', text: 'That affects variable mortgage holders immediately.' });
 
+  const prefixed = parseDialogueTurns('[Kelly] Kelly: Vladislav Tretiak spoke out today.\n[Matthew] **Matthew:** Ottawa confirmed the ban.');
+  assert.deepEqual(prefixed[0], { speaker: 'Kelly', text: 'Vladislav Tretiak spoke out today.' });
+  assert.deepEqual(prefixed[1], { speaker: 'Matthew', text: 'Ottawa confirmed the ban.' });
+
+  const proseName = parseDialogueTurns('[Matthew] Kelly, what do you think?\n[Kelly] Matthew Perry was honored.');
+  assert.deepEqual(proseName[0], { speaker: 'Matthew', text: 'Kelly, what do you think?' });
+  assert.deepEqual(proseName[1], { speaker: 'Kelly', text: 'Matthew Perry was honored.' });
+
   assert.equal(parseDialogueTurns('Plain monologue sentence without speaker tags.'), null);
 });
 
