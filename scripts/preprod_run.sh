@@ -32,6 +32,8 @@ if [ "$cmd" = "web" ]; then
 fi
 
 if [ "$cmd" = "voice" ]; then
+  export VOICE_DIR="$ROOT/voice_service/data/voices"
+  export PRELOAD_VOICE="${PRELOAD_VOICE:-1}"
   cd "$ROOT/voice_service"
   exec "$ROOT/voice_service/.venv/bin/uvicorn" api.app:app --app-dir . --host 127.0.0.1 --port 8090
 fi
