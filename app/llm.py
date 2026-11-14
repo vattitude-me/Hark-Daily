@@ -2,14 +2,18 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import shutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Callable
 
 import httpx
+
+log = logging.getLogger(__name__)
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
@@ -18,7 +22,8 @@ AGY_CLI_URL = "agy://cli"
 DEFAULT_GROQ_MODELS = ("openai/gpt-oss-120b", "openai/gpt-oss-20b")
 DEFAULT_GEMINI_MODELS = ("gemini-3.5-flash-lite", "gemini-flash-lite-latest")
 
-_LAST_LLM_CALL_TIME: float = 0.0
+_RATE_LOCK = threading.Lock()
+_LAST_LLM_CALL_TIME: float | None = None
 _MIN_LLM_INTERVAL: float = 2.2  # Minimum seconds between external requests to stay within free-tier RPM
 
 
@@ -35,14 +40,35 @@ def retry_after(resp: httpx.Response) -> float:
     return 10.0
 
 
-def rate_limit_llm(min_interval: float = _MIN_LLM_INTERVAL) -> None:
-    """Sleep if needed so at least `min_interval` seconds elapse between external LLM calls."""
+def rate_limit_llm(
+    min_interval: float = _MIN_LLM_INTERVAL,
+    *,
+    monotonic: Callable[[], float] | None = None,
+    sleep: Callable[[float], None] | None = None,
+) -> float:
+    """Sleep if needed so at least `min_interval` seconds elapse between external LLM calls.
+
+    Synchronizes slot reservation across concurrent threads under `_RATE_LOCK` and performs
+    any blocking sleep outside the lock. Returns the wait duration in seconds.
+    """
     global _LAST_LLM_CALL_TIME
-    now = time.monotonic()
-    elapsed = now - _LAST_LLM_CALL_TIME
-    if elapsed < min_interval:
-        time.sleep(min_interval - elapsed)
-    _LAST_LLM_CALL_TIME = time.monotonic()
+    clock = monotonic or time.monotonic
+    sleeper = sleep or time.sleep
+    with _RATE_LOCK:
+        now = clock()
+        if _LAST_LLM_CALL_TIME is None or min_interval <= 0:
+            _LAST_LLM_CALL_TIME = now
+            return 0.0
+        target = _LAST_LLM_CALL_TIME + min_interval
+        if target > now:
+            _LAST_LLM_CALL_TIME = target
+            wait = target - now
+        else:
+            _LAST_LLM_CALL_TIME = now
+            wait = 0.0
+    if wait > 0:
+        sleeper(wait)
+    return wait
 
 
 def agy_bin() -> str | None:
@@ -79,8 +105,9 @@ def call_agy_cli(
     timeout: float = 45.0,
     *,
     bin_lookup: Callable[[], str | None] = agy_bin,
+    json_mode: bool = True,
 ) -> str:
-    """Invoke the local Antigravity CLI ('agy') in headless mode to generate raw JSON text."""
+    """Invoke the local Antigravity CLI ('agy') in headless mode to generate raw text or JSON."""
     bin_path = bin_lookup()
     if not bin_path:
         raise RuntimeError("Antigravity CLI ('agy') executable not found")
@@ -88,7 +115,9 @@ def call_agy_cli(
     for msg in messages:
         role = msg.get("role", "user").upper()
         parts.append(f"[{role}]\n{msg.get('content', '')}")
-    parts.append("\nIMPORTANT: Return ONLY raw valid JSON with no markdown code fences and no commentary.")
+    if json_mode:
+        parts.append("\nIMPORTANT: Return ONLY raw valid JSON with no markdown code fences and no commentary.")
+    started = time.monotonic()
     proc = subprocess.run(
         [bin_path, "--model", model, "--disable-slash-commands", "-p", "\n\n".join(parts)],
         cwd="/tmp",
@@ -96,12 +125,16 @@ def call_agy_cli(
         text=True,
         timeout=timeout,
     )
+    elapsed = time.monotonic() - started
     if proc.returncode != 0:
         err = (proc.stderr or proc.stdout or f"exit {proc.returncode}").strip()[:160]
+        log.debug("LLM AntigravityCLI model=%s failed elapsed=%.2fs rc=%s", model, elapsed, proc.returncode)
         raise RuntimeError(f"agy CLI failed: {err}")
-    out = extract_json_text(proc.stdout)
+    out = extract_json_text(proc.stdout) if json_mode else (proc.stdout or "").strip()
     if not out:
+        log.debug("LLM AntigravityCLI model=%s returned empty output elapsed=%.2fs", model, elapsed)
         raise ValueError("agy CLI returned empty output")
+    log.debug("LLM AntigravityCLI model=%s succeeded elapsed=%.2fs", model, elapsed)
     return out
 
 
@@ -154,11 +187,14 @@ def post_chat_raw(
     temperature: float,
     max_tokens: int,
     throttle: bool = True,
+    json_mode: bool = True,
 ) -> httpx.Response:
     """Execute one OpenAI-compatible POST request with optional free-tier rate limiting."""
     if throttle:
         rate_limit_llm()
-    body = build_chat_body(model, messages, temperature=temperature, max_tokens=max_tokens)
+    body = build_chat_body(
+        model, messages, temperature=temperature, max_tokens=max_tokens, json_mode=json_mode
+    )
     return client.post(url, json=body, headers={"Authorization": f"Bearer {token}"})
 
 
@@ -175,10 +211,14 @@ def generate_chat_text(
     cli_timeout: float = 45.0,
     bin_lookup: Callable[[], str | None] = agy_bin,
     on_rate_limit: Callable[[httpx.Response], float | None] | None = None,
+    json_mode: bool = True,
+    throttle: bool = True,
 ) -> str:
     """Invoke either Antigravity CLI or OpenAI-compatible HTTP endpoint and return raw response text."""
+    log.debug("LLM request starting provider=%s model=%s json_mode=%s", provider, model, json_mode)
     if url == AGY_CLI_URL or provider == "AntigravityCLI":
-        return call_agy_cli(model, messages, timeout=cli_timeout, bin_lookup=bin_lookup)
+        return call_agy_cli(model, messages, timeout=cli_timeout, bin_lookup=bin_lookup, json_mode=json_mode)
+    started = time.monotonic()
     resp = post_chat_raw(
         client,
         url=url,
@@ -187,14 +227,22 @@ def generate_chat_text(
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
-        throttle=True,
+        throttle=throttle,
+        json_mode=json_mode,
     )
+    elapsed = time.monotonic() - started
     if resp.status_code == 429 and on_rate_limit is not None:
         delay = on_rate_limit(resp)
         if delay is not None:
+            log.warning("LLM rate limited (HTTP 429) provider=%s model=%s delay=%.1fs", provider, model, delay)
             raise _RetryAfterSignal(delay, resp)
+    if resp.status_code >= 400:
+        log.warning("LLM HTTP error provider=%s model=%s status=%d elapsed=%.2fs",
+                    provider, model, resp.status_code, elapsed)
     resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"]
+    content = resp.json()["choices"][0]["message"]["content"]
+    log.debug("LLM request succeeded provider=%s model=%s elapsed=%.2fs", provider, model, elapsed)
+    return "" if content is None else str(content)
 
 
 class _RetryAfterSignal(Exception):

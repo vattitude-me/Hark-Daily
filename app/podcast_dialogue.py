@@ -709,6 +709,8 @@ def generate_story_dialogue(
         if own:
             client.close()
 
+    log.warning("All %d LLM provider(s) failed for story dialogue (%s); using grounded fallback.",
+                len(models), brief.get("story_id") or "")
     return fallback_story_dialogue(story, hosts)
 
 

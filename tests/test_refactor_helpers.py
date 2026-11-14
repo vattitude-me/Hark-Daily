@@ -100,3 +100,162 @@ def test_run_report_edition_sections_match_topics():
     assert "markets" in run_report.EDITION_SECTIONS["Canada (CA)"]
     assert "ai" in run_report.EDITION_SECTIONS["Canada (CA)"]
     assert "science" in run_report.EDITION_SECTIONS["Canada (CA)"]
+
+
+# --------------------------------------------------------------------------- Pruning safety regressions
+
+def test_prune_older_deduplicates_shared_and_duplicate_paths(store):
+    old_day = "2020-01-01"
+    shared = f"stories/{old_day}/shared.mp3"
+    dup_same_table = f"stories/{old_day}/dup.mp3"
+    store.objects[shared] = b"shared"
+    store.objects[dup_same_table] = b"dup"
+
+    # Duplicate path within story_audio AND cross-table reference in podcast_clips
+    store.tables["story_audio"] = [
+        {"id": 1, "date": old_day, "section": "top", "rank": 1, "voice": "v1", "audio_path": dup_same_table},
+        {"id": 2, "date": old_day, "section": "top", "rank": 1, "voice": "v2", "audio_path": dup_same_table},
+        {"id": 3, "date": old_day, "section": "tech", "rank": 1, "voice": "v1", "audio_path": shared},
+    ]
+    store.tables["podcast_clips"] = [
+        {"date": old_day, "clip_key": "bridge_tech", "voice": "v1", "audio_path": shared},
+    ]
+
+    removed_calls: list[list[str]] = []
+    orig_remove = store.remove_objects
+
+    def spy_remove(paths):
+        removed_calls.append(list(paths))
+        orig_remove(paths)
+
+    store.remove_objects = spy_remove
+    storypack.prune_older(store, keep="2020-01-05", keep_days=2)
+
+    all_removed = [p for call in removed_calls for p in call]
+    assert sorted(all_removed) == sorted([dup_same_table, shared])
+    assert len(all_removed) == len(set(all_removed)) == 2
+
+
+def test_prune_older_db_failure_preserves_storage_and_retries_cleanly(store):
+    old_day = "2020-01-01"
+    sa_path = f"stories/{old_day}/top-1.mp3"
+    pc_path = f"podcast/{old_day}/open-1.mp3"
+    store.objects[sa_path] = b"keep-until-db-clears"
+    store.objects[pc_path] = b"podcast"
+
+    store.tables["story_audio"] = [
+        {"id": 1, "date": old_day, "section": "top", "rank": 1, "voice": "v1", "audio_path": sa_path},
+    ]
+    store.tables["podcast_clips"] = [
+        {"date": old_day, "clip_key": "open", "voice": "v1", "audio_path": pc_path},
+    ]
+
+    orig_delete = store.delete
+    fail_story_audio = [True]
+
+    def flaky_delete(table, params):
+        if table == "story_audio" and fail_story_audio[0]:
+            raise RuntimeError("DB timeout deleting story_audio")
+        orig_delete(table, params)
+
+    store.delete = flaky_delete
+    days_first = storypack.prune_older(store, keep="2020-01-05", keep_days=2)
+
+    # story_audio DB delete failed -> DB row AND its audio file MUST stay intact; podcast_clips still pruned!
+    assert len(store.select("story_audio", {"date": f"eq.{old_day}"})) == 1
+    assert sa_path in store.objects
+    assert len(store.select("podcast_clips", {"date": f"eq.{old_day}"})) == 0
+    assert pc_path not in store.objects
+    assert days_first == [old_day]
+
+    # Recover DB and re-run prune_older -> remaining data pruned idempotently
+    fail_story_audio[0] = False
+    days_second = storypack.prune_older(store, keep="2020-01-05", keep_days=2)
+    assert days_second == [old_day]
+    assert sa_path not in store.objects
+    assert len(store.select("story_audio", {"date": f"eq.{old_day}"})) == 0
+
+    # Third run against clean data is a safe no-op
+    assert storypack.prune_older(store, keep="2020-01-05", keep_days=2) == []
+
+
+def test_prune_older_storage_failure_and_partial_row_failure_and_missing_files(store):
+    old_day = "2020-01-01"
+    # voice_notes with partial DB failure on second row + shared object on failed row
+    shared_note = f"notes/{old_day}/shared.mp3"
+    ok_note = f"notes/{old_day}/ok.mp3"
+    missing_obj = f"stories/{old_day}/already-missing.mp3"
+    static_path = "notes/static/intro_top.mp3"
+    preserved_story_path = f"stories/{old_day}/top_in-1.mp3"
+
+    store.objects[shared_note] = b"shared-note"
+    store.objects[ok_note] = b"ok-note"
+    store.objects[static_path] = b"static"
+    store.objects[preserved_story_path] = b"preserve-in"
+    # Notice missing_obj intentionally NOT in store.objects!
+
+    store.tables["story_audio"] = [
+        {"id": 1, "date": old_day, "section": "top", "rank": 1, "voice": "v1", "audio_path": missing_obj},
+        {"id": 2, "date": old_day, "section": "top_in", "rank": 1, "voice": "v1", "audio_path": preserved_story_path},
+    ]
+    store.tables["voice_notes"] = [
+        {"date": storypack.STATIC_DATE, "voice": "v1", "note_key": "intro_top", "audio_path": static_path},
+        {"date": old_day, "voice": "v1", "note_key": "k1", "audio_path": ok_note},
+        {"date": old_day, "voice": "v1", "note_key": "k2", "audio_path": shared_note},
+        {"date": old_day, "voice": "v1", "note_key": "k3", "audio_path": shared_note},
+    ]
+
+    orig_delete = store.delete
+    orig_remove = store.remove_objects
+
+    def partial_delete(table, params):
+        # Fail deleting k3 in voice_notes so shared_note stays referenced!
+        if table == "voice_notes" and params.get("note_key") == "eq.k3":
+            raise RuntimeError("transient row lock")
+        orig_delete(table, params)
+
+    def flaky_remove(paths):
+        # Fail deleting story_audio storage objects, succeed for voice_notes
+        if any("already-missing" in p for p in paths):
+            raise RuntimeError("storage delete error")
+        orig_remove(paths)
+
+    store.delete = partial_delete
+    store.remove_objects = flaky_remove
+
+    pruned_days = storypack.prune_older(
+        store, keep="2020-01-05", keep_days=2, preserve_sections=["top_in"],
+    )
+    assert pruned_days == [old_day]
+    # Static note and preserved section (DB + storage under stories/{old_day}) MUST remain untouched!
+    assert static_path in store.objects
+    assert preserved_story_path in store.objects
+    assert len(store.select("story_audio", {"section": "eq.top_in"})) == 1
+    # Failed k3 row kept shared_note alive even though k2 DB row deleted
+    assert shared_note in store.objects
+    assert len(store.select("voice_notes", {"note_key": "eq.k3"})) == 1
+    # Succeeded k1 row deleted BOTH DB row and ok_note object
+    assert ok_note not in store.objects
+    assert len(store.select("voice_notes", {"note_key": "eq.k1"})) == 0
+    # Unpreserved story_audio row deleted cleanly even when storage remove failed / file was missing
+    assert len(store.select("story_audio", {"section": "eq.top"})) == 0
+
+
+# --------------------------------------------------------------------------- Compatibility & circular imports
+
+def test_extracted_modules_import_without_cycles_and_preserve_exports():
+    import importlib
+    import pkgutil
+    import app
+    from app import pack_ops, podcast, podcast_dialogue, podcast_prompts, podcast_text, showcase
+
+    modules = [importlib.import_module(m.name) for m in pkgutil.walk_packages(app.__path__, "app.")]
+    assert len(modules) >= 20
+
+    # Key backward-compatible re-exports on app.podcast and app.storypack
+    assert podcast.validate_turns is podcast_text.validate_turns
+    assert podcast.SYSTEM_PROMPT is podcast_prompts.SYSTEM_PROMPT
+    assert podcast.generate_story_dialogue is podcast_dialogue.generate_story_dialogue
+    assert storypack.prune_older is pack_ops.prune_older
+    assert storypack.publish_showcase is showcase.publish_showcase
+

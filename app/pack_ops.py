@@ -80,10 +80,49 @@ def clear_ready(store, *, day: str, voice: str) -> None:
     store.delete("voice_notes", {"date": f"eq.{day}", "voice": f"eq.{voice}", "note_key": f"eq.{PACK_READY}"})
 
 
+def _delete_prunable_rows(
+    store, table: str, rows: list[dict], cutoff_date: str, preserve_set: set[str],
+) -> tuple[list[dict], set[str]]:
+    """Delete prunable DB rows for one table and return (deleted_rows, paths_still_referenced)."""
+    if table == "voice_notes":
+        key_fn = lambda r: {"date": f"eq.{r['date']}", "voice": f"eq.{r['voice']}", "note_key": f"eq.{r['note_key']}"}
+    elif table == "story_audio" and preserve_set:
+        key_fn = lambda r: {"id": f"eq.{r['id']}"}
+    else:
+        key_fn = None
+
+    if key_fn is None:
+        try:
+            store.delete(table, {"date": f"lt.{cutoff_date}"})
+            return rows, set()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("[prune] %s: DB batch delete failed (cutoff=%s, rows=%d): %s",
+                        table, cutoff_date, len(rows), exc)
+            return [], {r["audio_path"] for r in rows if r.get("audio_path")}
+
+    deleted: list[dict] = []
+    still_referenced: set[str] = set()
+    for r in rows:
+        try:
+            store.delete(table, key_fn(r))
+            deleted.append(r)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("[prune] %s: DB row delete failed (date=%s, path=%s): %s",
+                        table, r.get("date"), r.get("audio_path"), exc)
+            if r.get("audio_path"):
+                still_referenced.add(r["audio_path"])
+    return deleted, still_referenced
+
+
 def prune_older(store, *, keep: str, keep_days: int = 2, preserve_sections: list[str] | None = None) -> list[str]:
-    """Delete audio and rows older than ``keep_days``, keeping permanent static notes intact."""
+    """Delete DB rows and associated audio older than ``keep_days``, protecting static/preserved assets.
+
+    Deletes database rows before storage objects per table so a database failure never permanently
+    destroys audio referenced by live rows, and deduplicates object paths across tables.
+    """
     days: list[str] = []
     removed_paths: set[str] = set()
+    protected_paths: set[str] = set()
     preserve_set = set(preserve_sections or ())
     try:
         base_date = datetime.fromisoformat(keep).date()
@@ -94,38 +133,67 @@ def prune_older(store, *, keep: str, keep_days: int = 2, preserve_sections: list
         run_log_cutoff = keep
 
     for table in ("story_audio", "voice_notes", "podcast_clips"):
-        rows = store.select(table, {"date": f"lt.{cutoff_date}"})
+        try:
+            all_rows = store.select(table, {"date": f"lt.{cutoff_date}"})
+        except Exception as exc:  # noqa: BLE001
+            log.warning("[prune] %s: could not query rows (cutoff=%s): %s", table, cutoff_date, exc)
+            continue
+
         if table == "voice_notes":
-            rows = [r for r in rows if str(r.get("date")) > STATIC_DATE]
-        if table == "story_audio" and preserve_set:
-            rows = [r for r in rows if r.get("section") not in preserve_set]
+            protected_paths.update(r["audio_path"] for r in all_rows
+                                   if r.get("audio_path") and str(r.get("date")) <= STATIC_DATE)
+            rows = [r for r in all_rows if str(r.get("date")) > STATIC_DATE]
+        elif table == "story_audio" and preserve_set:
+            protected_paths.update(r["audio_path"] for r in all_rows
+                                   if r.get("audio_path") and r.get("section") in preserve_set)
+            rows = [r for r in all_rows if r.get("section") not in preserve_set]
+        else:
+            rows = all_rows
+
         if not rows:
             continue
-        paths = [r["audio_path"] for r in rows if r.get("audio_path") and not r["audio_path"].startswith("notes/static/")]
+
+        deleted_rows, still_referenced = _delete_prunable_rows(store, table, rows, cutoff_date, preserve_set)
+        protected_paths.update(still_referenced)
+        if not deleted_rows:
+            continue
+
+        days.extend(str(r["date"]) for r in deleted_rows)
+        paths = list(dict.fromkeys(
+            r["audio_path"]
+            for r in deleted_rows
+            if r.get("audio_path")
+            and not str(r["audio_path"]).startswith("notes/static/")
+            and r["audio_path"] not in protected_paths
+            and r["audio_path"] not in removed_paths
+        ))
+        removed_count = 0
         if paths:
-            store.remove_objects(paths)
-            removed_paths.update(paths)
-        if table == "voice_notes":
-            for r in rows:
-                store.delete("voice_notes", {
-                    "date": f"eq.{r['date']}", "voice": f"eq.{r['voice']}", "note_key": f"eq.{r['note_key']}",
-                })
-        elif table == "story_audio" and preserve_set:
-            for r in rows:
-                store.delete("story_audio", {"id": f"eq.{r['id']}"})
-        else:
-            store.delete(table, {"date": f"lt.{cutoff_date}"})
-        days += [str(r["date"]) for r in rows]
-        log.info("[prune] %s: %d rows, %d files removed (older than %s)", table, len(rows), len(paths), cutoff_date)
+            try:
+                store.remove_objects(paths)
+                removed_paths.update(paths)
+                removed_count = len(paths)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("[prune] %s: storage remove failed (%d file(s), first=%s): %s",
+                            table, len(paths), paths[0], exc)
+        log.info("[prune] %s: %d rows deleted, %d files removed (older than %s)",
+                 table, len(deleted_rows), removed_count, cutoff_date)
 
     unique_days = sorted(set(days))
     for d in unique_days:
         try:
-            extra = [p for p in store.list_objects(f"stories/{d}") if p not in removed_paths]
+            extra = [
+                p for p in store.list_objects(f"stories/{d}")
+                if p not in removed_paths
+                and p not in protected_paths
+                and not str(p).startswith("notes/static/")
+            ]
             if extra:
                 store.remove_objects(extra)
+                removed_paths.update(extra)
+                log.info("[prune] orphan cleanup stories/%s: %d extra file(s) removed", d, len(extra))
         except Exception as exc:  # noqa: BLE001
-            log.debug("Could not prune extra objects for %s: %s", d, exc)
+            log.warning("[prune] could not prune extra objects for %s: %s", d, exc)
     try:
         store.delete("run_log", {"run_date": f"lt.{run_log_cutoff}"})
     except Exception as exc:  # noqa: BLE001 — an unpruned log is harmless

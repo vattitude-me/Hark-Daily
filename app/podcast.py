@@ -251,11 +251,14 @@ def ask_ai(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
                     raise ValueError("not a JSON object")
             except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError, RuntimeError, subprocess.SubprocessError) as exc:
                 problems.append(f"{provider} {model}: {exc.__class__.__name__}: {str(exc)[:120]}")
+                log.warning("Podcast banter %s (%s) failed, trying next provider: %s",
+                            provider, model, exc.__class__.__name__)
                 continue
             return _collect(data, pieces, model, hosts), problems
     finally:
         if own:
             client.close()
+    log.warning("All %d podcast banter provider(s) failed (%d recorded problem(s))", len(models), len(problems))
     return {}, problems
 
 
