@@ -339,6 +339,54 @@ def strip_tags(text: str) -> str:
     return _clean(_TAG.sub(" ", text))
 
 
+def strip_speaker_prefix(text: str, hosts: tuple[str, str] = ("Matthew", "Kelly")) -> str:
+    """Strip accidental leading speaker labels (e.g. 'Kelly:', '[Matthew]', '**Kelly:**') from spoken text."""
+    cleaned = _clean(text)
+    if not cleaned:
+        return ""
+    host_names: list[str] = []
+    for name in (*hosts, "Matthew", "Kelly"):
+        n = str(name or "").strip()
+        if n and n.lower() not in {x.lower() for x in host_names}:
+            host_names.append(re.escape(n))
+    names_alt = "|".join(host_names) if host_names else "Matthew|Kelly"
+    generic_roles = r"Host(?:\s*[AB12])?|Speaker\s*[AB12]?|Narrator"
+    all_labels = rf"{names_alt}|{generic_roles}|a|b"
+    named_labels = rf"{names_alt}|{generic_roles}"
+    patterns = (
+        re.compile(
+            rf"^(?:\*\*|__)?\[(?:{all_labels})\](?:\*\*|__)?(?:\s*:\s*(?:\*\*|__)?|\s+[-–—]\s+)?\s*",
+            re.I,
+        ),
+        re.compile(
+            rf"^(?:\*\*|__)?(?:{all_labels})\s*(?:(?:\*\*|__)\s*:|:\s*(?:\*\*|__)?)\s*",
+            re.I,
+        ),
+        re.compile(
+            rf"^(?:\*\*|__)(?:{named_labels})(?:\*\*|__)\s*[-–—]\s*",
+            re.I,
+        ),
+        re.compile(
+            rf"^(?:{generic_roles})\s+[-–—]\s+",
+            re.I,
+        ),
+    )
+    stripped_any = False
+    while cleaned:
+        updated = cleaned
+        for pat in patterns:
+            candidate = pat.sub("", updated).strip()
+            if candidate != updated:
+                updated = candidate
+                stripped_any = True
+        if updated == cleaned:
+            break
+        cleaned = updated
+    if stripped_any and cleaned and cleaned[0].isalpha() and cleaned[0].islower():
+        cleaned = cleaned[0].upper() + cleaned[1:]
+    return cleaned
+
+
 def _enforce_host_identity(text: str, who: str, hosts: tuple[str, str]) -> str | None:
     """Ensure host self-identification matches speaker attribution (Speaker 'a' is host 0, 'b' is host 1).
 
@@ -386,9 +434,10 @@ def validate_turns(raw, kind: str, section: str | None = None, hosts: tuple[str,
         if not isinstance(item, dict):
             return None
         who = str(item.get("speaker", "")).strip().lower()
-        text = _clean(item.get("text", ""))
+        text = strip_speaker_prefix(item.get("text", ""), hosts)
         text = _clean(_TAG.sub(lambda m: f"[{m.group(1).lower()}]", text))
         text = clean_slop(text)
+        text = strip_speaker_prefix(text, hosts)
         text = _enforce_host_identity(text, who, hosts)
         if text is None:
             return None
@@ -437,6 +486,7 @@ STRICT LANGUAGE & ANTI-SLOP RULES (THIS WILL BE READ ALOUD BY TTS):
   * Speaker "a" is ALWAYS {a} (Speaker 0). "a" must NEVER say "I am {b}" or "I'm {b}".
   * Speaker "b" is ALWAYS {b} (Speaker 1). "b" must NEVER say "I am {a}" or "I'm {a}".
   * When introducing themselves, speaker "a" must say "I am {a}" / "I'm {a}", and speaker "b" must say "I am {b}" / "I'm {b}".
+  * NEVER start "text" with a speaker name or label (never write "{a}:", "{b}:", "[{a}]", or "[{b}]" inside "text" — the JSON "speaker" field already attributes who speaks).
 - No lists, no parentheses, no stage directions, no emojis, no markdown, no URLs.
 - Don't read headlines word for word. Retell them like you're telling a smart friend across the table.
 - BANNED PHRASES & AI CLICHÉS (NEVER USE ANY OF THESE):
@@ -709,8 +759,8 @@ def host_pair(cfg) -> tuple[str, str] | None:
     return tuple(cfg.podcast_hosts) if len(cfg.podcast_hosts) == 2 else None  # type: ignore[return-value]
 
 
-def transcript(turns: list[Turn]) -> str:
-    return "\n".join(strip_tags(text) for _, text in turns)
+def transcript(turns: list[Turn], hosts: tuple[str, str] = ("Matthew", "Kelly")) -> str:
+    return "\n".join(strip_tags(strip_speaker_prefix(text, hosts)) for _, text in turns)
 
 
 def stitch_turn_audio(
@@ -778,7 +828,7 @@ async def build_podcast(cfg, store, scripts: list[dict], *, day: str, base: str,
     async with httpx.AsyncClient(timeout=180) as http:
         for p in pieces:
             w = written[p.key]
-            text = transcript(w.turns)
+            text = transcript(w.turns, names)
             have = existing.get(p.key)
             if not force and have and have.get("text") == text and have.get("audio_path"):
                 rows.append(have)
@@ -786,7 +836,8 @@ async def build_podcast(cfg, store, scripts: list[dict], *, day: str, base: str,
             try:
                 raw_turns: list[tuple[bytes, float, float]] = []
                 for who, line in w.turns:
-                    raw_audio, seconds = await synthesise(http, base, line, pair[who])
+                    clean_line = strip_speaker_prefix(line, names) or line
+                    raw_audio, seconds = await synthesise(http, base, clean_line, pair[who])
                     raw_turns.append((raw_audio, seconds, 0.35))
                 data, total, _ = await asyncio.to_thread(stitch_turn_audio, raw_turns)
                 path = f"podcast/{day}/{p.key}-{hosts_id.replace('+', '__')}-{hashlib.sha256(data).hexdigest()[:8]}.mp3"
@@ -1218,9 +1269,10 @@ def validate_story_dialogue(
                 consecutive = 1
                 last_speaker = who
 
-        text = _clean(item.get("text", ""))
+        text = strip_speaker_prefix(item.get("text", ""), hosts)
         text = _clean(_TAG.sub(lambda m: f"[{m.group(1).lower()}]", text))
         text = clean_slop(text)
+        text = strip_speaker_prefix(text, hosts)
 
         # Canned reflex reaction tag removal: if Turn 2 (the immediate response to the headline)
         # starts with a reaction sound ([laugh], [sigh], [chuckle], etc.), strip it so the second
@@ -1355,7 +1407,7 @@ STRICT EDITORIAL, LANGUAGE & ANTI-SLOP RULES:
 5. Use contractions ("don't", "can't", "it's", "they're", "we've") and spoken rhythm. Short sentences. Occasional fragments. Light fillers ("honestly," "I mean," "right?") at most once or twice per story.
 6. BANNED PHRASES (NEVER USE ANY OF THESE):
    "Let's dive in", "dive into", "deep dive", "Buckle up", "Strap in", "Without further ado", "That's a great point", "Absolutely", "Fascinating", "Welcome back everyone", "let's roll", "whirlwind", "unpack", "delve", "game-changer", "tapestry", "beacon", "foster", "testament", "pivotal", "in today's world", "at the end of the day", "needless to say", "fast-moving", "wild ride", "mind-blowing", "ground to cover", "moving across the board".
-7. No lists, no parentheses, no stage directions, no emojis, no semicolons, no dashes, no markdown, no URLs. Do NOT use time-of-day words ("this morning", "tonight").
+7. No lists, no parentheses, no stage directions, no emojis, no semicolons, no dashes, no markdown, no URLs. Do NOT use time-of-day words ("this morning", "tonight"). NEVER begin any turn's "text" with the speaker's name, colon, or bracketed label (never write "{a}:", "{b}:", "[{a}]", or "[{b}]" inside "text" — only put spoken words in "text").
 8. Paralinguistic emotion tags: {tag_instruction}
 9. VOICE-BASED TEXT (CRITICAL - SCRIPT IS SPOKEN BY NEURAL TEXT-TO-SPEECH VOICES):
    Write exclusively for the ear as spoken aloud, NEVER visual print or textual shorthand.
@@ -1888,7 +1940,8 @@ def format_dialogue_transcript(
     lines: list[str] = []
     for t in turns:
         speaker_name = hosts[t.speaker] if 0 <= t.speaker < len(hosts) else hosts[0]
-        clean_line = voice_normalize(strip_tags(t.text), preserve_tags=False)
+        clean_turn = strip_speaker_prefix(t.text, hosts)
+        clean_line = voice_normalize(strip_tags(clean_turn), preserve_tags=False)
         if clean_line:
             lines.append(f"[{speaker_name}] {clean_line}")
     return "\n".join(lines)
@@ -1914,10 +1967,20 @@ async def synthesise_story_dialogue(
         turn_cache = Path(cache_dir) / "podcast_turns"
         turn_cache.mkdir(parents=True, exist_ok=True)
 
+    host_names = tuple(
+        v.split("_", 1)[0].strip().capitalize()
+        for v in host_voices[:2]
+        if v and isinstance(v, str)
+    )
+    hosts_tuple: tuple[str, str] = (
+        (host_names[0], host_names[1]) if len(host_names) >= 2 else ("Matthew", "Kelly")
+    )
+
     raw_turns: list[tuple[bytes, float, float]] = []
     for turn in dialogue.turns:
         voice_id = host_voices[turn.speaker]
-        word_count = len(strip_tags(turn.text).split())
+        spoken_text = strip_speaker_prefix(turn.text, hosts_tuple) or _clean(turn.text)
+        word_count = len(strip_tags(spoken_text).split())
 
         # Pacing & temperature variation per host and turn purpose
         if turn.speaker == 0:  # Matthew: grounded, measured
@@ -1933,7 +1996,7 @@ async def synthesise_story_dialogue(
             turn_temp = 0.90
 
         # Honest cache key incorporating format, voice, pace, temperature, and text
-        cache_key_str = f"wav|{voice_id}|{turn_pace:.2f}|{turn_temp:.2f}|{turn.text}"
+        cache_key_str = f"wav|{voice_id}|{turn_pace:.2f}|{turn_temp:.2f}|{spoken_text}"
         key = hashlib.sha256(cache_key_str.encode("utf-8")).hexdigest()[:16]
         cached_wav = turn_cache / f"{key}.wav" if turn_cache else None
         cached_meta = turn_cache / f"{key}.json" if turn_cache else None
@@ -1949,7 +2012,7 @@ async def synthesise_story_dialogue(
 
         # Request lossless WAV from voice service (format="wav")
         raw_audio, seconds = await synthesise(
-            http, base, turn.text, voice_id,
+            http, base, spoken_text, voice_id,
             pace=turn_pace,
             temperature=turn_temp,
             fmt="wav",

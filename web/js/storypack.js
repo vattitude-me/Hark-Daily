@@ -152,7 +152,19 @@ export function parseDialogueTurns(scriptText) {
   for (const line of lines) {
     const m = line.match(turnRe);
     if (m) {
-      turns.push({ speaker: m[1].trim(), text: voiceNormalize(m[2].trim()) });
+      const spk = m[1].trim();
+      const esc = spk.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      let body = m[2].trim();
+      const dupLabelRe = new RegExp(
+        `^(?:(?:\\*\\*|__)?\\[(?:${esc}|Matthew|Kelly|Host(?:\\s*[AB12])?|Speaker\\s*[AB12]?|Narrator|a|b)\\](?:\\*\\*|__)?(?:\\s*:\\s*(?:\\*\\*|__)?|\\s+[-–—]\\s+)?\\s*|(?:\\*\\*|__)?(?:${esc}|Matthew|Kelly|Host(?:\\s*[AB12])?|Speaker\\s*[AB12]?|Narrator|a|b)\\s*(?:(?:\\*\\*|__)\\s*:|:\\s*(?:\\*\\*|__)?)\\s*|(?:\\*\\*|__)(?:${esc}|Matthew|Kelly|Host(?:\\s*[AB12])?|Speaker\\s*[AB12]?|Narrator)(?:\\*\\*|__)\\s*[-–—]\\s*)`,
+        'i',
+      );
+      while (dupLabelRe.test(body)) {
+        const next = body.replace(dupLabelRe, '').trim();
+        if (!next || next === body) break;
+        body = next;
+      }
+      if (body) turns.push({ speaker: spk, text: voiceNormalize(body) });
     } else if (turns.length) {
       turns[turns.length - 1].text += ` ${voiceNormalize(line)}`;
     }
