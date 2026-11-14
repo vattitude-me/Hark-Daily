@@ -20,6 +20,7 @@ logs/
 
 # App data (database, audio, voice models, generated clips)
 /data/
+/data_preprod/
 !data/lexicon.json
 !voice_service/data/voices/
 !voice_service/data/voices/*.wav
