@@ -76,9 +76,9 @@ def agy_bin() -> str | None:
     found = shutil.which("agy")
     if found:
         return found
-    for candidate in ("/opt/homebrew/bin/agy", "/usr/local/bin/agy"):
-        if Path(candidate).is_file():
-            return candidate
+    for candidate in (Path.home() / ".local" / "bin" / "agy", Path("/opt/homebrew/bin/agy"), Path("/usr/local/bin/agy")):
+        if candidate.is_file():
+            return str(candidate)
     return None
 
 
@@ -146,7 +146,7 @@ def ai_provider_chain(
     """Ordered (model, url, token, provider_label) chain: Antigravity CLI -> Groq -> Local LLM -> Gemini."""
     models: list[tuple[str, str, str, str]] = []
     if getattr(cfg, "agy_enabled", False) and bin_lookup():
-        agy_model = getattr(cfg, "agy_model", "gemini-3.8-flash-low") or "gemini-3.8-flash-low"
+        agy_model = getattr(cfg, "agy_model", "gemini-4-hydrogen-low") or "gemini-4-hydrogen-low"
         models.append((agy_model, AGY_CLI_URL, "agy", "AntigravityCLI"))
     if getattr(cfg, "groq_api_key", None):
         models += [(m, GROQ_URL, cfg.groq_api_key, "Groq") for m in cfg.groq_models]

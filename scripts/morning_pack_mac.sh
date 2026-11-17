@@ -38,6 +38,8 @@ fi
 export GCE_MANAGE_VM="false"
 export GCE_INSTANCE=""
 export GCP_PROJECT=""
+export AGY_ENABLED="true"
+export AGY_MODEL="gemini-4-hydrogen-low"
 export VOICE_SERVICE_URL="http://127.0.0.1:8090"
 export VOICE_DIR="$ROOT/voice_service/data/voices"
 export PRELOAD_VOICE="1"
