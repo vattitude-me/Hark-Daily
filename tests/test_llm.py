@@ -211,17 +211,20 @@ def test_rate_limit_llm_sequential_and_concurrent_deterministic(monkeypatch):
 
 # --------------------------------------------------------------------------- 3. Provider fallback chains & 429
 
-def test_ai_provider_chain_exact_order(cfg):
+def test_ai_provider_chain_exact_order(cfg, monkeypatch):
     c = dataclasses.replace(
         cfg,
         agy_enabled=True, agy_model="agy-m",
+        claude_cli_enabled=True, claude_cli_model="sonnet",
         groq_api_key="g-key", groq_models=("g1", "g2"),
         local_llm_url="http://localhost:11434/v1/chat/completions", local_llm_model="loc1",
         gemini_api_key="gem-key", gemini_models=("gem1", "gem2"),
     )
+    monkeypatch.setattr(llm, "claude_bin", lambda: "/usr/local/bin/claude")
     chain = llm.ai_provider_chain(c, bin_lookup=lambda: "/usr/local/bin/agy")
     assert [(m, p) for m, _, _, p in chain] == [
         ("agy-m", "AntigravityCLI"),
+        ("sonnet", "ClaudeCLI"),
         ("g1", "Groq"),
         ("g2", "Groq"),
         ("loc1", "LocalLLM"),
@@ -375,3 +378,37 @@ def test_story_dialogue_four_provider_fallback_and_429_retry(cfg, monkeypatch):
         llm.GEMINI_URL, llm.GEMINI_URL,
     ]
     assert res_fb.writer == "built-in"
+
+
+def test_call_claude_cli_args_logging_and_errors(monkeypatch, caplog):
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0, stdout='```json\n{"k": 1}\n```', stderr="")
+
+    monkeypatch.setattr(llm.subprocess, "run", fake_run)
+    with caplog.at_level("INFO", logger=llm.log.name):
+        out = llm.call_claude_cli("sonnet", [{"role": "user", "content": "Hi"}], bin_lookup=lambda: "/bin/claude")
+    assert out == '{"k": 1}'
+    assert seen["cmd"][seen["cmd"].index("--model") + 1] == "sonnet"
+    assert seen["cmd"][seen["cmd"].index("--effort") + 1] == "low"
+    assert "--no-session-persistence" in seen["cmd"]
+    assert "LLM ClaudeCLI model=sonnet effort=low succeeded" in caplog.text
+
+    with pytest.raises(RuntimeError, match="not found"):
+        llm.call_claude_cli("sonnet", [{"role": "user", "content": "Hi"}], bin_lookup=lambda: None)
+
+    monkeypatch.setattr(llm.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a[0], 1, stdout="", stderr="boom"))
+    with pytest.raises(RuntimeError, match="claude CLI failed: boom"):
+        llm.call_claude_cli("sonnet", [{"role": "user", "content": "Hi"}], bin_lookup=lambda: "/bin/claude")
+    assert "LLM ClaudeCLI model=sonnet effort=low failed" in caplog.text
+
+
+def test_generate_chat_text_routes_claude_cli(monkeypatch):
+    monkeypatch.setattr(llm, "call_claude_cli", lambda model, msgs, **kw: f"{model}:{kw['effort']}")
+    out = llm.generate_chat_text(
+        None, model="sonnet", url=llm.CLAUDE_CLI_URL, token="claude", provider="ClaudeCLI",
+        messages=[{"role": "user", "content": "x"}], temperature=0.5, max_tokens=10,
+    )
+    assert out == "sonnet:low"

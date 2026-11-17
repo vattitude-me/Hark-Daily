@@ -18,6 +18,7 @@ log = logging.getLogger(__name__)
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 AGY_CLI_URL = "agy://cli"
+CLAUDE_CLI_URL = "claude://cli"
 
 DEFAULT_GROQ_MODELS = ("openai/gpt-oss-120b", "openai/gpt-oss-20b")
 DEFAULT_GEMINI_MODELS = ("gemini-3.5-flash-lite", "gemini-flash-lite-latest")
@@ -82,6 +83,17 @@ def agy_bin() -> str | None:
     return None
 
 
+def claude_bin() -> str | None:
+    """Return the path to the Claude Code CLI ('claude') executable if installed."""
+    found = shutil.which("claude")
+    if found:
+        return found
+    for candidate in (Path.home() / ".local" / "bin" / "claude", Path("/opt/homebrew/bin/claude"), Path("/usr/local/bin/claude")):
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
 def extract_json_text(raw: str) -> str:
     """Strip markdown code fences and isolate the outermost JSON object from CLI stdout."""
     text = (raw or "").strip()
@@ -138,16 +150,59 @@ def call_agy_cli(
     return out
 
 
+def call_claude_cli(
+    model: str,
+    messages: list[dict[str, str]],
+    timeout: float = 90.0,
+    *,
+    effort: str = "low",
+    bin_lookup: Callable[[], str | None] = claude_bin,
+    json_mode: bool = True,
+) -> str:
+    """Invoke the local Claude Code CLI headless (no tools, no session) to generate raw text or JSON."""
+    bin_path = bin_lookup()
+    if not bin_path:
+        raise RuntimeError("Claude CLI ('claude') executable not found")
+    parts: list[str] = []
+    for msg in messages:
+        role = msg.get("role", "user").upper()
+        parts.append(f"[{role}]\n{msg.get('content', '')}")
+    if json_mode:
+        parts.append("\nIMPORTANT: Return ONLY raw valid JSON with no markdown code fences and no commentary.")
+    started = time.monotonic()
+    proc = subprocess.run(
+        [bin_path, "-p", "\n\n".join(parts), "--model", model, "--effort", effort,
+         "--tools", "", "--disable-slash-commands", "--no-session-persistence", "--output-format", "text"],
+        cwd="/tmp",
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+    elapsed = time.monotonic() - started
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout or f"exit {proc.returncode}").strip()[:160]
+        log.warning("LLM ClaudeCLI model=%s effort=%s failed elapsed=%.1fs rc=%s", model, effort, elapsed, proc.returncode)
+        raise RuntimeError(f"claude CLI failed: {err}")
+    out = extract_json_text(proc.stdout) if json_mode else (proc.stdout or "").strip()
+    if not out:
+        log.warning("LLM ClaudeCLI model=%s effort=%s returned empty output elapsed=%.1fs", model, effort, elapsed)
+        raise ValueError("claude CLI returned empty output")
+    log.info("LLM ClaudeCLI model=%s effort=%s succeeded elapsed=%.1fs chars=%d", model, effort, elapsed, len(out))
+    return out
+
+
 def ai_provider_chain(
     cfg,
     *,
     bin_lookup: Callable[[], str | None] = agy_bin,
 ) -> list[tuple[str, str, str, str]]:
-    """Ordered (model, url, token, provider_label) chain: Antigravity CLI -> Groq -> Local LLM -> Gemini."""
+    """Ordered (model, url, token, provider_label) chain: Antigravity CLI -> Claude CLI -> Groq -> Local LLM -> Gemini."""
     models: list[tuple[str, str, str, str]] = []
     if getattr(cfg, "agy_enabled", False) and bin_lookup():
         agy_model = getattr(cfg, "agy_model", "gemini-4-hydrogen-low") or "gemini-4-hydrogen-low"
         models.append((agy_model, AGY_CLI_URL, "agy", "AntigravityCLI"))
+    if getattr(cfg, "claude_cli_enabled", False) and claude_bin():
+        models.append((getattr(cfg, "claude_cli_model", "sonnet") or "sonnet", CLAUDE_CLI_URL, "claude", "ClaudeCLI"))
     if getattr(cfg, "groq_api_key", None):
         models += [(m, GROQ_URL, cfg.groq_api_key, "Groq") for m in cfg.groq_models]
     if getattr(cfg, "local_llm_url", None):
@@ -209,6 +264,7 @@ def generate_chat_text(
     temperature: float,
     max_tokens: int,
     cli_timeout: float = 45.0,
+    claude_effort: str = "low",
     bin_lookup: Callable[[], str | None] = agy_bin,
     on_rate_limit: Callable[[httpx.Response], float | None] | None = None,
     json_mode: bool = True,
@@ -218,6 +274,9 @@ def generate_chat_text(
     log.debug("LLM request starting provider=%s model=%s json_mode=%s", provider, model, json_mode)
     if url == AGY_CLI_URL or provider == "AntigravityCLI":
         return call_agy_cli(model, messages, timeout=cli_timeout, bin_lookup=bin_lookup, json_mode=json_mode)
+    if url == CLAUDE_CLI_URL or provider == "ClaudeCLI":
+        return call_claude_cli(model, messages, timeout=max(cli_timeout, 90.0),
+                               effort=claude_effort, json_mode=json_mode)
     started = time.monotonic()
     resp = post_chat_raw(
         client,
