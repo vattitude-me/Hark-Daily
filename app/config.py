@@ -75,7 +75,7 @@ class Config:
     bucket: str = os.getenv("SUPABASE_BUCKET", "briefings")
     # Antigravity CLI (local always-on Mac PC agent CLI) — primary zero-cost AI scriptwriter
     agy_enabled: bool = _bool("AGY_ENABLED", True)
-    agy_model: str = os.getenv("AGY_MODEL", "gemini-3.8-flash-low").strip()
+    agy_model: str = os.getenv("AGY_MODEL", "gemini-4-hydrogen-low").strip()
     # Groq writes the summaries; each model has its own free-tier limits, so we fall through the list.
     groq_api_key: str | None = os.getenv("GROQ_API_KEY") or None
     groq_models: tuple[str, ...] = _list("GROQ_MODELS", "openai/gpt-oss-120b,openai/gpt-oss-20b")
