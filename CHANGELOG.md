@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.26] - 2026-11-17
+
+### Added
+- **Claude CLI backup writer**: the AI provider chain is now Antigravity CLI, Claude CLI, Groq, Local LLM, Gemini. The Claude CLI runs headless on the Mac (`claude -p`, no tools, no session) with `sonnet` at low effort. Set `CLAUDE_CLI_ENABLED=false` to turn it off or `CLAUDE_CLI_MODEL` to change the model. Every call logs `LLM ClaudeCLI model=... effort=... succeeded/failed elapsed=...`, and the podcast log shows `sonnet` as the writer for pieces it wrote.
+
+---
+
 ## [1.0.25] - 2026-11-17
 
 ### Added

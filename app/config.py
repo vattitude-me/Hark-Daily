@@ -76,6 +76,9 @@ class Config:
     # Antigravity CLI (local always-on Mac PC agent CLI) — primary zero-cost AI scriptwriter
     agy_enabled: bool = _bool("AGY_ENABLED", True)
     agy_model: str = os.getenv("AGY_MODEL", "gemini-4-hydrogen-low").strip()
+    # Claude Code CLI (local, uses the signed-in Claude account) - backup scriptwriter between agy and Groq
+    claude_cli_enabled: bool = _bool("CLAUDE_CLI_ENABLED", True)
+    claude_cli_model: str = os.getenv("CLAUDE_CLI_MODEL", "sonnet").strip()
     # Groq writes the summaries; each model has its own free-tier limits, so we fall through the list.
     groq_api_key: str | None = os.getenv("GROQ_API_KEY") or None
     groq_models: tuple[str, ...] = _list("GROQ_MODELS", "openai/gpt-oss-120b,openai/gpt-oss-20b")
