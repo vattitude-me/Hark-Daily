@@ -326,7 +326,7 @@ def test_provider_chain_prioritizes_groq_before_gemini(cfg, monkeypatch):
     assert [provider for _, _, _, provider in chain] == ["Groq", "LocalLLM", "Gemini"]
 
     monkeypatch.setattr(podcast, "_agy_bin", lambda: "/opt/homebrew/bin/agy")
-    c_with_agy = dataclasses.replace(c, agy_enabled=True, agy_model="gemini-3.8-flash-low")
+    c_with_agy = dataclasses.replace(c, agy_enabled=True, agy_model="gemini-4-hydrogen-low")
     chain_agy = podcast._ai_provider_chain(c_with_agy)
     assert [provider for _, _, _, provider in chain_agy] == ["AntigravityCLI", "Groq", "LocalLLM", "Gemini"]
 
