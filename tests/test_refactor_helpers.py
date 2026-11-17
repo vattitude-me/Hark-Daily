@@ -259,3 +259,25 @@ def test_extracted_modules_import_without_cycles_and_preserve_exports():
     assert storypack.prune_older is pack_ops.prune_older
     assert storypack.publish_showcase is showcase.publish_showcase
 
+
+def test_config_resolve_and_load_custom_env_file(tmp_path, monkeypatch):
+    from app import config as config_mod
+
+    custom_env = tmp_path / ".env.preprod"
+    custom_env.write_text(
+        "# Preprod test\n"
+        "PREPROD_TEST_KEY='from_preprod'\n"
+        "PREPROD_EXISTING_KEY=should_not_override\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ENV_FILE", str(custom_env))
+    monkeypatch.setenv("PREPROD_EXISTING_KEY", "already_set")
+    monkeypatch.delenv("PREPROD_TEST_KEY", raising=False)
+
+    assert config_mod.resolve_env_file() == custom_env
+    config_mod._load_env_file()
+
+    assert config_mod.os.environ["PREPROD_TEST_KEY"] == "from_preprod"
+    assert config_mod.os.environ["PREPROD_EXISTING_KEY"] == "already_set"
+
+

@@ -123,29 +123,29 @@ def test_call_agy_cli_respects_json_mode(monkeypatch):
     monkeypatch.setattr(llm.subprocess, "run", fake_run)
 
     out_json = llm.call_agy_cli(
-        "gemini-3.8-flash-low", [{"role": "user", "content": "Hi"}],
+        "gemini-4-hydrogen-low", [{"role": "user", "content": "Hi"}],
         bin_lookup=lambda: "/usr/local/bin/agy", json_mode=True,
     )
     assert out_json == '{"k": 1}'
     assert "Return ONLY raw valid JSON" in seen_prompts[-1]
 
     out_plain = llm.call_agy_cli(
-        "gemini-3.8-flash-low", [{"role": "user", "content": "Hi"}],
+        "gemini-4-hydrogen-low", [{"role": "user", "content": "Hi"}],
         bin_lookup=lambda: "/usr/local/bin/agy", json_mode=False,
     )
     assert out_plain == 'Intro text\n{"k": 1}\nOutro text'
     assert "Return ONLY raw valid JSON" not in seen_prompts[-1]
 
     with pytest.raises(RuntimeError, match="not found"):
-        llm.call_agy_cli("gemini-3.8-flash-low", [{"role": "user", "content": "Hi"}], bin_lookup=lambda: None)
+        llm.call_agy_cli("gemini-4-hydrogen-low", [{"role": "user", "content": "Hi"}], bin_lookup=lambda: None)
 
     monkeypatch.setattr(llm.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a[0], 1, stdout="", stderr="boom"))
     with pytest.raises(RuntimeError, match="agy CLI failed: boom"):
-        llm.call_agy_cli("gemini-3.8-flash-low", [{"role": "user", "content": "Hi"}], bin_lookup=lambda: "/usr/local/bin/agy")
+        llm.call_agy_cli("gemini-4-hydrogen-low", [{"role": "user", "content": "Hi"}], bin_lookup=lambda: "/usr/local/bin/agy")
 
     monkeypatch.setattr(llm.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a[0], 0, stdout="  \n ", stderr=""))
     with pytest.raises(ValueError, match="empty output"):
-        llm.call_agy_cli("gemini-3.8-flash-low", [{"role": "user", "content": "Hi"}], bin_lookup=lambda: "/usr/local/bin/agy")
+        llm.call_agy_cli("gemini-4-hydrogen-low", [{"role": "user", "content": "Hi"}], bin_lookup=lambda: "/usr/local/bin/agy")
 
 
 # --------------------------------------------------------------------------- 2. Rate limiter concurrency
