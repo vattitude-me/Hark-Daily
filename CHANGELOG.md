@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.25] - 2026-11-17
+
+### Added
+- **Pre-prod environment**: isolated Supabase project for testing voice and script changes. `scripts/preprod_run.sh` runs the web UI, checks and packs against Pre-prod only and refuses to run against the production project. `ENV_FILE` selects an alternate dotenv file. The web client and feedback API target Pre-prod on localhost, `*.vercel.app`, `dev.*` and `preprod.*` hosts and on Vercel preview/development deployments. Production is unchanged.
+
+### Changed
+- Default Antigravity CLI model is now `gemini-4-hydrogen-low` for prod and Pre-prod, and the morning pack script pins it.
+- `agy` lookup also checks `~/.local/bin/agy`.
+
+---
+
 ## [1.0.22] - 2026-11-10
 
 ### Added
