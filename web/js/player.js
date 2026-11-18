@@ -362,7 +362,8 @@ export class Player extends EventTarget {
     };
     audioEl.addEventListener('waiting', start);
     audioEl.addEventListener('stalled', () => { if (this.isPlaying && audioEl.readyState < 3) start(); });
-    audioEl.addEventListener('playing', stop);
+    // Audio that is playing is proof the link is working, so it also clears earlier slow signals.
+    audioEl.addEventListener('playing', () => { stop(); noteOk(); });
     audioEl.addEventListener('canplay', () => { if (!audioEl.paused) stop(); });
     // While a slow link fills the current clip, let the next one wait. Re-check as data arrives.
     audioEl.addEventListener('progress', () => { if (isSlow()) this.preloadNext(); });
