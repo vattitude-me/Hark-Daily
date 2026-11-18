@@ -87,8 +87,8 @@ export function timeoutFor(ms) {
 }
 
 export const COPY = {
-  slow: 'Slow connection. Audio may pause to load. Your saved briefing stays available.',
-  offline: "You're offline. Your saved briefing is shown. Audio needs a connection.",
+  slow: 'Slow connection. Audio may pause to load.',
+  offline: "You're offline. Showing your saved briefing.",
   back: 'Back online.',
 };
 
@@ -115,24 +115,46 @@ function banner() {
   const text = document.createElement('span');
   text.className = 'net-banner-text';
   bannerEl.append(dot, text);
+  bannerEl.title = 'Tap to dismiss';
+  bannerEl.addEventListener('click', () => { bannerEl.hidden = true; });
   document.body.appendChild(bannerEl);
   return bannerEl;
+}
+
+const SLOW_BANNER_MS = 8000;
+const SLOW_BANNER_COOLDOWN_MS = 2 * 60 * 1000;
+let slowShownAt = -Infinity;
+let hideTimer = null;
+
+/**
+ * Pure decision for a quality change. The slow banner is a heads-up, not a fixture: it hides itself
+ * after a few seconds and does not come back for two minutes. Offline stays until the link returns.
+ * "Back online" is only said after being offline, never after a slow patch.
+ */
+export function bannerAction(q, prev, { now = Date.now(), lastSlowAt = -Infinity } = {}) {
+  if (q === 'ok') return { show: false, back: prev === 'offline' };
+  if (q === 'offline') return { show: true, autoHideMs: 0, back: false };
+  if (now - lastSlowAt < SLOW_BANNER_COOLDOWN_MS) return { show: false, back: false };
+  return { show: true, autoHideMs: SLOW_BANNER_MS, back: false };
 }
 
 function render(q, prev, notify) {
   const el = banner();
   if (!el) return;
-  if (q === 'ok') {
+  document.documentElement.classList.toggle('net-slow', q === 'slow');
+  document.documentElement.classList.toggle('net-offline', q === 'offline');
+  const act = bannerAction(q, prev, { lastSlowAt: slowShownAt });
+  clearTimeout(hideTimer);
+  if (act.back && notify) notify(COPY.back, { type: 'success', ms: 2200 });
+  if (!act.show) {
     el.hidden = true;
-    document.documentElement.classList.remove('net-slow', 'net-offline');
-    if ((prev === 'slow' || prev === 'offline') && notify) notify(COPY.back, { type: 'success', ms: 2200 });
     return;
   }
   el.querySelector('.net-banner-text').textContent = COPY[q];
   el.dataset.state = q;
   el.hidden = false;
-  document.documentElement.classList.toggle('net-slow', q === 'slow');
-  document.documentElement.classList.toggle('net-offline', q === 'offline');
+  if (q === 'slow') slowShownAt = Date.now();
+  if (act.autoHideMs) hideTimer = setTimeout(() => { el.hidden = true; }, act.autoHideMs);
 }
 
 /** Wire up browser events and the banner. `notify` is the app's toast function. */
