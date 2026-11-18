@@ -1,411 +1,223 @@
-# Hark Daily — Technical & Architecture Guide
+# Technical guide
 
-Hark Daily is an automated, multi-provider news briefing system that compiles, summarizes, and voices daily news into a 5-minute personalized audio briefing. Spoken audio is rendered on an Apple Silicon Mac using Metal Performance Shaders (MPS) hardware acceleration, framed with permanent static transitions and dynamic co-host banter, and assembled dynamically on client devices based on user topic preferences, category ordering, and listening mode (Podcast vs. Full Briefing).
+Hark Daily is a daily news podcast. It turns the day's news into a short episode. A Mac builds the audio once a day. The apps download the clips and assemble a briefing on the device, based on each listener's topics and settings.
 
----
-
-## Architecture Flow
-
-The system runs automated morning and evening batch ingestion and synthesis pipelines triggered by macOS `launchd`, writes shared audio clips and podcast dialogue to Supabase, and serves them to client applications.
+## Overview
 
 ```mermaid
 flowchart TD
-    subgraph Scheduler["1. Automated macOS Scheduling & Power Relay"]
-        RTC["macOS Hardware RTC Alarm<br/>(pmset repeat / schedule wake)"] -->|05:58 / 17:58| WAKE["DarkWake Mode<br/>(Lid Closed on AC Power)"]
-        WAKE -->|06:00 / 18:00| LAUNCHD["macOS launchd Daemon<br/>(me.vattitude.harkdaily.*)"]
-        LAUNCHD --> CAFF["caffeinate -i -s -m<br/>(Holds sleep assertion)"]
+    subgraph Mac["Daily run on a Mac (05:00)"]
+        WAKE["pmset wakes the Mac at 04:58"] --> LD["launchd runs scripts/morning_pack_mac.sh"]
+        LD --> VS["Start the voice service on :8090"]
+        LD --> FEEDS["Read RSS feeds"]
+        FEEDS --> EXTRACT["Extract article text (trafilatura)"]
+        EXTRACT --> SUM["Write short story scripts"]
+        SUM --> LLM["Write host dialogue (LLM chain)"]
+        SUM & LLM --> VS
+        VS --> MP3["Encode MP3s"]
     end
 
-    subgraph Extraction["2. Multi-Provider Ingestion & Extraction"]
-        CAFF -->|Fetch RSS Feeds| FEEDS["Public News Providers"]
-        FEEDS --> CBC["CBC News<br/>(Top, Politics, Arts, Science, Sports)"]
-        FEEDS --> TC["TechCrunch<br/>(Artificial Intelligence)"]
-        FEEDS --> BK["BetaKit<br/>(Canadian Tech & Innovation)"]
-        FEEDS --> SD["ScienceDaily<br/>(Science & Technology)"]
-        CBC & TC & BK & SD -->|Article URLs| HTTPX["HTTPX Async Client"]
-        HTTPX -->|Raw HTML| TRAF["Trafilatura Extraction<br/>(Title, Lead Image, Clean Text)"]
-        TRAF -->|Normalized Text| SUM["Extractive Summarizer<br/>(Lead Salience, ~22s Scripts)"]
+    subgraph Supabase
+        MP3 --> STORAGE["Storage: briefings bucket"]
+        MP3 --> DB["Postgres: story_audio, podcast_clips, voice_notes"]
+        DB --> SHOW["showcase/pack-DATE.json"]
     end
 
-    subgraph GPU["3. Local Voice Synthesis & Dialogue Generation"]
-        SUM -->|Start Local Server| V_SRV["Chatterbox-Turbo (:8090)<br/>(PyTorch Apple Silicon MPS)"]
-        SUM -->|Generate Dialogue| LLM["Gemini & Groq Chain<br/>(Lively Co-Host Banter)"]
-        V_SRV -->|POST /synthesize| AUDIO["Synthesize Day's Story Clips<br/>(Matthew & Kelly)"]
-        V_SRV -->|POST /synthesize| BANTER["Synthesize Podcast Banter<br/>(Openings, Teasers, Bridges, Outros)"]
-        V_SRV -->|Pre-Closure Guard| NOTES["ensure_static_notes()<br/>(Synthesize only missing static notes)"]
-        AUDIO & BANTER & NOTES --> STOP["Stop Voice Service<br/>(Free local M3 Pro compute, $0 cost)"]
-    end
-
-    subgraph Storage["4. Permanent Storage & Metadata Distribution"]
-        AUDIO -->|Upload Story MP3s| SB_STOR_DAILY["Supabase Storage: stories/{date}/"]
-        BANTER -->|Upload Banter MP3s| SB_STOR_POD["Supabase Storage: podcast/{date}/"]
-        NOTES -->|Upload Static MP3s| SB_STOR_STATIC["Supabase Storage: notes/static/"]
-        AUDIO & BANTER & NOTES -->|Insert Metadata| SB_DB["Supabase PostgreSQL<br/>(story_audio, podcast_clips, voice_notes)"]
-        SB_DB -->|VAPID Web Push| PUSH["Web Push Notifications"]
-        STOP -->|Queue Wake Relay| RELAY["scripts/schedule_wake.sh<br/>(Queues next hardware wake)"]
-    end
-
-    subgraph Clients["5. Dynamic Client Assembly & Gestures"]
-        SB_DB -->|Fetch Pack Rows| PWA["Web PWA (Hark Daily)<br/>(Podcast & Full Briefing Modes)"]
-        SB_DB -->|Fetch Pack Rows| MOBILE["Android & iOS Apps (Capacitor)<br/>(Smart Shell, Background Audio)"]
-        SB_STOR_DAILY & SB_STOR_POD & SB_STOR_STATIC -->|Stream MP3s| PWA
-        SB_STOR_DAILY & SB_STOR_POD & SB_STOR_STATIC -->|Stream MP3s| MOBILE
+    subgraph Apps["Web, Android and iOS (same web code)"]
+        SHOW --> CLIENT["web/js/storypack.js builds the playlist"]
+        DB --> CLIENT
+        STORAGE --> PLAYER["web/js/player.js streams the clips"]
+        CLIENT --> PLAYER
     end
 ```
 
----
+## Code layout
 
-## 1. Multi-Provider News Ingestion & Article Extraction
+| Path | What it holds |
+| :--- | :--- |
+| `app/` | Python pipeline: feeds, scripts, dialogue, packing, upload, reports |
+| `voice_service/` | FastAPI text-to-speech service (Chatterbox-Turbo) |
+| `web/` | The app. Served by Vercel at hark.vattitude.ca |
+| `web/api/` | Vercel functions: share previews, feedback, geo lookup, article fetch |
+| `android/`, `ios/` | Capacitor shells that load the hosted web app |
+| `scripts/` | Run scripts for macOS, wake scheduling, single-story regeneration |
+| `supabase/schema.sql` | Database tables and policies |
+| `tests/` | Python tests (pytest) and web tests (`tests/js`, Node test runner) |
 
-### Multi-Provider Architecture ([`app/topics.py`](file:///Users/vattitude/Coding/Morning_Brief/app/topics.py))
-The system ingests stories across 8 canonical categories configured for **Canada (CA)**, the **United States (US)**, and **India (IN)**, while sharing global technology and science coverage universally across all regions:
+## 1. News sources
 
-#### 1. Universal Shared Sections (Voiced once globally, reused across all editions)
-- `ai` — TechCrunch Artificial Intelligence (`https://techcrunch.com/category/artificial-intelligence/feed/`)
-- `tech` — BetaKit Canadian Tech & Innovation / Ars Technica / The Verge
-- `science` — ScienceDaily (`https://www.sciencedaily.com/rss/top/science.xml`, CBC News fallback)
+[`app/topics.py`](../app/topics.py) defines the feeds. Each edition has 8 sections. AI and science are shared, so they are voiced once and used by all three editions.
 
-#### 2. Regional Specific Sections
-- 🇨🇦 **Canada (`ca`)**:
-  - `top` — CBC News Top Stories (`https://www.cbc.ca/cmlink/rss-topstories`)
-  - `markets` — Toronto Stock Exchange (TSX) / Yahoo Finance Canada
-  - `politics` — CBC News Politics (`https://www.cbc.ca/cmlink/rss-politics`)
-  - `entertainment` — CBC News Arts & Entertainment (`https://www.cbc.ca/cmlink/rss-arts`)
-  - `sports` — CBC News Sports (`https://www.cbc.ca/cmlink/rss-sports`)
-- 🇺🇸 **United States (`us`)**:
-  - `top_us` — The New York Times (`https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml`)
-  - `markets_us` — S&P 500, Nasdaq, Wall Street MarketWatch
-  - `politics_us` — NPR Politics (`https://feeds.npr.org/1014/rss.xml`)
-  - `entertainment_us` — Variety (`https://variety.com/feed/`)
-  - `sports_us` — CBS Sports (`https://www.cbssports.com/rss/headlines/`)
-- 🇮🇳 **India (`in`)**:
-  - `top_in` — The Hindu National (`https://www.thehindu.com/news/national/feeder/default.rss`)
-  - `markets_in` — BSE Sensex & NSE Nifty 50
-  - `politics_in` — The Indian Express Politics (`https://indianexpress.com/section/political-pulse/feed/`)
-  - `entertainment_in` — The Indian Express Entertainment (`https://indianexpress.com/section/entertainment/feed/`)
-  - `sports_in` — ESPNcricinfo (`https://www.espncricinfo.com/rss/content/story/feeds/0.xml`)
+| Section | Canada (`ca`) | US (`us`) | India (`in`) |
+| :--- | :--- | :--- | :--- |
+| Top stories | CBC News | New York Times | The Hindu |
+| Markets | CBC Business | MarketWatch | Economic Times |
+| AI | TechCrunch | TechCrunch | TechCrunch |
+| Tech | BetaKit | The Verge | ET Tech |
+| Politics | CBC News | NPR | Indian Express |
+| Entertainment | CBC News | Variety | Indian Express |
+| Science | ScienceDaily (CBC fallback) | same | same |
+| Sports | CBC News | CBS Sports | ESPNcricinfo |
 
-#### 3. Scheduled Batch Ingestion & Compute Execution
-- **Morning Batch (~6:00 AM EDT)**: Active primary pipeline running `--edition ca,us,in`. Voices regional news and financial markets across all three countries along with shared `ai`, `tech`, and `science` in a single unified run.
-- **Evening Batch (~6:00 PM EDT)**: Currently paused/disabled in launchd scheduling to optimize local compute, but available for on-demand execution.
+US and India section keys have a suffix, for example `top_us` and `markets_in`. Shared sections use plain keys (`ai`, `science`). The pipeline keeps the top 5 stories per section after removing duplicates.
 
-#### 4. Zero-Migration Database Model
-All clips are stored in Supabase under `story_audio` with primary key `(date, section, rank, voice)`. Regional stories use section identifiers (`top_us`, `top_in`, `markets_us`, `markets_in`), while universal stories use canonical keys (`ai`, `tech`, `science`). This avoids database schema migrations and guarantees full backward compatibility for older clients.
+## 2. Scripts and dialogue
 
-The feed order reflects editorial curation. The worker selects the top 5 articles per category with deep deduplication buffers, editorial recency backfill, and cross-run continuity to guarantee sections never starve below the requested story count.
+- [`app/fetcher.py`](../app/fetcher.py) downloads each article and uses trafilatura to pull out the title, lead image and body text.
+- [`app/summarizer.py`](../app/summarizer.py) strips datelines and captions, then picks 2 or 3 key sentences. A script runs about 22 seconds.
+- [`app/podcast.py`](../app/podcast.py) writes the two-host dialogue. Matthew gives the facts. Kelly adds the angle or what it means. Each turn is 20 words or fewer. The pieces are:
+  - `pod_open_*`, the opening
+  - `pod_tease_<section>`, a reaction to the section's top story
+  - `pod_bridge_<section>`, the lead-in to a section
+  - `pod_close_*`, the sign-off
+- Scripts avoid time-of-day phrases like "good morning", so the briefing works at any hour.
+- [`app/llm.py`](../app/llm.py) tries the Antigravity CLI first, then Groq, then Gemini. If one fails or hits a rate limit, it moves to the next.
 
-### Parsing with Trafilatura ([`app/fetcher.py`](file:///Users/vattitude/Coding/Morning_Brief/app/fetcher.py))
-`trafilatura` extracts clean article text, metadata, and hero images from raw HTML while stripping out boilerplate, navigation menus, inline ads, and comments:
+## 3. Voice synthesis
 
-```python
-def extract_article(page_html: str, url: str) -> dict:
-    raw = trafilatura.extract(
-        page_html,
-        url=url,
-        output_format="json",
-        with_metadata=True,
-        include_comments=False,
-        include_tables=False,
-        favor_precision=True,
-    )
-    if not raw:
-        meta = trafilatura.extract_metadata(page_html, default_url=url)
-        return {
-            "title": getattr(meta, "title", None),
-            "description": getattr(meta, "description", None),
-            "image": getattr(meta, "image", None),
-            "sitename": getattr(meta, "sitename", None),
-            "text": "",
-        }
-    data = json.loads(raw)
-    return {
-        "title": data.get("title"),
-        "description": data.get("description") or data.get("excerpt"),
-        "image": data.get("image"),
-        "sitename": data.get("sitename") or data.get("hostname"),
-        "date": data.get("date"),
-        "text": data.get("text") or data.get("raw_text") or "",
-    }
-```
+The voice service in [`voice_service/`](../voice_service/README.md) runs Chatterbox-Turbo with PyTorch on Apple Silicon (MPS). The run script starts it before the pack and stops it after.
 
-### Extractive Summarization ([`app/summarizer.py`](file:///Users/vattitude/Coding/Morning_Brief/app/summarizer.py))
-Spoken broadcast scripts are extracted algorithmically from original reporting:
-1. Strips datelines, author credits, and photo captions.
-2. Identifies key informational sentences using lead paragraph proximity and term frequency salience.
-3. Produces a 2-to-3 sentence script calibrated to ~22 seconds of spoken broadcast.
+- Voices are Matthew (`matthew_reference`) and Kelly (`kelly_reference`).
+- A full run (3 editions, about 35 stories and 20 dialogue pieces) takes 15 to 20 minutes.
+- Long scripts are split at sentence ends and joined at zero crossings, so there are no clicks.
+- [`data/lexicon.json`](../data/lexicon.json) fixes pronunciation of names, acronyms and numbers.
+- [`app/audio.py`](../app/audio.py) encodes clips as 64 kbps MP3.
 
----
+Endpoints:
 
-## 2. Permanent Static Voice Notes Library & Pre-Closure Guard
-
-Spoken framing consists of greetings, section introductions, and the briefing sign-off. Because these scripts are static and fixed, synthesizing them every single day is unnecessary.
-
-### Static Asset Storage ([`app/storypack.py`](file:///Users/vattitude/Coding/Morning_Brief/app/storypack.py))
-1. **Permanent Storage Path**:
-   Spoken framing clips are stored permanently in Supabase Storage at:
-   `notes/static/{note_key}-{voice}.mp3`
-2. **Sentinel Date Indexing**:
-   Static metadata rows are indexed in PostgreSQL under sentinel date `STATIC_DATE = "2000-01-01"`.
-3. **12 Canonical Notes per Voice**:
-   - 3 Time-adaptive greetings (`greeting_morning`, `greeting_afternoon`, `greeting_evening`)
-   - 8 Section transitions (`intro_top`, `intro_markets`, `intro_ai`, `intro_tech`, `intro_politics`, `intro_entertainment`, `intro_science`, `intro_sports`)
-   - 1 Sign-off (`outro`)
-
-### Pre-Closure Guard (`ensure_static_notes`)
-Before the daily batch completes and shuts down the local voice service:
-- `ensure_static_notes()` checks if any static note is missing for the active voices.
-- If all 12 static notes exist for that voice: **0 synthesis calls are made**.
-- If a new voice is added or a note is missing: The pipeline synthesizes the missing notes and registers them permanently in `notes/static/`.
-- `build_notes()` links the static storage paths into today's `voice_notes` rows for the current date, ensuring 100% transparent backwards compatibility with existing Android and Web client versions.
-
-### Retention Protection (`prune_older`)
-Automated database and storage cleanup routines in [`app/storypack.py:prune_older()`](file:///Users/vattitude/Coding/Morning_Brief/app/storypack.py#L134-L160) are guarded:
-- Excludes `STATIC_DATE = "2000-01-01"` from table row pruning.
-- Explicitly filters out all paths starting with `notes/static/` from `remove_objects()`, guaranteeing permanent static audio files are never purged.
-
----
-
-## 3. Local Apple Silicon M3 Pro Voice Synthesis (Metal Performance Shaders)
-
-Neural audio synthesis runs locally on the host Mac using **Apple Silicon Metal Performance Shaders (MPS)** hardware acceleration:
-
-```text
-Resource Profile (Local M3 Pro Apple Silicon):
-- Hardware Acceleration:            Apple Silicon MPS (Metal Performance Shaders)
-- Inference Engine:                 Chatterbox-Turbo (PerthNet / Kokoro)
-- Generation Speed:                 ~3.5x to 4x real-time (an 8s clip takes ~2s)
-- Total Synthesis Duration:         ~15 to 20 minutes per full edition (35 stories + 20 banter pieces)
-- Recurring Cloud Compute Cost:     $0.00 / month (100% local hardware)
-```
-
-### Voice Service API Contracts ([`voice_service/api/app.py`](file:///Users/vattitude/Coding/Morning_Brief/voice_service/api/app.py))
-The TTS service exposes endpoints on port `8090`:
-
-#### `GET /health`
-```json
-{
-  "status": "ok",
-  "device": "mps",
-  "sample_rate": 24000
-}
-```
-
-#### `GET /voices`
-Lists available voice reference clips in `voice_service/data/voices/`:
-- `matthew_reference` — Matthew (Calm American newsreader, podcast co-host)
-- `kelly_reference` — Kelly (Engaging American newsreader, podcast co-host)
-
-#### `POST /synthesize?format=mp3`
-```http
-POST /synthesize?format=mp3 HTTP/1.1
-Content-Type: application/json
-
-{
-  "text": "Good morning. In artificial intelligence news today, researchers announced...",
-  "voice": "c3po_reference"
-}
-```
-Response:
-```http
-HTTP/1.1 200 OK
-Content-Type: audio/mpeg
-X-Duration: 21.84
-
-<binary audio bytes>
-```
-
-### Audio Synthesis & Engine Optimizations
-1. **Sentence Splitting with Seamless Zero-Crossing Stitching**:
-   - Long scripts are split into natural sentential clauses at punctuation boundaries.
-   - Sub-clips are stitched using zero-crossing alignment to eliminate phase discontinuities, boundary pops, and click artifacts.
-2. **MPS Memory Stability & Garbage Collection**:
-   - Following every synthesis call, the engine explicitly invokes `torch.mps.empty_cache()` and `gc.collect()`. This prevents unified memory bloat and Metal buffer retention during continuous multi-edition generation.
-3. **Phonetic Lexicon & Broadcast Normalization** ([`data/lexicon.json`](file:///Users/vattitude/Coding/Morning_Brief/data/lexicon.json)):
-   - Automated text normalization ensures tech acronyms, financial figures (e.g., "$12.4B" -> "twelve point four billion dollars"), and company names (e.g., "Nvidia" -> "en-VID-ee-uh") are spoken with native broadcast cadence.
-4. **Broadcast Profanity Filter**:
-   - Zero-tolerance sanitization layer guarding prompt generation, LLM dialogue outputs, and TTS synthesis inputs against profanity or objectionable phrases.
-
----
-
-## 4. Client Assembly & Dual Listening Modes
-
-### Client Assembly Engine (`StoryPack`)
-Audio clips are synthesized once globally for all listeners. The web PWA ([`web/js/storypack.js`](file:///Users/vattitude/Coding/Morning_Brief/web/js/storypack.js)) and Android app ([`StoryPack.kt`](file:///Users/vattitude/Coding/Morning_Brief/android/app/src/main/java/me/vattitude/morningbrief/data/StoryPack.kt)) assemble custom briefings client-side without re-encoding:
-
-1. **Verify Readiness**: Checks that `voice_notes` contains a `pack_ready` marker for the requested voice and date.
-2. **Greeting Selection**: Selects `greeting_morning` (< 12:00), `greeting_afternoon` (12:00–17:00), or `greeting_evening` (>= 17:00) according to the user's local clock.
-3. **Listening Modes**:
-   - **Podcast (Default)**: Dynamic co-host dialogue (Matthew & Kelly) bookending each section, adapting dynamically to the listener's topic selection.
-   - **Full Briefing**: Traditional radio-style listening with individual story narration, spoken section introductions (`intro_{section}`), and sign-off.
-4. **Category Ordering**: Sequences stories according to user's custom `section_order` (default: `top`, `markets`, `ai`, `tech`, `politics`, `entertainment`, `science`, `sports`).
-5. **Story Counts**: Selects the top $N$ stories configured for each category (default: 5 for Top Stories, 3 for Markets and other categories).
-6. **Breaths**: Inserts a 0.8-second silent pause (`BREATH = 0.8`) between consecutive clips for natural broadcast pacing.
-
-### Podcast Mode Architecture
-Two co-hosts (**Matthew & Kelly**) converse around the news. Banter is generated by [`app/podcast.py`](file:///Users/vattitude/Coding/Morning_Brief/app/podcast.py) after the pack's stories and notes are published:
-
-- **Banter Pieces**:
-  - `pod_open_1..3`: Lively opening greetings previewing the day's stories.
-  - `pod_tease_<section>`: Conversational reactions to that section's top story.
-  - `pod_bridge_<section>`: Transition lead-ins into the section.
-  - `pod_close_1..2`: Warm, conversational sign-offs.
-  - Stored in `podcast_clips` with a `podcast_ready` marker.
-- **Dynamic Multi-Angle Scriptwriting Engine**:
-  - **Angle Differentiation**: When co-hosts discuss a topic, Host 1 covers headline facts and company context, while Host 2 explores broader market/consumer/economic impacts, avoiding circular redundancy.
-  - **Turn Length Discipline**: Strict maximum of 20 words per spoken turn, preventing long-winded monologues.
-  - **Anti-Repetition & De-Duplication**: Prevents consecutive stories from repeating the same topic angle or using repetitive transition phrases (*"Staying with Nvidia for a moment"*).
-  - **Format Rotation**: Dynamically alternates banter structures across days to keep morning briefings fresh and unpredictable.
-  - **Cascading Inference Engine**: LLM pipeline cascades through Antigravity CLI -> Groq -> Gemini, providing resilient dialogue generation even during external API rate-limits.
-- **Time-Neutral 24-Hour Listening**:
-  - Banter prompts and writer templates are strictly time-neutral. Phrasing such as *"Good morning"*, *"morning coffee"*, *"morning brief"*, or *"see you tomorrow morning"* is prohibited.
-  - Listeners opening the app in the afternoon, evening, or across varying timezones hear natural, time-agnostic announcements (*"Welcome to Hark Daily"*, *"Here is your briefing"*, *"That's today's briefing. Have a great day, and stay informed."*).
-- **Clean Title & Artwork Decoupling**:
-  - During intro banter and teasers, player headlines display clean broadcast title messages (`Welcome · Today's preview`, `Coming up · Top stories`, `Up next · Tech`, `That's today's brief · Signing off`) instead of raw spoken dialogue.
-  - Displays the official Hark Daily podcast logo (`/icons/icon-512.png` or `ic_hark_logo`) during conversational segments, transitioning to editorial photography during news stories.
-  - The bottom Read-Along visor continues to provide word-for-word transcript subtitles.
-- **Expressive Dialogue & Inter-Turn Pauses**:
-  - Dialogue generation uses Gemini/Groq LLMs with expressive prompts, natural contractions, and speech tags (`[chuckle]`, `[laugh]`, `[sigh]`, `[gasp]`).
-  - Co-host turn transitions inject `[[pause:0.35]]` silence tokens so alternating speakers take natural conversational breaths rather than colliding.
-  - Duo host badge formats cleanly as `Matthew & Kelly`.
-
----
-
-## 5. Story Sharing, Deep-Linking & Expired Link Recovery
-
-### Per-Story URL Routing
-Every story card features a native Web Share / copy link trigger generating canonical deep links:
-`https://hark.vattitude.ca/s/{date}/{slug}` or `https://hark.vattitude.ca/?story={section}-{rank}&date={YYYY-MM-DD}`
-
-### Deep-Link Ingestion & Playback Guarantees
-When a user opens a shared link:
-1. **Target Story Extraction**: `web/js/app.js` parses the URL params or serverless pre-rendered state (`window.__SHARED_STORY__`).
-2. **Lineup Resilience**: If the targeted story rank exceeds the viewer's active section count (e.g. `top-4` when default is 3), the briefing assembler temporarily raises the wanted count for that section so the clip is guaranteed to be in the playlist.
-3. **Edition Fallback**: If the shared link references an edition-specific story (e.g. `top_us-1`), the client loads and positions the player on that specific story without breaking the current user's session.
-4. **Playback Positioning**: Automatically seeks and scrolls directly to the shared story card.
-
-### Expired Link & 404 Error Handling
-Because Hark Daily operates on a rolling multi-day audio storage model, older shared links eventually expire:
-1. **In-App Expired Story Modal** (`#sharedStoryNotFoundModal`):
-   - When an expired or invalid link is opened, `app.js` triggers a focused error dialog.
-   - Highlights the original broadcast date with calendar metadata.
-   - Explains the rolling archive window and offers instant 1-tap playback of today's briefing or opening the full story browser.
-2. **Standalone 404 Page** ([`web/404.html`](file:///Users/vattitude/Coding/Morning_Brief/web/404.html)):
-   - Unrecognized routes or missing static assets serve a dedicated glassmorphic 404 page with an active rolling archive badge and a CTA button leading directly back to the briefing.
-   - Included in Service Worker shell precache (`hark-daily-v95`).
-3. **Serverless OpenGraph Fallback** ([`web/api/share.js`](file:///Users/vattitude/Coding/Morning_Brief/web/api/share.js)):
-   - Social crawlers (WhatsApp, iMessage, Twitter/X, Discord) requesting missing or expired clips receive clean `Story Expired (${date}) — Hark Daily` metadata instead of broken preview cards.
-
----
-
-## 6. Hamburger Navigation, Feedback & Support
-
-### Streamlined Drawer UI
-The slide-out navigation menu has been reorganized for rapid one-handed mobile ergonomics:
-- **Header Account Button**: Dedicated profile and sign-in button located in the drawer top bar (`drawerAccountBtn`).
-- **Combined Speed & Restart Row**: Compact split container (`.clean-menu-row-split`) placing playback speed adjustment (1x, 1.25x, 1.5x) and "Restart from start" side-by-side.
-- **Two-Way Morning Alerts Toggle**: Push notification switch honoring local preference (`hark_morning_alerts_disabled`) to mute daily alerts on demand.
-
-### Support & Anti-Spam Feedback
-- **"Buy a coffee" Card**: Direct external link to `https://buymeacoffee.com/vattitude` for voluntary listener support.
-- **In-App Feedback Modal (`#feedbackModal`)**:
-  - Submits listener bug reports, ideas, and general comments directly to a secure Discord webhook.
-  - Multi-tier anti-spam protection:
-    - **Honeypot Trap**: Invisible `website` field that halts submission if populated by automated scrapers.
-    - **Dynamic Math Challenge**: Random single-digit arithmetic question generated on modal open.
-    - **Rate-Limiting**: Enforces a 60-second cooldown between successive submissions via `localStorage`.
-    - **Mention Sanitization**: Injects zero-width spaces (`@\u200beveryone`, `@\u200bhere`) to neutralize Discord notification abuse.
-
----
-
-## 7. Privacy-Respecting Analytics (Google Analytics 4)
-
-- **Measurement ID**: `G-8LV7D5TDT2`.
-- **Consent Banner**: Lightweight, non-intrusive cookie consent banner presented on first visit.
-  - **Accept**: Activates GA4 script tag and persists consent in `localStorage` (`hark_analytics_consent = 'granted'`).
-  - **Decline**: Suppresses GA4 loading completely (`hark_analytics_consent = 'denied'`).
-- **Tracked Custom Events**:
-  - `share` — When a user shares a story card via Web Share API or clipboard.
-  - `shared_link_open` — When a visitor lands on the site via a shared story deep-link.
-  - `select_content` — When a user switches country editions (`ca`, `us`, `in`) or briefing modes.
-  - `footer_link_click` — Outbound navigation to publisher domains or project links.
-- **Data Minimization**: IP anonymization enabled by default; zero cross-site fingerprinting or advertising cookies.
-
----
-
-## 8. Storage & Database Schema
-
-Synthesized audio files are stored in Supabase Storage (`briefings` bucket) and tracked in PostgreSQL:
-
-- **`story_audio`**: Individual story clips.
-  - Columns: `date`, `section`, `rank`, `title`, `script`, `url`, `source`, `image`, `audio_path`, `duration`, `voice`, `marks`.
-- **`podcast_clips`**: Conversational banter pieces.
-  - Columns: `date`, `hosts`, `clip_key`, `text`, `duration`, `audio_path`, `writer`, `marks`.
-- **`voice_notes`**: Spoken framing audio clips and status markers.
-  - Columns: `date`, `voice`, `note_key`, `text`, `duration`, `audio_path`.
-  - Permanent static rows: `date = "2000-01-01"`, `audio_path = "notes/static/{key}-{voice}.mp3"`.
-  - Daily pointer rows: `date = "{YYYY-MM-DD}"`, pointing to the static audio paths.
-  - Completion marker: `note_key = "pack_ready"`, `text = "{clips} clips, {notes} notes"`.
-- **`profiles`**: User settings stored as JSONB (`stories`, `section_order`, `voice`, `speed`, `daily`, `color_photos`).
-
----
-
-## 9. Environment Configuration
-
-| Variable | Example Value | Description |
+| Method | Path | Returns |
 | :--- | :--- | :--- |
-| `SUPABASE_URL` | `https://xyz.supabase.co` | Supabase API endpoint |
-| `SUPABASE_SECRET_KEY` | `ey...` | Service-role key for backend worker write operations |
-| `VOICE_SERVICE_URL` | `http://127.0.0.1:8090` | Local voice service endpoint |
-| `VOICE_DIR` | `/.../voice_service/data/voices` | Directory of reference voice embeddings and audio samples |
-| `STORY_VOICES` | `matthew_reference+kelly_reference` | Voices rendered during daily batch |
-| `PODCAST_ENABLED` | `true` | Generates podcast banter and enables Podcast mode |
-| `PODCAST_HOSTS` | `matthew_reference,kelly_reference` | Duo host voice IDs |
-| `BRIEFING_TIMEZONE` | `America/Toronto` | Primary timezone for schedule calculations |
-| `VAPID_PRIVATE_KEY` | `...` | Private key for Web Push delivery |
-| `VAPID_PUBLIC_KEY` | `...` | Public key distributed to clients for push subscription |
+| GET | `/health` | Status, device and sample rate |
+| GET | `/voices` | Available reference voices |
+| POST | `/synthesize?format=mp3` | MP3 bytes. Body is `{"text": "...", "voice": "matthew_reference"}` |
 
----
+## 4. Fixed voice notes
 
-## 10. Operations & Automation CLI
+Greetings, section intros and the sign-off never change, so they are voiced once and kept.
 
-### macOS Automated Batch Runners
-* **Morning Edition (06:00 AM)**:
-  ```bash
-  ./scripts/morning_pack_mac.sh
-  ```
-* **Evening Edition (18:00 PM)** (Paused):
-  ```bash
-  ./scripts/evening_pack_mac.sh
-  ```
-* **Podcast Banter Regeneration**:
-  ```bash
-  ./scripts/podcast_pack_mac.sh --force
-  ```
-* **Surgical Single Story / Category Regeneration**:
-  ```bash
-  python scripts/regen_story.py --date 2026-11-10 --section markets --rank 1
-  ```
-* **Hardware Wake Schedule Status**:
-  ```bash
-  ./scripts/schedule_wake.sh status
-  ```
+- Storage path is `notes/static/{key}-{voice}.mp3`.
+- Database rows use the date `2000-01-01`.
+- Each voice has 12 notes: 3 greetings (morning, afternoon, evening), 8 section intros and 1 sign-off.
+- `ensure_static_notes()` voices only the notes that are missing. Most days it makes no calls.
+- Each day gets pointer rows in `voice_notes` that reference the fixed files.
+- `prune_older()` in [`app/pack_ops.py`](../app/pack_ops.py) deletes old days but skips `notes/static/` and the `2000-01-01` rows.
 
----
+## 5. Storage and database
 
-## 11. Testing
+Audio lives in the Supabase `briefings` bucket:
 
-### JavaScript & Web App Unit Tests (Node test runner)
+| Path | Contents |
+| :--- | :--- |
+| `stories/{date}/` | Story clips |
+| `podcast/{date}/` | Dialogue clips |
+| `notes/static/` | Fixed voice notes |
+| `showcase/pack-{date}.json`, `showcase/pack.json` | Public pack manifest the app loads first |
+
+Main tables in [`supabase/schema.sql`](../supabase/schema.sql):
+
+| Table | Holds |
+| :--- | :--- |
+| `story_audio` | One row per story clip. Key is `(date, section, rank, voice)` |
+| `podcast_clips` | One row per dialogue piece. A `podcast_ready` row marks the day complete |
+| `voice_notes` | Greetings, intros and the `pack_ready` marker |
+| `profiles` | Signed-in users' settings as JSON |
+| `push_subscriptions` | Web push endpoints |
+| `app_status`, `run_log` | Run progress and history |
+
+The app only shows a day once its `pack_ready` and `podcast_ready` markers exist, so listeners never get a half-built briefing.
+
+## 6. The app
+
+All three platforms run the code in `web/`. The Android and iOS shells load the hosted site, so a web deploy updates every platform.
+
+### Building the briefing
+
+[`web/js/storypack.js`](../web/js/storypack.js) turns the pack into a playlist:
+
+1. Picks the greeting from the listener's local time.
+2. Orders sections by the listener's `section_order`. The default is top, markets, AI, tech, politics, entertainment, science, sports.
+3. Takes the wanted number of stories per section. The default is 5 for top stories and 3 for the rest.
+4. In podcast mode, adds the dialogue pieces around each section. In full brief mode, adds the fixed section intros instead.
+5. Puts a 0.8 second pause between clips.
+
+### Playback
+
+[`web/js/player.js`](../web/js/player.js) plays one clip at a time and preloads the next. It updates the lock screen through the Media Session API. On Android, a native foreground service keeps audio playing with the screen off.
+
+### Weak networks
+
+[`web/js/network.js`](../web/js/network.js) decides whether the connection is fine, slow or offline. The listener only sees real evidence: the browser is offline, playback waited several seconds for data, or two requests timed out within two minutes. `navigator.connection` is only a hint. It stretches timeouts and delays preloading, and never shows a banner, because Chrome's estimate dips on fast Wi-Fi.
+
+- On a slow link, request timeouts are three times longer and the app waits to preload the next clip.
+- A short banner says "Slow connection" or "You're offline". In the player it sits in the top bar between the menu and story list buttons.
+- A clip that fails to load retries up to 3 times and resumes where it stopped.
+- The splash screen tells the user if loading takes more than 4 seconds and offers a retry after 12.
+
+### Offline shell
+
+[`web/sw.js`](../web/sw.js) caches the app shell. Bump the `CACHE` version, and the `?v=` numbers in `index.html`, when you change a cached file.
+
+### Shared stories
+
+Story links look like `/s/{date}/{slug}` or `/?story={section}-{rank}&date={date}`. The app jumps to that story. If the date has aged out, it shows a dialog that offers today's briefing. [`web/api/share.js`](../web/api/share.js) gives link previews to chat apps and social sites.
+
+### Feedback
+
+The feedback form posts to [`web/api/feedback.js`](../web/api/feedback.js), which forwards it to a Discord webhook. It blocks spam with a hidden honeypot field, a simple math question and a 60 second cooldown, and it removes `@everyone` and `@here` mentions.
+
+### Analytics
+
+Google Analytics loads only after the user accepts the consent banner. Events tracked: `share`, `shared_link_open`, `select_content` and `footer_link_click`.
+
+## 7. Daily run
+
+[`docs/nightly.md`](nightly.md) covers scheduling. In short:
+
+- launchd runs `scripts/morning_pack_mac.sh` at 05:00 local time.
+- `pmset` wakes the Mac at 04:58, and `caffeinate` keeps it awake during the run.
+- When the run ends, `scripts/schedule_wake.sh` sets the next wake.
+- The evening run is turned off.
+
+There is also a Docker worker (`python -m app worker`, see `docker-compose.yml`). It runs on a Linux server and handles requests the app queues in Supabase, such as admin rebuilds and account deletions.
+
+## 8. Pre-prod
+
+Pre-prod is a separate Supabase project for testing changes. `scripts/preprod_run.sh` runs packs and checks against it and refuses to run against production. Set `ENV_FILE` to choose a different dotenv file. Vercel preview builds and `localhost` use Pre-prod automatically.
+
+## 9. Configuration
+
+Copy `.env.example` to `.env`. The main settings:
+
+| Variable | Example | Purpose |
+| :--- | :--- | :--- |
+| `SUPABASE_URL` | `https://xyz.supabase.co` | Supabase project |
+| `SUPABASE_SECRET_KEY` | | Service key for uploads |
+| `VOICE_SERVICE_URL` | `http://127.0.0.1:8090` | Voice service |
+| `VOICE_DIR` | `voice_service/data/voices` | Reference voice clips |
+| `STORY_VOICES` | `matthew_reference+kelly_reference` | Voices for story clips |
+| `PODCAST_ENABLED` | `true` | Build the two-host dialogue |
+| `PODCAST_HOSTS` | `matthew_reference,kelly_reference` | The two hosts |
+| `GROQ_API_KEY`, `GEMINI_API_KEY` | | LLM fallbacks |
+| `BRIEFING_TIMEZONE` | `America/Toronto` | Timezone for the schedule |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | | Web push |
+
+## 10. Commands
+
 ```bash
-npm test
+python -m app pack --edition ca,us,in     # build today's pack
+python -m app pack --check                # show what today's pack has
+python -m app pack --podcast-only --force # redo the dialogue only
+python -m app pack --showcase-only        # republish the public manifest
+python scripts/regen_story.py --date 2026-11-10 --section markets --rank 1
+./scripts/schedule_wake.sh status         # show the next wake
 ```
 
-### Python Backend Unit Tests (Pytest)
+## 11. Tests
+
 ```bash
-.venv/bin/pytest tests/test_podcast.py -q
+npm test                                  # web app
+.venv/bin/python -m pytest -q tests       # pipeline
+cd android && ./gradlew testDebugUnitTest # Android shell
 ```
 
-### Android Unit Tests
-```bash
-cd android
-./gradlew testDebugUnitTest
-```
+GitHub Actions runs the web and Python tests on every pull request.

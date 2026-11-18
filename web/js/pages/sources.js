@@ -189,7 +189,7 @@ export class SourcesPage {
         ]))
       : null;
     const offHint = n === 0 && mine.length > 0
-      ? Hint('Your picks are set to Off, so these won\'t be in your brief.', 'var(--err)') : null;
+      ? Hint('Your picks are set to Off, so these won\'t be in your episodes.', 'var(--err)') : null;
     return h('section', { class: 'picks-section' }, label, addField, chips, list, offHint);
   }
 
@@ -403,7 +403,7 @@ export class SourcesPage {
   confirmRemove(s) {
     const dlg = document.getElementById('confirmDialog');
     document.getElementById('confirmTitle').textContent = `Remove ${s.name}?`;
-    document.getElementById('confirmBody').textContent = 'Its stories will no longer appear in your briefings.';
+    document.getElementById('confirmBody').textContent = 'Its stories will no longer appear in your episodes.';
     const go = document.getElementById('confirmGo');
     go.textContent = 'Remove';
     const onGo = async () => {

@@ -151,17 +151,16 @@ export const store = {
 };
 
 /**
- * The narrators the pack records (app/storypack.py). C-3PO serves as the permanent flagship anchor,
- * accompanied by modular neural narrators that can rotate or be customized.
+ * The narrators the pack records (app/storypack.py). Matthew and Kelly are the hosts; either can
+ * also read solo.
  */
 export const BUILTIN_VOICES = [
-  { id: 'c3po_reference', name: 'C-3PO', gender: 'male', desc: 'Polite protocol droid', style: 'Polite & Precise', icon: 'bot', builtin: true },
   { id: 'matthew_reference', name: 'Matthew', gender: 'male', desc: 'Calm American newsreader', style: 'Conversational', icon: 'mic', builtin: true },
   { id: 'kelly_reference', name: 'Kelly', gender: 'female', desc: 'Engaging American newsreader', style: 'Clear & Engaging', icon: 'mic', builtin: true },
 ];
 
-/** The narrator a new visitor hears first: C-3PO is the flagship default narrator. */
-export const DEFAULT_VOICE_ID = 'c3po_reference';
+/** The narrator a new visitor hears first. */
+export const DEFAULT_VOICE_ID = 'matthew_reference';
 
 export function getCustomVoices() {
   return store.get('custom_voices', []);
@@ -201,10 +200,12 @@ export function deleteCustomVoice(id) {
 
 /**
  * The voice a listener picked. Matches known narrators or dynamically formats any modular
- * narrator ID so voice rotations render seamlessly without code changes, falling back to C-3PO.
+ * narrator ID so voice rotations render seamlessly without code changes. Retired narrators fall back to the default.
  */
+const RETIRED_VOICES = new Set(['c3po_reference', 'c3po']);
+
 export const voiceFor = (id) => {
-  if (!id) return VOICES[0] || BUILTIN_VOICES[0];
+  if (!id || RETIRED_VOICES.has(id)) return VOICES.find((v) => v.id === DEFAULT_VOICE_ID) || VOICES[0] || BUILTIN_VOICES[0];
   if (typeof id === 'string' && id.includes('+')) {
     const parts = id.split('+').filter(Boolean).map((h) => voiceFor(h).name);
     return {

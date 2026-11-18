@@ -4,7 +4,7 @@ Local **Chatterbox-Turbo** neural text-to-speech service running on Apple Silico
 
 ## Overview
 
-A lightweight FastAPI service exposing endpoints to synthesize news stories and dialogue using zero-shot voice cloning. Reference voice clips reside in `data/voices/` (including `c3po_reference`, `matthew_reference`, and `kelly_reference`).
+A lightweight FastAPI service exposing endpoints to synthesize news stories and dialogue using zero-shot voice cloning. Reference voice clips reside in `data/voices/` (`matthew_reference` and `kelly_reference` are used in production).
 
 ## Directory Layout
 

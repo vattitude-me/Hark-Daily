@@ -219,7 +219,7 @@ def cmd_report(args) -> int:
                   title=f"✓ Morning Brief ready: {good}",
                   body=f"{day} is complete for every narrator." + (f" {detail}." if detail else ""))
     if tried:
-        notify_listeners(cfg, store, title="☀️ Your Morning Brief is ready",
+        notify_listeners(cfg, store, title="☀️ Today's episode is ready",
                          body=f"Today's brief is read by {good}.")
     return 0
 
@@ -295,7 +295,7 @@ def _notify_pack_outcome(cfg, store, day: str, args, rows: list[dict],
                   detail=f"Took {duration_fmt} · {len(rows)} clips ({audio_mins:.1f} min audio)")
     if rows:
         edition_word = "Evening" if is_evening else "Morning"
-        push_title = "🌙 Your Evening Brief is ready" if is_evening else "☀️ Your Morning Brief is ready"
+        push_title = "🌙 Tonight's episode is ready" if is_evening else "☀️ Today's episode is ready"
         notify_listeners(cfg, store, title=push_title,
                          body=f"{edition_word} edition: {rows[0]['title']}, plus the latest top stories.")
 

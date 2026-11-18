@@ -18,7 +18,6 @@ PACK_READY = "pack_ready"
 
 VOICES: dict[str, dict[str, str]] = {
     "matthew_reference+kelly_reference": {"name": "Matthew & Kelly", "gender": "duo"},
-    "c3po_reference": {"name": "C-3PO", "gender": "male"},
     "matthew_reference": {"name": "Matthew", "gender": "male"},
     "kelly_reference": {"name": "Kelly", "gender": "female"},
     "matthew_american": {"name": "Matthew", "gender": "male"},
@@ -28,6 +27,7 @@ VOICES: dict[str, dict[str, str]] = {
     "her_reference": {"name": "Alice", "gender": "female"},
     "him_reference": {"name": "Mike", "gender": "male"},
     "jerry_reference": {"name": "Jerry", "gender": "male"},
+    "c3po_reference": {"name": "C-3PO", "gender": "male"},
 }
 DEFAULT_VOICE = "matthew_reference+kelly_reference"
 
@@ -38,7 +38,7 @@ def voice_slug(voice: str) -> str:
 
 
 def voice_name(voice: str | None) -> str:
-    """Human-readable narrator label, e.g. 'Matthew & Kelly' or 'C-3PO'."""
+    """Human-readable narrator label, e.g. 'Matthew & Kelly' or 'Matthew'."""
     if not voice:
         return "the narrator"
     if voice in VOICES:

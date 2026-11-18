@@ -1,7 +1,7 @@
 {
   "name": "Hark Daily",
   "short_name": "Hark",
-  "description": "The day's news from seven sections, read aloud by your favorite narrator every morning.",
+  "description": "The day's news, in conversation. A daily news podcast with two AI hosts.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0D0D0D",

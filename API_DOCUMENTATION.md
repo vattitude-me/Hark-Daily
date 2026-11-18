@@ -10,7 +10,7 @@ Technical reference for the **Chatterbox-Turbo Voice Service (FastAPI)** and **S
 flowchart LR
     subgraph Clients["Clients"]
         PWA["Web PWA<br/>(Hark Daily)"]
-        ANDROID["Android App<br/>(Jetpack Compose)"]
+        ANDROID["Android and iOS<br/>(Capacitor shells)"]
     end
 
     subgraph Backend["Worker Pipeline (app/)"]
@@ -36,7 +36,7 @@ flowchart LR
     Clients -->|"Query story_audio"| DB
 ```
 
-* **Voice Microservice Entry Point**: [`voice_service/api/app.py`](file:///Users/vattitude/Coding/Morning_Brief/voice_service/api/app.py)
+* **Voice Microservice Entry Point**: [`voice_service/api/app.py`](voice_service/api/app.py)
 * **Default Host & Port**: `http://127.0.0.1:8090` (Local Apple Silicon M3 Pro)
 * **Framework**: FastAPI (Python 3.11/3.12) with Uvicorn ASGI server
 * **Concurrency Model**: Endpoints are defined as synchronous `def` functions so FastAPI dispatches model execution to threadpools, ensuring the async event loop is never blocked by CPU/GPU inference.
@@ -70,7 +70,7 @@ Returns the operational health, active compute device, loaded model state, sampl
   "device": "mps",
   "sample_rate": 24000,
   "loaded": true,
-  "default_voice": "c3po_reference.wav",
+  "default_voice": "matthew_reference.wav",
   "clips": 4
 }
 ```
@@ -112,15 +112,9 @@ Lists all available voice reference clips located on disk (`data/voices/`), thei
 #### Response (`200 OK`)
 ```json
 {
-  "dir": "/Users/vattitude/Coding/Morning_Brief/voice_service/data/voices",
-  "default": "c3po_reference.wav",
+  "dir": "voice_service/data/voices",
+  "default": "matthew_reference.wav",
   "clips": [
-    {
-      "name": "c3po_reference",
-      "file": "c3po_reference.wav",
-      "seconds": 29.84,
-      "usable": true
-    },
     {
       "name": "matthew_reference",
       "file": "matthew_reference.wav",
@@ -175,7 +169,7 @@ Synthesizes a broadcast script into neural audio cloned from the requested perso
 ```json
 {
   "text": "Regular exercise does more than strengthen the heart. [[pause:0.5]] New research reveals it actually rewires cardiac nerves.",
-  "voice": "c3po_reference",
+  "voice": "matthew_reference",
   "beat": 0.3
 }
 ```
@@ -191,7 +185,7 @@ Synthesizes a broadcast script into neural audio cloned from the requested perso
 * **Response Headers**:
   * `X-Sample-Rate`: `24000`
   * `X-Duration`: Audio length in seconds (e.g. `21.40`)
-  * `X-Voice`: Filename of the cloned voice reference (e.g. `c3po_reference.wav`)
+  * `X-Voice`: Filename of the cloned voice reference (e.g. `matthew_reference.wav`)
   * `X-Format`: Active format (`wav` or `mp3`)
 * **Body**: Raw binary audio stream.
 
@@ -209,7 +203,7 @@ Synthesizes a broadcast script into neural audio cloned from the requested perso
 ```bash
 curl -X POST "http://127.0.0.1:8090/synthesize?format=mp3" \
   -H "Content-Type: application/json" \
-  -d '{"text": "Good morning. Here are the top stories.", "voice": "c3po_reference"}' \
+  -d '{"text": "Good morning. Here are the top stories.", "voice": "matthew_reference"}' \
   --output story.mp3
 ```
 
@@ -244,7 +238,7 @@ Renders a structured sample bulletin with synchronized span timings for interact
 ```json
 {
   "text": "Good morning! [[pause:0.4]] Here is your news bulletin.",
-  "voice": "c3po_reference",
+  "voice": "matthew_reference",
   "beat": 0.3
 }
 ```
@@ -254,7 +248,7 @@ Renders a structured sample bulletin with synchronized span timings for interact
 #### Response (`200 OK`)
 ```json
 {
-  "voice": "c3po_reference.wav",
+  "voice": "matthew_reference.wav",
   "sample_rate": 24000,
   "duration": 4.82,
   "spans": 2,
@@ -315,7 +309,7 @@ Hark Daily publishes atomic briefing packs to Supabase. Web and mobile clients i
     * **United States (`us`)**: `top_us`, `markets_us`, `politics_us`, `entertainment_us`, `sports_us`.
     * **India (`in`)**: `top_in`, `markets_in`, `politics_in`, `entertainment_in`, `sports_in`.
   * `rank` (`integer`): Story ranking within the section (`1` to `5`).
-  * `voice` (`text`): Reference voice ID (`c3po_reference`, `matthew_reference`, `kelly_reference`, or custom neural persona).
+  * `voice` (`text`): Reference voice ID (`matthew_reference`, `kelly_reference`, or custom neural persona).
   * `title` (`text`): Clean news headline.
   * `url` (`text`): Original article canonical URL.
   * `source` (`text`): Publisher attribution (e.g., `"The New York Times · Top stories"`, `"The Hindu · Top stories"`).

@@ -82,7 +82,7 @@ export class SettingsPage {
     if (window.HarkNative) {
       this.pushOn = window.HarkNative.hasNotificationPermission();
       this.pushHint = this.pushOn
-        ? 'Notifications are active for daily morning briefings.'
+        ? 'Notifications are active for new daily episodes.'
         : 'Enable notifications to receive daily morning alerts.';
       this.render();
       return;
@@ -118,7 +118,7 @@ export class SettingsPage {
     if (permDenied) {
       this.pushHint = 'Notifications are blocked in this browser\u2019s site settings.';
     } else if (this.pushOn) {
-      this.pushHint = 'You will be notified when your briefing is ready.';
+      this.pushHint = 'You will be notified when the new episode is ready.';
     } else {
       this.pushHint = '';
     }
@@ -132,13 +132,13 @@ export class SettingsPage {
         setTimeout(() => {
           this.pushOn = window.HarkNative.hasNotificationPermission();
           this.pushHint = this.pushOn
-            ? 'Notifications are active for daily morning briefings.'
+            ? 'Notifications are active for new daily episodes.'
             : 'Notification permission was not granted.';
           this.render();
           if (this.pushOn) {
-            toast('Notifications enabled! Daily briefings will alert your phone.');
+            toast('Notifications enabled! You’ll get a ping when the new episode is out.');
             try {
-              window.HarkNative.postNotification('Hark Daily', 'Daily briefing alerts are now enabled.');
+              window.HarkNative.postNotification('Hark Daily', 'New episode alerts are now enabled.');
             } catch (_) {}
           }
         }, 1200);
@@ -217,9 +217,9 @@ export class SettingsPage {
       // Step 4: Register subscription
       await enablePush(status.vapid_public_key);
       this.pushOn = true;
-      this.pushHint = 'You will be notified when your briefing is ready.';
+      this.pushHint = 'You will be notified when the new episode is ready.';
       this.render();
-      toast('Notifications enabled! A morning brief will nudge you when ready.');
+      toast('Notifications enabled! You’ll get a ping when the new episode is out.');
     } catch (err) {
       this.pushOn = false;
       this.pushHint = err.message || "Couldn't enable notifications.";
@@ -235,7 +235,7 @@ export class SettingsPage {
     if (hint) hint.textContent = this.pushHint;
     if (window.HarkNative) {
       try {
-        window.HarkNative.postNotification('Hark Daily Briefing', 'Test notification: Your morning brief is ready to listen!');
+        window.HarkNative.postNotification('Hark Daily', 'Test notification: your new episode is ready to play!');
         this.pushHint = 'Test notification sent to device!';
         if (hint) hint.textContent = this.pushHint;
         toast('Test notification sent!');
@@ -266,7 +266,7 @@ export class SettingsPage {
     const total = Object.values(d.stories || {}).reduce((n, v) => n + (Number(v) || 0), 0);
     this.root.replaceChildren(
       h('header', { class: 'screen-header' },
-        h('div', { class: 'overline-row' }, Overline(d.daily ? 'Daily brief on' : 'Daily brief off')),
+        h('div', { class: 'overline-row' }, Overline(d.daily ? 'Daily episode on' : 'Daily episode off')),
         h('h1', { class: 'display' }, 'Settings')),
 
       SectionLabel('Brief'),
@@ -274,7 +274,7 @@ export class SettingsPage {
         SwitchRow('Make one every morning', d.daily, { onChange: (on) => this.set({ daily: on }) }),
         Hairline(),
         SwitchRow('Notify this device when it\u2019s ready', !!this.pushOn, {
-          detail: 'A morning nudge when your briefing is done',
+          detail: 'A morning ping when the new episode is ready',
           onChange: (on) => this.setPush(on),
         }),
         h('div', { class: 'push-test-row hidden', id: 'pushRow' },
@@ -318,7 +318,7 @@ export class SettingsPage {
       GlassGroup(
         ListRow({
           label: 'Analytics Cookies',
-          detail: 'Anonymous search queries and playback telemetry used to improve daily briefings.',
+          detail: 'Anonymous search queries and playback telemetry used to improve the daily podcast.',
           end: Tag((() => {
             try { return localStorage.getItem('hark-consent') === 'granted' ? 'ACCEPTED' : 'REJECTED'; } catch (e) { return 'REJECTED'; }
           })()),
@@ -463,7 +463,7 @@ export class SettingsPage {
       Hairline(),
       ListRow({
         label: 'Custom Voice Capabilities',
-        detail: 'Train personal voice clones or upload reference audio to hear briefings delivered in custom sound styles.',
+        detail: 'Train personal voice clones or upload reference audio to hear episodes delivered in custom sound styles.',
         end: Tag('SOON', 'custom'),
         onClick: () => this.openSuggest('Custom Voice / Styles'),
       }),

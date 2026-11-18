@@ -1,92 +1,54 @@
-# The Automated Daily Pack Run (macOS Apple Silicon MPS)
+# Daily run on macOS
 
-`python -m app pack` fetches the day's stories across 7 sections, generates extractive broadcast scripts, voices them with neural voices, generates dynamic two-host podcast banter, and publishes all audio and metadata to Supabase. Clients refuse a day until its narrators and podcast markers are published, ensuring listeners always receive a complete edition.
+Each morning a Mac builds the day's pack with `python -m app pack`. It reads the feeds for all 8 sections, writes the scripts and the two-host dialogue, voices everything, and uploads the audio and data to Supabase. The app only shows a day once the whole pack is published.
 
----
+All voice work runs on the Mac's GPU (Apple Silicon, MPS). There is no cloud GPU.
 
-## Architecture
+## Schedule
 
-The entire synthesis pipeline runs locally on an **Apple Silicon Mac (M3 Pro)** using **Metal Performance Shaders (MPS)** hardware acceleration. There are zero cloud GPU dependencies, zero cloud VM rental costs, and zero external infrastructure requirements.
+| Time | What happens |
+| :--- | :--- |
+| 04:58 | `pmset` wakes the Mac, even with the lid closed, if it is on power |
+| 05:00 | launchd starts `scripts/morning_pack_mac.sh` |
+| about 05:20 | Pack is published and the Mac can sleep again |
 
-```
-[macOS Hardware RTC Alarm (pmset)]
-        │ 05:58 AM (Morning) / 17:58 PM (Evening)
-        ▼
-[DarkWake Mode (Lid Closed on AC Power)]
-        │ Screen stays off, CPU/GPU & Network active
-        ▼
-[macOS launchd Daemon]
-        │ 06:00 AM: me.vattitude.harkdaily.morning
-        │ 18:00 PM: me.vattitude.harkdaily.evening
-        ▼
-[Runner Script: caffeinate -i -s -m]
-        │ Holds system sleep assertion during generation
-        ├──► Starts local Chatterbox-Turbo (:8090, PyTorch MPS)
-        ├──► Fetches news (CBC, TechCrunch, ScienceDaily, BetaKit)
-        ├──► Generates stories & podcast dialogue (Gemini / Groq LLM chain)
-        ├──► Voices stories (C-3PO, Matthew, Kelly) & podcast banter pieces
-        ├──► Uploads MP3s to Supabase Storage (briefings/)
-        ├──► Inserts metadata into Supabase DB (story_audio, podcast_clips)
-        ├──► Dispatches Web Push Notifications (VAPID)
-        ├──► Queues next edition's hardware wake via scripts/schedule_wake.sh
-        └──► Shuts down local voice service & releases caffeinate assertion
-        │
-        ▼
-[Mac returns to low-power sleep (~3-5W)]
-```
+The morning run is the only one active. The evening script, `scripts/evening_pack_mac.sh`, still works if you run it by hand.
 
----
+## What the run script does
 
-## Scheduled Editions
+1. Re-runs itself under `caffeinate -i -s -m` so the Mac stays awake.
+2. Loads `.env` and sets the voice and podcast settings.
+3. Starts the voice service on port 8090 and waits for `/health`.
+4. Runs the pack for all three editions.
+5. Sets the next wake with `scripts/schedule_wake.sh`.
+6. Stops the voice service.
 
-### 1. Morning Edition (05:00 / 06:00 AM) — Active
-* **Runner**: [`scripts/morning_pack_mac.sh`](file:///Users/vattitude/Coding/Morning_Brief/scripts/morning_pack_mac.sh)
-* **LaunchAgent**: `~/Library/LaunchAgents/me.vattitude.harkdaily.morning.plist`
-* **Schedule**: Daily at 05:00 / 06:00 AM local time (`America/Toronto`).
-* **Content**: Curated stories across 8 sections (Top, Markets, AI, Tech, Politics, Entertainment, Science, Sports), voiced by C-3PO, Matthew, and Kelly, plus dynamic opening, teaser, bridge, and sign-off banter for the two-host Podcast edition.
-* **Wake Relay**: On completion, automatically schedules tomorrow's 04:58 (4:58 AM) wake timer via [`scripts/schedule_wake.sh`](file:///Users/vattitude/Coding/Morning_Brief/scripts/schedule_wake.sh) `morning`.
+## Setup
 
-### 2. Evening Edition (18:00 / 6:00 PM) — Paused
-* **Status**: Paused / Disabled per configuration.
-* **LaunchAgent**: Archived in `~/Library/LaunchAgents/disabled/me.vattitude.harkdaily.evening.plist` (unloaded from launchctl).
-* **Runner**: [`scripts/evening_pack_mac.sh`](file:///Users/vattitude/Coding/Morning_Brief/scripts/evening_pack_mac.sh) (retained for on-demand execution).
+1. Install the LaunchAgent at `~/Library/LaunchAgents/me.vattitude.harkdaily.morning.plist`. It runs the script at 05:00 and logs to `logs/`.
+2. Add a daily hardware wake:
 
----
+   ```bash
+   sudo pmset repeat wakeorpoweron MTWRFSU 04:58:00
+   ```
 
-## Power Management & Lid-Closed Execution
+3. Optional. To let `schedule_wake.sh` set one-off wakes without a password, add a sudoers rule for `/usr/bin/pmset` in `/etc/sudoers.d/`.
 
-Apple Silicon MacBooks enter sleep when the lid is closed unless connected to an external display. To run autonomously while connected to AC power with the lid closed:
+## Missed runs
 
-1. **Repeating Hardware Wake**:
-   `pmset repeat wakeorpoweron MTWRFSU 05:58:00` acts as a permanent hardware anchor, waking the machine into DarkWake mode 2 minutes before the morning launchd trigger.
-2. **Dynamic Relay Wake**:
-   [`scripts/schedule_wake.sh`](file:///Users/vattitude/Coding/Morning_Brief/scripts/schedule_wake.sh) uses `sudo pmset schedule wake "MM/dd/yy HH:mm:ss"` (enabled without password via `/etc/sudoers.d/hark_pmset`) to schedule the evening wake timer.
-3. **Execution Assertion**:
-   Both runners execute under `caffeinate -i -s -m "$0" "$@"`, ensuring the Mac does not sleep while the local PyTorch model synthesizes audio.
+launchd runs a missed job when the Mac wakes from sleep. It does not run it after the Mac was shut down or the battery ran out. In that case, run the script by hand.
 
----
-
-## Manual & On-Demand Commands
+## Commands
 
 ```bash
-# Run morning briefing pack immediately (stories + podcast banter)
-./scripts/morning_pack_mac.sh
-
-# Run evening briefing pack immediately
-./scripts/evening_pack_mac.sh
-
-# Re-voice only today's podcast banter
-./scripts/podcast_pack_mac.sh --force
-
-# Surgically re-voice a single story or section
+./scripts/morning_pack_mac.sh                      # full run now
+./scripts/podcast_pack_mac.sh --force              # redo today's dialogue only
 python scripts/regen_story.py --date 2026-11-10 --section markets --rank 1
-
-# Inspect current hardware wake schedule
-./scripts/schedule_wake.sh status
+python -m app pack --check                         # what today's pack has
+./scripts/schedule_wake.sh status                  # upcoming wakes
+tail -f logs/morning_pack.log                      # follow a run
 ```
 
----
+## Retention
 
-## Data Retention & Cleanup
-
-Audio and database records are kept for the current active editions: successful runs prune older days from Supabase Storage and database tables (`prune_older`), keeping storage well within free-tier quotas.
+Successful runs delete older days from Supabase storage and tables with `prune_older()`. The fixed voice notes in `notes/static/` are never deleted. `KEEP_DAYS` sets how many days to keep.

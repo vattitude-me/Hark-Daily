@@ -9,18 +9,18 @@ Hark Daily: News Read Aloud
 
 ## Short description (80 max)
 
-The news you hear, not just read. AI duo & neural morning news briefings.
+The day's news, in conversation. A daily news podcast with two AI hosts.
 
 ## Full description
 
 Wake up to the news, read aloud.
 
-Hark Daily gathers trusted stories from regional and global publishers and turns them into a crisp audio briefing, ready before you get up. Press play over coffee, on the commute, or on a run, and hear today's headlines in minutes.
+Hark Daily gathers trusted stories from regional and global publishers and turns them into a short daily news podcast, ready before you get up. Press play over coffee, on the commute, or on a run, and hear today's headlines in minutes.
 
 **Your news, your way**
 • 8 curated topics: Top Stories, AI, Tech, Politics, Markets, Entertainment, Science, and Sports
 • 3 regional editions: Canada, USA, and India — switch anytime
-• Dynamic AI narrators: listen to our conversational AI Duo (Matthew & Kelly) or solo voices (Alice, Jerry, Mike, C-3PO)
+• Dynamic AI narrators: listen to our conversational AI Duo (Matthew & Kelly) or solo voices (Matthew, Kelly)
 • Dual listening modes: Full briefing with context or swift Rapid headline sweep
 • Customize story counts, reorder topics, and prioritize your favorite feeds
 
@@ -31,7 +31,7 @@ Hark Daily gathers trusted stories from regional and global publishers and turns
 • Every story links directly to the full original article from its publisher
 
 **Simple and transparent**
-• No ads and no account required to listen to the daily briefing
+• No ads and no account required to listen to the daily podcast
 • Optional Google Sign-In syncs your edition, narrator, and sources across Web and Android
 • Spot a summary or pronunciation issue? Report it directly from any story card
 

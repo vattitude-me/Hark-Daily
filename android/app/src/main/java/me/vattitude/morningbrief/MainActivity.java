@@ -281,10 +281,10 @@ public class MainActivity extends BridgeActivity {
             if (nm != null) {
                 NotificationChannel briefingChannel = new NotificationChannel(
                     BRIEFING_CHANNEL_ID,
-                    "Daily Briefings",
+                    "Daily episodes",
                     NotificationManager.IMPORTANCE_DEFAULT
                 );
-                briefingChannel.setDescription("Morning and evening audio briefing updates");
+                briefingChannel.setDescription("New daily episode alerts");
                 briefingChannel.setShowBadge(true);
                 nm.createNotificationChannel(briefingChannel);
             }
@@ -382,8 +382,8 @@ public class MainActivity extends BridgeActivity {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, BRIEFING_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(0xFFF59E0B)
-            .setContentTitle(title != null && !title.isEmpty() ? title : "Hark Daily Briefing")
-            .setContentText(body != null && !body.isEmpty() ? body : "Your audio briefing is ready to listen.")
+            .setContentTitle(title != null && !title.isEmpty() ? title : "Hark Daily")
+            .setContentText(body != null && !body.isEmpty() ? body : "Your new episode is ready to play.")
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(contentIntent);
