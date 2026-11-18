@@ -29,7 +29,7 @@ VOICES: dict[str, dict[str, str]] = {
     "him_reference": {"name": "Mike", "gender": "male"},
     "jerry_reference": {"name": "Jerry", "gender": "male"},
 }
-DEFAULT_VOICE = "c3po_reference"
+DEFAULT_VOICE = "matthew_reference+kelly_reference"
 
 
 def voice_slug(voice: str) -> str:
