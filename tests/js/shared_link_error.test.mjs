@@ -10,7 +10,7 @@ test('Standalone 404 page exists and has appropriate branding, copy, and link', 
   const html = readFileSync(p404Path, 'utf8');
   assert.ok(html.includes('404'), 'Must mention 404 in page');
   assert.ok(html.includes('Story or Page Not Found'), 'Must have descriptive title');
-  assert.ok(html.includes('Hark Daily stores audio briefings for a rolling window'), 'Must explain rolling archive policy');
+  assert.ok(html.includes('Hark Daily keeps episodes for a rolling window'), 'Must explain rolling archive policy');
   assert.ok(html.includes('href="/"'), 'Must contain link to homepage / briefing');
   assert.ok(html.includes("Listen to Today's Briefing"), 'Must have clear CTA button to listen to today');
   assert.ok(html.includes('Rolling Archive Active'), 'Must display rolling archive badge');

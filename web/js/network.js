@@ -88,7 +88,7 @@ export function timeoutFor(ms) {
 
 export const COPY = {
   slow: 'Slow connection. Audio may pause to load.',
-  offline: "You're offline. Showing your saved briefing.",
+  offline: "You're offline. Showing your saved episode.",
   back: 'Back online.',
 };
 

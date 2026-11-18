@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Changed
+- Rebranded as a daily news podcast. Tagline: "The day's news, in conversation." Updated the web app copy, store listing, README banner, notifications and docs.
+- Removed C-3PO from the narrator list, the default voice and the voice service. The two hosts are Matthew and Kelly, and old C-3PO packs still play.
+
+---
+
 ## [1.0.25] - 2026-11-17
 
 ### Added

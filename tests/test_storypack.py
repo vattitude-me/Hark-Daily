@@ -412,7 +412,7 @@ def test_a_ready_day_tells_the_listeners_and_the_admin(cfg, store, monkeypatch):
     store.subs = [{"endpoint": "https://push.test/a", "user_id": "u-1"}]
     store.profiles_.append({"id": "u-1", "email": cfg.admin_emails[0], "is_admin": True})
 
-    storypack.notify_listeners(cfg, store, title="☀️ Your Morning Brief is ready", body="Top story.")
+    storypack.notify_listeners(cfg, store, title="☀️ Today's episode is ready", body="Top story.")
     storypack.notify_admins(cfg, store, title="✓ Morning Brief ready: Alice", body=f"{DAY} is complete.")
 
     assert sent[0][2] == 1 and "ready" in sent[0][0]

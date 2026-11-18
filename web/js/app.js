@@ -339,7 +339,7 @@ function renderHeader() {
 
   const bTitle = $('briefTitle');
   if (bTitle) {
-    bTitle.textContent = isPodcast ? 'Daily Podcast Newsreader' : 'Daily Spoken Newsreader';
+    bTitle.textContent = isPodcast ? 'Daily News Podcast' : 'Daily News Narration';
   }
 
   const sub = $('screenSubtitle');
@@ -362,7 +362,7 @@ function renderHeader() {
     const isToday = Boolean(bDate && bDate === todayStr);
     tag.textContent = isToday ? `Fresh today · ${wd} ${now.getDate()} ${mon}` : `Archived · ${formatted}`;
     tag.className = 'freshness-tag' + (isToday ? ' fresh' : ' stale');
-    tag.title = isToday ? "Today's fresh briefing" : `Archived briefing from ${formatted}`;
+    tag.title = isToday ? "Today's new episode" : `Archived episode from ${formatted}`;
   }
 
   const dateOverline = $('dateOverline');
@@ -381,13 +381,13 @@ function renderNotice() {
   if (state.briefingLoading) {
     box.replaceChildren(h('div', { class: 'glass notice-compact loading-card', role: 'status' },
       h('span', { class: 'spinner', 'aria-hidden': 'true' }),
-      h('span', { class: 'notice-text' }, "Checking for today's briefing…")));
+      h('span', { class: 'notice-text' }, "Checking for today’s episode…")));
     return;
   }
   if (!state.briefing) {
     box.replaceChildren(h('div', { class: 'glass notice-compact', role: 'status' },
       h('span', { class: 'notice-badge' }, 'SCHEDULED'),
-      h('span', { class: 'notice-text' }, "Today's briefing records daily at sunrise. Check back shortly.")));
+      h('span', { class: 'notice-text' }, "Today’s episode is recorded daily at sunrise. Check back shortly.")));
     return;
   }
   if (state.briefing.fresh === false) {
@@ -553,7 +553,7 @@ function openSignIn(reason = 'default') {
   }
   if (hint) {
     hint.textContent = reason === 'push'
-      ? 'Sign in once to receive your morning brief notification before sunrise.'
+      ? 'Sign in once to get a ping when the new episode is out.'
       : reason === 'feedback'
         ? 'Sign in to share ideas or report issues directly to our team.'
         : 'Sign in to sync your preferences and sources across your devices and the Android app.';
@@ -793,7 +793,7 @@ export async function setEdition(edition) {
 
   state.briefingLoading = false;
   renderNotice();
-  toast(`No briefing available yet for ${EDITIONS[edition]?.name || edition}`, { error: true });
+  toast(`No episode available yet for ${EDITIONS[edition]?.name || edition}`, { error: true });
 }
 window.setEdition = setEdition;
 
@@ -802,7 +802,7 @@ function renderHero() {
   syncModePicker();
   if (!state.briefing && !state.briefingLoading) {
     const headline = $('cleanStoryHeadline');
-    if (headline) headline.textContent = "Today's briefing isn't ready yet";
+    if (headline) headline.textContent = "Today's episode isn't ready yet";
     const text = $('transcriptText');
     if (text) text.textContent = 'Pull down or tap to check again.';
     const counter = $('cleanStoryCounter');
@@ -826,7 +826,7 @@ function renderPersonas() {
   if (hintEl) {
     hintEl.textContent = isPodcast
       ? 'Podcast mode uses pre-selected co-hosts (AI Duo: Matthew & Kelly). Switch to Full Brief on the player to customize your narrator.'
-      : 'All four narrators read the daily briefing for the Full Brief edition. Pick who you\'d like to hear.';
+      : 'In Full Brief mode, one narrator reads each story. Pick who you\'d like to hear.';
   }
   row.replaceChildren(...VOICES.map((v) => {
     const on = !isPodcast && v.id === activeVoiceId;
@@ -982,7 +982,7 @@ async function selectDate(date) {
       toast(`Switched to ${label}`);
       return true;
     }
-    toast("That day's briefing isn't available for this region yet.", { error: true });
+    toast("That day's episode isn't available for this region yet.", { error: true });
     return false;
   } catch (err) {
     toast(err.message, { error: true });
@@ -1444,9 +1444,9 @@ export function showSharedStoryError(info = {}) {
   if (descEl) {
     if (isPast) {
       const formatted = formatFreshnessDate(date);
-      descEl.textContent = `This news story is from ${formatted} (${date}). Hark Daily stores audio briefings for a rolling window of recent days, so this audio clip has been archived. Enjoy today's fresh briefing below.`;
+      descEl.textContent = `This news story is from ${formatted} (${date}). Hark Daily keeps episodes for a rolling window of recent days, so this audio clip has been archived. Enjoy today's fresh briefing below.`;
     } else {
-      descEl.textContent = "We couldn't locate this specific story. It may have been updated in a subsequent edition or the shared link is incomplete. Enjoy today's full briefing below.";
+      descEl.textContent = "We couldn't locate this specific story. It may have been updated in a subsequent edition or the shared link is incomplete. Enjoy today's full episode below.";
     }
   }
 
@@ -1935,7 +1935,7 @@ async function loadStoryPack(day) {
     if (!briefing) return null;
     // A day is playable only once its narrator's clips and framing are all published. Without this
     // a pack that is mid-recording, or being re-recorded, plays two voices inside one brief.
-    // For single narrators (e.g. C-3PO), enforce framing notes readiness in voice_notes.
+    // For single narrators (e.g. Matthew), enforce framing notes readiness in voice_notes.
     // For podcast / duo briefings, readiness is governed by podcast_clips and story_audio rows.
     const isPodcast = activeMode() === 'podcast' || briefing.mode === 'podcast';
     const hosts = (briefing.voice?.id || '').split('+').filter(Boolean);
@@ -2205,8 +2205,8 @@ async function toggleMorningAlerts() {
           if (granted) {
             try { localStorage.removeItem('hark_morning_alerts_disabled'); } catch {}
             $('menuPushBtn')?.setAttribute('aria-checked', 'true');
-            toast('Morning alerts enabled! Daily briefings will alert your phone.');
-            try { window.HarkNative.postNotification?.('Hark Daily', 'Daily briefing alerts are now enabled.'); } catch (_) {}
+            toast('Morning alerts enabled! You’ll get a ping when the new episode is out.');
+            try { window.HarkNative.postNotification?.('Hark Daily', 'New episode alerts are now enabled.'); } catch (_) {}
           } else {
             try { localStorage.setItem('hark_morning_alerts_disabled', 'true'); } catch {}
             $('menuPushBtn')?.setAttribute('aria-checked', 'false');
@@ -2220,7 +2220,7 @@ async function toggleMorningAlerts() {
       return;
     }
     $('menuPushBtn')?.setAttribute('aria-checked', 'true');
-    toast('Morning alerts enabled! Daily briefings will alert your phone 🔔');
+    toast('Morning alerts enabled! You’ll get a ping when the new episode is out.');
     updateMenuDrawer();
     return;
   }
@@ -3105,7 +3105,7 @@ function bindEvents() {
   // Homepage Scrubber Controls: Restart and Playback Speed
   $('cleanRestartBtn')?.addEventListener('click', () => {
     player?.restart();
-    toast('Restarted briefing from start ↺');
+    toast('Restarted episode from start ↺');
   });
   $('cleanSpeedBtn')?.addEventListener('click', cyclePlaybackSpeed);
   window.addEventListener('playbackspeedchange', updateCleanSpeedDisplay);
@@ -3153,7 +3153,7 @@ function bindEvents() {
   $('menuRestartBtn')?.addEventListener('click', () => {
     closeMenuDrawer();
     player?.restart();
-    toast('Restarted briefing from start ↺');
+    toast('Restarted episode from start ↺');
   });
   $('menuPushBtn')?.addEventListener('click', toggleMorningAlerts);
   $('menuInstallBtn')?.addEventListener('click', install);
@@ -3396,9 +3396,9 @@ async function bannerSetupPush() {
     try {
       const perm = await requestNotificationPermission();
       if (perm === 'granted' || window.HarkNative.hasNotificationPermission()) {
-        toast('Notifications enabled! Daily briefings will alert your phone.');
+        toast('Notifications enabled! You’ll get a ping when the new episode is out.');
         try {
-          window.HarkNative.postNotification('Hark Daily', 'Daily briefing alerts are now enabled.');
+          window.HarkNative.postNotification('Hark Daily', 'New episode alerts are now enabled.');
         } catch (_) {}
         dismissGuestBannerSoon();
       } else {
@@ -3422,12 +3422,12 @@ async function bannerSetupPush() {
       dismissGuestBannerSoon();
       if (!state.profile) {
         openSignIn('push');
-        toast('Sign in to connect your morning brief dispatch.');
+        toast('Sign in to get new episode alerts.');
       } else {
         const status = state.status || await api.status().catch(() => ({}));
         if (status?.vapid_public_key) {
           await enablePush(status.vapid_public_key);
-          toast('Notifications active! You will be notified when your briefing is ready.');
+          toast('Notifications active! You will be notified when the new episode is ready.');
         }
       }
     } else {
@@ -3715,16 +3715,16 @@ async function start() {
       if (cached && (cached.stories?.length || cached.clips?.length)) {
         state.briefing = cached;
         displayBriefing();
-        toast('Showing your saved briefing.', { ms: 3000 });
+        toast('Showing your saved episode.', { ms: 3000 });
       } else {
         renderHeader();
         renderNotice();
         renderGuestBanner();
         renderHero();
         renderSections();
-        const weak = isOffline() ? "You're offline, and there's no saved briefing yet. Pull down to retry when you're back online."
-          : isSlow() ? "The connection is too slow to load today's briefing. Pull down to try again."
-          : "Couldn't reach the briefing service. Pull down to retry.";
+        const weak = isOffline() ? "You're offline, and there's no saved episode yet. Pull down to retry when you're back online."
+          : isSlow() ? "The connection is too slow to load today's episode. Pull down to try again."
+          : "Couldn't reach Hark Daily. Pull down to retry.";
         toast(weak, { error: true, ms: 6000 });
       }
     }
@@ -3743,14 +3743,14 @@ async function start() {
     if (cached && (cached.edition === curEd) && (cached.audio_url?.startsWith('http') || cached.stories?.length)) {
       state.briefing = cached;
       displayBriefing();
-      toast('Offline mode active. Showing your saved briefing.', { error: true, ms: 5000 });
+      toast('Offline mode active. Showing your saved episode.', { error: true, ms: 5000 });
     } else {
       renderHeader();
       renderNotice();
       renderGuestBanner();
       renderHero();
       renderSections();
-      toast("Couldn't reach the briefing service. Please try again shortly.", { error: true, ms: 5000 });
+      toast("Couldn't reach Hark Daily. Please try again shortly.", { error: true, ms: 5000 });
     }
   } finally {
     document.body.classList.remove('booting', 'signed-out');

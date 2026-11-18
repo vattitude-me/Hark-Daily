@@ -3,7 +3,7 @@
 #
 # Runs entirely locally on your Mac using the M3 Pro GPU (Metal Performance Shaders).
 # Zero GCP components, zero cloud GPU billing, 100% free.
-# Builds news stories for C-3PO, Matthew, Kelly + podcast banter, and publishes to Supabase.
+# Builds news stories for Matthew and Kelly + podcast banter, and publishes to Supabase.
 
 set -euo pipefail
 
