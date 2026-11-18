@@ -84,7 +84,7 @@
   <meta name="theme-color" content="#17120E">
   <link rel="preload" href="/fonts/plus-jakarta-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/css/styles.css?v=68">
+  <link rel="stylesheet" href="/css/styles.css?v=69">
   <script>
     try {
       const t = localStorage.getItem('mb-theme');
@@ -96,17 +96,37 @@
     }
     // Chrome can offer the install prompt before the app's modules load; keep it for our own Install button.
     window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.__installPrompt = e; });
-    // Safety fallback: ensure booting class never traps UI on network delay or offline load
-    setTimeout(function () {
-      if (document.body && document.body.classList.contains('booting')) {
-        document.body.classList.remove('booting');
+    // Keep the splash up until the app script has started. On a slow link that script can take a
+    // while; say why, offer a retry, and never fall through to an empty page.
+    (function () {
+      function done() {
+        if (document.body && document.body.classList.contains('booting')) {
+          document.body.classList.remove('booting');
+        }
+        var s = document.getElementById('appSplash');
+        if (s && !s.classList.contains('dismissed')) {
+          s.classList.add('dismissed');
+          setTimeout(function () { try { s.remove(); } catch (e) {} }, 400);
+        }
       }
-      var s = document.getElementById('appSplash');
-      if (s && !s.classList.contains('dismissed')) {
-        s.classList.add('dismissed');
-        setTimeout(function () { try { s.remove(); } catch (e) {} }, 400);
+      function note(text, retry) {
+        var m = document.getElementById('splashMsg');
+        if (m) { m.textContent = text; m.hidden = false; }
+        var r = document.getElementById('splashRetry');
+        if (r && retry) { r.hidden = false; r.onclick = function () { location.reload(); }; }
       }
-    }, 2200);
+      var waited = 0;
+      var timer = setInterval(function () {
+        waited += 500;
+        if (window.__harkBooted) {
+          if (waited >= 2200) { clearInterval(timer); done(); }
+          return;
+        }
+        var offline = navigator.onLine === false;
+        if (waited === 4000) note(offline ? "You're offline. Waiting for a connection." : 'Still loading. Your connection looks slow.', false);
+        if (waited === 12000) note(offline ? "You're offline. Reconnect, then try again." : 'This is taking longer than usual.', true);
+      }, 500);
+    })();
   </script>
 </head>
 <body class="booting">
@@ -120,6 +140,9 @@
       <div class="app-splash-bar">
         <div class="app-splash-indicator"></div>
       </div>
+      <p class="app-splash-msg" id="splashMsg" role="status" hidden></p>
+      <button type="button" class="app-splash-retry" id="splashRetry" hidden>Try again</button>
+      <noscript><p class="app-splash-msg">Hark Daily needs JavaScript to play your briefing. Please turn it on and reload.</p></noscript>
     </div>
   </div>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -1280,6 +1303,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/vendor/supabase.min.js"></script>
-  <script type="module" src="/js/app.js?v=102"></script>
+  <script type="module" src="/js/app.js?v=103"></script>
 </body>
 </html>

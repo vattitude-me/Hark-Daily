@@ -1,5 +1,6 @@
 // Data access: Supabase (auth, tables) with row-level security keeping each user to their own rows.
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '../config.js';
+import { noteSlow, timeoutFor } from './network.js';
 
 // Pre-bundled client served from same-origin vendor bundle (0 cascading CDN network hops)
 const createClient = (typeof window !== 'undefined' && window.supabase?.createClient)
@@ -363,7 +364,7 @@ export async function publicPack(date = null) {
   for (const url of urls) {
     try {
       const signal = (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function')
-        ? AbortSignal.timeout(4000)
+        ? AbortSignal.timeout(timeoutFor(4000))
         : undefined;
       const res = await fetch(url, signal ? { signal } : undefined);
       if (res.ok) {
@@ -375,6 +376,7 @@ export async function publicPack(date = null) {
         }
       }
     } catch {
+      noteSlow();
       // Continue next URL
     }
   }
