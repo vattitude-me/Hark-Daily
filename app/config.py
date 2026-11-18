@@ -100,10 +100,10 @@ class Config:
     voice_top_p: float = float(os.getenv("VOICE_TOP_P", "0.96"))
     voice_repetition_penalty: float = float(os.getenv("VOICE_REPETITION_PENALTY", "1.15"))
     voice_exaggeration: float = float(os.getenv("VOICE_EXAGGERATION", "0.75"))
-    story_voice: str = os.getenv("STORY_VOICE", "c3po_reference")
+    story_voice: str = os.getenv("STORY_VOICE", "matthew_reference+kelly_reference")
     # Every voice the pack renders each day. A listener hears the one they picked, and the
     # clips are shared, so the cost is stories × voices rather than × listeners.
-    story_voices: tuple[str, ...] = _list("STORY_VOICES", "c3po_reference,matthew_reference,kelly_reference")
+    story_voices: tuple[str, ...] = _list("STORY_VOICES", "matthew_reference+kelly_reference")
     stories_per_section: int = int(os.getenv("STORIES_PER_SECTION", "5"))
     # Podcast mode: two hosts chat around the news. The flag is the kill switch (server side:
     # nothing is generated and the app hides the mode); the hosts are any two voice ids.
