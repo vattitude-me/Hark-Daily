@@ -50,7 +50,7 @@ No ads. No sign-up. Open it and press play.
 
 ## How it works
 
-A Mac builds each day's episode early in the morning. It reads RSS feeds, writes short scripts, voices them with a local text-to-speech model, and uploads the MP3s to Supabase. The web app and the Android and iOS apps all run the same code in [`web/`](web/). They download the clips and put the briefing together on your device, based on your topics.
+A scheduled job builds each day's episode early in the morning. It reads RSS feeds, writes short scripts, voices them with a local text-to-speech model, and uploads the MP3s to Supabase. The web app and the Android and iOS apps all run the same code in [`web/`](web/). They download the clips and put the briefing together on your device, based on your topics.
 
 More detail is in [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
@@ -82,7 +82,7 @@ The voice service has its own setup. See [voice_service/README.md](voice_service
 ## Docs
 
 - [Technical guide](docs/TECHNICAL.md)
-- [Daily run on macOS](docs/nightly.md)
+- [Daily run](docs/nightly.md)
 - [Voice service](voice_service/README.md)
 - [Android app](android/README.md)
 - [iOS app](ios/README.md)

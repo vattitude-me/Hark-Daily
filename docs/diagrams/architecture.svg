@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" width="900" height="420" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" role="img" aria-labelledby="t d">
+  <title id="t">Hark Daily architecture</title>
+  <desc id="d">A scheduled build turns news feeds into MP3 clips. Clips and metadata go to cloud storage and a database. The web, Android and iOS apps build a playlist from the public manifest and stream the clips.</desc>
+  <style>
+    svg { --bg:#ffffff; --mask:#ffffff; --grp:#94a3b8; --text:#0f172a; --muted:#475569;
+          --build:#047857; --build-f:rgba(16,185,129,.12);
+          --cloud:#b45309; --cloud-f:rgba(245,158,11,.14);
+          --data:#6d28d9; --data-f:rgba(139,92,246,.12);
+          --app:#0e7490; --app-f:rgba(6,182,212,.12); --arrow:#64748b; }
+    @media (prefers-color-scheme: dark) {
+      svg { --bg:#0f172a; --mask:#0f172a; --grp:#475569; --text:#f1f5f9; --muted:#94a3b8;
+            --build:#34d399; --build-f:rgba(16,185,129,.18);
+            --cloud:#fbbf24; --cloud-f:rgba(245,158,11,.18);
+            --data:#a78bfa; --data-f:rgba(139,92,246,.2);
+            --app:#22d3ee; --app-f:rgba(6,182,212,.18); --arrow:#94a3b8; }
+    }
+    .bg { fill: var(--bg); }
+    .grp { fill: none; stroke: var(--grp); stroke-width: 1.2; stroke-dasharray: 5 4; }
+    .mask { fill: var(--mask); }
+    .b { fill: var(--build-f); stroke: var(--build); stroke-width: 1.5; }
+    .c { fill: var(--cloud-f); stroke: var(--cloud); stroke-width: 1.5; }
+    .d { fill: var(--data-f); stroke: var(--data); stroke-width: 1.5; }
+    .a { fill: var(--app-f); stroke: var(--app); stroke-width: 1.5; }
+    .gt { fill: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+    .t { fill: var(--text); font-size: 13px; font-weight: 600; text-anchor: middle; }
+    .s { fill: var(--muted); font-size: 10px; text-anchor: middle; }
+    .l { fill: var(--muted); font-size: 10px; text-anchor: middle; }
+    .ar { fill: none; stroke: var(--arrow); stroke-width: 1.5; marker-end: url(#h); }
+    .hd { fill: var(--arrow); }
+  </style>
+  <defs>
+    <marker id="h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" class="hd"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="900" height="420"/>
+
+  <!-- Groups -->
+  <rect class="grp" x="20" y="20" width="280" height="380" rx="10"/>
+  <text class="gt" x="36" y="44">Daily build</text>
+  <rect class="grp" x="340" y="20" width="220" height="380" rx="10"/>
+  <text class="gt" x="356" y="44">Cloud backend</text>
+  <rect class="grp" x="600" y="20" width="280" height="380" rx="10"/>
+  <text class="gt" x="616" y="44">Web, Android, iOS</text>
+
+  <!-- Arrows first so boxes paint on top -->
+  <path class="ar" d="M160 114 V134"/>
+  <path class="ar" d="M160 178 V198"/>
+  <path class="ar" d="M160 242 V262"/>
+  <path class="ar" d="M160 306 V326"/>
+  <path class="ar" d="M270 348 H360"/>
+  <path class="ar" d="M310 348 V272 H360"/>
+  <path class="ar" d="M450 250 V174"/>
+  <path class="ar" d="M540 152 H630"/>
+  <path class="ar" d="M540 272 H585 V152"/>
+  <path class="ar" d="M540 348 H630"/>
+  <path class="ar" d="M740 174 V326"/>
+
+  <!-- Build -->
+  <rect class="mask" x="50" y="70" width="220" height="44" rx="6"/><rect class="b" x="50" y="70" width="220" height="44" rx="6"/>
+  <text class="t" x="160" y="90">News feeds</text><text class="s" x="160" y="104">RSS, by edition and section</text>
+  <rect class="mask" x="50" y="134" width="220" height="44" rx="6"/><rect class="b" x="50" y="134" width="220" height="44" rx="6"/>
+  <text class="t" x="160" y="154">Article text</text><text class="s" x="160" y="168">fetch and clean</text>
+  <rect class="mask" x="50" y="198" width="220" height="44" rx="6"/><rect class="b" x="50" y="198" width="220" height="44" rx="6"/>
+  <text class="t" x="160" y="218">Scripts and dialogue</text><text class="s" x="160" y="232">LLM chain with fallbacks</text>
+  <rect class="mask" x="50" y="262" width="220" height="44" rx="6"/><rect class="b" x="50" y="262" width="220" height="44" rx="6"/>
+  <text class="t" x="160" y="282">Voice synthesis</text><text class="s" x="160" y="296">text to speech service</text>
+  <rect class="mask" x="50" y="326" width="220" height="44" rx="6"/><rect class="b" x="50" y="326" width="220" height="44" rx="6"/>
+  <text class="t" x="160" y="346">MP3 clips</text><text class="s" x="160" y="360">encode and upload</text>
+
+  <!-- Backend -->
+  <rect class="mask" x="360" y="130" width="180" height="44" rx="6"/><rect class="c" x="360" y="130" width="180" height="44" rx="6"/>
+  <text class="t" x="450" y="150">Public manifest</text><text class="s" x="450" y="164">pack JSON per day</text>
+  <rect class="mask" x="360" y="250" width="180" height="44" rx="6"/><rect class="d" x="360" y="250" width="180" height="44" rx="6"/>
+  <text class="t" x="450" y="270">Database</text><text class="s" x="450" y="284">clips, notes, ready markers</text>
+  <rect class="mask" x="360" y="326" width="180" height="44" rx="6"/><rect class="c" x="360" y="326" width="180" height="44" rx="6"/>
+  <text class="t" x="450" y="346">Audio storage</text><text class="s" x="450" y="360">stories, dialogue, notes</text>
+
+  <!-- Apps -->
+  <rect class="mask" x="630" y="130" width="220" height="44" rx="6"/><rect class="a" x="630" y="130" width="220" height="44" rx="6"/>
+  <text class="t" x="740" y="150">Playlist builder</text><text class="s" x="740" y="164">topics, order, mode</text>
+  <rect class="mask" x="630" y="326" width="220" height="44" rx="6"/><rect class="a" x="630" y="326" width="220" height="44" rx="6"/>
+  <text class="t" x="740" y="346">Player</text><text class="s" x="740" y="360">preload, retry, offline shell</text>
+  <text class="l" x="740" y="256">playlist</text>
+</svg>
