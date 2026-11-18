@@ -84,3 +84,8 @@ test('boot splash waits for the app and offers a retry instead of an empty page'
   const app = readFileSync(new URL('../../web/js/app.js', import.meta.url), 'utf8');
   assert.ok(app.includes('window.__harkBooted = true'));
 });
+
+test('withTimeout only reports slow when the timeout wins, not when the request finishes in time', () => {
+  const app = readFileSync(new URL('../../web/js/app.js', import.meta.url), 'utf8');
+  assert.ok(app.includes('clearTimeout(timer)'), 'the timer must be cleared once the request settles');
+});

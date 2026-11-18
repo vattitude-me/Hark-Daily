@@ -3664,11 +3664,14 @@ async function start() {
 
   try {
     // Budgets stretch on a weak connection so a slow download is not dropped half way.
-    const withTimeout = (promise, ms, fallback = null) =>
-      Promise.race([
-        promise,
-        new Promise((resolve) => setTimeout(() => { noteSlow(); resolve(fallback); }, timeoutFor(ms)))
-      ]);
+    // Only a timeout that actually wins counts as a slow signal; a request that finished in time must not.
+    const withTimeout = (promise, ms, fallback = null) => {
+      let timer;
+      const timeout = new Promise((resolve) => {
+        timer = setTimeout(() => { noteSlow(); resolve(fallback); }, timeoutFor(ms));
+      });
+      return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+    };
 
     // 2. Fetch status, profile, AND requested date's pack in parallel with fail-safe timeouts
     const [status, profile, freshBriefing] = await Promise.all([
