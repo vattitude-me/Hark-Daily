@@ -21,15 +21,38 @@ test('classify: offline wins over everything', () => {
   assert.equal(net.classify({ onLine: false, connection: { effectiveType: '4g' }, observed: 5 }), 'offline');
 });
 
-test('classify: 3G, save-data, low downlink and high rtt are slow', () => {
-  assert.equal(net.classify({ connection: { effectiveType: '3g' } }), 'slow');
-  assert.equal(net.classify({ connection: { effectiveType: '4g', saveData: true } }), 'slow');
-  assert.equal(net.classify({ connection: { effectiveType: '4g', downlink: 0.8 } }), 'slow');
-  assert.equal(net.classify({ connection: { effectiveType: '4g', downlink: 5, rtt: 600 } }), 'slow');
+test('classify: connection estimates never reach the listener', () => {
+  // Chrome reports ~1.5 Mbps downlink on fast Wi-Fi while audio streams. That must not read as slow.
+  assert.equal(net.classify({ connection: { effectiveType: '4g', downlink: 1.4, rtt: 50 } }), 'ok');
+  assert.equal(net.classify({ connection: { effectiveType: '3g' } }), 'ok');
 });
 
-test('classify: a reported 4g link with no measurements stays ok', () => {
-  assert.equal(net.classify({ connection: { effectiveType: '4g' } }), 'ok');
+test('weakHint: 3G, save-data, low downlink and high rtt tune timeouts', () => {
+  assert.equal(net.weakHint({ effectiveType: '3g' }), true);
+  assert.equal(net.weakHint({ effectiveType: '4g', saveData: true }), true);
+  assert.equal(net.weakHint({ effectiveType: '4g', downlink: 0.8 }), true);
+  assert.equal(net.weakHint({ effectiveType: '4g', downlink: 5, rtt: 600 }), true);
+  assert.equal(net.weakHint({ effectiveType: '4g', downlink: 10, rtt: 50 }), false);
+  assert.equal(net.weakHint(null), false);
+});
+
+test('a downlink dip on Wi-Fi stretches timeouts but shows nothing', () => {
+  setNav({ onLine: true, connection: { effectiveType: '4g', downlink: 1.4, rtt: 50 } });
+  net.noteOk();
+  assert.equal(net.quality(), 'ok');
+  assert.equal(net.isSlow(), true);
+  assert.equal(net.timeoutFor(4000), 12000);
+  setNav({ onLine: true, connection: null });
+});
+
+test('a long buffering wait marks the link slow on its own', () => {
+  assert.equal(net.classify({ stalled: true }), 'slow');
+  setNav({ onLine: true, connection: null });
+  net.noteOk();
+  net.noteStall();
+  assert.equal(net.quality(), 'slow');
+  net.noteOk();
+  assert.equal(net.quality(), 'ok');
 });
 
 test('classify: two stalls or timeouts mark a link slow, one does not', () => {
@@ -58,6 +81,7 @@ test('timeoutFor stretches on slow links and fails fast offline', () => {
   net.noteOk();
   assert.equal(net.timeoutFor(4000), 4000);
   setNav({ onLine: true, connection: { effectiveType: '3g' } });
+  net.noteOk();
   assert.equal(net.timeoutFor(4000), 12000);
   setNav({ onLine: false });
   assert.equal(net.timeoutFor(8000), 1500);
@@ -74,6 +98,8 @@ test('player and app are wired to the network module', () => {
   assert.ok(app.includes('timeoutFor(ms)'));
   const sw = readFileSync(new URL('../../web/sw.js', import.meta.url), 'utf8');
   assert.ok(sw.includes("'/js/network.js'"), 'service worker must precache network.js');
+  assert.ok(sw.includes("cache: 'reload'"), 'precache must bypass the HTTP cache');
+  assert.ok(sw.includes('networkFirst('), 'code must be network-first so a deploy takes effect');
 });
 
 test('boot splash waits for the app and offers a retry instead of an empty page', () => {
