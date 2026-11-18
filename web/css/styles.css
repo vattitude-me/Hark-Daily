@@ -2210,18 +2210,26 @@ body:has(.save-bar:not(.hidden)) .mini-player { bottom: 5.25rem; }
 .toast-error .toast-dot { background: var(--err); }
 
 /* =========================================================== NETWORK BANNER */
+/* Floating chip, used only when the player's top bar is not on screen. */
 .net-banner {
   position: fixed; z-index: 110; left: 50%; transform: translateX(-50%);
-  top: calc(.5rem + env(safe-area-inset-top, 0px));
-  display: flex; align-items: center; gap: .6rem;
-  max-width: min(30rem, calc(100vw - 1.5rem));
-  padding: .5rem .9rem; border-radius: 999px;
+  top: calc(.75rem + env(safe-area-inset-top, 0px));
+  display: flex; align-items: center; gap: .5rem;
+  max-width: calc(100vw - 2rem);
+  padding: .4rem .8rem; border-radius: 999px;
   background: var(--glass-solid); border: 1px solid var(--line-2);
   box-shadow: var(--shadow-sm);
-  font-size: .8125rem; font-weight: 500; line-height: 1.35; color: var(--text, inherit);
-  cursor: pointer;
+  font-size: .8125rem; font-weight: 600; line-height: 1.2; color: var(--ink, inherit);
+  white-space: nowrap; cursor: pointer;
 }
+.net-banner-text { overflow: hidden; text-overflow: ellipsis; }
 .net-banner[hidden] { display: none; }
+/* In the player view the chip takes the logo's slot in the top bar, so it never covers the buttons. */
+.net-banner.net-banner-inline {
+  position: static; transform: none; z-index: auto;
+  min-width: 0; max-width: none; flex: 0 1 auto; margin: 0; padding: .35rem .65rem; font-size: .75rem;
+}
+.clean-topbar.net-banner-on .clean-brand { display: none; }
 .net-banner-dot { width: .5rem; height: .5rem; border-radius: 50%; flex: none; background: var(--info); }
 .net-banner[data-state="slow"] .net-banner-dot { animation: net-pulse 1.4s ease-in-out infinite; }
 .net-banner[data-state="offline"] .net-banner-dot { background: var(--err); }
