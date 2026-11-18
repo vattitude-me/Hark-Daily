@@ -3,8 +3,12 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { readFileSync as __rfs } from 'node:fs';
+const __readNet = () => __rfs(new URL('../../web/js/network.js', import.meta.url));
 
 const dir = mkdtempSync(join(tmpdir(), 'admin-test-'));
+
+writeFileSync(join(dir, 'network.js'), __readNet());
 
 // Mock config
 writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x'; export const SUPABASE_PUBLISHABLE_KEY = 'k';");

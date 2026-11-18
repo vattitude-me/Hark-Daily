@@ -7,6 +7,7 @@
 //     played back to back with the next clip pre-buffered so the joins are seamless.
 import { fmtTime, h, store } from './api.js';
 import { parseDialogueTurns } from './storypack.js';
+import { isOffline, isSlow, noteOk, noteSlow, say } from './network.js';
 
 export function splitSentences(text) {
   if (!text) return [];
@@ -327,8 +328,77 @@ export class Player extends EventTarget {
         console.log('[player] transition audio error, advancing to next clip');
         this.isTransitioningClip = true;
         this.loadClip(this.index + 1, { seek: 0, autoplay: true, forceReload: true });
+        return;
       }
+      this.retryClip();
     });
+    this.watchBuffering(audioEl);
+  }
+
+  /**
+   * Weak-network handling for the playing clip: show "Buffering" while it waits for data, and after a
+   * few seconds tell the listener why. Playing again clears everything.
+   */
+  watchBuffering(audioEl) {
+    const start = () => {
+      if (this.buffering) return;
+      this.buffering = true;
+      this.hero?.classList.add('is-buffering');
+      clearTimeout(this._bufferNoticeTimer);
+      this._bufferNoticeTimer = setTimeout(() => {
+        if (!this.buffering) return;
+        noteSlow();
+        say(isOffline() ? 'Connection lost. Playback resumes when you are back online.'
+          : 'Slow connection. Waiting for more audio to load.', { ms: 3500 });
+      }, 6000);
+    };
+    const stop = () => {
+      if (!this.buffering) return;
+      this.buffering = false;
+      this.retries = 0;
+      clearTimeout(this._bufferNoticeTimer);
+      this.hero?.classList.remove('is-buffering');
+      noteOk();
+    };
+    audioEl.addEventListener('waiting', start);
+    audioEl.addEventListener('stalled', () => { if (this.isPlaying && audioEl.readyState < 3) start(); });
+    audioEl.addEventListener('playing', stop);
+    audioEl.addEventListener('canplay', () => { if (!audioEl.paused) stop(); });
+    // While a slow link fills the current clip, let the next one wait. Re-check as data arrives.
+    audioEl.addEventListener('progress', () => { if (isSlow()) this.preloadNext(); });
+  }
+
+  /** A story clip failed to load: retry a few times with growing delays, resuming where it stopped. */
+  retryClip() {
+    const el = this.audio;
+    if (!el || !this.clips?.[this.index]) return;
+    const MAX_RETRIES = 3;
+    this.retries = (this.retries || 0) + 1;
+    if (this.retries > MAX_RETRIES) {
+      this.retries = 0;
+      this.buffering = false;
+      this.hero?.classList.remove('is-buffering');
+      this.setPlaying(false);
+      say(isOffline() ? "You're offline. Reconnect, then tap play to continue."
+        : "This clip didn't load on the current connection. Tap play to try again.", { error: true, ms: 6000 });
+      return;
+    }
+    noteSlow();
+    const idx = this.index;
+    const resumeAt = el.currentTime || 0;
+    const wasPlaying = this.isPlaying;
+    const delay = 1500 * 2 ** (this.retries - 1);
+    clearTimeout(this._retryTimer);
+    const attempt = () => {
+      if (this.index !== idx) return; // listener moved on
+      this.loadClip(idx, { seek: resumeAt, autoplay: wasPlaying, forceReload: true });
+    };
+    if (isOffline() && typeof window !== 'undefined') {
+      this.retries -= 1; // waiting for the network does not use up an attempt
+      window.addEventListener('online', attempt, { once: true });
+      return;
+    }
+    this._retryTimer = setTimeout(attempt, delay);
   }
 
   primeAudioChannels() {
@@ -461,6 +531,14 @@ export class Player extends EventTarget {
     this.preloadNext();
   }
 
+  /** True once the playing clip is downloaded to its end (or its length is not known yet). */
+  currentClipBuffered() {
+    const el = this.audio;
+    if (!el || !Number.isFinite(el.duration) || el.duration <= 0) return false;
+    const b = el.buffered;
+    return b && b.length > 0 && b.end(b.length - 1) >= el.duration - 0.5;
+  }
+
   /** Pre-buffer the following clip silently into cache using the secondary audio preloader. */
   preloadNext() {
     if (!this.clips || !this.isPlaying) return;
@@ -472,6 +550,10 @@ export class Player extends EventTarget {
     if (!next || !next.url) return;
     const preloader = this.preloader;
     if (!preloader) return;
+
+    // On a weak link the next clip would compete with the one playing. Wait until the current clip
+    // has fully buffered; the 'progress' listener calls back in.
+    if (isSlow() && !this.currentClipBuffered()) return;
 
     if (preloader.dataset.clip !== String(nextIdx)) {
       preloader.dataset.clip = String(nextIdx);
