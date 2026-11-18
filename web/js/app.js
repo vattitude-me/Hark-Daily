@@ -1,4 +1,5 @@
 import { api, fmtTime, h, icon, isAdmin, recordError, sb, store, timeAgo, toast, VOICES, voiceFor, voiceName, SECTIONS, DEFAULT_VOICE_ID, EDITIONS, defaultEdition, detectEditionFromIp } from './api.js';
+import { initNetwork, isOffline, isSlow, noteOk, noteSlow, timeoutFor } from './network.js';
 import { Player, posKeyFor, safeExternalUrl } from './player.js';
 import { Landing } from './landing.js';
 import { WelcomeSheet, DeleteAccountSheet, enablePush, installMode, isIOS, isInstalled, onInstallChange, promptInstall, pushSupported, requestNotificationPermission, wireSheet } from './sheets.js';
@@ -3662,11 +3663,15 @@ async function start() {
   }
 
   try {
-    const withTimeout = (promise, ms, fallback = null) =>
-      Promise.race([
-        promise,
-        new Promise((resolve) => setTimeout(() => resolve(fallback), ms))
-      ]);
+    // Budgets stretch on a weak connection so a slow download is not dropped half way.
+    // Only a timeout that actually wins counts as a slow signal; a request that finished in time must not.
+    const withTimeout = (promise, ms, fallback = null) => {
+      let timer;
+      const timeout = new Promise((resolve) => {
+        timer = setTimeout(() => { noteSlow(); resolve(fallback); }, timeoutFor(ms));
+      });
+      return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+    };
 
     // 2. Fetch status, profile, AND requested date's pack in parallel with fail-safe timeouts
     const [status, profile, freshBriefing] = await Promise.all([
@@ -3701,6 +3706,7 @@ async function start() {
     if (briefing) {
       state.briefing = briefing;
       if (state.briefing?.podcastFallback) toast("Podcast isn't ready today, so here's the full brief.");
+      noteOk();
       displayBriefing();
     } else {
       // Fallback: If no briefing could be loaded from network, seamlessly display the latest cached briefing
@@ -3716,7 +3722,10 @@ async function start() {
         renderGuestBanner();
         renderHero();
         renderSections();
-        toast("Couldn't reach the briefing service. Pull down to retry.", { error: true, ms: 5000 });
+        const weak = isOffline() ? "You're offline, and there's no saved briefing yet. Pull down to retry when you're back online."
+          : isSlow() ? "The connection is too slow to load today's briefing. Pull down to try again."
+          : "Couldn't reach the briefing service. Pull down to retry.";
+        toast(weak, { error: true, ms: 6000 });
       }
     }
 
@@ -4192,6 +4201,7 @@ function initAppLifecycle() {
 }
 
 async function init() {
+  window.__harkBooted = true; // lets the boot splash in index.html know the app script is running
   window.addEventListener('error', (e) => { recordError(e.error || e.message, 'window.onerror'); });
   window.addEventListener('unhandledrejection', (e) => { recordError(e.reason, 'window.unhandledrejection'); });
   syncThemeIcon();
@@ -4201,6 +4211,7 @@ async function init() {
     } catch {}
   }
   setTextSize(localStorage.getItem('mb-text-size') || 'md');
+  initNetwork(toast);
   bindEvents();
   initAppLifecycle();
   syncInstallBtn();
