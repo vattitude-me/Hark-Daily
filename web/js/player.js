@@ -7,6 +7,7 @@
 //     played back to back with the next clip pre-buffered so the joins are seamless.
 import { fmtTime, h, store } from './api.js';
 import { parseDialogueTurns } from './storypack.js';
+import { isOffline, isSlow, noteOk, noteSlow, say } from './network.js';
 
 export function splitSentences(text) {
   if (!text) return [];
@@ -315,6 +316,11 @@ export class Player extends EventTarget {
     });
     audioEl.addEventListener('pause', () => {
       if (this.isTransitioningClip) return;
+      // A pause caused by a load error is not the listener changing their mind; retries keep their intent.
+      if (!audioEl.error) {
+        this.wantsPlay = false;
+        this.setBuffering(false);
+      }
       this.setPlaying(false);
     });
     audioEl.addEventListener('ended', () => {
@@ -327,8 +333,104 @@ export class Player extends EventTarget {
         console.log('[player] transition audio error, advancing to next clip');
         this.isTransitioningClip = true;
         this.loadClip(this.index + 1, { seek: 0, autoplay: true, forceReload: true });
+        return;
       }
+      this.retryClip();
     });
+    this.watchBuffering(audioEl);
+  }
+
+  /**
+   * Weak-network handling for the playing clip: mark the visible play buttons as buffering while the
+   * clip waits for data, and after a few seconds tell the listener why.
+   */
+  watchBuffering(audioEl) {
+    audioEl.addEventListener('play', () => { this.wantsPlay = true; });
+    audioEl.addEventListener('waiting', () => this.setBuffering(true));
+    audioEl.addEventListener('stalled', () => { if (this.isPlaying && audioEl.readyState < 3) this.setBuffering(true); });
+    audioEl.addEventListener('playing', () => {
+      // Audio that plays is proof the link works: clear buffering, retries and earlier slow signals.
+      this.setBuffering(false);
+      this.retry = null;
+      noteOk();
+    });
+    audioEl.addEventListener('canplay', () => { if (!audioEl.paused) this.setBuffering(false); });
+    // 'stalled' can fire while enough is buffered to keep playing, with no 'playing' to follow.
+    // Time moving forward clears it.
+    let lastTime = 0;
+    audioEl.addEventListener('timeupdate', () => {
+      const t = audioEl.currentTime;
+      if (this.buffering && !audioEl.paused && t > lastTime && audioEl.readyState >= 3) this.setBuffering(false);
+      lastTime = t;
+    });
+    // While a slow link fills the current clip, let the next one wait. Re-check as data arrives.
+    audioEl.addEventListener('progress', () => { if (isSlow()) this.preloadNext(); });
+  }
+
+  setBuffering(on) {
+    if (Boolean(this.buffering) === on) return;
+    this.buffering = on;
+    if (typeof document !== 'undefined') {
+      document.body?.classList.toggle('audio-buffering', on);
+      for (const id of ['cleanPlayBtn', 'miniPlay']) {
+        const btn = document.getElementById(id);
+        if (!btn) continue;
+        if (on) btn.setAttribute('aria-busy', 'true');
+        else btn.removeAttribute('aria-busy');
+      }
+    }
+    clearTimeout(this._bufferNoticeTimer);
+    if (!on) return;
+    this._bufferNoticeTimer = setTimeout(() => {
+      if (!this.buffering) return;
+      noteSlow();
+      say(isOffline() ? 'Connection lost. Playback resumes when you are back online.'
+        : 'Slow connection. Waiting for more audio to load.', { ms: 3500 });
+    }, 6000);
+  }
+
+  /**
+   * A story clip failed to load: retry with growing delays, resuming where it stopped. Retry state is
+   * kept per clip and cleared as soon as audio plays, so earlier failures never count against a new one.
+   */
+  retryClip() {
+    const el = this.audio;
+    const idx = this.index;
+    if (!el || !this.clips?.[idx]) return;
+    const MAX_RETRIES = 3;
+    if (!this.retry || this.retry.idx !== idx) {
+      // Remember the position once: after a failed reload currentTime reads 0.
+      this.retry = { idx, count: 0, at: el.currentTime || 0 };
+    }
+    const wantsPlay = this.wantsPlay !== false;
+    const attempt = () => {
+      if (this.index !== idx) return; // the listener moved on
+      this.loadClip(idx, { seek: this.retry?.at || 0, autoplay: wantsPlay, forceReload: true });
+    };
+    clearTimeout(this._retryTimer);
+
+    if (isOffline() && typeof window !== 'undefined') {
+      // Waiting for the network does not use up an attempt, and only one wait is ever pending.
+      this.setBuffering(true);
+      if (!this._onlineWait) {
+        this._onlineWait = () => { this._onlineWait = null; attempt(); };
+        window.addEventListener('online', this._onlineWait, { once: true });
+      }
+      return;
+    }
+
+    this.retry.count += 1;
+    if (this.retry.count > MAX_RETRIES) {
+      this.retry = null;
+      this.wantsPlay = false;
+      this.setBuffering(false);
+      this.setPlaying(false);
+      say("This clip didn't load on the current connection. Tap play to try again.", { error: true, ms: 6000 });
+      return;
+    }
+    noteSlow();
+    this.setBuffering(true);
+    this._retryTimer = setTimeout(attempt, 1500 * 2 ** (this.retry.count - 1));
   }
 
   primeAudioChannels() {
@@ -461,6 +563,14 @@ export class Player extends EventTarget {
     this.preloadNext();
   }
 
+  /** True once the playing clip is downloaded to its end (or its length is not known yet). */
+  currentClipBuffered() {
+    const el = this.audio;
+    if (!el || !Number.isFinite(el.duration) || el.duration <= 0) return false;
+    const b = el.buffered;
+    return b && b.length > 0 && b.end(b.length - 1) >= el.duration - 0.5;
+  }
+
   /** Pre-buffer the following clip silently into cache using the secondary audio preloader. */
   preloadNext() {
     if (!this.clips || !this.isPlaying) return;
@@ -472,6 +582,10 @@ export class Player extends EventTarget {
     if (!next || !next.url) return;
     const preloader = this.preloader;
     if (!preloader) return;
+
+    // On a weak link the next clip would compete with the one playing. Wait until the current clip
+    // has fully buffered; the 'progress' listener calls back in.
+    if (isSlow() && !this.currentClipBuffered()) return;
 
     if (preloader.dataset.clip !== String(nextIdx)) {
       preloader.dataset.clip = String(nextIdx);

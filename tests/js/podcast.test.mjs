@@ -6,8 +6,12 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { readFileSync as __rfs } from 'node:fs';
+const __readNet = () => __rfs(new URL('../../web/js/network.js', import.meta.url));
 
 const dir = mkdtempSync(join(tmpdir(), 'storypack-'));
+
+writeFileSync(join(dir, 'network.js'), __readNet());
 const src = readFileSync(new URL('../../web/js/storypack.js', import.meta.url), 'utf8')
   .replace("'./api.js'", "'./api.mjs'").replace("'../config.js'", "'./config.mjs'");
 writeFileSync(join(dir, 'storypack.mjs'), src);

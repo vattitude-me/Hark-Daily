@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { readFileSync as __rfs } from 'node:fs';
+const __readNet = () => __rfs(new URL('../../web/js/network.js', import.meta.url));
 
 test('Drawer Header contains dedicated Account button', () => {
   const html = readFileSync(resolve('web/index.html'), 'utf8');
@@ -148,6 +150,7 @@ test('storyFor associates bridge banter with upcoming story and nextChapter navi
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const dir = mkdtempSync(join(tmpdir(), 'player-nav-'));
+  writeFileSync(join(dir, 'network.js'), __readNet());
 
   writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x'; export const SUPABASE_PUBLISHABLE_KEY = 'k';");
   const apiSrc = readFileSync(resolve('web/js/api.js'), 'utf8')
@@ -234,6 +237,7 @@ test('Serverless feedback handler (/api/feedback) enforces security guards and v
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const dir = mkdtempSync(join(tmpdir(), 'feedback-test-'));
+  writeFileSync(join(dir, 'network.js'), __readNet());
   const src = readFileSync(resolve('web/api/feedback.js'), 'utf8');
   writeFileSync(join(dir, 'feedback.mjs'), src);
   const { default: handler } = await import(join(dir, 'feedback.mjs'));
@@ -330,6 +334,7 @@ test('Security guards: SSRF IP filtering blocks internal, link-local, carrier-gr
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const dir = mkdtempSync(join(tmpdir(), 'fetch-test-'));
+  writeFileSync(join(dir, 'network.js'), __readNet());
   const src = readFileSync(resolve('web/api/fetch.js'), 'utf8');
   writeFileSync(join(dir, 'fetch.mjs'), src);
   const { isPrivateOrReservedIP } = await import(join(dir, 'fetch.mjs'));
@@ -370,6 +375,7 @@ test('SEC-19: safeExternalUrl strictly validates HTTP/HTTPS protocols and reject
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const dir = mkdtempSync(join(tmpdir(), 'player-test-'));
+  writeFileSync(join(dir, 'network.js'), __readNet());
   const src = readFileSync(resolve('web/js/player.js'), 'utf8')
     .replace("import { fmtTime, h, store } from './api.js';", "const fmtTime = () => '', h = () => {}, store = {};")
     .replace("import { parseDialogueTurns } from './storypack.js';", "const parseDialogueTurns = () => {};");
@@ -391,6 +397,7 @@ test('SEC-18: /api/share canonicalizes origins and safely escapes replacement st
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const dir = mkdtempSync(join(tmpdir(), 'share-test-'));
+  writeFileSync(join(dir, 'network.js'), __readNet());
   const src = readFileSync(resolve('web/api/share.js'), 'utf8')
     .replace("import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '../config.js';", "const SUPABASE_PUBLISHABLE_KEY = 'test', SUPABASE_URL = 'http://test';");
   writeFileSync(join(dir, 'share.mjs'), src);
@@ -421,6 +428,7 @@ test('SEC-26: /api/fetch, /api/llm, and /api/tts are discontinued and return 410
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const dir = mkdtempSync(join(tmpdir(), 'fetch-test2-'));
+  writeFileSync(join(dir, 'network.js'), __readNet());
   const src = readFileSync(resolve('web/api/fetch.js'), 'utf8');
   writeFileSync(join(dir, 'fetch2.mjs'), src);
   const { default: fetchHandler } = await import(join(dir, 'fetch2.mjs'));
@@ -451,6 +459,7 @@ test('DATA-07: api.signOut clears diagnostics-log from storage', async () => {
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const dir = mkdtempSync(join(tmpdir(), 'signout-test-'));
+  writeFileSync(join(dir, 'network.js'), __readNet());
   const src = readFileSync(resolve('web/js/api.js'), 'utf8')
     .replace("import { createClient } from './supabase-js.js';", "const createClient = () => ({ auth: { signOut: async () => ({}) } });")
     .replace(/import\s*\{[^}]*\}\s*from\s*'\.\.\/config\.js';/, "const SUPABASE_URL = 'http://test', SUPABASE_PUBLISHABLE_KEY = 'test', FEATURES = {}, GOOGLE_CLIENT_ID = 'test';");
@@ -476,6 +485,7 @@ test('SEC-27: /api/share rejects wildcard vercel.app spoofing and isolates non-c
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const dir = mkdtempSync(join(tmpdir(), 'share-sec27-'));
+  writeFileSync(join(dir, 'network.js'), __readNet());
   const src = readFileSync(resolve('web/api/share.js'), 'utf8')
     .replace("import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '../config.js';", "const SUPABASE_PUBLISHABLE_KEY = 'test', SUPABASE_URL = 'http://test';")
     .replace("import { createClient } from '@supabase/supabase-js';", "const createClient = () => ({ from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: null }) }) }) }) });")
