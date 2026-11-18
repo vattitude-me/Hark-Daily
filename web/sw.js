@@ -83,7 +83,7 @@ self.addEventListener('push', (e) => {
     try { data = { body: e.data.text() }; } catch { /* ignore */ }
   }
   e.waitUntil(self.registration.showNotification(data.title || 'Hark Daily', {
-    body: data.body || "Today's briefing is ready.",
+    body: data.body || "Today's episode is ready.",
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-96.png',
     tag: 'hark-daily',

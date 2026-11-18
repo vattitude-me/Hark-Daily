@@ -10,6 +10,8 @@ This directory archives historical planning documents, early UI mockups, promoti
 - **`android-plan.md`**: Early architecture blueprint for the initial Jetpack Compose Android prototype (October 2026) prior to standardizing on the unified Capacitor Android & iOS smart native shells.
 - **`Hark-Podcast-Transformation-Plan.md`**: Architectural design notes for transitioning from single-narrator daily packs to the two-host dialogue podcast format (Matthew & Kelly).
 - **`ui-mock/`**: Standalone HTML and CSS prototype boards (`Hark – Clean Player Mock.html`) used for early responsive layout experiments.
+- `GEMINI_AI_STUDIO_GUIDE.md` describes the older cloud GPU pipeline and AI Studio prompts. The current pipeline is in `docs/TECHNICAL.md`.
+- `CUSTOM_VOICE_ROADMAP.md` is a plan for user-cloned voices that was not built.
 
 ### 2. `media/`
 - **`hark_daily_demo.mp4` / `hark_daily_demo.gif`**: Early desktop and mobile video captures of the briefing player.

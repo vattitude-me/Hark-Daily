@@ -173,7 +173,7 @@ export class Landing {
     const name = BUILTIN_VOICES.find((v) => v.id === this.voiceId)?.name;
     $('sampleLabel').textContent = ready ? `Today's top stories${name ? ` · ${name}` : ''}` : 'Today\'s brief';
     $('sampleTitle').textContent = ready
-      ? (this.stories[0]?.headline || 'Tap play to hear the briefing')
+      ? (this.stories[0]?.headline || 'Tap play to hear the episode')
       : "The sample isn't available right now. Try again in a moment.";
     $('sampleDur').textContent = `-${fmtTime(this.duration)}`;
     for (const id of ['samplePlay', 'samplePrev', 'sampleNext']) $(id).disabled = !ready;
@@ -365,7 +365,7 @@ export class Landing {
     this.audio.pause();
     const name = BUILTIN_VOICES.find((v) => v.id === this.voiceId)?.name;
     $('gateTitle').textContent = 'Sample completed.';
-    $('gateText').textContent = `Listen to today's full briefing in any voice${name ? `, read by ${name} or other narrators` : ''}. No account required.`;
+    $('gateText').textContent = `Listen to today's full episode in any voice${name ? `, read by ${name} or other narrators` : ''}. No account required.`;
     $('gateContinue').textContent = "Go to Today's Brief →";
     $('sampleGate').classList.remove('hidden');
     $('sampleHero').classList.add('gated');
@@ -390,7 +390,7 @@ export class Landing {
 
   setPlaying(on) {
     $('sampleHero').classList.toggle('playing-now', on);
-    $('samplePlay').setAttribute('aria-label', on ? 'Pause the briefing' : 'Play the briefing');
+    $('samplePlay').setAttribute('aria-label', on ? 'Pause the episode' : 'Play the episode');
     this.highlight(this.current);
   }
 
@@ -455,7 +455,7 @@ export class Landing {
     this.voiceAudio.pause();
     // Only reword the first step; later steps (email sent, code) own their own copy.
     if (!$('providerStep').classList.contains('hidden')) {
-      $('signinTitle').textContent = reason === 'gate' ? 'Keep listening' : 'Start your daily brief';
+      $('signinTitle').textContent = reason === 'gate' ? 'Keep listening' : 'Start your daily podcast';
       $('loginHint').textContent = reason === 'gate'
         ? "Sign in free to hear the rest of today's brief. The voice you picked comes with you."
         : DEFAULT_INTRO;
@@ -514,7 +514,7 @@ export class Landing {
         });
         const shareData = {
           title: 'Hark Daily',
-          text: 'The news you hear, not just read. Listen to today’s Hark Daily briefing:',
+          text: 'The day’s news, in conversation. Listen to today’s Hark Daily episode:',
           url: 'https://hark.vattitude.ca/',
         };
         if (navigator.share) {

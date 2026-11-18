@@ -472,7 +472,7 @@ class Batch:
             body += " (See the note in the app about today's briefing.)"
         try:
             subs = self.store.push_subscriptions([plan.id])
-            push.push_and_prune(self.cfg, self.store, subs, "☀️ Your Morning Brief is ready", body,
+            push.push_and_prune(self.cfg, self.store, subs, "☀️ Today's episode is ready", body,
                                 context=f"Morning notification for {plan.email}")
         except Exception as exc:  # noqa: BLE001
             log.warning("Morning notification for %s failed: %s", plan.email, exc)

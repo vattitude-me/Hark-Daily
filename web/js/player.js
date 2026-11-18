@@ -609,7 +609,7 @@ export class Player extends EventTarget {
     const posKey = posKeyFor(this.briefing);
     store.set(posKey, 0);
     this.el.state.textContent = 'Finished';
-    this.el.title.textContent = "That's today's briefing. Have a great day!";
+    this.el.title.textContent = "That's today's episode. Have a great day!";
   }
 
   load(briefing) {
@@ -1191,7 +1191,7 @@ export class Player extends EventTarget {
     }
     document.body.classList.toggle('playing', on);
     if (this.hero) this.hero.classList.toggle('playing-now', on);
-    if (this.el?.play) this.el.play.setAttribute('aria-label', on ? 'Pause briefing' : 'Play briefing');
+    if (this.el?.play) this.el.play.setAttribute('aria-label', on ? 'Pause episode' : 'Play episode');
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = on ? 'playing' : 'paused';
     const liveStatus = document.getElementById('liveStatus');
     if (liveStatus) liveStatus.textContent = on ? 'Playing' : 'Paused';
@@ -1551,7 +1551,7 @@ export class Player extends EventTarget {
     const readerBadgeText = document.getElementById('readerImageBadgeText');
     if (readerBadgeText) {
       if (isIntroOrBanter) {
-        readerBadgeText.textContent = this.briefing?.mode === 'podcast' ? 'Voiced by AI Duo · Matthew & Kelly' : 'Daily Brief Intro';
+        readerBadgeText.textContent = this.briefing?.mode === 'podcast' ? 'Voiced by AI Duo · Matthew & Kelly' : 'Daily news intro';
       } else if (story) {
         const idx = b.stories.indexOf(story) + 1;
         readerBadgeText.textContent = idx ? `Now Voicing · Story ${idx} of ${b.stories.length}` : 'Now Voicing';
@@ -1754,7 +1754,7 @@ export class Player extends EventTarget {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: ch?.title || story?.headline || this.briefing?.title || 'Hark Daily',
       artist: 'Hark Daily',
-      album: this.briefing?.title || 'Daily Briefing',
+      album: this.briefing?.title || 'Hark Daily',
       artwork: [...art, { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' }],
     });
     this.syncPositionState();

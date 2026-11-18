@@ -392,9 +392,9 @@ export function banterTitle(clipKey, sectionKey = null) {
 
 export function noteTitle(noteKey) {
   if (!noteKey) return "Today's Briefing";
-  if (noteKey.startsWith('greeting_morning')) return 'Good morning · Daily briefing';
-  if (noteKey.startsWith('greeting_afternoon')) return 'Good afternoon · Daily briefing';
-  if (noteKey.startsWith('greeting_evening')) return 'Good evening · Daily briefing';
+  if (noteKey.startsWith('greeting_morning')) return 'Good morning · Today’s episode';
+  if (noteKey.startsWith('greeting_afternoon')) return 'Good afternoon · Today’s episode';
+  if (noteKey.startsWith('greeting_evening')) return 'Good evening · Today’s episode';
   if (noteKey.startsWith('intro_')) {
     const sec = noteKey.replace(/^intro_/, '');
     const secName = SECTIONS[sec]?.title || sec;

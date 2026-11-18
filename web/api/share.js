@@ -188,8 +188,8 @@ export default async function handler(req, res) {
   const description = storyRow
     ? `${sourceName} · ${durSec}s audio · Hark Daily`
     : (isExpired
-        ? `This news story from ${date} is no longer available in our live archive. Listen to today's audio briefing on Hark Daily.`
-        : 'This story link has expired or is no longer available. Listen to today\'s audio briefing on Hark Daily.');
+        ? `This news story from ${date} is no longer available in our live archive. Listen to today's episode on Hark Daily.`
+        : 'This story link has expired or is no longer available. Listen to today\'s episode on Hark Daily.');
   const canonicalUrl = date && slug ? `${origin}/s/${encodeURIComponent(date)}/${encodeURIComponent(slug)}` : `${origin}/`;
   const storyImage = storyRow?.image || null;
   const thumbUrl = storyImage || `${origin}/icons/og-thumb-dark.png`;
