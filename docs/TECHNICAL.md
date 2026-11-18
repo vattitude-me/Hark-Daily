@@ -30,7 +30,7 @@ flowchart TD
     subgraph GPU["3. Local Voice Synthesis & Dialogue Generation"]
         SUM -->|Start Local Server| V_SRV["Chatterbox-Turbo (:8090)<br/>(PyTorch Apple Silicon MPS)"]
         SUM -->|Generate Dialogue| LLM["Gemini & Groq Chain<br/>(Lively Co-Host Banter)"]
-        V_SRV -->|POST /synthesize| AUDIO["Synthesize Day's Story Clips<br/>(C-3PO, Matthew, Kelly)"]
+        V_SRV -->|POST /synthesize| AUDIO["Synthesize Day's Story Clips<br/>(Matthew & Kelly)"]
         V_SRV -->|POST /synthesize| BANTER["Synthesize Podcast Banter<br/>(Openings, Teasers, Bridges, Outros)"]
         V_SRV -->|Pre-Closure Guard| NOTES["ensure_static_notes()<br/>(Synthesize only missing static notes)"]
         AUDIO & BANTER & NOTES --> STOP["Stop Voice Service<br/>(Free local M3 Pro compute, $0 cost)"]
@@ -192,7 +192,6 @@ The TTS service exposes endpoints on port `8090`:
 
 #### `GET /voices`
 Lists available voice reference clips in `voice_service/data/voices/`:
-- `c3po_reference` — C-3PO (Polite protocol droid, flagship narrator)
 - `matthew_reference` — Matthew (Calm American newsreader, podcast co-host)
 - `kelly_reference` — Kelly (Engaging American newsreader, podcast co-host)
 
@@ -358,7 +357,7 @@ Synthesized audio files are stored in Supabase Storage (`briefings` bucket) and 
 | `SUPABASE_SECRET_KEY` | `ey...` | Service-role key for backend worker write operations |
 | `VOICE_SERVICE_URL` | `http://127.0.0.1:8090` | Local voice service endpoint |
 | `VOICE_DIR` | `/.../voice_service/data/voices` | Directory of reference voice embeddings and audio samples |
-| `STORY_VOICES` | `c3po_reference,matthew_reference,kelly_reference` | Voices rendered during daily batch |
+| `STORY_VOICES` | `matthew_reference+kelly_reference` | Voices rendered during daily batch |
 | `PODCAST_ENABLED` | `true` | Generates podcast banter and enables Podcast mode |
 | `PODCAST_HOSTS` | `matthew_reference,kelly_reference` | Duo host voice IDs |
 | `BRIEFING_TIMEZONE` | `America/Toronto` | Primary timezone for schedule calculations |
