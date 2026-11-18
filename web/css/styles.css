@@ -2219,6 +2219,7 @@ body:has(.save-bar:not(.hidden)) .mini-player { bottom: 5.25rem; }
   background: var(--glass-solid); border: 1px solid var(--line-2);
   box-shadow: var(--shadow-sm);
   font-size: .8125rem; font-weight: 500; line-height: 1.35; color: var(--text, inherit);
+  cursor: pointer;
 }
 .net-banner[hidden] { display: none; }
 .net-banner-dot { width: .5rem; height: .5rem; border-radius: 50%; flex: none; background: var(--info); }
@@ -2227,9 +2228,20 @@ body:has(.save-bar:not(.hidden)) .mini-player { bottom: 5.25rem; }
 @keyframes net-pulse { 50% { opacity: .3; } }
 @media (prefers-reduced-motion: reduce) { .net-banner-dot { animation: none !important; } }
 
-/* Player shows this while the current clip waits for data. */
-.playing-now.is-buffering #heroState::after,
-#hero.is-buffering #heroState::after { content: " · Buffering"; }
+/* Spinner ring on the visible play buttons while the current clip waits for data. */
+body.audio-buffering .clean-play-circle,
+body.audio-buffering #miniPlay { position: relative; }
+body.audio-buffering .clean-play-circle::after,
+body.audio-buffering #miniPlay::after {
+  content: ""; position: absolute; inset: -5px; border-radius: 50%; pointer-events: none;
+  border: 2px solid transparent; border-top-color: #F59E0B; border-right-color: #F59E0B;
+  animation: buffer-spin .9s linear infinite;
+}
+@keyframes buffer-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  body.audio-buffering .clean-play-circle::after,
+  body.audio-buffering #miniPlay::after { animation: none; border-color: #F59E0B; opacity: .6; }
+}
 
 .toast-text { flex: 1; color: var(--ink); }
 

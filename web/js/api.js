@@ -345,6 +345,53 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let cachedPublicPack = null;
 let cachedPublicPackAt = 0;
+const inflightPacks = new Map();
+
+const isPack = (obj) => Boolean(obj && (obj.story_audio || obj.rows || obj.briefing));
+
+/** Fetch one pack JSON with a link-aware timeout. Resolves to the pack, or null on any failure. */
+async function loadPackJson(url, ctrl) {
+  let timedOut = false;
+  const kill = setTimeout(() => { timedOut = true; ctrl.abort(); }, timeoutFor(4000));
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) return null;
+    const obj = await res.json();
+    return isPack(obj) ? obj : null;
+  } catch {
+    // Our own timeout or a network error is a slow signal; being cancelled because another URL won is not.
+    if (timedOut || !ctrl.signal.aborted) noteSlow();
+    return null;
+  } finally {
+    clearTimeout(kill);
+  }
+}
+
+/**
+ * Try the URLs in priority order. If one has not answered after a short wait, start the next alongside
+ * it so one hung request does not hold up the rest. A lower-priority answer is only used once every
+ * higher-priority URL has failed, so a past date never shows today's pack just because it was faster.
+ */
+export async function firstPack(urls, { hedgeMs = 1500 } = {}) {
+  const ctrls = [];
+  const runs = [];
+  const start = (i) => {
+    if (i >= urls.length || runs[i]) return;
+    ctrls[i] = new AbortController();
+    runs[i] = loadPackJson(urls[i], ctrls[i]);
+  };
+  for (let i = 0; i < urls.length; i++) {
+    start(i);
+    const hedge = setTimeout(() => start(i + 1), timeoutFor(hedgeMs));
+    const obj = await runs[i];
+    clearTimeout(hedge);
+    if (obj) {
+      ctrls.forEach((c, j) => { if (j > i) c?.abort(); });
+      return obj;
+    }
+  }
+  return null;
+}
 
 export async function publicPack(date = null) {
   const now = Date.now();
@@ -354,33 +401,26 @@ export async function publicPack(date = null) {
       return cachedPublicPack;
     }
   }
-  const urls = [];
-  if (date) {
-    urls.push(`${SUPABASE_URL}/storage/v1/object/public/briefings/showcase/pack-${date}.json?t=${Math.floor(now / 60000)}`);
-  }
-  urls.push(`${SUPABASE_URL}/storage/v1/object/public/briefings/showcase/pack.json?t=${Math.floor(now / 60000)}`);
-  urls.push(`${SUPABASE_URL}/storage/v1/object/public/briefings/showcase/sample.json?t=${Math.floor(now / 60000)}`);
+  // Callers at boot often ask at the same moment; share one download instead of starting several.
+  const key = date || '';
+  if (inflightPacks.has(key)) return inflightPacks.get(key);
 
-  for (const url of urls) {
-    try {
-      const signal = (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function')
-        ? AbortSignal.timeout(timeoutFor(4000))
-        : undefined;
-      const res = await fetch(url, signal ? { signal } : undefined);
-      if (res.ok) {
-        const obj = await res.json();
-        if (obj && (obj.story_audio || obj.rows || obj.briefing)) {
-          cachedPublicPack = obj;
-          cachedPublicPackAt = now;
-          return obj;
-        }
-      }
-    } catch {
-      noteSlow();
-      // Continue next URL
+  const bucket = Math.floor(now / 60000);
+  const base = `${SUPABASE_URL}/storage/v1/object/public/briefings/showcase`;
+  const urls = [];
+  if (date) urls.push(`${base}/pack-${date}.json?t=${bucket}`);
+  urls.push(`${base}/pack.json?t=${bucket}`);
+  urls.push(`${base}/sample.json?t=${bucket}`);
+
+  const run = firstPack(urls).then((obj) => {
+    if (obj) {
+      cachedPublicPack = obj;
+      cachedPublicPackAt = now;
     }
-  }
-  return null;
+    return obj;
+  }).finally(() => inflightPacks.delete(key));
+  inflightPacks.set(key, run);
+  return run;
 }
 
 export const api = {

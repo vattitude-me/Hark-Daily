@@ -316,6 +316,11 @@ export class Player extends EventTarget {
     });
     audioEl.addEventListener('pause', () => {
       if (this.isTransitioningClip) return;
+      // A pause caused by a load error is not the listener changing their mind; retries keep their intent.
+      if (!audioEl.error) {
+        this.wantsPlay = false;
+        this.setBuffering(false);
+      }
       this.setPlaying(false);
     });
     audioEl.addEventListener('ended', () => {
@@ -336,70 +341,96 @@ export class Player extends EventTarget {
   }
 
   /**
-   * Weak-network handling for the playing clip: show "Buffering" while it waits for data, and after a
-   * few seconds tell the listener why. Playing again clears everything.
+   * Weak-network handling for the playing clip: mark the visible play buttons as buffering while the
+   * clip waits for data, and after a few seconds tell the listener why.
    */
   watchBuffering(audioEl) {
-    const start = () => {
-      if (this.buffering) return;
-      this.buffering = true;
-      this.hero?.classList.add('is-buffering');
-      clearTimeout(this._bufferNoticeTimer);
-      this._bufferNoticeTimer = setTimeout(() => {
-        if (!this.buffering) return;
-        noteSlow();
-        say(isOffline() ? 'Connection lost. Playback resumes when you are back online.'
-          : 'Slow connection. Waiting for more audio to load.', { ms: 3500 });
-      }, 6000);
-    };
-    const stop = () => {
-      if (!this.buffering) return;
-      this.buffering = false;
-      this.retries = 0;
-      clearTimeout(this._bufferNoticeTimer);
-      this.hero?.classList.remove('is-buffering');
+    audioEl.addEventListener('play', () => { this.wantsPlay = true; });
+    audioEl.addEventListener('waiting', () => this.setBuffering(true));
+    audioEl.addEventListener('stalled', () => { if (this.isPlaying && audioEl.readyState < 3) this.setBuffering(true); });
+    audioEl.addEventListener('playing', () => {
+      // Audio that plays is proof the link works: clear buffering, retries and earlier slow signals.
+      this.setBuffering(false);
+      this.retry = null;
       noteOk();
-    };
-    audioEl.addEventListener('waiting', start);
-    audioEl.addEventListener('stalled', () => { if (this.isPlaying && audioEl.readyState < 3) start(); });
-    // Audio that is playing is proof the link is working, so it also clears earlier slow signals.
-    audioEl.addEventListener('playing', () => { stop(); noteOk(); });
-    audioEl.addEventListener('canplay', () => { if (!audioEl.paused) stop(); });
+    });
+    audioEl.addEventListener('canplay', () => { if (!audioEl.paused) this.setBuffering(false); });
+    // 'stalled' can fire while enough is buffered to keep playing, with no 'playing' to follow.
+    // Time moving forward clears it.
+    let lastTime = 0;
+    audioEl.addEventListener('timeupdate', () => {
+      const t = audioEl.currentTime;
+      if (this.buffering && !audioEl.paused && t > lastTime && audioEl.readyState >= 3) this.setBuffering(false);
+      lastTime = t;
+    });
     // While a slow link fills the current clip, let the next one wait. Re-check as data arrives.
     audioEl.addEventListener('progress', () => { if (isSlow()) this.preloadNext(); });
   }
 
-  /** A story clip failed to load: retry a few times with growing delays, resuming where it stopped. */
+  setBuffering(on) {
+    if (Boolean(this.buffering) === on) return;
+    this.buffering = on;
+    if (typeof document !== 'undefined') {
+      document.body?.classList.toggle('audio-buffering', on);
+      for (const id of ['cleanPlayBtn', 'miniPlay']) {
+        const btn = document.getElementById(id);
+        if (!btn) continue;
+        if (on) btn.setAttribute('aria-busy', 'true');
+        else btn.removeAttribute('aria-busy');
+      }
+    }
+    clearTimeout(this._bufferNoticeTimer);
+    if (!on) return;
+    this._bufferNoticeTimer = setTimeout(() => {
+      if (!this.buffering) return;
+      noteSlow();
+      say(isOffline() ? 'Connection lost. Playback resumes when you are back online.'
+        : 'Slow connection. Waiting for more audio to load.', { ms: 3500 });
+    }, 6000);
+  }
+
+  /**
+   * A story clip failed to load: retry with growing delays, resuming where it stopped. Retry state is
+   * kept per clip and cleared as soon as audio plays, so earlier failures never count against a new one.
+   */
   retryClip() {
     const el = this.audio;
-    if (!el || !this.clips?.[this.index]) return;
+    const idx = this.index;
+    if (!el || !this.clips?.[idx]) return;
     const MAX_RETRIES = 3;
-    this.retries = (this.retries || 0) + 1;
-    if (this.retries > MAX_RETRIES) {
-      this.retries = 0;
-      this.buffering = false;
-      this.hero?.classList.remove('is-buffering');
+    if (!this.retry || this.retry.idx !== idx) {
+      // Remember the position once: after a failed reload currentTime reads 0.
+      this.retry = { idx, count: 0, at: el.currentTime || 0 };
+    }
+    const wantsPlay = this.wantsPlay !== false;
+    const attempt = () => {
+      if (this.index !== idx) return; // the listener moved on
+      this.loadClip(idx, { seek: this.retry?.at || 0, autoplay: wantsPlay, forceReload: true });
+    };
+    clearTimeout(this._retryTimer);
+
+    if (isOffline() && typeof window !== 'undefined') {
+      // Waiting for the network does not use up an attempt, and only one wait is ever pending.
+      this.setBuffering(true);
+      if (!this._onlineWait) {
+        this._onlineWait = () => { this._onlineWait = null; attempt(); };
+        window.addEventListener('online', this._onlineWait, { once: true });
+      }
+      return;
+    }
+
+    this.retry.count += 1;
+    if (this.retry.count > MAX_RETRIES) {
+      this.retry = null;
+      this.wantsPlay = false;
+      this.setBuffering(false);
       this.setPlaying(false);
-      say(isOffline() ? "You're offline. Reconnect, then tap play to continue."
-        : "This clip didn't load on the current connection. Tap play to try again.", { error: true, ms: 6000 });
+      say("This clip didn't load on the current connection. Tap play to try again.", { error: true, ms: 6000 });
       return;
     }
     noteSlow();
-    const idx = this.index;
-    const resumeAt = el.currentTime || 0;
-    const wasPlaying = this.isPlaying;
-    const delay = 1500 * 2 ** (this.retries - 1);
-    clearTimeout(this._retryTimer);
-    const attempt = () => {
-      if (this.index !== idx) return; // listener moved on
-      this.loadClip(idx, { seek: resumeAt, autoplay: wasPlaying, forceReload: true });
-    };
-    if (isOffline() && typeof window !== 'undefined') {
-      this.retries -= 1; // waiting for the network does not use up an attempt
-      window.addEventListener('online', attempt, { once: true });
-      return;
-    }
-    this._retryTimer = setTimeout(attempt, delay);
+    this.setBuffering(true);
+    this._retryTimer = setTimeout(attempt, 1500 * 2 ** (this.retry.count - 1));
   }
 
   primeAudioChannels() {

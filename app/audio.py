@@ -168,7 +168,7 @@ def assemble(segments: list[tuple[str, np.ndarray, float]], sr: int = SAMPLE_RAT
     return np.concatenate(parts), marks
 
 
-def encode_mp3(samples: np.ndarray, sr: int = SAMPLE_RATE, bitrate: int = 96) -> bytes:
+def encode_mp3(samples: np.ndarray, sr: int = SAMPLE_RATE, bitrate: int = 64) -> bytes:
     import lameenc
 
     pcm = (np.clip(samples, -1, 1) * 32767).astype("<i2").tobytes()
