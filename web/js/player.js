@@ -7,7 +7,7 @@
 //     played back to back with the next clip pre-buffered so the joins are seamless.
 import { fmtTime, h, store } from './api.js';
 import { parseDialogueTurns } from './storypack.js';
-import { isOffline, isSlow, noteOk, noteSlow, say } from './network.js';
+import { isOffline, isSlow, noteSlow, noteStall, say } from './network.js';
 
 export function splitSentences(text) {
   if (!text) return [];
@@ -342,17 +342,17 @@ export class Player extends EventTarget {
 
   /**
    * Weak-network handling for the playing clip: mark the visible play buttons as buffering while the
-   * clip waits for data, and after a few seconds tell the listener why.
+   * clip waits for data. A wait of several seconds marks the link slow, which shows the banner.
    */
   watchBuffering(audioEl) {
     audioEl.addEventListener('play', () => { this.wantsPlay = true; });
     audioEl.addEventListener('waiting', () => this.setBuffering(true));
     audioEl.addEventListener('stalled', () => { if (this.isPlaying && audioEl.readyState < 3) this.setBuffering(true); });
     audioEl.addEventListener('playing', () => {
-      // Audio that plays is proof the link works: clear buffering, retries and earlier slow signals.
+      // Audio is flowing again: clear buffering and retries. Earlier slow signals expire on their own,
+      // since a weak link often plays a few seconds between stalls.
       this.setBuffering(false);
       this.retry = null;
-      noteOk();
     });
     audioEl.addEventListener('canplay', () => { if (!audioEl.paused) this.setBuffering(false); });
     // 'stalled' can fire while enough is buffered to keep playing, with no 'playing' to follow.
@@ -382,10 +382,7 @@ export class Player extends EventTarget {
     clearTimeout(this._bufferNoticeTimer);
     if (!on) return;
     this._bufferNoticeTimer = setTimeout(() => {
-      if (!this.buffering) return;
-      noteSlow();
-      say(isOffline() ? 'Connection lost. Playback resumes when you are back online.'
-        : 'Slow connection. Waiting for more audio to load.', { ms: 3500 });
+      if (this.buffering && !isOffline()) noteStall();
     }, 6000);
   }
 

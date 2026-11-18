@@ -528,7 +528,7 @@ test('SEC-27: /api/share rejects wildcard vercel.app spoofing and isolates non-c
 test('SEC-29: Service Worker excludes /api/ routes and validates notificationclick targets', () => {
   const swSrc = readFileSync(resolve('web/sw.js'), 'utf8');
   assert.ok(swSrc.includes("if (url.pathname.startsWith('/api/')) return;"), 'SW must bypass all /api/ endpoints');
-  assert.ok(swSrc.includes("e.request.mode === 'navigate'"), 'SW must only fall back to / for navigation requests');
+  assert.ok(swSrc.includes("request.mode === 'navigate'"), 'SW must only fall back to / for navigation requests');
   assert.ok(swSrc.includes("parsed.origin === self.location.origin"), 'SW must validate notification click origin');
 });
 

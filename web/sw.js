@@ -1,6 +1,10 @@
-// Offline shell: stale-while-revalidate for static shell assets, network-first for HTML.
-// Supabase (data, audio) and CDN requests are cross-origin and go straight to the network.
-const CACHE = 'hark-daily-v115';
+// Offline shell. Code (HTML, JS, CSS) is network-first so a deploy takes effect on the next load:
+// serving cached modules beside a fresh index.html ran old and new code together. Fonts, icons and
+// shell audio rarely change and stay cache-first. Supabase (data, audio) and CDN requests are
+// cross-origin and go straight to the network.
+const CACHE = 'hark-daily-v116';
+// On a weak link, fall back to the cached copy rather than hold the boot for a slow download.
+const NETWORK_WAIT_MS = 4000;
 const SHELL = [
   '/', '/404.html', '/config.js', '/css/styles.css', '/css/legal.css', '/manifest.webmanifest', '/audio/gap.mp3',
   '/fonts/plus-jakarta-sans.woff2', '/fonts/space-grotesk.woff2',
@@ -15,7 +19,10 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' skips the HTTP cache, so the precache holds this deploy's files, not older copies.
+  e.waitUntil(caches.open(CACHE)
+    .then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -33,15 +40,13 @@ self.addEventListener('fetch', (e) => {
   if (url.pathname.startsWith('/api/')) return;
   if (url.pathname.endsWith('.mp3') && !url.pathname.startsWith('/audio/')) return;
 
-  // Stale-while-revalidate for static assets (instant load from local device cache)
-  const isStatic = url.pathname.startsWith('/fonts/') ||
-                   url.pathname.startsWith('/js/') ||
-                   url.pathname.startsWith('/css/') ||
-                   url.pathname.startsWith('/icons/') ||
-                   url.pathname.startsWith('/audio/') ||
-                   url.pathname === '/manifest.webmanifest';
+  // Cache-first for assets that rarely change, refreshed in the background.
+  const isAsset = url.pathname.startsWith('/fonts/') ||
+                  url.pathname.startsWith('/icons/') ||
+                  url.pathname.startsWith('/audio/') ||
+                  url.pathname === '/manifest.webmanifest';
 
-  if (isStatic) {
+  if (isAsset) {
     e.respondWith(
       caches.match(e.request).then((cached) => {
         const fetchPromise = fetch(e.request).then((res) => {
@@ -57,23 +62,29 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Network-first for HTML shell navigation requests so latest deploy is picked up immediately
-  e.respondWith(
-    fetch(e.request).then((res) => {
-      if (res.ok) {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy));
-      }
-      return res;
-    }).catch(() => {
-      return caches.match(e.request).then((cached) => {
-        if (cached) return cached;
-        if (e.request.mode === 'navigate') return caches.match('/');
-        return new Response('Network error', { status: 503, statusText: 'Service Unavailable' });
-      });
-    })
-  );
+  // Network-first for pages, code and styles, with the cache as the offline or slow-link fallback.
+  e.respondWith(networkFirst(e.request));
 });
+
+function networkFirst(request) {
+  const network = fetch(request).then((res) => {
+    if (res.ok) {
+      const copy = res.clone();
+      caches.open(CACHE).then((c) => c.put(request, copy));
+    }
+    return res;
+  });
+  network.catch(() => {}); // a late failure after the cache already answered is not an error
+  const fallback = () => caches.match(request).then((cached) => {
+    if (cached) return cached;
+    if (request.mode === 'navigate') return caches.match('/');
+    return null;
+  });
+  const slow = new Promise((resolve) => setTimeout(resolve, NETWORK_WAIT_MS)).then(fallback);
+  return Promise.race([network, slow.then((cached) => cached || network)])
+    .catch(() => fallback())
+    .then((res) => res || new Response('Network error', { status: 503, statusText: 'Service Unavailable' }));
+}
 
 self.addEventListener('push', (e) => {
   let data = {};
