@@ -1082,3 +1082,39 @@ def test_synthesise_story_dialogue_strips_speaker_prefix_before_tts(monkeypatch)
         )
     )
     assert sent_texts == ["First spoken sentence.", "Second spoken sentence."]
+
+
+def test_openers_and_closers_ban_and_scrub_weekdays_and_day_locked_words(cfg):
+    import re
+
+    forbidden = re.compile(r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|today's|tomorrow)\b", re.I)
+    assert "{weekday}" not in podcast.SYSTEM_PROMPT
+    for tmpl in podcast.OPEN_TEMPLATES + podcast.OPEN_TEMPLATES_CA + podcast.OPEN_TEMPLATES_US + podcast.OPEN_TEMPLATES_IN + podcast.CLOSE_TEMPLATES:
+        joined = " ".join(t for _, t in tmpl)
+        assert not forbidden.search(joined), f"Unexpected temporal reference in template: {joined}"
+
+    c = dataclasses.replace(cfg, groq_api_key="k", groq_models=("m1",))
+    ai_payload = _ai_json(
+        open=[
+            [
+                {"speaker": "a", "text": "Happy Tuesday! It is Tuesday, and today's markets are moving."},
+                {"speaker": "b", "text": "And for Tuesday morning, we are watching tech."},
+            ]
+        ] * 3,
+        open_ca=[
+            {"speaker": "a", "text": "From Hark Daily, I am Matthew alongside Kelly."},
+            {"speaker": "b", "text": "Looking at the news for today across Canada."},
+        ],
+        close=[
+            [
+                {"speaker": "a", "text": "That wraps up Tuesday's brief."},
+                {"speaker": "b", "text": "See you tomorrow morning on Hark Daily."},
+            ]
+        ] * 2,
+    )
+    written, problems = podcast.write_pieces(c, podcast.plan_pieces(SCRIPTS), HOSTS, "2026-10-27", client=_client(_ok(ai_payload)))
+    assert problems == []
+    for key in ("pod_open_1", "pod_open_ca_1", "pod_close_1"):
+        spoken = podcast.transcript(written[key].turns)
+        assert not forbidden.search(spoken), f"{key} leaked temporal reference: {spoken}"
+

@@ -24,7 +24,7 @@ writeFileSync(join(dir, 'api.mjs'), `export const SECTIONS = {
   sports: { title: 'Sports' }, sports_us: { title: 'Sports' }, sports_in: { title: 'Cricket & Sports' }
 }; export const voiceName = (v) => v; export const fmtTime = (s) => String(s); export const h = () => ({ addEventListener: () => {}, classList: { toggle: () => {} } }); export const store = { get: (k, def) => (def !== undefined ? def : null), set: () => {} }; export const generateRawNonce = () => '00'; export const hashNonce = async () => '00'; export const api = { generateRawNonce: () => '00', hashNonce: async () => '00', signInWithGoogleIdToken: async () => ({}) }; export const icon = () => ({}); export const isAdmin = () => false; export const recordError = () => {}; export const sb = null; export const timeAgo = () => ''; export const toast = () => {}; export const VOICES = {}; export const voiceFor = () => ({}); export const DEFAULT_VOICE_ID = 'c3po_reference'; export const EDITIONS = {}; export const defaultEdition = () => 'ca'; export const detectEditionFromIp = () => 'ca';`);
 writeFileSync(join(dir, 'config.mjs'), "export const SUPABASE_URL = 'https://x'; export const SUPABASE_PUBLISHABLE_KEY = 'k'; export const FEATURES = { podcast: true, rapid: true }; export const GOOGLE_CLIENT_ID = 'test-id'; export const APP_VERSION = '1.0.15';");
-const { buildBriefing, planPodcast, isMismatchedBridge, PODCAST_BUDGET, editionSectionKey, clipsFor, parseDialogueTurns, pickVoice, clipUrl, voiceNormalize, lineup, MAX_PER_SECTION, DEFAULT_SECTION_COUNTS, LOGICAL_SECTIONS } = await import(join(dir, 'storypack.mjs'));
+const { buildBriefing, planPodcast, isMismatchedBridge, PODCAST_BUDGET, editionSectionKey, clipsFor, parseDialogueTurns, pickVoice, clipUrl, voiceNormalize, lineup, MAX_PER_SECTION, DEFAULT_SECTION_COUNTS, LOGICAL_SECTIONS, banterTitle, noteTitle, formatGeneratedPeriod } = await import(join(dir, 'storypack.mjs'));
 
 const playerSrc = readFileSync(new URL('../../web/js/player.js', import.meta.url), 'utf8')
   .replace("'./api.js'", "'./api.mjs'")
@@ -1462,6 +1462,43 @@ test('isMismatchedBridge detects cross-category bridge text and drops it from br
   const b = build({ top: 1, sports: 1 }, badBridgePod);
   const clipIds = ids(b);
   assert.ok(!clipIds.includes('pod_bridge_sports'), 'Mismatched sports bridge with top headlines reference must be skipped');
+});
+
+test('banterTitle, noteTitle, and formatGeneratedPeriod format phone-time greeting, region, and relative period', () => {
+  assert.equal(banterTitle('pod_open_ca_1', null, { edition: 'ca', hour: 9 }), 'Good morning · Canada Briefing');
+  assert.equal(banterTitle('pod_open_us_1', null, { edition: 'us', hour: 14 }), 'Good afternoon · US Briefing');
+  assert.equal(banterTitle('pod_open_in_1', null, { edition: 'in', hour: 19 }), 'Good evening · India Briefing');
+  assert.equal(banterTitle('pod_close_1'), "That's the briefing · Signing off");
+
+  assert.equal(noteTitle('greeting_morning', { edition: 'us' }), 'Good morning · US Briefing');
+  assert.equal(noteTitle('greeting_afternoon', { edition: 'in' }), 'Good afternoon · India Briefing');
+  assert.equal(noteTitle('greeting_evening', { edition: 'ca' }), 'Good evening · Canada Briefing');
+
+  const phoneNow = new Date(2026, 10, 19, 17, 30, 0);
+  assert.deepEqual(formatGeneratedPeriod('2026-11-19', phoneNow), {
+    text: 'Generated Today',
+    shortText: 'Today',
+    diffDays: 0,
+    isStale: false,
+  });
+  assert.deepEqual(formatGeneratedPeriod('2026-11-18', phoneNow), {
+    text: 'Generated Yesterday',
+    shortText: 'Yesterday',
+    diffDays: 1,
+    isStale: true,
+  });
+  assert.deepEqual(formatGeneratedPeriod('2026-11-17', phoneNow), {
+    text: 'Generated 2 days ago',
+    shortText: '2 days ago',
+    diffDays: 2,
+    isStale: true,
+  });
+  assert.deepEqual(formatGeneratedPeriod('2026-11-14', phoneNow), {
+    text: 'Generated 5 days ago',
+    shortText: '5 days ago',
+    diffDays: 5,
+    isStale: true,
+  });
 });
 
 

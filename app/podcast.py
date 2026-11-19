@@ -12,7 +12,6 @@ import json
 import logging
 import subprocess
 from dataclasses import dataclass
-from datetime import date as _date
 
 import httpx
 
@@ -91,6 +90,7 @@ from .podcast_text import (
     strip_repetition_stutter,
     strip_speaker_prefix,
     strip_tags,
+    strip_temporal_references,
     transcript,
     validate_turns,
 )
@@ -194,6 +194,12 @@ def _collect(data: dict, pieces: list[Piece], model: str,
         else:
             group = data.get(p.kind)
             raw = group.get(p.section) if isinstance(group, dict) else None
+        if isinstance(raw, list) and (p.kind.startswith("open") or p.kind == "close"):
+            raw = [
+                {**item, "text": strip_temporal_references(item.get("text", ""))}
+                if isinstance(item, dict) else item
+                for item in raw
+            ]
         turns = validate_turns(raw, p.kind, p.section, hosts=hosts)
         if turns:
             out[p.key] = Written(turns, model)
@@ -218,10 +224,8 @@ def ask_ai(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
         }
         for p in pieces if p.kind == "tease"
     }
-    weekday = _date.fromisoformat(day).strftime("%A")
     payload: dict = {
         "date": day,
-        "day_of_week": weekday,
         "sections": sections,
         "category_bridge_rules": (
             "CRITICAL CATEGORY ALIGNMENT: bridge[X] MUST strictly be the spoken transition ENTERING AND INTRODUCING section X. "
@@ -237,7 +241,7 @@ def ask_ai(cfg, pieces: list[Piece], hosts: tuple[str, str], day: str, *,
     try:
         for model, url, token, provider in models:
             messages = [
-                {"role": "system", "content": _prompt(hosts, weekday)},
+                {"role": "system", "content": _prompt(hosts)},
                 {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
             ]
             try:

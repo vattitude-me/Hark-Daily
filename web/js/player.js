@@ -6,7 +6,7 @@
 //   * a playlist of shared daily clips (briefing.clips[]) — the single-source pack,
 //     played back to back with the next clip pre-buffered so the joins are seamless.
 import { fmtTime, h, store } from './api.js';
-import { parseDialogueTurns } from './storypack.js';
+import { banterTitle, formatGeneratedPeriod, noteTitle, parseDialogueTurns } from './storypack.js';
 import { isOffline, isSlow, noteSlow, noteStall, say } from './network.js';
 
 export function splitSentences(text) {
@@ -1269,10 +1269,17 @@ export class Player extends EventTarget {
         ? `Ready · ${b.stories.length} ${b.stories.length === 1 ? 'story' : 'stories'}`
         : (this.isPlaying ? 'Now playing' : 'Paused');
     }
+    const liveWelcomeTitle = (isIntroOrBanter && ch?.id)
+      ? (ch.id.startsWith('pod_open')
+          ? banterTitle(ch.id, ch.section, { edition: b.edition || 'ca', hour: new Date().getHours() })
+          : ch.id.startsWith('greeting')
+            ? noteTitle(ch.id, { edition: b.edition || 'ca', hour: new Date().getHours() })
+            : ch.title)
+      : ch?.title;
     if (el.title) {
-      el.title.textContent = (isIntroOrBanter && ch?.title)
-        ? ch.title
-        : (story?.headline || ch?.title || b.stories?.[0]?.headline || b.title);
+      el.title.textContent = (isIntroOrBanter && liveWelcomeTitle)
+        ? liveWelcomeTitle
+        : (story?.headline || liveWelcomeTitle || b.stories?.[0]?.headline || b.title);
     }
 
     // Hero section label & count
@@ -1673,9 +1680,18 @@ export class Player extends EventTarget {
     }
     const cleanHeadline = document.getElementById('cleanStoryHeadline');
     if (cleanHeadline) {
-      cleanHeadline.textContent = (isIntroOrBanter && ch?.title)
-        ? ch.title
-        : (story?.headline || ch?.title || b.stories?.[0]?.headline || b.title);
+      cleanHeadline.textContent = (isIntroOrBanter && liveWelcomeTitle)
+        ? liveWelcomeTitle
+        : (story?.headline || liveWelcomeTitle || b.stories?.[0]?.headline || b.title);
+    }
+    const genPeriodEl = document.getElementById('cleanGeneratedPeriod');
+    if (genPeriodEl) {
+      const info = formatGeneratedPeriod(b?.date);
+      const staleVal = String(Boolean(info.isStale));
+      genPeriodEl.textContent = info.text || '';
+      if (genPeriodEl.dataset) genPeriodEl.dataset.stale = staleVal;
+      genPeriodEl.setAttribute?.('data-stale', staleVal);
+      genPeriodEl.classList.toggle('hidden', !info.text);
     }
 
     const cleanShare = document.getElementById('cleanShareBtn');

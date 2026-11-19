@@ -60,7 +60,7 @@ _PROFANITY_PATTERN = re.compile(
 
 SLOP_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\b(?:let's|lets)\s+roll\b", re.I), "let's get started"),
-    (re.compile(r"\ba\s+whirlwind\s+of\s+a\s+(?:day|week|news cycle)\b", re.I), "a busy day"),
+    (re.compile(r"\ba\s+whirlwind\s+of\s+a\s+(?:day|week|news cycle)\b", re.I), "a busy news cycle"),
     (re.compile(r"\ba\s+whirlwind\b", re.I), "a lot happening"),
     (re.compile(r"\b(?:let's|lets)\s+dive\s+(?:right\s+)?in(?:to)?\b", re.I), "let's look at"),
     (re.compile(r"\bdive\s+into\b", re.I), "look at"),
@@ -78,10 +78,10 @@ SLOP_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bready\s+when\s+you\s+are\b", re.I), "right with you"),
     (re.compile(r"\bfascinating\b", re.I), "wild"),
     (re.compile(r"^\s*absolutely[.,!]\s*", re.I), "Right, "),
-    (re.compile(r"\bthis\s+(?:morning|afternoon|evening)\b", re.I), "today"),
+    (re.compile(r"\bthis\s+(?:morning|afternoon|evening)\b", re.I), "right now"),
     (re.compile(r"\ba\s+lot\s+of\s+ground\s+to\s+cover\b", re.I), "a lot to cover"),
     (re.compile(r"\bfast[- ]moving\b", re.I), "busy"),
-    (re.compile(r"\bmoving\s+across\s+the\s+board\b", re.I), "developing today"),
+    (re.compile(r"\bmoving\s+across\s+the\s+board\b", re.I), "developing right now"),
     (re.compile(r"\bwhat's\s+buzzing\s+in\b", re.I), "the latest in"),
     (re.compile(r"\bgame[- ]changer\b", re.I), "big deal"),
     (re.compile(r"\bneedless\s+to\s+say\b", re.I), "of course"),
@@ -193,6 +193,35 @@ def strip_repetition_stutter(text: str) -> str:
             if phrase in rest:
                 return rest[rest.index(phrase):]
     return text
+
+
+_WEEKDAYS = r"(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)"
+_TEMPORAL_SCRUB_PATTERNS: tuple[tuple[re.Pattern, str], ...] = (
+    (re.compile(rf"\bhappy\s+{_WEEKDAYS}[,!.]?\s*", re.I), ""),
+    (re.compile(rf"\bit(?:'s|\s+is)\s+{_WEEKDAYS}\s*(?:,\s*and\s+|\s+and\s+|,\s*|[.!]\s*)?", re.I), ""),
+    (re.compile(rf"\b(?:for|on|this)\s+{_WEEKDAYS}(?:\s+(?:morning|afternoon|evening|night|edition|briefing))?\b", re.I), "for this edition"),
+    (re.compile(rf"\b{_WEEKDAYS}'s\b", re.I), "the"),
+    (re.compile(rf"\b{_WEEKDAYS}\b", re.I), "this edition"),
+    (re.compile(r"\btoday's\b", re.I), "the"),
+    (re.compile(r"\b(?:for|in|on)\s+today\b", re.I), "for now"),
+    (re.compile(r"\btomorrow\s+morning\b", re.I), "next time"),
+    (re.compile(r"\btomorrow's\b", re.I), "the next"),
+    (re.compile(r"\b(?:see|catch)\s+you\s+tomorrow\b", re.I), "catch you next time"),
+)
+
+
+def strip_temporal_references(text: str) -> str:
+    """Scrub weekday names and day-locked words ('today', 'tomorrow') from openers and sign-offs."""
+    cleaned = str(text or "")
+    for pattern, repl in _TEMPORAL_SCRUB_PATTERNS:
+        if repl:
+            cleaned = pattern.sub(lambda m, r=repl: _preserve_case(m, r), cleaned)
+        else:
+            cleaned = pattern.sub("", cleaned)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
+    if cleaned and cleaned[0].isalpha() and cleaned[0].islower():
+        cleaned = cleaned[0].upper() + cleaned[1:]
+    return cleaned
 
 
 def clean_slop(text: str) -> str:
