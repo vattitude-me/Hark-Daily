@@ -112,6 +112,19 @@ def normalize_url(url: str) -> str:
     return urldefrag(url)[0]
 
 
+_NAT64_NET = ipaddress.IPv6Network("64:ff9b::/96")
+
+
+def _unwrap_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
+    """Unwrap IPv4-mapped or RFC 6052 NAT64 IPv6 addresses to their underlying IPv4 address."""
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.ipv4_mapped is not None:
+            return ip.ipv4_mapped
+        if ip in _NAT64_NET:
+            return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    return ip
+
+
 def check_public_url(url: str, allow_private: bool) -> None:
     """Refuse non-HTTP schemes and (unless allowed) hosts that resolve to private networks."""
     parsed = urlparse(url)
@@ -124,7 +137,7 @@ def check_public_url(url: str, allow_private: bool) -> None:
     except socket.gaierror:
         return  # can't resolve locally (e.g. behind a proxy); let the request decide
     for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
+        ip = _unwrap_ip(ipaddress.ip_address(info[4][0]))
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
             raise FetchError("That address points to a private network.")
 
