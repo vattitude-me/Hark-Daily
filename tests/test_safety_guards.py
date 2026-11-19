@@ -294,3 +294,17 @@ def test_voice_vm_session_fails_after_all_attempts_exhausted(cfg, monkeypatch):
     assert stopped == [cfg_gce.gce_instance]
 
 
+def test_check_public_url_allows_nat64_public_and_blocks_private(monkeypatch):
+    import socket
+    from app import fetcher
+
+    def fake_getaddrinfo(ip_str):
+        return [(socket.AF_INET6, socket.SOCK_STREAM, 0, "", (ip_str, 0, 0, 0))]
+
+    monkeypatch.setattr(fetcher.socket, "getaddrinfo", lambda host, port: fake_getaddrinfo("64:ff9b::1705:6cc7"))
+    fetcher.check_public_url("https://www.cbc.ca/feed", allow_private=False)
+
+    for private_ip in ("64:ff9b::127.0.0.1", "64:ff9b::10.0.0.1", "64:ff9b::169.254.169.254", "::ffff:127.0.0.1"):
+        monkeypatch.setattr(fetcher.socket, "getaddrinfo", lambda host, port, a=private_ip: fake_getaddrinfo(a))
+        with pytest.raises(fetcher.FetchError, match="private network"):
+            fetcher.check_public_url("https://example.com/feed", allow_private=False)
