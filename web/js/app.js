@@ -6,7 +6,8 @@ import { WelcomeSheet, DeleteAccountSheet, enablePush, installMode, isIOS, isIns
 import { SourcesPage } from './pages/sources.js';
 import { SettingsPage } from './pages/settings.js';
 import { AdminPage } from './pages/admin.js';
-import { buildBriefing as buildPackBriefing, READY_KEY, storyKey, titlesMatch } from './storypack.js';
+import { buildBriefing as buildPackBriefing, formatGeneratedPeriod, READY_KEY, storyKey, titlesMatch } from './storypack.js';
+export { formatGeneratedPeriod };
 import { applyPhotoMode } from './design.js';
 
 import { FEATURES, APP_VERSION, GOOGLE_CLIENT_ID } from '../config.js';
@@ -309,11 +310,23 @@ function renderHeader() {
     syncLabel.textContent = isGuest ? 'Guest mode' : 'Synced';
   }
 
+  const genInfo = formatGeneratedPeriod(b?.date || state.selectedDate);
+
   // Move audio briefing date info to hamburger menu drawer
   const menuDate = $('menuDrawerDateText');
   if (menuDate) {
     const day = now.getDate();
-    menuDate.textContent = `FRESH TODAY · ${wd} ${day} ${mon}`;
+    const prefix = genInfo.shortText ? genInfo.shortText.toUpperCase() : 'FRESH TODAY';
+    menuDate.textContent = `${prefix} · ${wd} ${day} ${mon}`;
+  }
+
+  const genPeriodEl = $('cleanGeneratedPeriod');
+  if (genPeriodEl) {
+    const staleVal = String(Boolean(genInfo.isStale));
+    genPeriodEl.textContent = genInfo.text || '';
+    if (genPeriodEl.dataset) genPeriodEl.dataset.stale = staleVal;
+    genPeriodEl.setAttribute?.('data-stale', staleVal);
+    genPeriodEl.classList.toggle('hidden', !genInfo.text);
   }
   const menuMeta = $('menuDrawerMetaText');
   if (menuMeta) {

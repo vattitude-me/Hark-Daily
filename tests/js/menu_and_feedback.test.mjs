@@ -378,7 +378,7 @@ test('SEC-19: safeExternalUrl strictly validates HTTP/HTTPS protocols and reject
   writeFileSync(join(dir, 'network.js'), __readNet());
   const src = readFileSync(resolve('web/js/player.js'), 'utf8')
     .replace("import { fmtTime, h, store } from './api.js';", "const fmtTime = () => '', h = () => {}, store = {};")
-    .replace("import { parseDialogueTurns } from './storypack.js';", "const parseDialogueTurns = () => {};");
+    .replace(/import \{[^}]+\} from '\.\/storypack\.js';/, "const parseDialogueTurns = () => {}, banterTitle = () => '', noteTitle = () => '', formatGeneratedPeriod = () => ({ text: '', shortText: '', diffDays: 0, isStale: false });");
   writeFileSync(join(dir, 'player_safe.mjs'), src);
   const { safeExternalUrl } = await import(join(dir, 'player_safe.mjs'));
 
