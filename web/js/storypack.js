@@ -256,6 +256,54 @@ export function greetingKey(hour = new Date().getHours()) {
   return 'greeting_evening';
 }
 
+export function timeGreeting(hour = new Date().getHours()) {
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+export function editionBriefingLabel(edition = 'ca', clipKey = '') {
+  if (clipKey && clipKey.includes('pod_open_us')) return 'US Briefing';
+  if (clipKey && clipKey.includes('pod_open_in')) return 'India Briefing';
+  if (clipKey && clipKey.includes('pod_open_ca')) return 'Canada Briefing';
+  if (edition === 'us') return 'US Briefing';
+  if (edition === 'in') return 'India Briefing';
+  return 'Canada Briefing';
+}
+
+export function formatGeneratedPeriod(packDateStr, now = new Date()) {
+  if (!packDateStr || !/^\d{4}-\d{2}-\d{2}$/.test(packDateStr)) {
+    return { text: '', shortText: '', diffDays: 0, isStale: false };
+  }
+  let todayStr;
+  try {
+    todayStr = new Intl.DateTimeFormat('en-CA', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
+  } catch {
+    todayStr = now.toLocaleDateString('en-CA');
+  }
+  const [ty, tm, td] = todayStr.split('-').map(Number);
+  const [py, pm, pd] = packDateStr.split('-').map(Number);
+  const todayNoon = new Date(ty, tm - 1, td, 12, 0, 0);
+  const packNoon = new Date(py, pm - 1, pd, 12, 0, 0);
+  const diffDays = Math.round((todayNoon - packNoon) / 86400000);
+  if (diffDays <= 0) {
+    return { text: 'Generated Today', shortText: 'Today', diffDays: 0, isStale: false };
+  }
+  if (diffDays === 1) {
+    return { text: 'Generated Yesterday', shortText: 'Yesterday', diffDays: 1, isStale: true };
+  }
+  return {
+    text: `Generated ${diffDays} days ago`,
+    shortText: `${diffDays} days ago`,
+    diffDays,
+    isStale: true,
+  };
+}
+
 /** The marker clip a host pair's day carries once its banter is published (app/podcast.py). */
 export const PODCAST_READY_KEY = 'podcast_ready';
 /** Total banter, in seconds, a podcast brief may add around the news: the news is the priority. */
@@ -366,10 +414,10 @@ export function planPodcast(clips, sections, seed = '', edition = 'ca') {
   return { hosts, open, regionalTease: null, teasers: [], bridges, close, banter: used };
 }
 
-export function banterTitle(clipKey, sectionKey = null) {
-  if (!clipKey) return "Today's Briefing";
+export function banterTitle(clipKey, sectionKey = null, { edition = 'ca', hour = new Date().getHours() } = {}) {
+  if (!clipKey) return 'Your Briefing';
   if (clipKey.startsWith('pod_open')) {
-    return "Welcome · Today's preview";
+    return `${timeGreeting(hour)} · ${editionBriefingLabel(edition, clipKey)}`;
   }
   if (clipKey.startsWith('pod_tease')) {
     const sec = sectionKey || clipKey.replace(/^pod_tease_/, '');
@@ -385,23 +433,25 @@ export function banterTitle(clipKey, sectionKey = null) {
     return `Up next · ${secName}`;
   }
   if (clipKey.startsWith('pod_close')) {
-    return "That's today's briefing · Signing off";
+    return "That's the briefing · Signing off";
   }
-  return "Today's Briefing";
+  return 'Your Briefing';
 }
 
-export function noteTitle(noteKey) {
-  if (!noteKey) return "Today's Briefing";
-  if (noteKey.startsWith('greeting_morning')) return 'Good morning · Today’s episode';
-  if (noteKey.startsWith('greeting_afternoon')) return 'Good afternoon · Today’s episode';
-  if (noteKey.startsWith('greeting_evening')) return 'Good evening · Today’s episode';
+export function noteTitle(noteKey, { edition = 'ca', hour = new Date().getHours() } = {}) {
+  if (!noteKey) return 'Your Briefing';
+  const regionLabel = editionBriefingLabel(edition);
+  if (noteKey.startsWith('greeting_morning')) return `Good morning · ${regionLabel}`;
+  if (noteKey.startsWith('greeting_afternoon')) return `Good afternoon · ${regionLabel}`;
+  if (noteKey.startsWith('greeting_evening')) return `Good evening · ${regionLabel}`;
+  if (noteKey.startsWith('greeting')) return `${timeGreeting(hour)} · ${regionLabel}`;
   if (noteKey.startsWith('intro_')) {
     const sec = noteKey.replace(/^intro_/, '');
     const secName = SECTIONS[sec]?.title || sec;
     return `Here are the ${secName.toLowerCase()} stories`;
   }
-  if (noteKey === 'outro') return "That's today's brief";
-  return "Today's Briefing";
+  if (noteKey === 'outro') return "That's the brief";
+  return 'Your Briefing';
 }
 
 /**
@@ -684,7 +734,7 @@ export function buildBriefing(rows, settings, {
     const duration = Number(note.duration) || 0;
     const start = round(cursor);
     const end = round(cursor + duration);
-    const title = noteTitle(key);
+    const title = noteTitle(key, { edition, hour });
     clips.push({ id: key, url: clipUrl(note.audio_path), duration, section: null, rank: 0,
       title, text: note.text, start, end, note: true });
     chapters.push({ id: key, kind: 'note', title, text: note.text, start, end });
@@ -697,7 +747,7 @@ export function buildBriefing(rows, settings, {
     const duration = Number(clip.duration) || 0;
     const start = round(cursor);
     const end = round(cursor + duration);
-    const title = banterTitle(clip.clip_key, sectionKey);
+    const title = banterTitle(clip.clip_key, sectionKey, { edition, hour });
     clips.push({ id: clip.clip_key, url: clipUrl(clip.audio_path), duration, section: sectionKey, rank: 0,
       title, text: clip.text, start, end, note: true, banter: true });
     chapters.push({ id: clip.clip_key, kind: 'note', title, text: clip.text, start, end, section: sectionKey });

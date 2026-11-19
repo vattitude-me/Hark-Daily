@@ -48,7 +48,7 @@ STRICT LANGUAGE & ANTI-SLOP RULES (THIS WILL BE READ ALOUD BY TTS):
 - Don't read headlines word for word. Retell them like you're telling a smart friend across the table.
 - BANNED PHRASES & AI CLICHÉS (NEVER USE ANY OF THESE):
 {_BANNED_PHRASES_RULE}
-- Do NOT use time-of-day locked words like "morning", "afternoon", "evening", or "tomorrow morning".
+- Do NOT mention any day of the week (Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday), calendar dates, or time-of-day and relative-day words ("morning", "afternoon", "evening", "tonight", "today", "today's", "yesterday", "tomorrow", "tomorrow morning", "overnight"). Listeners hear episodes across different timezones and days.
 - VOICE-BASED SPOKEN TEXT: Everything is read aloud by neural voices. Never use textual shorthand like "$5B", "$10M", or "20%". Always spell out numbers, symbols, and abbreviations the way they're spoken: "5 billion dollars", "10 million dollars", "20 percent", "versus", "and".
 - Paralinguistic voice tags: [chuckle], [laugh], [sigh], [gasp]. Use very sparingly (most pieces should have ZERO tags, at most {{max_tags}} tags per piece). Never place tags on tragedy, politics, or serious hardship.
 
@@ -63,21 +63,22 @@ SEGMENT RULES (MODELED ON PREMIER DAILY NEWS PODCASTS LIKE NPR "UP FIRST", NYT "
 - open_ca (<= {{w_open}} words, 3 to 4 turns):
   Show open specifically tailored for the Canadian edition:
   * Must include the show name "Hark Daily" and introduce hosts ({{a}} and {{b}}).
-  * Mention {{weekday}} and hook today's Canadian lead story/tension (from "top" / "markets") before introducing the hosts.
+  * Hook the Canadian lead story/tension (from "top" / "markets") before introducing the hosts.
+  * NEVER mention any weekday, date, "today", or "tomorrow".
 - open_us (<= {{w_open}} words, 3 to 4 turns):
   Show open specifically tailored for the United States edition:
   * Must include the show name "Hark Daily" and introduce hosts ({{a}} and {{b}}).
-  * Mention {{weekday}} and hook today's US lead story/tension (from "top_us" / "markets_us") before introducing the hosts.
-  * NEVER mention provincial Canadian politics (e.g. Alberta, Ontario, Ottawa) or Indian news. Focus strictly on US national headlines.
+  * Hook the US lead story/tension (from "top_us" / "markets_us") before introducing the hosts.
+  * NEVER mention provincial Canadian politics (e.g. Alberta, Ontario, Ottawa) or Indian news, and NEVER mention any weekday, date, "today", or "tomorrow". Focus strictly on US national headlines.
 - open_in (<= {{w_open}} words, 3 to 4 turns):
   Show open specifically tailored for the India edition:
   * Must include the show name "Hark Daily" and introduce hosts ({{a}} and {{b}}).
-  * Mention {{weekday}} and hook today's Indian lead story/tension (from "top_in" / "markets_in") before introducing the hosts.
-  * NEVER mention Canadian provinces or US state ballot measures. Focus strictly on Indian national headlines.
+  * Hook the Indian lead story/tension (from "top_in" / "markets_in") before introducing the hosts.
+  * NEVER mention Canadian provinces or US state ballot measures, and NEVER mention any weekday, date, "today", or "tomorrow". Focus strictly on Indian national headlines.
 - open (<= {{w_open}} words, 3 to 5 short turns per variant):
   Universal global show open:
   * Must include the show name "Hark Daily" and introduce both hosts by name ({{a}} and {{b}}) naturally.
-  * Mention the day of the week ({{weekday}}) and focus on broad global themes (technology, markets, global trends).
+  * Focus on broad global themes (technology, markets, global trends) without mentioning any weekday, date, "today", or "tomorrow".
   * Strictly neutral across regions—NO country-specific provincial or state political references.
   * Absolutely NO cheesy fake banter about anchor voices, taglines, or meta-jokes. Talk like two smart audio journalists setting the table for their listeners.
   * Each variant must use a distinct opening style:
@@ -96,7 +97,7 @@ SEGMENT RULES (MODELED ON PREMIER DAILY NEWS PODCASTS LIKE NPR "UP FIRST", NYT "
   * bridge["science"]: Transition INTO Science & Discovery (e.g. "In the world of science...", "Speaking of big questions, here's science..."). NEVER introduce sports, politics, or entertainment.
   * bridge["sports"] / bridge["sports_us"] / bridge["sports_in"]: Transition INTO Sports & Athletics (e.g. "Over in sports...", "Turning to the sports world..."). NEVER introduce headlines, economics, or science.
   * bridge["top"] / bridge["top_us"] / bridge["top_in"]: Transition INTO Top Stories (e.g. "Starting with the day's lead stories..."). NEVER introduce markets.
-- close (<= {{w_close}} words, 2 to 3 turns): End cleanly and warmly like premier daily podcasts (NPR "Up First", NYT "The Daily", WSJ "The Journal"): a crisp wrap mentioning {{weekday}}, a quick call to follow the show for tomorrow's brief, and a warm host sign-off including "Hark Daily".
+- close (<= {{w_close}} words, 2 to 3 turns): End cleanly and warmly like premier daily podcasts (NPR "Up First", NYT "The Daily", WSJ "The Journal"): a crisp wrap without mentioning any weekday, date, "today", or "tomorrow", a quick call to follow the show for the next brief, and a warm host sign-off including "Hark Daily".
 - ANTI-REPETITION: Any example lines in this prompt are for tone only. Never reuse their wording or structure. If yesterday's opening is provided in the user payload, make today's clearly different."""
 
 
@@ -200,39 +201,39 @@ _ANGLE_LENS: dict[str, str] = {
 # Modeled on premier human morning podcasts (NPR Up First, NYT The Daily, Vox Today Explained).
 OPEN_TEMPLATES: list[list[Turn]] = [
     [(0, "From Hark Daily, I'm {a} alongside {b}."),
-     (1, "We are tracking the major stories shaping your day, from boardroom turmoil to the latest shifts in Washington."),
+     (1, "We are tracking the major stories shaping the news, from boardroom turmoil to the latest shifts in Washington."),
      (0, "Let's get right into what you need to know.")],
     [(1, "This is Hark Daily. I'm {b} with {a}."),
-     (0, "The news cycle moved fast overnight, and we are cutting straight through the noise to what actually matters to you."),
+     (0, "The news cycle is moving fast, and we are cutting straight through the noise to what actually matters to you."),
      (1, "Starting with the headlines driving the conversation right now.")],
     [(0, "This is Hark Daily. I'm {a} alongside {b}."),
-     (1, "Your essential daily brief in minutes: the context, the implications, and why it matters."),
-     (0, "Let's kick things off with today's lead stories.")],
+     (1, "Your essential news brief in minutes: the context, the implications, and why it matters."),
+     (0, "Let's kick things off with the lead stories.")],
 ]
 OPEN_TEMPLATES_CA: list[list[Turn]] = [
     [(0, "From Hark Daily, I'm {a} alongside {b}."),
-     (1, "Today we are tracking key stories across Canada, starting with {h}."),
+     (1, "We are tracking key stories across Canada, starting with {h}."),
      (0, "Let's get right into the briefing.")],
 ]
 OPEN_TEMPLATES_US: list[list[Turn]] = [
     [(0, "From Hark Daily, I'm {a} alongside {b}."),
-     (1, "Tracking today's major stories across the country, led by {h}."),
-     (0, "Let's unpack what you need to know.")],
+     (1, "Tracking major stories across the country, led by {h}."),
+     (0, "Let's break down what you need to know.")],
 ]
 OPEN_TEMPLATES_IN: list[list[Turn]] = [
     [(0, "From Hark Daily, I'm {a} alongside {b}."),
      (1, "Bringing you the essential national briefing, starting with {h}."),
-     (0, "Here is what is making headlines today.")],
+     (0, "Here is what is making headlines right now.")],
 ]
 CLOSE_TEMPLATES: list[list[Turn]] = [
-    [(0, "And that is Hark Daily for today."),
-     (1, "I'm {b} alongside {a}. Follow the show wherever you listen so tomorrow's brief is ready first thing."),
-     (0, "Thanks for listening. We'll see you tomorrow.")],
-    [(1, "That is the brief from Hark Daily for today [chuckle]."),
-     (0, "Stay sharp out there. I'm {a} with {b}, and we'll catch you tomorrow morning.")],
+    [(0, "And that is your briefing from Hark Daily."),
+     (1, "I'm {b} alongside {a}. Follow the show wherever you listen so the next brief is ready when you are."),
+     (0, "Thanks for listening. Catch you on the next edition.")],
+    [(1, "That wraps up this edition of Hark Daily [chuckle]."),
+     (0, "Stay sharp out there. I'm {a} with {b}, and we'll catch you next time.")],
 ]
 TEASE_TEMPLATES: dict[str, list[list[Turn]]] = {
-    "serious": [[(0, "In {s} today, a major development with real consequences: {h}."), (1, "One worth paying close attention to.")]],
+    "serious": [[(0, "In {s}, a major development with real consequences: {h}."), (1, "One worth paying close attention to.")]],
     "warm": [[(0, "Starting with the lead stories: {h}."), (1, "Here is the context behind that development.")]],
     "excited": [[(1, "A massive shift to watch in {s}: {h}."), (0, "The ripple effects are bigger than they look at first glance.")]],
     "light": [[(1, "On a lighter note in {s}: {h}."), (0, "A story that definitely caught our attention.")]],
@@ -249,9 +250,9 @@ BRIDGE_TEMPLATES: dict[str, list[Turn]] = {
 }
 
 
-def _prompt(hosts: tuple[str, str], weekday: str) -> str:
+def _prompt(hosts: tuple[str, str], weekday: str = "") -> str:
     return SYSTEM_PROMPT.format(
-        a=hosts[0], b=hosts[1], weekday=weekday, open_n=OPEN_VARIANTS, close_n=CLOSE_VARIANTS,
+        a=hosts[0], b=hosts[1], open_n=OPEN_VARIANTS, close_n=CLOSE_VARIANTS,
         w_open=MAX_WORDS["open"], w_tease=MAX_WORDS["tease"], w_bridge=MAX_WORDS["bridge"],
         w_close=MAX_WORDS["close"], max_tags=MAX_TAGS,
     )

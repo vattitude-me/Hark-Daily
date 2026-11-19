@@ -4120,6 +4120,20 @@ body.playing .clean-eq-bar-3 { animation: eqPulse3 .9s ease-in-out infinite alte
   flex: none;
   padding: 0;
 }
+.clean-generated-period {
+  text-align: center;
+  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: rgba(255, 255, 255, 0.52);
+  line-height: 1.2;
+  margin-top: 2px;
+  user-select: none;
+}
+.clean-generated-period[data-stale="true"] {
+  color: rgba(252, 211, 77, 0.82);
+}
 .clean-nav-btn {
   all: unset;
   box-sizing: border-box;
