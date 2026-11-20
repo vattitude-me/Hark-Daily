@@ -1229,13 +1229,16 @@ def test_topic_voice_modulation_adapts_by_section_when_enabled(tmp_path, monkeyp
     assert Config().podcast_batch_dialogues is True
 
     sober_prof = podcast.voice_profile_for_turn("politics", 0, headline="Lawmakers debate budget", summary="")
+    tech_prof = podcast.voice_profile_for_turn("tech", 1, headline="Chip maker unveils release", summary="")
     ent_prof = podcast.voice_profile_for_turn("entertainment", 1, headline="Festival announces lineup", summary="")
     react_prof = podcast.voice_profile_for_turn("entertainment", 1, purpose="reaction", word_count=2)
 
+    assert ent_prof == tech_prof  # Entertainment routes to upbeat mood
     assert sober_prof["exaggeration"] < ent_prof["exaggeration"]
     assert sober_prof["cfg_weight"] < ent_prof["cfg_weight"]
     assert sober_prof["pace"] < ent_prof["pace"]
     assert react_prof["exaggeration"] > ent_prof["exaggeration"]
+    assert react_prof["pace"] <= 0.93
 
     recorded = []
 
@@ -1262,8 +1265,13 @@ def test_topic_voice_modulation_adapts_by_section_when_enabled(tmp_path, monkeyp
 
         run(run_synth())
         assert len(recorded) == 2
-        assert recorded[0]["cfg_weight"] == 0.37
-        assert recorded[0]["exaggeration"] == 0.56
+        assert recorded[0]["cfg_weight"] == 0.32
+        assert recorded[0]["exaggeration"] == 0.42
+        assert recorded[0]["pace"] == 0.90
+        assert recorded[1]["cfg_weight"] == 0.38
         assert recorded[1]["exaggeration"] == 0.68
+        assert recorded[1]["pace"] == 0.93
+        assert recorded[0]["exaggeration"] < recorded[1]["exaggeration"]
+        assert recorded[0]["cfg_weight"] < recorded[1]["cfg_weight"]
 
 
