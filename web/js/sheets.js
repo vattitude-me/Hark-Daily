@@ -120,6 +120,7 @@ export async function enablePush(publicKey) {
   }
   sub = sub || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
   await api.pushSubscribe(sub.toJSON());
+  try { localStorage.setItem('hark_push_registered', 'true'); } catch {}
   return sub;
 }
 

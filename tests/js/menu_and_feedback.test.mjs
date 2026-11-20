@@ -68,11 +68,20 @@ test('Anti-bot sanitization prevents Discord @everyone and @here pings', () => {
 
 test('Sign out flow and morning alerts toggle bindings exist in app.js', () => {
   const appJs = readFileSync(resolve('web/js/app.js'), 'utf8');
+  const apiJs = readFileSync(resolve('web/js/api.js'), 'utf8');
+  const schemaSql = readFileSync(resolve('supabase/schema.sql'), 'utf8');
   assert.ok(appJs.includes('async function performSignOut()'), 'Must implement performSignOut');
   assert.ok(appJs.includes('async function toggleMorningAlerts()'), 'Must implement toggleMorningAlerts');
   assert.ok(appJs.includes('hark_morning_alerts_disabled'), 'Must use local storage flag to track user preference');
+  assert.ok(appJs.includes('hark_push_registered'), 'Must track confirmed push subscription registration');
+  assert.ok(appJs.includes('api.vapidPublicKey()'), 'Must resolve VAPID public key for guests and signed-in users');
+  assert.ok(!appJs.includes("openSignIn('push')"), 'Must not force sign-in when enabling morning notifications');
   assert.ok(appJs.includes("accountModalSignOutBtn')?.addEventListener('click', performSignOut)"), 'Must bind signout button to performSignOut');
   assert.ok(appJs.includes("menuPushBtn')?.addEventListener('click', toggleMorningAlerts)"), 'Must bind menu push button to toggleMorningAlerts');
+  assert.ok(apiJs.includes('async vapidPublicKey()'), 'api.js must provide vapidPublicKey helper');
+  assert.ok(apiJs.includes('user_id: uid || null'), 'pushSubscribe must support guest subscriptions with null user_id');
+  assert.ok(schemaSql.includes('get_vapid_public_key()'), 'schema.sql must expose get_vapid_public_key RPC');
+  assert.ok(schemaSql.includes('"anon subscribe push"'), 'schema.sql must allow anon push_subscriptions insert');
 });
 
 test('Article floating report button and story context banner are configured', () => {

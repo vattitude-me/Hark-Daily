@@ -1,9 +1,6 @@
 package me.vattitude.morningbrief;
 
 import android.Manifest;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -15,8 +12,6 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import androidx.browser.customtabs.CustomTabsIntent;
-import androidx.core.app.NotificationCompat;
-import androidx.core.app.NotificationManagerCompat;
 import com.getcapacitor.BridgeActivity;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
@@ -46,6 +41,7 @@ public class MainActivity extends BridgeActivity {
 
         initNotificationChannels();
         requestNotificationPermissionIfNeeded();
+        DailyBriefingWorker.ensureScheduledIfEnabled(this);
         setupWindowInsets();
         configureSmartShell();
         handleAuthIntent(getIntent());
@@ -263,6 +259,9 @@ public class MainActivity extends BridgeActivity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == NOTIFICATION_PERMISSION_REQUEST) {
             boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            if (granted) {
+                DailyBriefingWorker.ensureScheduledIfEnabled(this);
+            }
             WebView webView = getBridge() != null ? getBridge().getWebView() : null;
             if (webView != null) {
                 webView.post(() -> webView.evaluateJavascript(
@@ -274,21 +273,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void initNotificationChannels() {
-        HarkMediaService.createPlaybackChannel(this);
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationManager nm = getSystemService(NotificationManager.class);
-            if (nm != null) {
-                NotificationChannel briefingChannel = new NotificationChannel(
-                    BRIEFING_CHANNEL_ID,
-                    "Daily episodes",
-                    NotificationManager.IMPORTANCE_DEFAULT
-                );
-                briefingChannel.setDescription("New daily episode alerts");
-                briefingChannel.setShowBadge(true);
-                nm.createNotificationChannel(briefingChannel);
-            }
-        }
+        NotificationHelper.ensureChannels(this);
     }
 
     public void requestNotificationPermissionIfNeeded() {
@@ -370,30 +355,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     public void showLocalNotification(String title, String body) {
-        Intent tapIntent = new Intent(this, MainActivity.class);
-        tapIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        PendingIntent contentIntent = PendingIntent.getActivity(
-            this,
-            0,
-            tapIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0)
-        );
-
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, BRIEFING_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setColor(0xFFF59E0B)
-            .setContentTitle(title != null && !title.isEmpty() ? title : "Hark Daily")
-            .setContentText(body != null && !body.isEmpty() ? body : "Your new episode is ready to play.")
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(contentIntent);
-
-        NotificationManagerCompat nm = NotificationManagerCompat.from(this);
-        try {
-            nm.notify(BRIEFING_NOTIFICATION_ID, builder.build());
-        } catch (SecurityException ignored) {
-            // Permission not granted
-        }
+        NotificationHelper.showBriefingNotification(this, title, body);
     }
 
     @Override
@@ -419,12 +381,31 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public boolean hasNotificationPermission() {
+            return NotificationHelper.hasNotificationPermission(activityRef.get());
+        }
+
+        @JavascriptInterface
+        public boolean isMorningAlertsEnabled() {
             MainActivity act = activityRef.get();
-            if (act == null) return false;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                return act.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+            return act != null && NotificationHelper.isMorningAlertsEnabled(act);
+        }
+
+        @JavascriptInterface
+        public void setMorningAlertsEnabled(boolean enabled) {
+            MainActivity act = activityRef.get();
+            if (act != null) {
+                NotificationHelper.setMorningAlertsEnabled(act, enabled);
+                DailyBriefingWorker.ensureScheduledIfEnabled(act);
             }
-            return NotificationManagerCompat.from(act).areNotificationsEnabled();
+        }
+
+        @JavascriptInterface
+        public void setMorningAlertsConfig(String supabaseUrl, String publishableKey, String edition) {
+            MainActivity act = activityRef.get();
+            if (act != null) {
+                NotificationHelper.saveConfig(act, supabaseUrl, publishableKey, edition);
+                DailyBriefingWorker.ensureScheduledIfEnabled(act);
+            }
         }
 
         @JavascriptInterface
