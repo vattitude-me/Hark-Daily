@@ -32,7 +32,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from turbo_voice import SAMPLE_RATE, TurboVoice, pick_device, plain, tags, to_mp3
+from turbo_voice import SAMPLE_RATE, TurboVoice, normalize_variant, pick_device, plain, tags, to_mp3
 
 from .sample import SAMPLE_STORY
 
@@ -209,6 +209,7 @@ class SynthRequest(BaseModel):
     repetition_penalty: float | None = Field(None, ge=1.0, le=2.0)
     pace: float | None = Field(None, ge=0.75, le=1.25, description="Speech tempo factor: <1.0 is slower (default 0.94 slow-to-medium)")
     exaggeration: float | None = Field(None, ge=0.0, le=1.5, description="Emotion/character exaggeration weight (default 0.75)")
+    cfg_weight: float | None = Field(None, ge=0.0, le=1.0, description="Non-Turbo CFG adherence weight (lower = slower/more relaxed cadence)")
 
 
 class SampleRequest(BaseModel):
@@ -228,6 +229,7 @@ def health() -> dict:
     return {
         "status": "ok" if ref else "no-default-voice",
         "device": pick_device(),
+        "variant": _voice.variant if _voice is not None else normalize_variant(),
         "sample_rate": SAMPLE_RATE,
         "loaded": _voice is not None,
         "default_voice": ref.name if ref else None,
@@ -251,7 +253,7 @@ def synthesize(req: SynthRequest, format: str = Query("wav", pattern="^(wav|mp3)
     try:
         voice = get_voice()
         kwargs: dict = {}
-        for k in ("beat", "temperature", "top_p", "repetition_penalty", "pace", "exaggeration"):
+        for k in ("beat", "temperature", "top_p", "repetition_penalty", "pace", "exaggeration", "cfg_weight"):
             val = getattr(req, k, None)
             if val is not None:
                 kwargs[k] = val

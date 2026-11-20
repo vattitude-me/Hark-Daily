@@ -5,6 +5,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import re
 import subprocess
 import sys
@@ -17,6 +18,7 @@ import httpx
 from . import audio, llm, topics
 from .podcast_prompts import (
     _ANGLE_LENS,
+    BATCH_STORY_DIALOGUE_PROMPT,
     SOBER_STORY_FORMAT_KEYS,
     STORY_DIALOGUE_PROMPT,
     STORY_FORMAT_KEYS,
@@ -587,19 +589,16 @@ def _dialogue_shape_instruction(fmt_key: str, hosts: tuple[str, str], lead_speak
 }}"""
 
 
-def generate_story_dialogue(
+def _prepare_story_context(
     cfg,
     story: dict,
-    hosts: tuple[str, str] = ("Matthew", "Kelly"),
+    hosts: tuple[str, str],
     *,
-    client: httpx.Client | None = None,
-    force: bool = False,
-    sleep=time.sleep,
     previous_story: dict | None = None,
     previous_format: str | None = None,
     previous_dialogue: StoryDialogue | None = None,
-) -> StoryDialogue:
-    """Write a grounded two-host conversation for one story using Antigravity -> Groq -> Local -> Gemini -> fallback."""
+) -> dict:
+    """Compute brief, format, transition, cache path, and prompt inputs for one story."""
     brief = build_story_brief(story)
     prev_title = _clean((previous_story or {}).get("title") or (previous_story or {}).get("headline") or "")
     prev_lead = _extract_prev_lead(previous_story, previous_dialogue)
@@ -607,24 +606,6 @@ def generate_story_dialogue(
         brief["section"], brief["rank"], sober=brief["sober"], previous_format=previous_format
     )
     cache_path = _dialogue_cache_path(cfg, brief, hosts, fmt_key, prev_title=prev_title, prev_lead=prev_lead)
-    if not force and cache_path and cache_path.is_file():
-        try:
-            cached = json.loads(cache_path.read_text(encoding="utf-8"))
-            brief["prev_lead"] = prev_lead
-            turns = validate_story_dialogue(cached.get("turns"), brief, hosts)
-            if turns:
-                return _story_dialogue_obj(
-                    brief, turns, summary=_clean(cached.get("summary") or brief["summary"]),
-                    writer=str(cached.get("writer") or "cached"),
-                    story_format=str(cached.get("story_format") or fmt_key),
-                )
-        except Exception:
-            pass
-
-    models = llm.ai_provider_chain(cfg, bin_lookup=_resolve_agy_bin)
-    if not models:
-        return fallback_story_dialogue(story, hosts)
-
     tag_instruction = (
         "Do NOT use any bracketed voice tags ([laugh], [chuckle], etc.) because this is a sober or serious news section. Express gravity and warmth through thoughtful phrasing and `...` pauses."
         if brief["sober"]
@@ -640,21 +621,88 @@ def generate_story_dialogue(
     co_speaker = "b" if lead_speaker == "a" else "a"
     angle_lens = _ANGLE_LENS.get(topics.base_section(brief.get("section") or "top"), _ANGLE_LENS["top"])
     shared_terms = _shared_topic_terms(prev_title, brief["headline"]) if prev_title else []
-
     brief.update(story_format=fmt_key, shared_prev_terms=shared_terms, prev_lead=prev_lead)
-    sys_prompt = STORY_DIALOGUE_PROMPT.format(
-        a=hosts[0], b=hosts[1], source=brief["source"], tag_instruction=tag_instruction,
-        lead_instruction=lead_instruction,
-        format_instruction=f"{fmt_desc}\n- Category Angle ({brief['section_title']}): {angle_lens}",
-        transition_instruction=_build_transition_instruction(brief, prev_title, prev_lead, shared_terms),
-        lead_speaker=lead_speaker, co_speaker=co_speaker,
-        shape_instruction=_dialogue_shape_instruction(fmt_key, hosts, lead_speaker, co_speaker),
-    )
+    transition_instruction = _build_transition_instruction(brief, prev_title, prev_lead, shared_terms)
+    shape_instruction = _dialogue_shape_instruction(fmt_key, hosts, lead_speaker, co_speaker)
     user_payload = {
         "section": brief["section_title"], "rank": brief["rank"], "story_format": fmt_key,
         "tone": brief["tone"], "source": brief["source"], "headline": brief["headline"], "facts": brief["facts"],
         **({"previous_story_headline": prev_title[:120]} if prev_title else {}),
     }
+    return {
+        "story": story,
+        "brief": brief,
+        "prev_title": prev_title,
+        "prev_lead": prev_lead,
+        "fmt_key": fmt_key,
+        "fmt_desc": fmt_desc,
+        "cache_path": cache_path,
+        "tag_instruction": tag_instruction,
+        "lead_instruction": lead_instruction,
+        "lead_speaker": lead_speaker,
+        "co_speaker": co_speaker,
+        "angle_lens": angle_lens,
+        "transition_instruction": transition_instruction,
+        "shape_instruction": shape_instruction,
+        "user_payload": user_payload,
+    }
+
+
+def _load_cached_dialogue(ctx: dict, hosts: tuple[str, str], *, force: bool) -> StoryDialogue | None:
+    cache_path = ctx["cache_path"]
+    if force or not cache_path or not cache_path.is_file():
+        return None
+    brief = ctx["brief"]
+    try:
+        cached = json.loads(cache_path.read_text(encoding="utf-8"))
+        brief["prev_lead"] = ctx["prev_lead"]
+        turns = validate_story_dialogue(cached.get("turns"), brief, hosts)
+        if turns:
+            return _story_dialogue_obj(
+                brief, turns, summary=_clean(cached.get("summary") or brief["summary"]),
+                writer=str(cached.get("writer") or "cached"),
+                story_format=str(cached.get("story_format") or ctx["fmt_key"]),
+            )
+    except Exception:
+        pass
+    return None
+
+
+def generate_story_dialogue(
+    cfg,
+    story: dict,
+    hosts: tuple[str, str] = ("Matthew", "Kelly"),
+    *,
+    client: httpx.Client | None = None,
+    force: bool = False,
+    sleep=time.sleep,
+    previous_story: dict | None = None,
+    previous_format: str | None = None,
+    previous_dialogue: StoryDialogue | None = None,
+) -> StoryDialogue:
+    """Write a grounded two-host conversation for one story using Antigravity -> Groq -> Local -> Gemini -> fallback."""
+    ctx = _prepare_story_context(
+        cfg, story, hosts,
+        previous_story=previous_story, previous_format=previous_format, previous_dialogue=previous_dialogue,
+    )
+    cached = _load_cached_dialogue(ctx, hosts, force=force)
+    if cached is not None:
+        return cached
+
+    models = llm.ai_provider_chain(cfg, bin_lookup=_resolve_agy_bin)
+    if not models:
+        return fallback_story_dialogue(story, hosts)
+
+    brief = ctx["brief"]
+    fmt_key = ctx["fmt_key"]
+    sys_prompt = STORY_DIALOGUE_PROMPT.format(
+        a=hosts[0], b=hosts[1], source=brief["source"], tag_instruction=ctx["tag_instruction"],
+        lead_instruction=ctx["lead_instruction"],
+        format_instruction=f"{ctx['fmt_desc']}\n- Category Angle ({brief['section_title']}): {ctx['angle_lens']}",
+        transition_instruction=ctx["transition_instruction"],
+        lead_speaker=ctx["lead_speaker"], co_speaker=ctx["co_speaker"],
+        shape_instruction=ctx["shape_instruction"],
+    )
 
     own = client is None
     client = client or httpx.Client(timeout=60)
@@ -662,7 +710,7 @@ def generate_story_dialogue(
         for model, url, token, provider in models:
             messages = [
                 {"role": "system", "content": sys_prompt},
-                {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
+                {"role": "user", "content": json.dumps(ctx["user_payload"], ensure_ascii=False)},
             ]
             for attempt in range(2):
                 try:
@@ -694,7 +742,7 @@ def generate_story_dialogue(
                         brief, turns, summary=_clean(data.get("summary") or brief["summary"]),
                         writer=model, story_format=fmt_key,
                     )
-                    _write_dialogue_cache(cache_path, result)
+                    _write_dialogue_cache(ctx["cache_path"], result)
                     return result
                 except llm._RetryAfterSignal as sig:
                     if sig.delay <= 35 and attempt == 0:
@@ -712,6 +760,182 @@ def generate_story_dialogue(
     log.warning("All %d LLM provider(s) failed for story dialogue (%s); using grounded fallback.",
                 len(models), brief.get("story_id") or "")
     return fallback_story_dialogue(story, hosts)
+
+
+def _extract_batch_entries(raw: str, batch_ids: list[str]) -> dict[str, dict]:
+    """Extract per-story dialogue objects from batched JSON output."""
+    parsed = json.loads(llm.extract_json_text(raw))
+    if isinstance(parsed, dict) and isinstance(parsed.get("stories"), dict):
+        parsed = parsed["stories"]
+    if isinstance(parsed, dict) and isinstance(parsed.get("stories"), list):
+        parsed = parsed["stories"]
+    if isinstance(parsed, list):
+        mapped: dict[str, dict] = {}
+        for idx, item in enumerate(parsed):
+            if not isinstance(item, dict):
+                continue
+            sid = str(item.get("story_id") or (batch_ids[idx] if idx < len(batch_ids) else ""))
+            if sid:
+                mapped[sid] = item
+        return mapped
+    if isinstance(parsed, dict):
+        return {str(k): v for k, v in parsed.items() if isinstance(v, dict)}
+    raise ValueError("batched story dialogue response is not a JSON object or list")
+
+
+def generate_section_dialogues(
+    cfg,
+    stories: list[dict],
+    hosts: tuple[str, str] = ("Matthew", "Kelly"),
+    *,
+    client: httpx.Client | None = None,
+    force: bool = False,
+    sleep=time.sleep,
+    initial_previous_story: dict | None = None,
+    batch_size: int = 5,
+) -> list[StoryDialogue]:
+    """Generate dialogues for a section's stories in minimal batched LLM calls with per-story fallback."""
+    if not stories:
+        return []
+
+    results: list[StoryDialogue | None] = [None] * len(stories)
+    contexts: list[dict] = []
+    uncached_indices: list[int] = []
+
+    prev_story = initial_previous_story
+    prev_fmt: str | None = None
+    prev_diag: StoryDialogue | None = None
+
+    for idx, story in enumerate(stories):
+        ctx = _prepare_story_context(
+            cfg, story, hosts,
+            previous_story=prev_story, previous_format=prev_fmt, previous_dialogue=prev_diag,
+        )
+        contexts.append(ctx)
+        cached = _load_cached_dialogue(ctx, hosts, force=force)
+        if cached is not None:
+            results[idx] = cached
+            prev_diag = cached
+        else:
+            uncached_indices.append(idx)
+            prev_diag = None
+        prev_story = story
+        prev_fmt = ctx["fmt_key"]
+
+    if not uncached_indices:
+        return [r for r in results if r is not None]
+
+    models = llm.ai_provider_chain(cfg, bin_lookup=_resolve_agy_bin)
+    if not models:
+        for idx in uncached_indices:
+            results[idx] = fallback_story_dialogue(stories[idx], hosts)
+        return [r for r in results if r is not None]
+
+    sys_prompt = BATCH_STORY_DIALOGUE_PROMPT.format(a=hosts[0], b=hosts[1])
+    own = client is None
+    client = client or httpx.Client(timeout=90)
+    try:
+        step = max(1, int(batch_size))
+        for start in range(0, len(uncached_indices), step):
+            chunk = uncached_indices[start : start + step]
+            if len(chunk) == 1:
+                idx = chunk[0]
+                p_story = stories[idx - 1] if idx > 0 else initial_previous_story
+                p_fmt = contexts[idx - 1]["fmt_key"] if idx > 0 else None
+                p_diag = results[idx - 1] if idx > 0 else None
+                results[idx] = generate_story_dialogue(
+                    cfg, stories[idx], hosts, client=client, force=force, sleep=sleep,
+                    previous_story=p_story, previous_format=p_fmt, previous_dialogue=p_diag,
+                )
+                continue
+
+            batch_ids = [f"{contexts[idx]['brief']['story_id']}#{idx}" if sum(
+                1 for j in chunk if contexts[j]["brief"]["story_id"] == contexts[idx]["brief"]["story_id"]
+            ) > 1 else contexts[idx]["brief"]["story_id"] for idx in chunk]
+
+            payload_stories = []
+            for idx, bid in zip(chunk, batch_ids):
+                c = contexts[idx]
+                b = c["brief"]
+                payload_stories.append({
+                    "story_id": bid,
+                    "section": b["section_title"],
+                    "rank": b["rank"],
+                    "story_format": c["fmt_key"],
+                    "lead_instruction": c["lead_instruction"],
+                    "format_instruction": f"{c['fmt_desc']} | Category Angle ({b['section_title']}): {c['angle_lens']}",
+                    "transition_instruction": c["transition_instruction"],
+                    "tag_instruction": c["tag_instruction"],
+                    "shape_rule": c["shape_instruction"],
+                    "tone": b["tone"],
+                    "source": b["source"],
+                    "headline": b["headline"],
+                    "facts": b["facts"],
+                    **({"previous_story_headline": c["prev_title"][:120]} if c["prev_title"] else {}),
+                })
+
+            messages = [
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": json.dumps({"stories": payload_stories}, ensure_ascii=False)},
+            ]
+            entries_by_id: dict[str, dict] = {}
+            used_model = ""
+            for model, url, token, provider in models:
+                for attempt in range(2):
+                    try:
+                        raw = llm.generate_chat_text(
+                            client, model=model, url=url, token=token, provider=provider,
+                            messages=messages, temperature=0.55 if attempt == 0 else 0.30,
+                            max_tokens=min(4800, 950 * len(chunk)),
+                            cli_timeout=max(60.0, min(150.0, 25.0 * len(chunk))),
+                            bin_lookup=_resolve_agy_bin,
+                            on_rate_limit=lambda resp: max(llm.retry_after(resp), 3.0),
+                        )
+                        entries_by_id = _extract_batch_entries(raw, batch_ids)
+                        used_model = model
+                        break
+                    except llm._RetryAfterSignal as sig:
+                        if sig.delay <= 35 and attempt == 0:
+                            log.warning("%s rate limit hit (429) during batched dialogue. Backing off %.1fs...", provider, sig.delay)
+                            sleep(sig.delay)
+                            continue
+                        break
+                    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError, RuntimeError, subprocess.SubprocessError) as exc:
+                        log.warning("Batched story dialogue %s (%s) attempt %d failed: %s", provider, model, attempt + 1, exc)
+                        break
+                if entries_by_id:
+                    break
+
+            for idx, bid in zip(chunk, batch_ids):
+                c = contexts[idx]
+                b = c["brief"]
+                p_story = stories[idx - 1] if idx > 0 else initial_previous_story
+                p_fmt = contexts[idx - 1]["fmt_key"] if idx > 0 else None
+                p_diag = results[idx - 1] if idx > 0 else None
+                actual_prev_lead = _extract_prev_lead(p_story, p_diag)
+                b["prev_lead"] = actual_prev_lead
+                cache_path = _dialogue_cache_path(
+                    cfg, b, hosts, c["fmt_key"], prev_title=c["prev_title"], prev_lead=actual_prev_lead,
+                )
+                entry = entries_by_id.get(bid)
+                turns = validate_story_dialogue(entry, b, hosts) if isinstance(entry, dict) else None
+                if turns:
+                    dlg = _story_dialogue_obj(
+                        b, turns, summary=_clean(entry.get("summary") or b["summary"]),
+                        writer=used_model, story_format=c["fmt_key"],
+                    )
+                    _write_dialogue_cache(cache_path, dlg)
+                    results[idx] = dlg
+                else:
+                    results[idx] = generate_story_dialogue(
+                        cfg, stories[idx], hosts, client=client, force=True, sleep=sleep,
+                        previous_story=p_story, previous_format=p_fmt, previous_dialogue=p_diag,
+                    )
+    finally:
+        if own:
+            client.close()
+
+    return [r if r is not None else fallback_story_dialogue(stories[i], hosts) for i, r in enumerate(results)]
 
 
 def _write_dialogue_cache(cache_path: Path | None, result: StoryDialogue) -> None:
@@ -751,6 +975,62 @@ def stitch_turn_audio(
     return audio.encode_mp3(combined, sr=sr), round(combined.size / sr, 3), marks
 
 
+_TOPIC_VOICE_PROFILES: dict[str, tuple[tuple[float, float, float, float], tuple[float, float, float, float]]] = {
+    # (pace, temperature, exaggeration, cfg_weight) for (speaker 0 / Matthew, speaker 1 / Kelly)
+    "sober": ((0.88, 0.72, 0.40, 0.30), (0.90, 0.76, 0.46, 0.30)),
+    "analytical": ((0.90, 0.76, 0.48, 0.33), (0.92, 0.80, 0.56, 0.33)),
+    "upbeat": ((0.91, 0.80, 0.52, 0.35), (0.93, 0.84, 0.62, 0.35)),
+    "lively": ((0.92, 0.82, 0.56, 0.37), (0.94, 0.86, 0.68, 0.37)),
+}
+
+
+def topic_modulation_enabled() -> bool:
+    """Enable topic-aware prosody when VOICE_TOPIC_MODULATION is on or standard non-Turbo is active."""
+    raw = os.getenv("VOICE_TOPIC_MODULATION", "").strip().lower()
+    if raw:
+        return raw in {"1", "true", "yes", "on"}
+    variant = os.getenv("CHATTERBOX_VARIANT", "standard").strip().lower()
+    return variant in {"standard", "non-turbo", "non_turbo", "nonturbo", "base", "chatterbox"}
+
+
+def voice_profile_for_turn(
+    section: str | None,
+    speaker: int,
+    *,
+    headline: str = "",
+    summary: str = "",
+    purpose: str = "",
+    word_count: int = 10,
+) -> dict[str, float]:
+    """Return topic- and speaker-modulated voice controls ``{pace, temperature, exaggeration, cfg_weight}``."""
+    base_sec = topics.base_section(section or "top")
+    blob = f"{headline} {summary}".lower()
+    is_sober = (base_sec in SOBER_SECTIONS) or any(kw in blob for kw in SOBER_KEYWORDS)
+    if is_sober:
+        mood = "sober"
+    elif base_sec in {"markets", "science"}:
+        mood = "analytical"
+    elif base_sec in {"ai", "tech"}:
+        mood = "upbeat"
+    elif base_sec in {"entertainment", "sports"}:
+        mood = "lively"
+    else:
+        mood = "analytical"
+
+    idx = 0 if speaker == 0 else 1
+    pace, temp, exag, cfg_w = _TOPIC_VOICE_PROFILES[mood][idx]
+    if purpose == "reaction" and word_count <= 4 and not is_sober:
+        pace = round(min(0.96, pace + 0.02), 2)
+        exag = round(min(0.75, exag + 0.06), 2)
+        temp = round(min(0.88, temp + 0.02), 2)
+    return {
+        "pace": pace,
+        "temperature": temp,
+        "exaggeration": exag,
+        "cfg_weight": cfg_w,
+    }
+
+
 async def synthesise_story_dialogue(
     http: httpx.AsyncClient,
     base: str,
@@ -769,6 +1049,8 @@ async def synthesise_story_dialogue(
 
     host_names = tuple(v.split("_", 1)[0].strip().capitalize() for v in host_voices[:2] if v and isinstance(v, str))
     hosts_tuple = (host_names[0], host_names[1]) if len(host_names) >= 2 else ("Matthew", "Kelly")
+    use_modulation = topic_modulation_enabled()
+    variant = os.getenv("CHATTERBOX_VARIANT", "standard").strip().lower() or "standard"
 
     raw_turns: list[tuple[bytes, float, float]] = []
     for turn in dialogue.turns:
@@ -776,11 +1058,33 @@ async def synthesise_story_dialogue(
         spoken_text = strip_speaker_prefix(turn.text, hosts_tuple) or _clean(turn.text)
         word_count = len(strip_tags(spoken_text).split())
 
-        turn_pace, turn_temp = (0.93, 0.82) if turn.speaker == 0 else (0.97, 0.88)
-        if turn.purpose == "reaction" and word_count <= 4:
-            turn_pace, turn_temp = 0.98, 0.90
+        if use_modulation:
+            profile = voice_profile_for_turn(
+                dialogue.section,
+                turn.speaker,
+                headline=dialogue.headline,
+                summary=dialogue.summary,
+                purpose=turn.purpose,
+                word_count=word_count,
+            )
+            turn_pace = profile["pace"]
+            turn_temp = profile["temperature"]
+            extra_kwargs: dict[str, float] = {
+                "exaggeration": profile["exaggeration"],
+                "cfg_weight": profile["cfg_weight"],
+            }
+            cache_tag = (
+                f"wav|{variant}|{voice_id}|{turn_pace:.2f}|{turn_temp:.2f}|"
+                f"{profile['exaggeration']:.2f}|{profile['cfg_weight']:.2f}|{spoken_text}"
+            )
+        else:
+            turn_pace, turn_temp = (0.93, 0.82) if turn.speaker == 0 else (0.97, 0.88)
+            if turn.purpose == "reaction" and word_count <= 4:
+                turn_pace, turn_temp = 0.98, 0.90
+            extra_kwargs = {}
+            cache_tag = f"wav|{voice_id}|{turn_pace:.2f}|{turn_temp:.2f}|{spoken_text}"
 
-        key = hashlib.sha256(f"wav|{voice_id}|{turn_pace:.2f}|{turn_temp:.2f}|{spoken_text}".encode("utf-8")).hexdigest()[:16]
+        key = hashlib.sha256(cache_tag.encode("utf-8")).hexdigest()[:16]
         cached_wav = turn_cache / f"{key}.wav" if turn_cache else None
         cached_meta = turn_cache / f"{key}.json" if turn_cache else None
 
@@ -794,7 +1098,7 @@ async def synthesise_story_dialogue(
                 pass
 
         raw_audio, seconds = await storypack.synthesise(
-            http, base, spoken_text, voice_id, pace=turn_pace, temperature=turn_temp, fmt="wav",
+            http, base, spoken_text, voice_id, pace=turn_pace, temperature=turn_temp, fmt="wav", **extra_kwargs,
         )
         if cached_wav and cached_meta:
             try:

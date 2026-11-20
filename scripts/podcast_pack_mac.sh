@@ -28,12 +28,21 @@ fi
 export GCE_MANAGE_VM="false"
 export GCE_INSTANCE=""
 export GCP_PROJECT=""
+export AGY_ENABLED="true"
+export AGY_MODEL="gemini-4-hydrogen-low"
+export PODCAST_BATCH_DIALOGUES="true"
+export CHATTERBOX_VARIANT="standard"
+export VOICE_TOPIC_MODULATION="true"
 export VOICE_SERVICE_URL="http://127.0.0.1:8090"
 export VOICE_DIR="$ROOT/voice_service/data/voices"
 export PRELOAD_VOICE="1"
 export PODCAST_ENABLED="true"
+export VOICE_PACE="0.90"
+export VOICE_TEMPERATURE="0.78"
+export VOICE_EXAGGERATION="0.50"
+export VOICE_CFG_WEIGHT="0.33"
 
-log "Starting local Chatterbox-Turbo voice service (Apple Silicon MPS)..."
+log "Starting local Chatterbox (standard non-Turbo) voice service (Apple Silicon MPS)..."
 cd "$ROOT/voice_service"
 .venv/bin/uvicorn api.app:app --host 127.0.0.1 --port 8090 > "$SERVICE_LOG" 2>&1 &
 VOICE_PID=$!

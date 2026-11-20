@@ -717,7 +717,9 @@ def test_profanity_rejection_in_story_dialogue():
     assert podcast.validate_story_dialogue({"turns": turns_vulgar}, brief, HOSTS) is None
 
 
-def test_synthesise_story_dialogue_wav_and_pace_temp_honest_cache(tmp_path):
+def test_synthesise_story_dialogue_wav_and_pace_temp_honest_cache(tmp_path, monkeypatch):
+    monkeypatch.setenv("CHATTERBOX_VARIANT", "turbo")
+    monkeypatch.setenv("VOICE_TOPIC_MODULATION", "false")
     recorded_calls = []
 
     async def mock_synth(client, base, text, voice, attempts=3, *, pace=None, temperature=None, fmt="mp3", **kwargs):
@@ -1117,4 +1119,151 @@ def test_openers_and_closers_ban_and_scrub_weekdays_and_day_locked_words(cfg):
     for key in ("pod_open_1", "pod_open_ca_1", "pod_close_1"):
         spoken = podcast.transcript(written[key].turns)
         assert not forbidden.search(spoken), f"{key} leaked temporal reference: {spoken}"
+
+
+def test_story_prompt_templates_render_host_names():
+    from app.podcast_prompts import BATCH_STORY_DIALOGUE_PROMPT
+
+    rendered_single = podcast.STORY_DIALOGUE_PROMPT.format(
+        a="Matthew", b="Kelly", source="Reuters",
+        tag_instruction="No tags.", lead_instruction="Lead Host: Matthew",
+        format_instruction="Format.", transition_instruction="Open.",
+        lead_speaker="a", co_speaker="b", shape_instruction="JSON.",
+    )
+    rendered_batch = BATCH_STORY_DIALOGUE_PROMPT.format(a="Matthew", b="Kelly")
+    for text in (rendered_single, rendered_batch):
+        assert "{a}" not in text and "{b}" not in text
+        assert "Matthew" in text and "Kelly" in text
+
+
+def test_generate_section_dialogues_batches_in_one_call_and_isolates_fallback(cfg, monkeypatch):
+    monkeypatch.setattr(podcast, "_agy_bin", lambda: "/usr/local/bin/agy")
+    monkeypatch.setattr(
+        "app.podcast_dialogue.select_story_format",
+        lambda section, rank, sober=False, previous_format=None: ("lead_takeaway", "Format lead takeaway"),
+    )
+
+    stories = [
+        {
+            "id": "top-1",
+            "section": "top",
+            "rank": 1,
+            "title": "Shopify posts higher quarterly revenue on merchant growth",
+            "source": "Reuters",
+            "summary": "Shopify reported higher quarterly revenue as more merchants joined its platform.",
+        },
+        {
+            "id": "top-2",
+            "section": "top",
+            "rank": 2,
+            "title": "Nokia expands fifth generation network gear deal in Canada",
+            "source": "Bloomberg",
+            "summary": "Nokia signed a multi year agreement to supply telecom equipment across Canada.",
+        },
+        {
+            "id": "top-3",
+            "section": "top",
+            "rank": 3,
+            "title": "Tesla updates driver software for winter highway braking",
+            "source": "AP",
+            "summary": "Tesla released a winter software update improving regenerative braking response.",
+        },
+    ]
+
+    llm_calls: list[list[dict]] = []
+
+    def fake_generate(client, *, model, url, token, provider, messages, **kwargs):
+        llm_calls.append(messages)
+        if len(llm_calls) == 1:
+            return json.dumps({
+                "top-1": {
+                    "summary": "Shopify grew quarterly revenue as new merchants joined the platform.",
+                    "turns": [
+                        {"speaker": "a", "purpose": "lead", "fact_refs": ["F1"], "text": "Shopify posted stronger quarterly revenue this quarter as thousands of new merchants joined the platform."},
+                        {"speaker": "b", "purpose": "takeaway", "fact_refs": ["F2"], "text": "That steady merchant growth keeps their e-commerce momentum moving nicely forward right now."},
+                    ],
+                },
+                # Intentionally make top-2 invalid (empty turns) to verify single-story fallback only for top-2
+                "top-2": {"summary": "Invalid empty.", "turns": []},
+                "top-3": {
+                    "summary": "Tesla pushed a winter software update for highway braking.",
+                    "turns": [
+                        {"speaker": "a", "purpose": "lead", "fact_refs": ["F1"], "text": "Tesla rolled out a winter software update focused on improving highway braking performance."},
+                        {"speaker": "b", "purpose": "takeaway", "fact_refs": ["F2"], "text": "Cold weather drivers will really appreciate smoother regenerative response on icy roads."},
+                    ],
+                },
+            })
+        return json.dumps({
+            "summary": "Nokia expanded its Canadian telecom network equipment deal.",
+            "turns": [
+                {"speaker": "b", "purpose": "lead", "fact_refs": ["F1"], "text": "Nokia expanded its multi year telecom network equipment agreement across Canada today."},
+                {"speaker": "a", "purpose": "takeaway", "fact_refs": ["F2"], "text": "Telecom carriers are locking in major multi year hardware upgrades across regions."},
+            ],
+        })
+
+    monkeypatch.setattr("app.llm.generate_chat_text", fake_generate)
+    c = dataclasses.replace(cfg, agy_enabled=True, agy_model="gemini-4-hydrogen-low")
+    out = podcast.generate_section_dialogues(c, stories, HOSTS)
+
+    assert len(out) == 3
+    # 1 batched call for all 3 stories + 1 targeted retry only for invalid top-2
+    assert len(llm_calls) == 2
+    assert "Shopify" in out[0].turns[0].text
+    assert "Nokia" in out[1].turns[0].text
+    assert "Tesla" in out[2].turns[0].text
+
+    # Re-running hits disk cache for all 3 stories -> 0 additional LLM calls
+    cached_out = podcast.generate_section_dialogues(c, stories, HOSTS)
+    assert len(llm_calls) == 2
+    assert len(cached_out) == 3
+
+
+def test_topic_voice_modulation_adapts_by_section_when_enabled(tmp_path, monkeypatch):
+    from unittest.mock import patch
+    from app.config import Config
+    import app.storypack as sp
+
+    monkeypatch.delenv("CHATTERBOX_VARIANT", raising=False)
+    monkeypatch.delenv("VOICE_TOPIC_MODULATION", raising=False)
+    assert podcast.topic_modulation_enabled() is True
+    assert Config().podcast_batch_dialogues is True
+
+    sober_prof = podcast.voice_profile_for_turn("politics", 0, headline="Lawmakers debate budget", summary="")
+    ent_prof = podcast.voice_profile_for_turn("entertainment", 1, headline="Festival announces lineup", summary="")
+    react_prof = podcast.voice_profile_for_turn("entertainment", 1, purpose="reaction", word_count=2)
+
+    assert sober_prof["exaggeration"] < ent_prof["exaggeration"]
+    assert sober_prof["cfg_weight"] < ent_prof["cfg_weight"]
+    assert sober_prof["pace"] < ent_prof["pace"]
+    assert react_prof["exaggeration"] > ent_prof["exaggeration"]
+
+    recorded = []
+
+    async def mock_synth(client, base, text, voice, attempts=3, **kwargs):
+        recorded.append(kwargs)
+        return b"RIFFmockwavdata12345678", 1.2
+
+    dialogue = podcast.StoryDialogue(
+        story_id="ent-1",
+        section="entertainment",
+        headline="Festival announces lineup",
+        summary="Festival announces summer lineup.",
+        turns=[
+            podcast.DialogueTurn(speaker=0, text="Matthew sets up the headline with detail.", purpose="lead", fact_refs=["F1"], pause_after=0.4),
+            podcast.DialogueTurn(speaker=1, text="Kelly jumps in with lively context.", purpose="takeaway", fact_refs=["F1"], pause_after=0.3),
+        ],
+    )
+    with patch.object(sp, "synthesise", side_effect=mock_synth):
+        async def run_synth():
+            async with httpx.AsyncClient() as client:
+                return await podcast.synthesise_story_dialogue(
+                    client, "http://voice", dialogue, ("matthew_reference", "kelly_reference"), cache_dir=tmp_path
+                )
+
+        run(run_synth())
+        assert len(recorded) == 2
+        assert recorded[0]["cfg_weight"] == 0.37
+        assert recorded[0]["exaggeration"] == 0.56
+        assert recorded[1]["exaggeration"] == 0.68
+
 

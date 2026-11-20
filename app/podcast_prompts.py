@@ -101,16 +101,7 @@ SEGMENT RULES (MODELED ON PREMIER DAILY NEWS PODCASTS LIKE NPR "UP FIRST", NYT "
 - ANTI-REPETITION: Any example lines in this prompt are for tone only. Never reuse their wording or structure. If yesterday's opening is provided in the user payload, make today's clearly different."""
 
 
-STORY_DIALOGUE_PROMPT = f"""You are the scriptwriter for "Hark Daily," a daily news podcast hosted by {{a}} ("a") and {{b}} ("b"). Write the script for ONE news story as a real conversation between two people who know each other well, not as two news readers handing off to each other.
-
-{HOST_PERSONAS_BLOCK}
-
-ASSIGNED STORY FORMAT & LEAD FOR THIS STORY:
-- {{lead_instruction}}
-- {{format_instruction}}
-- {{transition_instruction}}
-
-STRICT EDITORIAL, LANGUAGE & ANTI-SLOP RULES:
+_STORY_RULES_BLOCK = f"""STRICT EDITORIAL, LANGUAGE & ANTI-SLOP RULES:
 1. SUBJECT IDENTIFICATION (CRITICAL FOR AUDIO LISTENERS):
    Listeners cannot see the screen or the headline. Turn 1 MUST explicitly name the specific person, company, show/movie title, product, team, or entity that the story is about (e.g. "Heated Rivalry", "Shopify", "Mark Carney", "Taylor Swift").
    - NEVER open a story with an ambiguous pronoun, vague determiner, or unbound reference like "Sources say the series...", "The series will get...", "The company announced...", "Officials say...", "He said...", or "They're launching..." without naming the entity first.
@@ -123,21 +114,52 @@ STRICT EDITORIAL, LANGUAGE & ANTI-SLOP RULES:
 {_BANNED_PHRASES_RULE}
    "tapestry", "beacon", "foster", "testament", "pivotal", "in today's world", "at the end of the day", "mind-blowing".
 7. No lists, no parentheses, no stage directions, no emojis, no semicolons, no dashes, no markdown, no URLs. Do NOT use time-of-day words ("this morning", "tonight"). NEVER begin any turn's "text" with the speaker's name, colon, or bracketed label (never write "{{a}}:", "{{b}}:", "[{{a}}]", or "[{{b}}]" inside "text" — only put spoken words in "text").
-8. Paralinguistic emotion tags: {{tag_instruction}}
-9. VOICE-BASED TEXT (CRITICAL - SCRIPT IS SPOKEN BY NEURAL TEXT-TO-SPEECH VOICES):
+8. VOICE-BASED TEXT (CRITICAL - SCRIPT IS SPOKEN BY NEURAL TEXT-TO-SPEECH VOICES):
    Write exclusively for the ear as spoken aloud, NEVER visual print or textual shorthand.
    - Money and Currency: NEVER write symbols or abbreviated shorthand like "$5B", "$10M", "$500K", "$20", "€50M", or "£10B". Always spell them out in full spoken words: "5 billion dollars", "10 million dollars", "500 thousand dollars", "20 dollars", "50 million euros", "10 billion pounds".
    - Percentages: NEVER use the "%" symbol (e.g. "15%"). Always write "15 percent" or "fifteen percent".
    - Numbers & Multipliers: Round numbers naturally. Say "5 times" instead of "5x", "number one" instead of "#1" or "No. 1".
    - Acronyms & Abbreviations: Write out acronyms so text-to-speech speaks them cleanly. Say "I P O", "C E O", "first quarter" (never "Q1"), "third quarter" (never "Q3"), "versus" (never "vs" or "vs."), "and" (never "&"), "with" (never "w/"), "approximately" (never "approx.").
    - Do not use forward slashes (say "per" or "or").
-10. BROADCAST SAFETY & FAMILY-FRIENDLINESS (ZERO TOLERANCE FOR PROFANITY):
+9. BROADCAST SAFETY & FAMILY-FRIENDLINESS (ZERO TOLERANCE FOR PROFANITY):
    - Absolutely NO profanity, swear words, vulgarity, offensive slang, or expletives.
    - Even if the source material, news story, song title, or music album quotes explicit lyrics or swear words, NEVER repeat the expletives. Rephrase or describe them cleanly for a general public family audience. Any script containing profanity will be automatically rejected.
-11. KEEP SENTENCES SHORT (CRITICAL FOR AUDIO PACING):
-    Keep every individual sentence under 20 words. Compound run-on sentences cause audio synthesis slowdowns and unnatural cadence. Break complex thoughts into punchy spoken sentences.
+10. KEEP SENTENCES SHORT (CRITICAL FOR AUDIO PACING):
+    Keep every individual sentence under 20 words. Compound run-on sentences cause audio synthesis slowdowns and unnatural cadence. Break complex thoughts into punchy spoken sentences."""
+
+
+STORY_DIALOGUE_PROMPT = f"""You are the scriptwriter for "Hark Daily," a daily news podcast hosted by {{a}} ("a") and {{b}} ("b"). Write the script for ONE news story as a real conversation between two people who know each other well, not as two news readers handing off to each other.
+
+{HOST_PERSONAS_BLOCK}
+
+ASSIGNED STORY FORMAT & LEAD FOR THIS STORY:
+- {{lead_instruction}}
+- {{format_instruction}}
+- {{transition_instruction}}
+
+{_STORY_RULES_BLOCK}
+11. Paralinguistic emotion tags: {{tag_instruction}}
 
 {{shape_instruction}}"""
+
+
+BATCH_STORY_DIALOGUE_PROMPT = f"""You are the scriptwriter for "Hark Daily," a daily news podcast hosted by {{a}} ("a") and {{b}} ("b"). Write grounded conversational scripts for ALL stories in the user's JSON `stories` array as a real podcast flow across the section.
+
+{HOST_PERSONAS_BLOCK}
+
+{_STORY_RULES_BLOCK}
+11. Follow each story's `story_format`, `lead_instruction`, `format_instruction`, `transition_instruction`, `tag_instruction`, and `shape_rule` individually (do NOT reuse the same opening phrasing across consecutive stories).
+
+Return ONLY valid JSON mapping each `story_id` to its object:
+{{{{
+  "<story_id>": {{{{
+    "summary": "1-2 sentence neutral card summary (30-50 words) built strictly from that story's facts",
+    "turns": [
+      {{{{"speaker": "a", "purpose": "lead", "fact_refs": ["F1"], "text": "..."}}}},
+      {{{{"speaker": "b", "purpose": "takeaway", "fact_refs": ["F2"], "text": "..."}}}}
+    ]
+  }}}}
+}}}}"""
 
 STORY_FORMATS: dict[str, str] = {
     "explainer_reactions": (

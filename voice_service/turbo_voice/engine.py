@@ -17,12 +17,13 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import threading
 from pathlib import Path
 
 import numpy as np
 
-from .text import Pause, Say, parse
+from .text import TAGS, Pause, Say, parse
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +32,19 @@ SAMPLE_RATE = 24_000
 # Part of the cache filename: bump it when the model or the conditional layout
 # changes and stale sidecars are simply ignored.
 CONDS_STAMP = "turbo-v1"
+STANDARD_CONDS_STAMP = "standard-v1"
+_PARALINGUISTIC_TAG_RE = re.compile(
+    r"\s*\[(?:" + "|".join(sorted(TAGS)) + r")\]\s*",
+    re.IGNORECASE,
+)
+
+
+def normalize_variant(value: str | None = None) -> str:
+    """Normalize ``CHATTERBOX_VARIANT`` into ``'standard'`` (default) or ``'turbo'``."""
+    raw = (value if value is not None else os.getenv("CHATTERBOX_VARIANT", "standard")).strip().lower()
+    if raw in {"turbo", "chatterbox-turbo", "chatterbox_turbo"}:
+        return "turbo"
+    return "standard"
 
 
 def pick_device() -> str:
@@ -44,11 +58,12 @@ def pick_device() -> str:
     return "mps" if torch.backends.mps.is_available() else "cpu"
 
 
-DEFAULT_TEMPERATURE = float(os.getenv("VOICE_TEMPERATURE", "0.87"))
+DEFAULT_TEMPERATURE = float(os.getenv("VOICE_TEMPERATURE", "0.78"))
 DEFAULT_TOP_P = float(os.getenv("VOICE_TOP_P", "0.96"))
 DEFAULT_REPETITION_PENALTY = float(os.getenv("VOICE_REPETITION_PENALTY", "1.15"))
-DEFAULT_PACE = float(os.getenv("VOICE_PACE", "0.92"))
-DEFAULT_EXAGGERATION = float(os.getenv("VOICE_EXAGGERATION", "0.75"))
+DEFAULT_PACE = float(os.getenv("VOICE_PACE", "0.90"))
+DEFAULT_EXAGGERATION = float(os.getenv("VOICE_EXAGGERATION", "0.50"))
+DEFAULT_CFG_WEIGHT = float(os.getenv("VOICE_CFG_WEIGHT", "0.33"))
 
 
 def _adjust_pace(samples: np.ndarray, pace: float, sr: int = SAMPLE_RATE) -> np.ndarray:
@@ -124,15 +139,16 @@ def cache_enabled() -> bool:
 
 
 class TurboVoice:
-    """A Chatterbox-Turbo voice cloned from a reference clip."""
+    """A Chatterbox-Turbo (or non-Turbo standard Chatterbox) voice cloned from a reference clip."""
 
     def __init__(self, reference: Path | str | None = None, device: str | None = None,
-                 cache_conds: bool | None = None):
+                 cache_conds: bool | None = None, variant: str | None = None):
         # The reference is optional so the service can start, report health and
         # list voices before one has been chosen.
         self.reference = Path(reference) if reference else None
         self.device = device or pick_device()
         self.cache_conds = cache_enabled() if cache_conds is None else cache_conds
+        self.variant = normalize_variant(variant)
         self._model = None
         self._prepared: tuple[str, int] | None = None
         self._conds_cache: dict[tuple[str, int], object] = {}
@@ -141,10 +157,16 @@ class TurboVoice:
     # ----------------------------------------------------------------- loading
     def _load(self):
         if self._model is None:
-            from chatterbox.tts_turbo import ChatterboxTurboTTS
+            if self.variant == "standard":
+                from chatterbox.tts import ChatterboxTTS
 
-            log.info("Loading Chatterbox-Turbo on %s", self.device)
-            self._model = ChatterboxTurboTTS.from_pretrained(device=self.device)
+                log.info("Loading Chatterbox (standard non-Turbo) on %s", self.device)
+                self._model = ChatterboxTTS.from_pretrained(device=self.device)
+            else:
+                from chatterbox.tts_turbo import ChatterboxTurboTTS
+
+                log.info("Loading Chatterbox-Turbo on %s", self.device)
+                self._model = ChatterboxTurboTTS.from_pretrained(device=self.device)
         return self._model
 
     def path_for(self, reference: Path | str | None = None) -> Path:
@@ -156,7 +178,8 @@ class TurboVoice:
 
     def _sidecar(self, reference: Path) -> Path:
         """Where this clip's precomputed conditionals live (a sibling file)."""
-        return reference.with_name(f"{reference.stem}.{CONDS_STAMP}.conds.pt")
+        stamp = STANDARD_CONDS_STAMP if self.variant == "standard" else CONDS_STAMP
+        return reference.with_name(f"{reference.stem}.{stamp}.conds.pt")
 
     def _condition(self, model, reference: Path) -> None:
         """Embed a reference clip — once, and again only when the clip changes.
@@ -197,7 +220,10 @@ class TurboVoice:
             # A sidecar is only good if it is not older than the clip it came from.
             if not sidecar.is_file() or sidecar.stat().st_mtime_ns < reference.stat().st_mtime_ns:
                 return False
-            from chatterbox.tts_turbo import Conditionals
+            if self.variant == "standard":
+                from chatterbox.tts import Conditionals
+            else:
+                from chatterbox.tts_turbo import Conditionals
 
             model.conds = Conditionals.load(sidecar, map_location="cpu").to(self.device)
             log.info("Loaded cached voice conditionals %s", sidecar.name)
@@ -223,14 +249,23 @@ class TurboVoice:
         return SAMPLE_RATE
 
     # --------------------------------------------------------------- synthesis
+    def _prepare_span_text(self, text: str) -> str:
+        """Strip Turbo-only paralinguistic tags when running standard non-Turbo Chatterbox."""
+        if self.variant != "standard":
+            return text
+        cleaned = _PARALINGUISTIC_TAG_RE.sub(" ", text or "")
+        return " ".join(cleaned.split()) or (text or "")
+
     def say(self, text: str, *, reference: Path | str | None = None,
             temperature: float = DEFAULT_TEMPERATURE,
             top_p: float = DEFAULT_TOP_P, top_k: int = 1000,
             repetition_penalty: float = DEFAULT_REPETITION_PENALTY,
             pace: float = DEFAULT_PACE,
-            exaggeration: float = DEFAULT_EXAGGERATION) -> np.ndarray:
+            exaggeration: float = DEFAULT_EXAGGERATION,
+            cfg_weight: float = DEFAULT_CFG_WEIGHT) -> np.ndarray:
         """One span of speech, with high expressiveness, balanced RMS, and clean de-clicked zero crossings."""
         model = self._load()
+        spoken = self._prepare_span_text(text)
         with self._lock:  # the model keeps per-call state; one span at a time
             self._condition(model, self.path_for(reference))
             # If the underlying T3 model supports emotion_adv conditioning, update it dynamically
@@ -239,13 +274,23 @@ class TurboVoice:
                 model.conds.t3.emotion_adv = (exaggeration * torch.ones(1, 1, 1)).to(self.device)
             import torch
             with torch.inference_mode():
-                wav = model.generate(
-                    text,
-                    temperature=temperature,
-                    top_p=top_p,
-                    top_k=top_k,
-                    repetition_penalty=repetition_penalty,
-                )
+                if self.variant == "standard":
+                    wav = model.generate(
+                        spoken,
+                        temperature=temperature,
+                        top_p=top_p,
+                        repetition_penalty=repetition_penalty,
+                        exaggeration=exaggeration,
+                        cfg_weight=cfg_weight,
+                    )
+                else:
+                    wav = model.generate(
+                        spoken,
+                        temperature=temperature,
+                        top_p=top_p,
+                        top_k=top_k,
+                        repetition_penalty=repetition_penalty,
+                    )
         raw = wav.detach().cpu().numpy().squeeze(0).astype(np.float32)
         adjusted = _adjust_pace(raw, pace, SAMPLE_RATE)
         return _clean_audio_segment(adjusted, SAMPLE_RATE)
@@ -259,7 +304,8 @@ class TurboVoice:
                top_p: float = DEFAULT_TOP_P,
                repetition_penalty: float = DEFAULT_REPETITION_PENALTY,
                pace: float = DEFAULT_PACE,
-               exaggeration: float = DEFAULT_EXAGGERATION) -> tuple[np.ndarray, list[tuple[str, float, float]]]:
+               exaggeration: float = DEFAULT_EXAGGERATION,
+               cfg_weight: float = DEFAULT_CFG_WEIGHT) -> tuple[np.ndarray, list[tuple[str, float, float]]]:
         """Voice a whole script, honouring ``[[pause:x]]``, ellipses and blank lines.
 
         Returns the audio and a ``(text, start, end)`` mark per speech span, so
@@ -286,6 +332,7 @@ class TurboVoice:
                 repetition_penalty=repetition_penalty,
                 pace=pace,
                 exaggeration=exaggeration,
+                cfg_weight=cfg_weight,
             )
             start = cursor / SAMPLE_RATE
             pieces.append(audio)
