@@ -29,6 +29,7 @@ from .podcast_dialogue import (
     build_story_brief,
     fallback_story_dialogue,
     format_dialogue_transcript,
+    generate_section_dialogues,
     generate_story_dialogue,
     is_solo_format,
     parse_story_dialogue_payload,
@@ -37,7 +38,9 @@ from .podcast_dialogue import (
     solo_host_index,
     stitch_turn_audio,
     synthesise_story_dialogue,
+    topic_modulation_enabled,
     validate_story_dialogue,
+    voice_profile_for_turn,
 )
 from .podcast_prompts import (
     _ANGLE_LENS,
@@ -341,9 +344,16 @@ async def build_podcast(cfg, store, scripts: list[dict], *, day: str, base: str,
                 continue
             try:
                 raw_turns: list[tuple[bytes, float, float]] = []
+                use_mod = topic_modulation_enabled()
+                piece_sec = p.section or ("top" if p.kind.startswith("open") else "markets")
                 for who, line in w.turns:
                     clean_line = strip_speaker_prefix(line, names) or line
-                    raw_audio, seconds = await storypack.synthesise(http, base, clean_line, pair[who])
+                    mod_kwargs = (
+                        voice_profile_for_turn(piece_sec, who, headline=p.headline, summary=p.summary)
+                        if use_mod
+                        else {}
+                    )
+                    raw_audio, seconds = await storypack.synthesise(http, base, clean_line, pair[who], **mod_kwargs)
                     raw_turns.append((raw_audio, seconds, 0.35))
                 data, total, _ = await asyncio.to_thread(stitch_turn_audio, raw_turns)
                 path = f"podcast/{day}/{p.key}-{hosts_id.replace('+', '__')}-{hashlib.sha256(data).hexdigest()[:8]}.mp3"

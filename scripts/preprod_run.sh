@@ -32,6 +32,12 @@ if [ "$cmd" = "web" ]; then
 fi
 
 if [ "$cmd" = "voice" ]; then
+  if [ -f "$ENV_PATH" ]; then
+    set -a
+    # shellcheck source=/dev/null
+    source "$ENV_PATH"
+    set +a
+  fi
   export VOICE_DIR="$ROOT/voice_service/data/voices"
   export PRELOAD_VOICE="${PRELOAD_VOICE:-1}"
   cd "$ROOT/voice_service"

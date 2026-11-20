@@ -95,11 +95,11 @@ class Config:
     max_custom_sources: int = int(os.getenv("MAX_CUSTOM_SOURCES", "15"))
     # The Cloned narrator: the LAN/GPU voice service that voices the shared daily stories.
     voice_url: str = os.getenv("VOICE_SERVICE_URL", "").rstrip("/")
-    voice_pace: float = float(os.getenv("VOICE_PACE", "0.92"))
-    voice_temperature: float = float(os.getenv("VOICE_TEMPERATURE", "0.87"))
+    voice_pace: float = float(os.getenv("VOICE_PACE", "0.90"))
+    voice_temperature: float = float(os.getenv("VOICE_TEMPERATURE", "0.78"))
     voice_top_p: float = float(os.getenv("VOICE_TOP_P", "0.96"))
     voice_repetition_penalty: float = float(os.getenv("VOICE_REPETITION_PENALTY", "1.15"))
-    voice_exaggeration: float = float(os.getenv("VOICE_EXAGGERATION", "0.75"))
+    voice_exaggeration: float = float(os.getenv("VOICE_EXAGGERATION", "0.50"))
     story_voice: str = os.getenv("STORY_VOICE", "matthew_reference+kelly_reference")
     # Every voice the pack renders each day. A listener hears the one they picked, and the
     # clips are shared, so the cost is stories × voices rather than × listeners.
@@ -109,6 +109,7 @@ class Config:
     # nothing is generated and the app hides the mode); the hosts are any two voice ids.
     podcast_enabled: bool = _bool("PODCAST_ENABLED", True)
     podcast_hosts: tuple[str, ...] = _list("PODCAST_HOSTS", "matthew_reference,kelly_reference")[:2]
+    podcast_batch_dialogues: bool = _bool("PODCAST_BATCH_DIALOGUES", True)
     # GCE VM automated lifecycle (Chatterbox-Turbo on-demand GPU VM)
     gcp_project: str = os.getenv("GCP_PROJECT", "project-67937e0a-4d2d-43ea-9ba")
     gce_zone: str = os.getenv("GCE_ZONE", "us-central1-c")

@@ -135,6 +135,7 @@ async def synthesise(
     top_p: float | None = None,
     repetition_penalty: float | None = None,
     exaggeration: float | None = None,
+    cfg_weight: float | None = None,
     beat: float | None = None,
     fmt: str = "mp3",
 ) -> tuple[bytes, float]:
@@ -143,7 +144,8 @@ async def synthesise(
     payload: dict[str, Any] = {"text": clean_text, "voice": voice}
     for param, value in (
         ("pace", pace), ("temperature", temperature), ("top_p", top_p),
-        ("repetition_penalty", repetition_penalty), ("exaggeration", exaggeration), ("beat", beat),
+        ("repetition_penalty", repetition_penalty), ("exaggeration", exaggeration),
+        ("cfg_weight", cfg_weight), ("beat", beat),
     ):
         if value is not None:
             payload[param] = value
@@ -511,6 +513,39 @@ async def voice_scripts(
     prev_story_by_sec: dict[str, dict] = {}
     prev_format_by_sec: dict[str, str] = {}
     prev_dialogue_by_sec: dict[str, Any] = {}
+    prefetched_dialogues: dict[tuple[str, int], Any] = {}
+
+    if duo_voices and getattr(cfg, "podcast_batch_dialogues", False):
+        from . import podcast
+
+        def _needs_synth(story: dict) -> bool:
+            done = existing.get((story["section"], story["rank"]))
+            if not (done and done.get("audio_path") and done.get("url") == story["url"]):
+                done = existing_by_url.get(story["url"])
+            return not (not force and done and done.get("audio_path") and done.get("url") == story["url"])
+
+        by_sec: dict[str, list[dict]] = {}
+        init_prev_by_sec: dict[str, dict | None] = {}
+        seen_prev_by_sec: dict[str, dict | None] = {}
+        for story in scripts:
+            sec = story["section"]
+            if _needs_synth(story):
+                if sec not in init_prev_by_sec:
+                    init_prev_by_sec[sec] = seen_prev_by_sec.get(sec)
+                by_sec.setdefault(sec, []).append(story)
+            seen_prev_by_sec[sec] = story
+
+        for sec, sec_stories in by_sec.items():
+            dlgs = await asyncio.to_thread(
+                podcast.generate_section_dialogues,
+                cfg,
+                sec_stories,
+                duo_names,
+                force=force,
+                initial_previous_story=init_prev_by_sec.get(sec),
+            )
+            for st, dlg in zip(sec_stories, dlgs):
+                prefetched_dialogues[(st["section"], st["rank"])] = dlg
 
     def raise_if_publishing_failed() -> None:
         for task in publishing:
@@ -547,10 +582,12 @@ async def voice_scripts(
                     raise DeadlineReached(f"ran out of time at {story['section']} #{story['rank']}")
                 if duo_voices:
                     from . import podcast
-                    dialogue = await asyncio.to_thread(
-                        podcast.generate_story_dialogue, cfg, story, duo_names, force=force,
-                        previous_story=prev_story, previous_format=prev_fmt, previous_dialogue=prev_diag,
-                    )
+                    dialogue = prefetched_dialogues.get((story["section"], story["rank"]))
+                    if dialogue is None:
+                        dialogue = await asyncio.to_thread(
+                            podcast.generate_story_dialogue, cfg, story, duo_names, force=force,
+                            previous_story=prev_story, previous_format=prev_fmt, previous_dialogue=prev_diag,
+                        )
                     prev_dialogue_by_sec[sec_key] = dialogue
                     prev_format_by_sec[sec_key] = dialogue.story_format
                     audio, duration, marks = await podcast.synthesise_story_dialogue(
