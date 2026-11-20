@@ -2214,122 +2214,146 @@ async function syncWebPushSubscription() {
   }
 }
 
+let pushToggleInFlight = false;
+
 async function toggleMorningAlerts() {
-  const currentlyOn = isPushEnabled();
-  const turnOn = !currentlyOn;
-
-  if (!turnOn) {
-    // User is toggling OFF Morning alerts
-    try {
-      localStorage.setItem('hark_morning_alerts_disabled', 'true');
-      localStorage.removeItem('hark_push_registered');
-    } catch {}
-    if (typeof window !== 'undefined' && window.HarkNative) {
-      try { window.HarkNative.setMorningAlertsEnabled?.(false); } catch {}
-    } else {
-      try {
-        if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
-          const reg = await navigator.serviceWorker.ready;
-          const sub = await reg.pushManager?.getSubscription?.();
-          if (sub) {
-            await api.pushUnsubscribe(sub.toJSON()).catch(() => {});
-            await sub.unsubscribe().catch(() => {});
-          }
-        }
-      } catch (err) {
-        console.warn('[Push] Unsubscribe error:', err);
-      }
-    }
-    const pushBtn = $('menuPushBtn');
-    if (pushBtn) pushBtn.setAttribute('aria-checked', 'false');
-    toast('Morning alerts turned off 🔕');
-    updateMenuDrawer();
-    return;
-  }
-
-  // User is toggling ON Morning alerts
+  if (pushToggleInFlight) return;
+  pushToggleInFlight = true;
+  const pushBtn = $('menuPushBtn');
+  pushBtn?.setAttribute('aria-busy', 'true');
   try {
-    localStorage.removeItem('hark_morning_alerts_disabled');
-  } catch {}
+    const currentlyOn = isPushEnabled();
+    const turnOn = !currentlyOn;
 
-  if (typeof window !== 'undefined' && window.HarkNative) {
-    syncNativeAlertsConfig(state.edition);
-    if (!window.HarkNative.hasNotificationPermission?.()) {
+    if (!turnOn) {
+      // User is toggling OFF Morning alerts
       try {
-        window.HarkNative.requestNotificationPermission?.();
-        setTimeout(() => {
-          const granted = Boolean(window.HarkNative.hasNotificationPermission?.());
-          if (granted) {
-            try { localStorage.removeItem('hark_morning_alerts_disabled'); } catch {}
-            try { window.HarkNative.setMorningAlertsEnabled?.(true); } catch {}
-            $('menuPushBtn')?.setAttribute('aria-checked', 'true');
-            toast('Morning alerts enabled! You’ll get a ping when the new episode is out.');
-            try { window.HarkNative.postNotification?.('Hark Daily', 'New episode alerts are now enabled.'); } catch (_) {}
-          } else {
-            try { localStorage.setItem('hark_morning_alerts_disabled', 'true'); } catch {}
-            try { window.HarkNative.setMorningAlertsEnabled?.(false); } catch {}
-            $('menuPushBtn')?.setAttribute('aria-checked', 'false');
-            toast('Notification permission was not granted.', { error: true });
+        localStorage.setItem('hark_morning_alerts_disabled', 'true');
+        localStorage.removeItem('hark_push_registered');
+      } catch {}
+      if (typeof window !== 'undefined' && window.HarkNative) {
+        try { window.HarkNative.setMorningAlertsEnabled?.(false); } catch {}
+      } else {
+        try {
+          if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+            const reg = await navigator.serviceWorker.ready;
+            const sub = await reg.pushManager?.getSubscription?.();
+            if (sub) {
+              await api.pushUnsubscribe(sub.toJSON()).catch(() => {});
+              await sub.unsubscribe().catch(() => {});
+            }
           }
-          updateMenuDrawer();
-        }, 1200);
-      } catch (err) {
-        toast(err.message || "Couldn't set up notifications.", { error: true });
+        } catch (err) {
+          console.warn('[Push] Unsubscribe error:', err);
+        }
       }
+      if (pushBtn) pushBtn.setAttribute('aria-checked', 'false');
+      toast('Morning alerts turned off 🔕');
+      updateMenuDrawer();
       return;
     }
-    try { window.HarkNative.setMorningAlertsEnabled?.(true); } catch {}
-    $('menuPushBtn')?.setAttribute('aria-checked', 'true');
-    toast('Morning alerts enabled! You’ll get a ping when the new episode is out.');
-    updateMenuDrawer();
-    return;
-  }
 
-  const isDenied = typeof Notification !== 'undefined' && Notification.permission === 'denied';
-  if (isDenied) {
+    // User is toggling ON Morning alerts
     try {
-      localStorage.setItem('hark_morning_alerts_disabled', 'true');
-      localStorage.removeItem('hark_push_registered');
+      localStorage.removeItem('hark_morning_alerts_disabled');
     } catch {}
-    $('menuPushBtn')?.setAttribute('aria-checked', 'false');
-    toast('Notifications are blocked in your browser settings. Please allow them via the address bar.', { error: true, ms: 5000 });
-    updateMenuDrawer();
-    return;
-  }
 
-  try {
-    const hasGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
-    if (!hasGranted) {
-      const perm = await requestNotificationPermission();
-      if (perm !== 'granted') {
+    if (typeof window !== 'undefined' && window.HarkNative) {
+      syncNativeAlertsConfig(state.edition);
+      if (!window.HarkNative.hasNotificationPermission?.()) {
         try {
-          localStorage.setItem('hark_morning_alerts_disabled', 'true');
-          localStorage.removeItem('hark_push_registered');
-        } catch {}
-        $('menuPushBtn')?.setAttribute('aria-checked', 'false');
-        toast('Notification permission was not granted.', { error: true });
-        updateMenuDrawer();
+          window.HarkNative.requestNotificationPermission?.();
+          setTimeout(() => {
+            const granted = Boolean(window.HarkNative.hasNotificationPermission?.());
+            if (granted) {
+              try { localStorage.removeItem('hark_morning_alerts_disabled'); } catch {}
+              try { window.HarkNative.setMorningAlertsEnabled?.(true); } catch {}
+              $('menuPushBtn')?.setAttribute('aria-checked', 'true');
+              toast('Morning alerts enabled! You’ll get a ping when the new episode is out.');
+              try { window.HarkNative.postNotification?.('Hark Daily', 'New episode alerts are now enabled.'); } catch (_) {}
+            } else {
+              try { localStorage.setItem('hark_morning_alerts_disabled', 'true'); } catch {}
+              try { window.HarkNative.setMorningAlertsEnabled?.(false); } catch {}
+              $('menuPushBtn')?.setAttribute('aria-checked', 'false');
+              toast('Notification permission was not granted.', { error: true });
+            }
+            updateMenuDrawer();
+          }, 1200);
+        } catch (err) {
+          toast(err.message || "Couldn't set up notifications.", { error: true });
+        }
         return;
       }
+      try { window.HarkNative.setMorningAlertsEnabled?.(true); } catch {}
+      pushBtn?.setAttribute('aria-checked', 'true');
+      toast('Morning alerts enabled! You’ll get a ping when the new episode is out.');
+      updateMenuDrawer();
+      return;
     }
 
-    const publicKey = await api.vapidPublicKey().catch(() => '');
-    if (!publicKey) {
-      throw new Error('Morning alerts could not be registered — server notification key unavailable.');
+    if (!pushSupported()) {
+      try {
+        localStorage.setItem('hark_morning_alerts_disabled', 'true');
+        localStorage.removeItem('hark_push_registered');
+      } catch {}
+      pushBtn?.setAttribute('aria-checked', 'false');
+      const msg = isIOS() && !isInstalled()
+        ? 'Add Hark Daily to your Home Screen first to enable morning alerts.'
+        : 'Push notifications require HTTPS and a supported browser.';
+      toast(msg, { error: true, ms: 5000 });
+      updateMenuDrawer();
+      return;
     }
-    await enablePush(publicKey);
-    $('menuPushBtn')?.setAttribute('aria-checked', 'true');
-    toast('Morning alerts enabled! You will be notified before sunrise 🔔');
-  } catch (err) {
-    console.error('[Push] Setup error:', err);
+
+    const isDenied = typeof Notification !== 'undefined' && Notification.permission === 'denied';
+    if (isDenied) {
+      try {
+        localStorage.setItem('hark_morning_alerts_disabled', 'true');
+        localStorage.removeItem('hark_push_registered');
+      } catch {}
+      pushBtn?.setAttribute('aria-checked', 'false');
+      toast('Notifications are blocked — allow them in browser site settings.', { error: true, ms: 5000 });
+      updateMenuDrawer();
+      return;
+    }
+
     try {
-      localStorage.setItem('hark_morning_alerts_disabled', 'true');
-      localStorage.removeItem('hark_push_registered');
-    } catch {}
-    $('menuPushBtn')?.setAttribute('aria-checked', 'false');
-    toast(err.message || "Couldn't enable notifications.", { error: true });
+      const hasGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
+      if (!hasGranted) {
+        const perm = await requestNotificationPermission();
+        if (perm !== 'granted') {
+          try {
+            localStorage.setItem('hark_morning_alerts_disabled', 'true');
+            localStorage.removeItem('hark_push_registered');
+          } catch {}
+          pushBtn?.setAttribute('aria-checked', 'false');
+          toast('Notification permission was not granted.', { error: true });
+          updateMenuDrawer();
+          return;
+        }
+      }
+
+      const publicKey = await api.vapidPublicKey().catch(() => '');
+      if (!publicKey) {
+        throw new Error('Morning alerts unavailable — server notification key missing.');
+      }
+      await enablePush(publicKey);
+      pushBtn?.setAttribute('aria-checked', 'true');
+      toast('Morning alerts enabled! You will be notified before sunrise 🔔');
+    } catch (err) {
+      console.error('[Push] Setup error:', err);
+      try {
+        localStorage.setItem('hark_morning_alerts_disabled', 'true');
+        localStorage.removeItem('hark_push_registered');
+      } catch {}
+      pushBtn?.setAttribute('aria-checked', 'false');
+      toast(err.message || "Couldn't enable notifications.", { error: true });
+    }
+    updateMenuDrawer();
+  } finally {
+    pushToggleInFlight = false;
+    pushBtn?.removeAttribute('aria-busy');
   }
-  updateMenuDrawer();
 }
 
 function openMenuDrawer() {
