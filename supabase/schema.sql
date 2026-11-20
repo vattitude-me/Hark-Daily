@@ -104,11 +104,12 @@ delete from public.briefings;
 -- ------------------------------------------------------ push subscriptions
 create table if not exists public.push_subscriptions (
   endpoint    text primary key check (endpoint ~* '^https://([a-zA-Z0-9.-]+\.)?(push\.services\.mozilla\.com|googleapis\.com|push\.apple\.com|notify\.windows\.com)(:\d+)?(/.*)?$' and char_length(endpoint) <= 2048),
-  user_id     uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  user_id     uuid default auth.uid() references auth.users (id) on delete cascade,
   p256dh      text not null check (char_length(p256dh) <= 512),
   auth        text not null check (char_length(auth) <= 256),
   created_at  timestamptz not null default now()
 );
+alter table public.push_subscriptions alter column user_id drop not null;
 
 -- ---------------------------------------------------------- build requests
 -- 'push_test' and 'delete_account' are open to everyone. 'build' (one listener's briefing)
@@ -214,6 +215,10 @@ create policy "own push subscriptions" on public.push_subscriptions for all to a
     (select count(*) from public.push_subscriptions where user_id = auth.uid()) < 10
   );
 
+drop policy if exists "anon subscribe push" on public.push_subscriptions;
+create policy "anon subscribe push" on public.push_subscriptions for insert to anon
+  with check (user_id is null);
+
 drop policy if exists "read own requests" on public.build_requests;
 create policy "read own requests" on public.build_requests for select to authenticated using (user_id = auth.uid());
 -- An admin sees the whole queue: who asked for what, and how it ended.
@@ -248,6 +253,14 @@ create policy "send reports" on public.content_reports for insert to anon, authe
 drop policy if exists "read app status" on public.app_status;
 create policy "read app status" on public.app_status for select to authenticated using (true);
 
+create or replace function public.get_vapid_public_key()
+returns text
+language sql stable security definer set search_path = '' as $$
+  select coalesce((select data->>'vapid_public_key' from public.app_status where id = 1), '');
+$$;
+revoke all on function public.get_vapid_public_key() from public;
+grant execute on function public.get_vapid_public_key() to anon, authenticated;
+
 -- Column-level limits: users may only touch the columns the app needs.
 -- (is_admin, feed_token, status and the worker's source bookkeeping stay worker-only.)
 revoke all on public.profiles, public.sources, public.briefings, public.push_subscriptions,
@@ -258,7 +271,7 @@ grant update (settings) on public.profiles to authenticated;
 grant insert (user_id, name, url, section, enabled) on public.sources to authenticated;
 grant insert (reason, note, headline, summary, url, source, writer, app) on public.content_reports to anon, authenticated;grant update (name, section, enabled) on public.sources to authenticated;
 grant delete on public.sources to authenticated;
-grant insert (endpoint, user_id, p256dh, auth) on public.push_subscriptions to authenticated;
+grant insert (endpoint, user_id, p256dh, auth) on public.push_subscriptions to anon, authenticated;
 grant delete on public.push_subscriptions to authenticated;
 grant insert (user_id, kind, payload) on public.build_requests to authenticated;
 

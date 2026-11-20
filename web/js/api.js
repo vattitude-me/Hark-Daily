@@ -656,6 +656,15 @@ export const api = {
       return {};
     }
   },
+  async vapidPublicKey() {
+    const st = await this.status();
+    if (st?.vapid_public_key) return st.vapid_public_key;
+    try {
+      const { data, error } = await sb.rpc('get_vapid_public_key');
+      if (!error && typeof data === 'string' && data.trim()) return data.trim();
+    } catch {}
+    return '';
+  },
 
   // ------------------------------------------------------------------ admin
   /** One day of the shared pack: every clip, note, and podcast banter clip, so the admin page can summarise it. */
@@ -817,8 +826,12 @@ export const api = {
 
   // ------------------------------------------------------------------ push
   async pushSubscribe(sub) {
-    const row = { endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, user_id: await userId() };
-    return check(await sb.from('push_subscriptions').upsert(row, { onConflict: 'endpoint', ignoreDuplicates: true }));
+    let uid = null;
+    try { uid = await userId(); } catch { uid = null; }
+    const row = { endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, user_id: uid || null };
+    const { error } = await sb.from('push_subscriptions').upsert(row, { onConflict: 'endpoint', ignoreDuplicates: true });
+    if (error) throw new Error(error.message);
+    return true;
   },
   pushUnsubscribe: async (sub) => check(await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)),
   async pushTest() {

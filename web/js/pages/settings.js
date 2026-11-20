@@ -80,7 +80,9 @@ export class SettingsPage {
   /* ------------------------------------------------------------------ push */
   async refreshPush() {
     if (window.HarkNative) {
-      this.pushOn = window.HarkNative.hasNotificationPermission();
+      const perm = window.HarkNative.hasNotificationPermission();
+      const pref = window.HarkNative.isMorningAlertsEnabled ? window.HarkNative.isMorningAlertsEnabled() : true;
+      this.pushOn = Boolean(perm && pref);
       this.pushHint = this.pushOn
         ? 'Notifications are active for new daily episodes.'
         : 'Enable notifications to receive daily morning alerts.';
@@ -103,16 +105,16 @@ export class SettingsPage {
       let sub = await reg.pushManager.getSubscription();
       const granted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
       if (granted && sub) {
-        const status = await api.status().catch(() => ({}));
-        if (status?.vapid_public_key) {
-          this.status = status;
-          if (subscribedWith(sub) !== status.vapid_public_key) {
-            await enablePush(status.vapid_public_key);
+        const publicKey = await api.vapidPublicKey().catch(() => '');
+        if (publicKey) {
+          this.status = { ...(this.status || {}), vapid_public_key: publicKey };
+          if (subscribedWith(sub) !== publicKey || localStorage.getItem('hark_push_registered') !== 'true') {
+            await enablePush(publicKey);
             sub = await reg.pushManager.getSubscription();
           }
         }
       }
-      this.pushOn = !!sub && granted;
+      this.pushOn = !!sub && granted && localStorage.getItem('hark_push_registered') === 'true';
     } catch { this.pushOn = false; }
     const permDenied = typeof Notification !== 'undefined' && Notification.permission === 'denied';
     if (permDenied) {
@@ -130,7 +132,11 @@ export class SettingsPage {
       if (on) {
         window.HarkNative.requestNotificationPermission();
         setTimeout(() => {
-          this.pushOn = window.HarkNative.hasNotificationPermission();
+          const perm = window.HarkNative.hasNotificationPermission();
+          if (perm) {
+            try { window.HarkNative.setMorningAlertsEnabled?.(true); } catch (_) {}
+          }
+          this.pushOn = Boolean(perm);
           this.pushHint = this.pushOn
             ? 'Notifications are active for new daily episodes.'
             : 'Notification permission was not granted.';
@@ -143,10 +149,11 @@ export class SettingsPage {
           }
         }, 1200);
       } else {
+        try { window.HarkNative.setMorningAlertsEnabled?.(false); } catch (_) {}
         this.pushOn = false;
-        this.pushHint = 'Turn off notifications in Android System Settings.';
+        this.pushHint = 'Morning alerts turned off on this device.';
         this.render();
-        toast('To revoke notifications, update Hark Daily in Android App Settings.');
+        toast('Morning alerts turned off.');
       }
       return;
     }
@@ -176,6 +183,10 @@ export class SettingsPage {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
         if (sub) { await api.pushUnsubscribe(sub.toJSON()).catch(() => {}); await sub.unsubscribe().catch(() => {}); }
+        try {
+          localStorage.setItem('hark_morning_alerts_disabled', 'true');
+          localStorage.removeItem('hark_push_registered');
+        } catch {}
         this.pushOn = false;
         this.pushHint = '';
         this.render();
@@ -203,24 +214,26 @@ export class SettingsPage {
       const hintEl = document.getElementById('pushHint');
       if (hintEl) hintEl.textContent = this.pushHint;
 
-      // Step 3: Fetch status key if not already cached
-      const status = this.status?.vapid_public_key ? this.status : await api.status().catch(() => ({}));
-      if (!status?.vapid_public_key) {
+      // Step 3: Fetch public VAPID key (works for both signed-in users and guests)
+      const publicKey = this.status?.vapid_public_key || await api.vapidPublicKey().catch(() => '');
+      if (!publicKey) {
         this.pushOn = false;
-        this.pushHint = 'Notifications are still setting up. Try again in a moment.';
+        this.pushHint = 'Morning alerts could not be registered — notification key unavailable.';
         this.render();
         toast(this.pushHint, { error: true });
         return;
       }
-      this.status = status;
+      this.status = { ...(this.status || {}), vapid_public_key: publicKey };
 
       // Step 4: Register subscription
-      await enablePush(status.vapid_public_key);
+      await enablePush(publicKey);
+      try { localStorage.removeItem('hark_morning_alerts_disabled'); } catch {}
       this.pushOn = true;
       this.pushHint = 'You will be notified when the new episode is ready.';
       this.render();
       toast('Notifications enabled! You’ll get a ping when the new episode is out.');
     } catch (err) {
+      try { localStorage.removeItem('hark_push_registered'); } catch {}
       this.pushOn = false;
       this.pushHint = err.message || "Couldn't enable notifications.";
       this.render();
