@@ -102,10 +102,16 @@ export async function enablePush(publicKey) {
       throw new Error(perm === 'denied' ? 'Notifications are blocked in your browser settings.' : 'Permission was not granted.');
     }
   }
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+    throw new Error('Service workers are not available in this browser.');
+  }
   const reg = await Promise.race([
     navigator.serviceWorker.ready,
     new Promise((_, reject) => setTimeout(() => reject(new Error('Service worker took too long to activate. Please refresh.')), 8000)),
   ]);
+  if (!reg?.pushManager) {
+    throw new Error('Push notifications are not supported in this browser.');
+  }
   const pad = '='.repeat((4 - (publicKey.length % 4)) % 4);
   const raw = atob((publicKey + pad).replace(/-/g, '+').replace(/_/g, '/'));
   const key = Uint8Array.from(raw, (c) => c.charCodeAt(0));

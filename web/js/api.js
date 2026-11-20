@@ -826,11 +826,16 @@ export const api = {
 
   // ------------------------------------------------------------------ push
   async pushSubscribe(sub) {
+    if (!sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth) {
+      throw new Error('Browser did not return a valid push subscription.');
+    }
     let uid = null;
     try { uid = await userId(); } catch { uid = null; }
     const row = { endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, user_id: uid || null };
-    const { error } = await sb.from('push_subscriptions').upsert(row, { onConflict: 'endpoint', ignoreDuplicates: true });
-    if (error) throw new Error(error.message);
+    // Use plain insert rather than upsert(ignoreDuplicates): Postgres ON CONFLICT
+    // requires SELECT privileges on push_subscriptions, which anon intentionally lacks.
+    const { error } = await sb.from('push_subscriptions').insert(row);
+    if (error && error.code !== '23505') throw new Error(error.message);
     return true;
   },
   pushUnsubscribe: async (sub) => check(await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)),
