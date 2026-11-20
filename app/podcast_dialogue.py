@@ -977,10 +977,9 @@ def stitch_turn_audio(
 
 _TOPIC_VOICE_PROFILES: dict[str, tuple[tuple[float, float, float, float], tuple[float, float, float, float]]] = {
     # (pace, temperature, exaggeration, cfg_weight) for (speaker 0 / Matthew, speaker 1 / Kelly)
-    "sober": ((0.88, 0.72, 0.40, 0.30), (0.90, 0.76, 0.46, 0.30)),
-    "analytical": ((0.90, 0.76, 0.48, 0.33), (0.92, 0.80, 0.56, 0.33)),
-    "upbeat": ((0.91, 0.80, 0.52, 0.35), (0.93, 0.84, 0.62, 0.35)),
-    "lively": ((0.92, 0.82, 0.56, 0.37), (0.94, 0.86, 0.68, 0.37)),
+    "sober": ((0.88, 0.68, 0.35, 0.30), (0.91, 0.78, 0.52, 0.34)),
+    "analytical": ((0.89, 0.70, 0.38, 0.31), (0.92, 0.82, 0.60, 0.36)),
+    "upbeat": ((0.90, 0.72, 0.42, 0.32), (0.93, 0.85, 0.68, 0.38)),
 }
 
 
@@ -1010,17 +1009,15 @@ def voice_profile_for_turn(
         mood = "sober"
     elif base_sec in {"markets", "science"}:
         mood = "analytical"
-    elif base_sec in {"ai", "tech"}:
+    elif base_sec in {"ai", "tech", "entertainment", "sports"}:
         mood = "upbeat"
-    elif base_sec in {"entertainment", "sports"}:
-        mood = "lively"
     else:
         mood = "analytical"
 
     idx = 0 if speaker == 0 else 1
     pace, temp, exag, cfg_w = _TOPIC_VOICE_PROFILES[mood][idx]
     if purpose == "reaction" and word_count <= 4 and not is_sober:
-        pace = round(min(0.96, pace + 0.02), 2)
+        pace = round(min(0.93, pace + 0.01), 2)
         exag = round(min(0.75, exag + 0.06), 2)
         temp = round(min(0.88, temp + 0.02), 2)
     return {
