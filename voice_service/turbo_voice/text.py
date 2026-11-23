@@ -28,6 +28,8 @@ from pathlib import Path
 import re
 from dataclasses import dataclass
 
+from .numbers import spell_numbers
+
 # The paralinguistic tags Chatterbox is trained on. Anything else in square
 # brackets is passed through as literal text rather than silently swallowed, so a
 # typo shows up in the audio instead of disappearing.
@@ -283,14 +285,13 @@ def parse(text: str, *, beat: float = DEFAULT_BEAT) -> list[Say | Pause]:
             else:
                 out.append(Pause(seconds))
         else:
+            # Split on the digits first (so "287 people" can still start a
+            # sentence), then spell numbers out: Chatterbox misreads digits.
             sentences = split_sentences_safely(part, max_words=20)
-            if len(sentences) > 1:
-                for s_idx, sentence in enumerate(sentences):
-                    out.append(Say(sentence))
-                    if s_idx < len(sentences) - 1:
-                        out.append(Pause(INTER_SENTENCE_PAUSE))
-            else:
-                out.append(Say(part))
+            for s_idx, sentence in enumerate(sentences):
+                out.append(Say(spell_numbers(sentence)))
+                if s_idx < len(sentences) - 1:
+                    out.append(Pause(INTER_SENTENCE_PAUSE))
 
     while out and isinstance(out[0], Pause):
         out.pop(0)
