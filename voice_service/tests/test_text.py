@@ -56,7 +56,7 @@ def test_unknown_tags_are_reported_but_known_ones_are_not():
 
 
 def test_numbers_are_not_mistaken_for_pauses():
-    assert spans("In 2026 we won.") == ["In 2026 we won."]
+    assert spans("In 2026 we won.") == ["In twenty twenty-six we won."]
 
 
 def test_plain_strips_markers_and_tags():
