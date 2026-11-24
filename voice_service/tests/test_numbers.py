@@ -50,6 +50,8 @@ def test_year(n, words):
         ("a 194-year-old giant tortoise", "a one hundred ninety-four-year-old giant tortoise"),
         ("1,200 jobs", "one thousand two hundred jobs"),
         ("up 3.5 percent", "up three point five percent"),
+        ("64.6 million euro", "sixty-four point six million euro"),
+        ("down 0.05 percent to 1.25", "down zero point zero five percent to one point two five"),
         ("in the 1990s", "in the nineteen nineties"),
         ("the 21st century", "the twenty-first century"),
         ("at 7:30 tonight", "at seven thirty tonight"),

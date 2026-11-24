@@ -97,7 +97,7 @@ def _digits(s: str) -> str:
 
 
 def _is_year(s: str) -> bool:
-    return len(s) == 4 and 1100 <= int(s) <= 2099
+    return s.isascii() and s.isdigit() and len(s) == 4 and 1100 <= int(s) <= 2099
 
 
 def _number(raw: str) -> str:
