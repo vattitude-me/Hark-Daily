@@ -343,9 +343,13 @@ public class MainActivity extends BridgeActivity {
     private final Runnable stopRunnable = () -> HarkMediaService.stop(this);
 
     public void handlePlaybackState(boolean isPlaying, String title, String artist) {
+        handlePlaybackState(isPlaying, title, artist, null);
+    }
+
+    public void handlePlaybackState(boolean isPlaying, String title, String artist, String artworkUrl) {
         stopHandler.removeCallbacks(stopRunnable);
         if (isPlaying) {
-            HarkMediaService.start(this, title, artist);
+            HarkMediaService.start(this, title, artist, artworkUrl);
         } else {
             // Debounce service shutdown by 3 seconds so sequential clip transitions
             // (which momentarily fire pause before next clip play) don't destroy
@@ -428,7 +432,15 @@ public class MainActivity extends BridgeActivity {
         public void notifyPlaybackState(boolean isPlaying, String title, String artist) {
             MainActivity act = activityRef.get();
             if (act != null) {
-                act.runOnUiThread(() -> act.handlePlaybackState(isPlaying, title, artist));
+                act.runOnUiThread(() -> act.handlePlaybackState(isPlaying, title, artist, null));
+            }
+        }
+
+        @JavascriptInterface
+        public void updatePlaybackMetadata(boolean isPlaying, String title, String artist, String artworkUrl) {
+            MainActivity act = activityRef.get();
+            if (act != null) {
+                act.runOnUiThread(() -> act.handlePlaybackState(isPlaying, title, artist, artworkUrl));
             }
         }
 
