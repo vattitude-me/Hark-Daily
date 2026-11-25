@@ -2,7 +2,7 @@
 // serving cached modules beside a fresh index.html ran old and new code together. Fonts, icons and
 // shell audio rarely change and stay cache-first. Supabase (data, audio) and CDN requests are
 // cross-origin and go straight to the network.
-const CACHE = 'hark-daily-v117';
+const CACHE = 'hark-daily-v118';
 // On a weak link, fall back to the cached copy rather than hold the boot for a slow download.
 const NETWORK_WAIT_MS = 4000;
 const SHELL = [

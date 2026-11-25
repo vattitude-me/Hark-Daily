@@ -51,6 +51,18 @@ export function safeExternalUrl(url) {
   return null;
 }
 
+/** Resolves relative icon URLs against the current HTTP(S) origin for MediaMetadata & native fetchers. */
+export function toAbsoluteArtworkUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith('/') && typeof window !== 'undefined' && typeof window.location?.origin === 'string' && /^https?:\/\//i.test(window.location.origin)) {
+    return `${window.location.origin}${trimmed}`;
+  }
+  return trimmed;
+}
+
 export class Player extends EventTarget {
   constructor({ audio, preloader } = {}) {
     super();
@@ -64,6 +76,7 @@ export class Player extends EventTarget {
     this.isPrimed = false;
     this.wakeLock = null;
     this.isTransitioningClip = false;
+    this._lastNativeSyncKey = null;
 
     if (this.audio) {
       this.audio.preload = 'auto';
@@ -168,6 +181,7 @@ export class Player extends EventTarget {
         const fallback = getDefaultCover(currentSec);
         readerHeroImg.dataset.src = fallback;
         readerHeroImg.src = fallback;
+        if (this.briefing) this.updateMediaSession();
       });
     }
 
@@ -199,6 +213,7 @@ export class Player extends EventTarget {
             ambientBackdrop.style.backgroundImage = `url("${fallback}")`;
             ambientBackdrop.classList.add('has-image');
           }
+          if (this.briefing) this.updateMediaSession();
         } else {
           // If the SVG fallback itself failed to load, gracefully hide the broken img and reveal gradient orb
           cleanCoverImg.classList.add('hidden');
@@ -633,6 +648,7 @@ export class Player extends EventTarget {
 
     this.current = null;
     this.index = 0;
+    this._lastNativeSyncKey = null;
 
     if (this.audio) {
       this.audio.pause();
@@ -663,6 +679,7 @@ export class Player extends EventTarget {
     const saved = store.get(posKey, 0);
     if (saved > 5 && (!briefing.duration || saved < briefing.duration - 5)) this.seekTo(saved);
     this.tick();
+    this.updateMediaSession();
   }
 
   buildSegments() {
@@ -1193,16 +1210,34 @@ export class Player extends EventTarget {
     const liveStatus = document.getElementById('liveStatus');
     if (liveStatus) liveStatus.textContent = on ? 'Playing' : 'Paused';
     if (typeof window !== 'undefined' && window.HarkNative) {
-      try {
-        window.HarkNative.setKeepScreenOn(on);
-        const story = this.briefing?.stories?.[this.storyIndex];
-        const ch = this.currentChapter;
-        const title = ch?.title || story?.headline || this.briefing?.title || 'Hark Daily';
-        const artist = 'Hark Daily \u2022 ' + (this.briefing?.title || 'Briefing');
-        window.HarkNative.notifyPlaybackState(on, title, artist);
-      } catch {}
+      try { window.HarkNative.setKeepScreenOn?.(on); } catch {}
+      this.syncNativePlayback(on);
     }
+    if (on) this.updateMediaSession();
     this.dispatchEvent(new CustomEvent('state', { detail: { playing: on } }));
+  }
+
+  chapterDisplayMeta(ch) {
+    const isIntroOrBanter = Boolean(ch && (
+      (typeof ch.id === 'string' && (
+        ch.id.startsWith('pod_open') ||
+        ch.id.startsWith('pod_tease') ||
+        ch.id.startsWith('pod_bridge') ||
+        ch.id.startsWith('greeting') ||
+        ch.id.startsWith('pod_close') ||
+        ch.id === 'outro'
+      )) || ch.kind === 'note'
+    ));
+    const edition = this.briefing?.edition || 'ca';
+    const hour = new Date().getHours();
+    const liveWelcomeTitle = (isIntroOrBanter && ch?.id)
+      ? (ch.id.startsWith('pod_open')
+          ? banterTitle(ch.id, ch.section, { edition, hour })
+          : ch.id.startsWith('greeting')
+            ? noteTitle(ch.id, { edition, hour })
+            : ch.title)
+      : ch?.title;
+    return { isIntroOrBanter, liveWelcomeTitle };
   }
 
   tick() {
@@ -1253,29 +1288,13 @@ export class Player extends EventTarget {
     const ch = this.currentChapter(t);
     const story = this.storyFor(ch);
     const section = this.sectionTitle(ch);
-    const isIntroOrBanter = Boolean(ch && (
-      (typeof ch.id === 'string' && (
-        ch.id.startsWith('pod_open') ||
-        ch.id.startsWith('pod_tease') ||
-        ch.id.startsWith('pod_bridge') ||
-        ch.id.startsWith('greeting') ||
-        ch.id.startsWith('pod_close') ||
-        ch.id === 'outro'
-      )) || ch.kind === 'note'
-    ));
+    const { isIntroOrBanter, liveWelcomeTitle } = this.chapterDisplayMeta(ch);
     const started = t >= 0.5;
     if (el.state) {
       el.state.textContent = !started && !this.isPlaying
         ? `Ready · ${b.stories.length} ${b.stories.length === 1 ? 'story' : 'stories'}`
         : (this.isPlaying ? 'Now playing' : 'Paused');
     }
-    const liveWelcomeTitle = (isIntroOrBanter && ch?.id)
-      ? (ch.id.startsWith('pod_open')
-          ? banterTitle(ch.id, ch.section, { edition: b.edition || 'ca', hour: new Date().getHours() })
-          : ch.id.startsWith('greeting')
-            ? noteTitle(ch.id, { edition: b.edition || 'ca', hour: new Date().getHours() })
-            : ch.title)
-      : ch?.title;
     if (el.title) {
       el.title.textContent = (isIntroOrBanter && liveWelcomeTitle)
         ? liveWelcomeTitle
@@ -1751,24 +1770,59 @@ export class Player extends EventTarget {
     }
   }
 
-  updateMediaSession(ch, story) {
-    if (typeof window !== 'undefined' && window.HarkNative && this.isPlaying) {
-      try {
-        const title = ch?.title || story?.headline || this.briefing?.title || 'Hark Daily';
-        const artist = 'Hark Daily \u2022 ' + (this.briefing?.title || 'Briefing');
-        window.HarkNative.notifyPlaybackState(true, title, artist);
-      } catch {}
+  buildMediaPayload(ch = null, story = null) {
+    const activeCh = ch || this.currentChapter();
+    const activeStory = story || (activeCh ? this.storyFor(activeCh) : this.currentStory());
+    const { isIntroOrBanter, liveWelcomeTitle } = this.chapterDisplayMeta(activeCh);
+    const title = isIntroOrBanter
+      ? (liveWelcomeTitle || activeStory?.headline || this.briefing?.title || 'Hark Daily')
+      : (activeStory?.headline || activeCh?.title || this.briefing?.title || 'Hark Daily');
+    const srcName = (!isIntroOrBanter && activeStory?.source)
+      ? activeStory.source.split('·')[0].trim()
+      : '';
+    const secTitle = this.sectionTitle(activeCh) || '';
+    const artist = srcName ? `${srcName} · Hark Daily` : 'Hark Daily';
+    const album = secTitle || this.briefing?.title || 'Hark Daily';
+    const nativeArtist = srcName
+      ? `${srcName} \u2022 Hark Daily`
+      : ('Hark Daily \u2022 ' + (secTitle || this.briefing?.title || 'Briefing'));
+    const storyImg = safeExternalUrl(activeStory?.image || activeStory?.image_url);
+    const validStoryImg = (storyImg && !this.failedImages.has(storyImg)) ? storyImg : null;
+    const iconUrl = toAbsoluteArtworkUrl('/icons/icon-512.png');
+    const nativeArtworkUrl = validStoryImg || (/^https:\/\//i.test(iconUrl || '') ? iconUrl : null);
+    // Omit type on external editorial photos so browsers sniff JPEG/WebP/PNG headers; keep PNG fallback for lock screens.
+    const artwork = validStoryImg
+      ? [{ src: validStoryImg, sizes: '512x512' }, { src: iconUrl, sizes: '512x512', type: 'image/png' }]
+      : [{ src: iconUrl, sizes: '512x512', type: 'image/png' }];
+    return { title, artist, album, nativeArtist, nativeArtworkUrl, artwork };
+  }
+
+  syncNativePlayback(on, ch = null, story = null) {
+    if (typeof window === 'undefined' || !window.HarkNative) return;
+    const { title, nativeArtist, nativeArtworkUrl } = this.buildMediaPayload(ch, story);
+    const key = `${Boolean(on)}|${title}|${nativeArtist}|${nativeArtworkUrl || ''}`;
+    if (this._lastNativeSyncKey === key) return;
+    this._lastNativeSyncKey = key;
+    try {
+      if (typeof window.HarkNative.updatePlaybackMetadata === 'function') {
+        window.HarkNative.updatePlaybackMetadata(Boolean(on), title, nativeArtist, nativeArtworkUrl || '');
+      } else if (typeof window.HarkNative.notifyPlaybackState === 'function') {
+        window.HarkNative.notifyPlaybackState(Boolean(on), title, nativeArtist);
+      }
+    } catch {}
+  }
+
+  updateMediaSession(ch = null, story = null) {
+    const payload = this.buildMediaPayload(ch, story);
+    if (this.isPlaying) {
+      this.syncNativePlayback(true, ch, story);
     }
-    if (!('mediaSession' in navigator)) return;
-    const coverSrc = (story?.image && !this.failedImages.has(story.image))
-      ? story.image
-      : getDefaultCover(story?.section || this.currentSection);
-    const art = [{ src: coverSrc, sizes: '512x512' }];
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: ch?.title || story?.headline || this.briefing?.title || 'Hark Daily',
-      artist: 'Hark Daily',
-      album: this.briefing?.title || 'Hark Daily',
-      artwork: [...art, { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' }],
+      title: payload.title,
+      artist: payload.artist,
+      album: payload.album,
+      artwork: payload.artwork,
     });
     this.syncPositionState();
   }
