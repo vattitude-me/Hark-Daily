@@ -541,4 +541,19 @@ test('SEC-29: Service Worker excludes /api/ routes and validates notificationcli
   assert.ok(swSrc.includes("parsed.origin === self.location.origin"), 'SW must validate notification click origin');
 });
 
+test('Player transport controls suppress tap highlight overlay and preserve circular amber focus-visible ring', () => {
+  const css = readFileSync(resolve('web/css/styles.css'), 'utf8');
+  assert.match(css, /:root\s*\{[^}]*-webkit-tap-highlight-color:\s*transparent;/, ':root must inherit transparent tap highlight across all: unset controls');
+
+  for (const cls of ['.clean-nav-btn', '.clean-play-circle', '.clean-scrubber-btn']) {
+    const blockMatch = css.match(new RegExp(`\\${cls}\\s*\\{[^}]*\\}`));
+    assert.ok(blockMatch, `${cls} rule must exist`);
+    assert.ok(blockMatch[0].includes('-webkit-tap-highlight-color: transparent;'), `${cls} must set transparent tap highlight after all: unset`);
+    const unsetIdx = blockMatch[0].indexOf('all: unset;');
+    const tapIdx = blockMatch[0].indexOf('-webkit-tap-highlight-color: transparent;');
+    assert.ok(tapIdx > unsetIdx, `${cls} must declare transparent tap highlight AFTER all: unset`);
+    assert.ok(css.includes(`${cls}:focus-visible`), `${cls} must keep explicit :focus-visible styling`);
+  }
+});
+
 
