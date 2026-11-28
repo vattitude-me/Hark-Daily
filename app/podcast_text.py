@@ -44,7 +44,7 @@ _TAG_START = re.compile(r"^\s*\[(" + "|".join(TAGS) + r")\]\s*", re.I)
 Turn = tuple[int, str]  # (0 or 1 for host A or B, text which may carry [tags])
 
 _SOURCE_SUFFIX_RE = re.compile(
-    r"\s*(?:[|—–-]\s*(?:CBC News|The Verge|Variety|CBS Sports|The Hindu|Economic Times|ET Tech|"
+    r"\s*(?:[|—–-]\s*(?:CBC News|The Verge|Variety|CBS Sports|DD News|DD India|The Hindu|Economic Times|ET Tech|"
     r"Indian Express|ESPNcricinfo|New York Times|NYT|MarketWatch|NPR|TechCrunch|BetaKit|"
     r"ScienceDaily|Reuters|AP News|Bloomberg|BBC News|CNN|The Globe and Mail).*)$",
     re.I,
@@ -166,7 +166,7 @@ def _clean(text: str) -> str:
 
 def clean_headline(title: str) -> str:
     """Strip wire and publisher branding suffixes (e.g. ' | CBC News', ' - The Verge') from titles."""
-    return _SOURCE_SUFFIX_RE.sub("", _clean(title or "")).strip()
+    return _clean(_SOURCE_SUFFIX_RE.sub("", str(title or ""))).strip()
 
 
 def sanitize_profanity(text: str) -> str:

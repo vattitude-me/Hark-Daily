@@ -54,7 +54,8 @@ EDITION_FEEDS: dict[str, dict] = {
     "sports_us":        {"title": "Sports",               "provider": "CBS Sports",       "feed": "https://www.cbssports.com/rss/headlines/", "edition": "us"},
 
     # India
-    "top_in":           {"title": "Top stories",          "provider": "The Hindu",        "feed": "https://www.thehindu.com/news/national/feeder/default.rss", "edition": "in"},
+    "top_in":           {"title": "Top stories",          "provider": "DD News",          "feed": "https://ddindia.co.in/category/india/feed/",
+                         "fallback_provider": "DD News",  "fallback_feed": "https://ddindia.co.in/category/top-stories/feed/", "edition": "in"},
     "markets_in":       {"title": "Markets",              "provider": "Economic Times",   "feed": "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms", "edition": "in"},
     "tech_in":          {"title": "Tech",                 "provider": "ET Tech",          "feed": "https://economictimes.indiatimes.com/tech/rssfeeds/13357270.cms", "edition": "in"},
     "politics_in":      {"title": "Politics",             "provider": "Indian Express",   "feed": "https://indianexpress.com/section/political-pulse/feed/", "edition": "in"},
