@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Switched India edition Top stories (`top_in`) from The Hindu to DD News (`ddindia.co.in` India feed with Top Stories fallback), with RSS `content:encoded` body extraction and WordPress footer stripping.
 - Rebranded as a daily news podcast. Tagline: "The day's news, in conversation." Updated the web app copy, store listing, README banner, notifications and docs.
 - Removed C-3PO from the narrator list, the default voice and the voice service. The two hosts are Matthew and Kelly, and old C-3PO packs still play.
 

@@ -14,7 +14,7 @@ BOILERPLATE = re.compile(
     r"posts from this|email digest|homepage feed|your feed|follow (this |the )?(author|topic|story|series)|"
     r"see all (stories|posts)|listen to this (article|story)|share (this|the) (article|story)|"
     r"we may earn|affiliate link|commission when you buy|cookie|reporting by|editing by|"
-    r"this story (has been|was) (updated|originally)|^related:|^recommended:|^more:|^watch:|^read:|"
+    r"this story (has been|was) (updated|originally)|^the post\b.+\bappeared first on\b|^related:|^recommended:|^more:|^watch:|^read:|"
     r"^[-*•]?\s*(?:date|source|summary|share|cite|journal reference|author|published|updated):\s*.*|"
     r"^[-*•]?\s*(?:date|source|summary|share|cite|journal reference|author|published)$)",
     re.I,

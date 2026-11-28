@@ -312,7 +312,7 @@ Hark Daily publishes atomic briefing packs to Supabase. Web and mobile clients i
   * `voice` (`text`): Reference voice ID (`matthew_reference`, `kelly_reference`, or custom neural persona).
   * `title` (`text`): Clean news headline.
   * `url` (`text`): Original article canonical URL.
-  * `source` (`text`): Publisher attribution (e.g., `"The New York Times · Top stories"`, `"The Hindu · Top stories"`).
+  * `source` (`text`): Publisher attribution (e.g., `"The New York Times · Top stories"`, `"DD News · Top stories"`).
   * `image` (`text`): Hero image URL extracted from the article.
   * `script` (`text`): Spoken text voiced by the neural model.
   * `duration` (`real`): Clip audio duration in seconds.

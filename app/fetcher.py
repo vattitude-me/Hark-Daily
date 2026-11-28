@@ -84,7 +84,7 @@ async def _public_only(request: httpx.Request) -> None:
         await asyncio.to_thread(check_public_url, str(request.url), False)
 
 
-def make_client(timeout: float = 20.0) -> httpx.AsyncClient:
+def make_client(timeout: float = 25.0) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         headers={"User-Agent": USER_AGENT, "Accept-Language": "en-CA,en;q=0.9"},
         follow_redirects=True,
@@ -103,6 +103,32 @@ def clean_text(raw: str | None) -> str:
             raw = re.sub(r"<[^>]+>", " ", raw)
     raw = html.unescape(raw)
     return re.sub(r"\s+", " ", raw).strip()
+
+
+_YOAST_RSS_FOOTER_RE = re.compile(r"\s*The post\b.+?\bappeared first on\b.+?$", re.I | re.S)
+_RSS_TRUNC_MARKER_RE = re.compile(r"\s*\[(?:…|\.\.\.)\]\s*$")
+_BLOCK_TAG_RE = re.compile(r"</?(?:p|div|br|li|blockquote|h[1-6]|tr|article|section)\b[^>]*>", re.I)
+
+
+def _clean_rss_summary(raw: str | None) -> str:
+    cleaned = clean_text(raw)
+    if not cleaned:
+        return ""
+    cleaned = _YOAST_RSS_FOOTER_RE.sub("", cleaned).strip()
+    cleaned = _RSS_TRUNC_MARKER_RE.sub("…", cleaned).strip()
+    return cleaned
+
+
+def _entry_text(entry) -> str:
+    """Extract multi-paragraph body text when a feed embeds full articles in content:encoded."""
+    blobs = [c.get("value") or "" for c in (entry.get("content") or []) if isinstance(c, dict)]
+    raw = max(blobs, key=len, default="").strip()
+    if len(raw) < 200:
+        return ""
+    with_breaks = _BLOCK_TAG_RE.sub("\n", raw)
+    lines = [line for chunk in with_breaks.splitlines() if (line := clean_text(chunk))]
+    text = _drop_boilerplate("\n".join(lines)).strip()
+    return text if len(text) >= 200 else ""
 
 
 def normalize_url(url: str) -> str:
@@ -202,13 +228,14 @@ def parse_feed(body: bytes, source: dict) -> tuple[str, list[Item]]:
         link = (entry.get("link") or "").strip()
         if not title or not link or not re.match(r"^https?://", link, re.IGNORECASE):
             continue
-        summary = clean_text(entry.get("summary") or "")
+        summary = _clean_rss_summary(entry.get("summary") or "")
+        body_text = _entry_text(entry)
         source_name = source.get("name", "")
         outlet = clean_text((entry.get("source") or {}).get("title"))
         if outlet and _is_google_news(link):
             # Google News: "Headline - Outlet", and the summary only repeats the headline.
             title = title.removesuffix(f" - {outlet}").strip() or title
-            source_name, summary = outlet, ""
+            source_name, summary, body_text = outlet, "", ""
         if len(summary) > 1200:
             summary = summary[:1200].rsplit(" ", 1)[0] + "…"
         items.append(Item(
@@ -223,6 +250,7 @@ def parse_feed(body: bytes, source: dict) -> tuple[str, list[Item]]:
             image=_entry_image(entry),
             position=pos,
             feed_len=len(entries),
+            text=body_text,
         ))
     return clean_text(parsed.feed.get("title")) or urlparse(source.get("url", "")).hostname or "", items
 
@@ -404,9 +432,9 @@ async def enrich_items(items: list[Item], concurrency: int = 6) -> None:
     """Download full article text and a lead image for the stories that made the cut."""
     sem = asyncio.Semaphore(concurrency)
 
-    async with make_client(timeout=15.0) as client:
+    async with make_client(timeout=25.0) as client:
         async def one(item: Item) -> None:
-            if item.text and item.image:
+            if item.kind == "article" and item.text and item.image:
                 return
             async with sem:
                 if _is_google_news(item.url):

@@ -19,7 +19,7 @@ The pipeline reads RSS feeds. Each edition (Canada, US, India) has 8 sections. A
 
 | Section | Canada | US | India |
 | :--- | :--- | :--- | :--- |
-| Top stories | CBC News | New York Times | The Hindu |
+| Top stories | CBC News | New York Times | DD News |
 | Markets | CBC Business | MarketWatch | Economic Times |
 | AI | TechCrunch | TechCrunch | TechCrunch |
 | Tech | BetaKit | The Verge | ET Tech |

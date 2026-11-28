@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.fetcher import Item
-from app.topics import PROVIDER, SECTIONS, feed_url, source_for, top_n
+from app.topics import ALL_SECTIONS, PROVIDER, SECTIONS, fallback_source_for, feed_url, source_for, top_n
 
 
 def test_top_n_skips_media_player_stubs():
@@ -259,6 +259,27 @@ def test_pick_unique_deduplicates_cross_section_stories():
     assert len(res["tech"]) == 1
     assert "Tenstorrent raises" in res["tech"][0].title
     assert "Odessia" not in res["tech"][0].title
+
+
+def test_india_top_stories_uses_dd_news_with_fallback():
+    top_in = ALL_SECTIONS["top_in"]
+    assert top_in["provider"] == "DD News"
+    assert top_in["feed"] == "https://ddindia.co.in/category/india/feed/"
+    assert top_in["fallback_provider"] == "DD News"
+    assert top_in["fallback_feed"] == "https://ddindia.co.in/category/top-stories/feed/"
+
+    assert source_for("top_in")["name"] == "DD News · Top stories"
+    fallback = fallback_source_for("top_in")
+    assert fallback is not None
+    assert fallback["name"] == "DD News · Top stories"
+    assert fallback["url"] == "https://ddindia.co.in/category/top-stories/feed/"
+
+    # Other India feeds remain unchanged
+    assert ALL_SECTIONS["markets_in"]["provider"] == "Economic Times"
+    assert ALL_SECTIONS["tech_in"]["provider"] == "ET Tech"
+    assert ALL_SECTIONS["politics_in"]["provider"] == "Indian Express"
+    assert ALL_SECTIONS["entertainment_in"]["provider"] == "Indian Express"
+    assert ALL_SECTIONS["sports_in"]["provider"] == "ESPNcricinfo"
 
 
 

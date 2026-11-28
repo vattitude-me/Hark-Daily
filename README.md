@@ -39,7 +39,7 @@ No ads. No sign-up. Open it and press play.
 | :--- | :--- |
 | Canada | CBC News, CBC Business, BetaKit |
 | US | The New York Times, MarketWatch, The Verge, NPR, Variety, CBS Sports |
-| India | The Hindu, Economic Times, Indian Express, ESPNcricinfo |
+| India | DD News, Economic Times, Indian Express, ESPNcricinfo |
 | All editions | TechCrunch (AI), ScienceDaily (science) |
 
 ## Use it
